@@ -31,7 +31,7 @@ Fork of [WiimoteGun](https://github.com/fcaruso/WiimoteGun) with extensive enhan
 - 4 physical USB mice
 
 > [!NOTE]
-> Some keyboards are detected by Interception as both a keyboard and a mouse (composite device). In this case, you may need fewer physical devices (e.g., one keyboard and one mouse might be enough for 2 players).
+> Some keyboards are detected by Interception as both a keyboard and a mouse (composite device), even if they don't have a trackpad or mouse function. For example, the **Kworld GAMDIAS HERMES Gaming Keyboard** is detected as both. In this case, you may need fewer physical devices (e.g., one keyboard and one mouse might be enough for 2 players).
 
 ## 📦 Installation
 
