@@ -30,6 +30,9 @@ Fork of [WiimoteGun](https://github.com/fcaruso/WiimoteGun) with extensive enhan
 - 4 physical USB keyboards
 - 4 physical USB mice
 
+> [!NOTE]
+> Some keyboards are detected by Interception as both a keyboard and a mouse (composite device). In this case, you may need fewer physical devices (e.g., one keyboard and one mouse might be enough for 2 players).
+
 ## 📦 Installation
 
 1. **Download** the latest release
