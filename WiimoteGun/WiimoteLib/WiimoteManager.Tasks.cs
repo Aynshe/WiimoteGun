@@ -157,7 +157,25 @@ namespace WiimoteLib {
 			}
 
 			if (result)
-				token.Sleep(retryDiscoverDelay);
+			{
+				// Dynamic delay logic to reduce lag when Wiimotes are connected
+				int delay = retryDiscoverDelay;
+				
+				if (WiimoteCount > 0)
+				{
+					// If we have connected Wiimotes, check how long since the first connection
+					TimeSpan timeSinceFirstConnection = DateTime.Now - _firstConnectionTime;
+					
+					if (timeSinceFirstConnection.TotalSeconds > 15)
+					{
+						// After 15 seconds of stable connection, slow down discovery significantly
+						// This reduces CPU/Radio usage and prevents tracking lag
+						delay = 5000; // 5 seconds
+					}
+				}
+				
+				token.Sleep(delay);
+			}
 
 			GC.Collect();
 
@@ -177,12 +195,23 @@ namespace WiimoteLib {
 				if (wiimote == null) {
 					if (autoConnect) {
 						//FIXME: Handle BOTH Bluetooth and DolphinBarMode more gracefully.
-						WiimoteDeviceInfo wiimoteDevice = new WiimoteDeviceInfo(hid, true);// DolphinBarMode);
+						WiimoteDeviceInfo wiimoteDevice = null;
 						try {
-							Connect(wiimoteDevice);
+							// Try to resolve as a Bluetooth device first to get the real address
+							wiimoteDevice = new WiimoteDeviceInfo(hid, false);
+						} catch {
+							// Fallback to DolphinBar mode (dummy address) if enabled
+							if (DolphinBarMode)
+								wiimoteDevice = new WiimoteDeviceInfo(hid, true);
 						}
-						catch (Exception ex) {
-							RaiseConnectionFailed(wiimoteDevice, ex);
+
+						if (wiimoteDevice != null) {
+							try {
+								Connect(wiimoteDevice);
+							}
+							catch (Exception ex) {
+								RaiseConnectionFailed(wiimoteDevice, ex);
+							}
 						}
 					}
 					else if (!RaiseDiscovered(null, hid)) {

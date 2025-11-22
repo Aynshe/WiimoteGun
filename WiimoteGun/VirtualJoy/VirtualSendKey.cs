@@ -35,17 +35,10 @@ namespace WiimoteGun
             {
                 _kb = new InputConfig() { Type = "keyboard", DeviceName = "Keyboard", DeviceGUID = "-1" };
                 _kb.Input = new List<Input>();
-                _kb.Input.Add(new Input() { Name = InputKey.a, Type = "key", Id = 122, Value = 1 });
-                _kb.Input.Add(new Input() { Name = InputKey.b, Type = "key", Id = 120, Value = 1 });
                 _kb.Input.Add(new Input() { Name = InputKey.down, Type = "key", Id = 1073741905, Value = 1 });
-                _kb.Input.Add(new Input() { Name = InputKey.hotkey, Type = "key", Id = 1073742052, Value = 1 });
                 _kb.Input.Add(new Input() { Name = InputKey.left, Type = "key", Id = 1073741904, Value = 1 });
                 _kb.Input.Add(new Input() { Name = InputKey.right, Type = "key", Id = 1073741903, Value = 1 });
-                _kb.Input.Add(new Input() { Name = InputKey.select, Type = "key", Id = 8, Value = 1 });
-                _kb.Input.Add(new Input() { Name = InputKey.start, Type = "key", Id = 13, Value = 1 });
                 _kb.Input.Add(new Input() { Name = InputKey.up, Type = "key", Id = 1073741906, Value = 1 });
-                _kb.Input.Add(new Input() { Name = InputKey.x, Type = "key", Id = 113, Value = 1 });
-                _kb.Input.Add(new Input() { Name = InputKey.y, Type = "key", Id = 115, Value = 1 });
             }
         }
 
@@ -112,7 +105,27 @@ namespace WiimoteGun
             public bool Changed { get; set; }
         };
 
+        private Dictionary<Keys, StateInfo> _keyStates = new Dictionary<Keys, StateInfo>();
         private Dictionary<InputKey, StateInfo> _states = new Dictionary<InputKey, StateInfo>();
+
+        public void SendKeyEvent(Keys key, bool v)
+        {
+            if (key == Keys.None)
+                return;
+
+            StateInfo info;
+            if (!_keyStates.TryGetValue(key, out info))
+            {
+                info = new StateInfo() { Changed = v };
+                _keyStates[key] = info;
+            }
+
+            if (v != info.State)
+            {
+                info.State = v;
+                info.Changed = true;
+            }
+        }
 
         private void SetState(InputKey key, bool value)
         {
@@ -141,13 +154,13 @@ namespace WiimoteGun
                 }
                 else if (value < 0)
                 {
-                    SetState(InputKey.left, false);
-                    SetState(InputKey.right, true);
+                    SetState(InputKey.left, true);
+                    SetState(InputKey.right, false);
                 }
                 else
                 {
-                    SetState(InputKey.left, true);
-                    SetState(InputKey.right, false);
+                    SetState(InputKey.left, false);
+                    SetState(InputKey.right, true);
                 }
             }
             else
@@ -188,17 +201,10 @@ namespace WiimoteGun
                     SetState(InputKey.y, value);
                     break;
                 case 5:
-              //      SetState(InputKey.select, value);
-
-                    if (_kb != null && _kb[InputKey.hotkey] != null && _kb[InputKey.select] != null && _kb[InputKey.select].Id != _kb[InputKey.hotkey].Id)
-                        SetState(InputKey.hotkey, value);
-
                     break;
                 case 6:
-                    SetState(InputKey.start, value);
                     break;
                 case 7:
-                    SetState(InputKey.hotkey, value);
                     break;
             }
         }
@@ -212,6 +218,15 @@ namespace WiimoteGun
                 
                 key.Value.Changed = false;
                 SendButtonState(key.Key, key.Value.State);                                   
+            }
+
+            foreach (var key in _keyStates)
+            {
+                if (!key.Value.Changed)
+                    continue;
+
+                key.Value.Changed = false;
+                Send(key.Key, key.Value.State);
             }
         }
 
@@ -280,6 +295,22 @@ namespace WiimoteGun
 
         public static void Send(Keys key, bool keyDown, bool isEXTEND = false)
         {
+            switch (key)
+            {
+                case Keys.Up:
+                case Keys.Down:
+                case Keys.Left:
+                case Keys.Right:
+                case Keys.Home:
+                case Keys.End:
+                case Keys.Prior:
+                case Keys.Next:
+                case Keys.Insert:
+                case Keys.Delete:
+                    isEXTEND = true;
+                    break;
+            }
+
             Debug.WriteLine(key.ToString() + " " + (keyDown ? "(DOWN)" : "(UP)"));
 
             if (IntPtr.Size == 8)

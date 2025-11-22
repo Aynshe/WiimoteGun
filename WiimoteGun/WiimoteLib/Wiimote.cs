@@ -76,7 +76,7 @@ namespace WiimoteLib {
 				}
 
 				// force a status check to get the state of any extensions plugged in at startup
-				GetStatus(3000);
+				//GetStatus(3000);
 			}
 			catch {
 				Dispose();
@@ -227,9 +227,13 @@ namespace WiimoteLib {
 		public BluetoothAddress Address => Device.Address;
 
 		/// <summary>The HID device path of this Wiimote device.</summary>
-		public string DevicePath => Device.DevicePath;
+	public string DevicePath => Device.DevicePath;
 
-		/// <summary>The type of this Wiimote.</summary>
+	/// <summary>Unique identifier for this Wiimote (MAC for Bluetooth, HID path for DolphinBar).</summary>
+	/// <summary lang="fr">Identifiant unique pour cette Wiimote (MAC pour Bluetooth, chemin HID pour DolphinBar).</summary>
+	public string UniqueId => Device.UniqueId;
+
+	/// <summary>The type of this Wiimote.</summary>
 		public WiimoteType Type => device.Type;
 
 		/// <summary>True if the wiimote is connected.</summary>

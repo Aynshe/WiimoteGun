@@ -1,4 +1,4 @@
-﻿
+
 namespace WiimoteGun
 {
     partial class OptionsForm
@@ -36,25 +36,34 @@ namespace WiimoteGun
             this.cbStartWithWindows = new System.Windows.Forms.CheckBox();
             this.rbBoth = new System.Windows.Forms.RadioButton();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
+            this.btn4PlayersInfo = new System.Windows.Forms.Button();
+            this.chk4Players = new System.Windows.Forms.CheckBox();
+            this.chkSharedKeyboard = new System.Windows.Forms.CheckBox();
             this.chkNotifications = new System.Windows.Forms.CheckBox();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.rbBlueTooth = new System.Windows.Forms.RadioButton();
             this.rbDolphinbar = new System.Windows.Forms.RadioButton();
             this.groupBox3 = new System.Windows.Forms.GroupBox();
+            this.cboLEDLayout = new System.Windows.Forms.ComboBox();
+            this.lblLEDLayout = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.trackBar1 = new System.Windows.Forms.TrackBar();
+            this.groupBox4 = new System.Windows.Forms.GroupBox();
+            this.btnInstall = new System.Windows.Forms.Button();
+            this.btnUninstall = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown1)).BeginInit();
             this.groupBox1.SuspendLayout();
             this.groupBox2.SuspendLayout();
             this.groupBox3.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.trackBar1)).BeginInit();
+            this.groupBox4.SuspendLayout();
             this.SuspendLayout();
             // 
             // btnCancel
             // 
             this.btnCancel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.btnCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.btnCancel.Location = new System.Drawing.Point(324, 325);
+            this.btnCancel.Location = new System.Drawing.Point(324, 450);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(75, 26);
             this.btnCancel.TabIndex = 0;
@@ -65,7 +74,7 @@ namespace WiimoteGun
             // btnOk
             // 
             this.btnOk.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnOk.Location = new System.Drawing.Point(243, 325);
+            this.btnOk.Location = new System.Drawing.Point(243, 450);
             this.btnOk.Name = "btnOk";
             this.btnOk.Size = new System.Drawing.Size(75, 26);
             this.btnOk.TabIndex = 1;
@@ -117,11 +126,14 @@ namespace WiimoteGun
             // 
             this.groupBox1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
+            this.groupBox1.Controls.Add(this.chkSharedKeyboard);
+            this.groupBox1.Controls.Add(this.btn4PlayersInfo);
+            this.groupBox1.Controls.Add(this.chk4Players);
             this.groupBox1.Controls.Add(this.chkNotifications);
             this.groupBox1.Controls.Add(this.cbStartWithWindows);
             this.groupBox1.Location = new System.Drawing.Point(15, 230);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(384, 84);
+            this.groupBox1.Size = new System.Drawing.Size(384, 130);
             this.groupBox1.TabIndex = 6;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Misc options";
@@ -170,17 +182,49 @@ namespace WiimoteGun
             this.rbDolphinbar.Text = "Dolphinbar";
             this.rbDolphinbar.UseVisualStyleBackColor = true;
             // 
+            // chk4Players
+            // 
+            this.chk4Players.AutoSize = true;
+            this.chk4Players.Location = new System.Drawing.Point(13, 76);
+            this.chk4Players.Name = "chk4Players";
+            this.chk4Players.Size = new System.Drawing.Size(200, 17);
+            this.chk4Players.TabIndex = 6;
+            this.chk4Players.Text = "Enable 4 Players (Experimental)";
+            this.chk4Players.UseVisualStyleBackColor = true;
+            // 
+            // btn4PlayersInfo
+            // 
+            this.btn4PlayersInfo.Location = new System.Drawing.Point(219, 72);
+            this.btn4PlayersInfo.Name = "btn4PlayersInfo";
+            this.btn4PlayersInfo.Size = new System.Drawing.Size(24, 24);
+            this.btn4PlayersInfo.TabIndex = 7;
+            this.btn4PlayersInfo.Text = "?";
+            this.btn4PlayersInfo.UseVisualStyleBackColor = true;
+            this.btn4PlayersInfo.Click += new System.EventHandler(this.btn4PlayersInfo_Click);
+            // 
+            // chkSharedKeyboard
+            // 
+            this.chkSharedKeyboard.AutoSize = true;
+            this.chkSharedKeyboard.Location = new System.Drawing.Point(13, 102);
+            this.chkSharedKeyboard.Name = "chkSharedKeyboard";
+            this.chkSharedKeyboard.Size = new System.Drawing.Size(235, 17);
+            this.chkSharedKeyboard.TabIndex = 8;
+            this.chkSharedKeyboard.Text = "Use Shared Keyboard (Recommended)";
+            this.chkSharedKeyboard.UseVisualStyleBackColor = true;
+            // 
             // groupBox3
             // 
             this.groupBox3.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
+            this.groupBox3.Controls.Add(this.cboLEDLayout);
+            this.groupBox3.Controls.Add(this.lblLEDLayout);
             this.groupBox3.Controls.Add(this.trackBar1);
             this.groupBox3.Controls.Add(this.label2);
             this.groupBox3.Controls.Add(this.label1);
             this.groupBox3.Controls.Add(this.numericUpDown1);
             this.groupBox3.Location = new System.Drawing.Point(12, 126);
             this.groupBox3.Name = "groupBox3";
-            this.groupBox3.Size = new System.Drawing.Size(384, 98);
+            this.groupBox3.Size = new System.Drawing.Size(384, 130);
             this.groupBox3.TabIndex = 8;
             this.groupBox3.TabStop = false;
             this.groupBox3.Text = "Mouse emulation ( Restart required )";
@@ -201,14 +245,69 @@ namespace WiimoteGun
             this.trackBar1.Name = "trackBar1";
             this.trackBar1.Size = new System.Drawing.Size(119, 30);
             this.trackBar1.TabIndex = 5;
+            //
+            // lblLEDLayout
+            //
+            this.lblLEDLayout.AutoSize = true;
+            this.lblLEDLayout.Location = new System.Drawing.Point(10, 97);
+            this.lblLEDLayout.Name = "lblLEDLayout";
+            this.lblLEDLayout.Size = new System.Drawing.Size(65, 13);
+            this.lblLEDLayout.TabIndex = 6;
+            this.lblLEDLayout.Text = "LED Layout";
+            //
+            // cboLEDLayout
+            //
+            this.cboLEDLayout.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.cboLEDLayout.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboLEDLayout.FormattingEnabled = true;
+            this.cboLEDLayout.Items.AddRange(new object[] {
+            "Wiimote Bar (Standard)",
+            "Gun4IR Diamond",
+            "4 Corners (Retroshooter)"});
+            this.cboLEDLayout.Location = new System.Drawing.Point(150, 94);
+            this.cboLEDLayout.Name = "cboLEDLayout";
+            this.cboLEDLayout.Size = new System.Drawing.Size(226, 21);
+            this.cboLEDLayout.TabIndex = 7;
             // 
+            // groupBox4
+            //
+            this.groupBox4.Controls.Add(this.btnUninstall);
+            this.groupBox4.Controls.Add(this.btnInstall);
+            this.groupBox4.Location = new System.Drawing.Point(15, 370);
+            this.groupBox4.Name = "groupBox4";
+            this.groupBox4.Size = new System.Drawing.Size(381, 65);
+            this.groupBox4.TabIndex = 9;
+            this.groupBox4.TabStop = false;
+            this.groupBox4.Text = "Virtual HID Driver";
+            //
+            // btnInstall
+            //
+            this.btnInstall.Location = new System.Drawing.Point(13, 25);
+            this.btnInstall.Name = "btnInstall";
+            this.btnInstall.Size = new System.Drawing.Size(120, 25);
+            this.btnInstall.TabIndex = 0;
+            this.btnInstall.Text = "Install Drivers";
+            this.btnInstall.UseVisualStyleBackColor = true;
+            this.btnInstall.Click += new System.EventHandler(this.btnInstall_Click);
+            //
+            // btnUninstall
+            //
+            this.btnUninstall.Location = new System.Drawing.Point(150, 25);
+            this.btnUninstall.Name = "btnUninstall";
+            this.btnUninstall.Size = new System.Drawing.Size(120, 25);
+            this.btnUninstall.TabIndex = 1;
+            this.btnUninstall.Text = "Uninstall Drivers";
+            this.btnUninstall.UseVisualStyleBackColor = true;
+            this.btnUninstall.Click += new System.EventHandler(this.btnUninstall_Click);
+            //
             // OptionsForm
             // 
             this.AcceptButton = this.btnOk;
             this.AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
             this.CancelButton = this.btnCancel;
-            this.ClientSize = new System.Drawing.Size(411, 360);
+            this.ClientSize = new System.Drawing.Size(411, 490);
+            this.Controls.Add(this.groupBox4);
             this.Controls.Add(this.groupBox3);
             this.Controls.Add(this.groupBox2);
             this.Controls.Add(this.groupBox1);
@@ -230,6 +329,7 @@ namespace WiimoteGun
             this.groupBox3.ResumeLayout(false);
             this.groupBox3.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.trackBar1)).EndInit();
+            this.groupBox4.ResumeLayout(false);
             this.ResumeLayout(false);
 
         }
@@ -250,5 +350,13 @@ namespace WiimoteGun
         private System.Windows.Forms.CheckBox chkNotifications;
         private System.Windows.Forms.TrackBar trackBar1;
         private System.Windows.Forms.Label label2;
+        private System.Windows.Forms.GroupBox groupBox4;
+        private System.Windows.Forms.Button btnInstall;
+        private System.Windows.Forms.Button btnUninstall;
+        private System.Windows.Forms.CheckBox chk4Players;
+        private System.Windows.Forms.Button btn4PlayersInfo;
+        private System.Windows.Forms.ComboBox cboLEDLayout;
+        private System.Windows.Forms.Label lblLEDLayout;
+        private System.Windows.Forms.CheckBox chkSharedKeyboard;
     }
 }
