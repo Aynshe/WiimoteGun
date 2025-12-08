@@ -35,6 +35,8 @@ namespace WiimoteLib.Devices {
 		public int ProductID => HID.ProductID;
 		public int VendorID => HID.VendorID;
 		public string DevicePath => HID.DevicePath;
+		// Unique identifier for Wiimote - uses MAC for Bluetooth, HID path for DolphinBar (EN/FR: Identifiant unique - utilise MAC pour Bluetooth, chemin HID pour DolphinBar)
+		public string UniqueId => GetUniqueIdentifier();
 		public bool IsOpen => HID.IsOpen;
 		
 		internal WiimoteDeviceInfo(BluetoothDeviceInfo bt, HIDDeviceInfo hid) {
@@ -125,7 +127,50 @@ namespace WiimoteLib.Devices {
 			return WiimoteType.Unknown;
 		}
 
-		public static WiimoteType GetTypeFromPID(int productID, bool throwOnError = true) {
+	// Get unique identifier for this Wiimote device (EN/FR: Obtenir l'identifiant unique pour ce périphérique Wiimote)
+	private string GetUniqueIdentifier()
+	{
+		// If Bluetooth mode with valid MAC address, use MAC (EN/FR: Si mode Bluetooth avec MAC valide, utiliser MAC)
+		if (IsBluetooth && !Address.IsInvalid && Address.ToString() != "00:00:00:00:00:00")
+		{
+			return Address.ToString();
+		}
+
+		// DolphinBar mode: extract unique part from HID path (EN/FR: Mode DolphinBar : extraire la partie unique du chemin HID)
+		return ExtractDeviceIdFromPath(DevicePath);
+	}
+
+	// Extract unique device ID from HID path (EN/FR: Extraire l'ID unique du chemin HID)
+	// Example: \\?\hid#vid_057e&pid_0306&mi_00#8&3843280c&0&0000#{...}
+	//                                          ^^^^^^^^^^^^^^^^ unique part
+	private static string ExtractDeviceIdFromPath(string hidPath)
+	{
+		if (string.IsNullOrEmpty(hidPath))
+			return Guid.NewGuid().ToString(); // Fallback (EN/FR: Solution de repli)
+
+		try
+		{
+			// Split by '#' and get the device instance path (unique per HID device)
+			// (EN/FR: Séparer par '#' et obtenir le chemin d'instance du périphérique)
+			string[] parts = hidPath.Split('#');
+			if (parts.Length >= 3)
+			{
+				// Return the device instance path (part between second and third '#')
+				// (EN/FR: Retourner le chemin d'instance - partie entre 2ème et 3ème '#')
+				return parts[2];
+			}
+		}
+		catch
+		{
+			// Fallback on error (EN/FR: Solution de repli en cas d'erreur)
+		}
+
+		// Use full path as last resort (EN/FR: Utiliser le chemin complet en dernier recours)
+		return hidPath;
+	}
+
+	public static WiimoteType GetTypeFromPID(int productID, bool throwOnError = true) {
+
 			foreach (var field in EnumInfo<WiimoteType>.Fields) {
 				if (field.LongValue == 0)
 					continue;

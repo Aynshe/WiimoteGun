@@ -63,12 +63,11 @@ namespace WiimoteGun
             // 
             // labelCopyright
             // 
-            this.labelCopyright.AutoSize = true;
             this.labelCopyright.Location = new System.Drawing.Point(15, 60);
             this.labelCopyright.Margin = new System.Windows.Forms.Padding(6, 0, 3, 0);
-            this.labelCopyright.MaximumSize = new System.Drawing.Size(0, 17);
+            this.labelCopyright.MaximumSize = new System.Drawing.Size(260, 40);
             this.labelCopyright.Name = "labelCopyright";
-            this.labelCopyright.Size = new System.Drawing.Size(51, 13);
+            this.labelCopyright.Size = new System.Drawing.Size(260, 30);
             this.labelCopyright.TabIndex = 21;
             this.labelCopyright.Text = "Copyright";
             this.labelCopyright.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;

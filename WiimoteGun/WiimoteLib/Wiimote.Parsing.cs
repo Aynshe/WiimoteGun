@@ -155,7 +155,11 @@ namespace WiimoteLib {
 				//this.SetReportType(InputReport.ButtonsExt19, true);
 				break;
 			default:
-				throw new WiimoteException(this, $"Unknown extension controller found: {type:x12}");
+				// Workaround: Treat unknown extensions as Nunchuk (EN/FR: Traiter les extensions inconnues comme Nunchuk)
+				// This fixes ff00a4200000 errors which are often Nunchuks with corrupted IDs
+				Log.Warning($"Unknown extension controller found: {type:x12}, treating as Nunchuk");
+				wiimoteState.ExtensionType = ExtensionType.Nunchuk;
+				break;
 			}
 
 			switch (wiimoteState.ExtensionType) {
@@ -163,6 +167,18 @@ namespace WiimoteLib {
 				buff = ReadData(Registers.ExtensionCalibration, 16);
 
 				wiimoteState.Nunchuk.CalibrationInfo.Parse(buff, 0);
+				
+				// Check if calibration data is valid, if not use defaults (EN/FR: Vérifier si la calibration est valide, sinon utiliser les valeurs par défaut)
+				if (wiimoteState.Nunchuk.CalibrationInfo.Max.X == 0 && wiimoteState.Nunchuk.CalibrationInfo.Max.Y == 0 &&
+				    wiimoteState.Nunchuk.CalibrationInfo.Min.X == 0 && wiimoteState.Nunchuk.CalibrationInfo.Min.Y == 0) {
+					Log.Warning("Invalid Nunchuk calibration detected (all zeros), using default values");
+					wiimoteState.Nunchuk.CalibrationInfo.Max.X = 228;
+					wiimoteState.Nunchuk.CalibrationInfo.Max.Y = 228;
+					wiimoteState.Nunchuk.CalibrationInfo.Min.X = 35;
+					wiimoteState.Nunchuk.CalibrationInfo.Min.Y = 35;
+					wiimoteState.Nunchuk.CalibrationInfo.Mid.X = 130;
+					wiimoteState.Nunchuk.CalibrationInfo.Mid.Y = 129;
+				}
 
 					/*mWiimoteState.Nunchuk.CalibrationInfo.AccelCalibration.X0 = buff[0];
 					mWiimoteState.Nunchuk.CalibrationInfo.AccelCalibration.Y0 = buff[1];

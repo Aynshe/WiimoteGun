@@ -26,15 +26,15 @@ namespace WiimoteGun
             MinimizeBox = false;
             Text = null;
 
-            Width = 250;
-            Height = 60;
+            Width = 350; // Increased from 250 to avoid text truncation (EN/FR: Augmenté pour éviter troncature)
+            Height = 80; // Increased from 60 for multi-line support (EN/FR: Augmenté pour multi-lignes)
 
             Location = new System.Drawing.Point(bounds.Right - Width - 16, bounds.Top + 16);
 
             StartPosition = FormStartPosition.Manual;
 
             _timer = new Timer();
-            _timer.Interval = 3000;
+            _timer.Interval = 5000; // Increased from 3000ms to 5000ms for better readability (EN/FR: Augmenté pour meilleure lisibilité)
             _timer.Tick += (a, b) =>
                 {
                     Close();
@@ -84,12 +84,28 @@ namespace WiimoteGun
 
         protected override void OnPaint(PaintEventArgs e)
         {
+            // Use larger font for better readability (EN/FR: Police plus grande pour meilleure lisibilité)
+            Font largerFont = new Font(SystemFonts.MessageBoxFont.FontFamily, 11, FontStyle.Bold);
+            
+            // Allow word wrap for long text (EN/FR: Permettre retour ligne pour texte long)
             TextRenderer.DrawText(e.Graphics, _text, 
-                SystemFonts.MessageBoxFont, 
+                largerFont, 
                 this.ClientRectangle,
                 Color.White, 
                 Color.Transparent, 
-                TextFormatFlags.SingleLine | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                TextFormatFlags.WordBreak | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                
+            largerFont.Dispose();
+            
+            // Draw app name in top right corner (EN/FR: Dessiner nom app coin haut droit)
+            using (Font smallFont = new Font(SystemFonts.MessageBoxFont.FontFamily, 8, FontStyle.Regular))
+            {
+                string appName = "(WiimoteGun)";
+                Size size = TextRenderer.MeasureText(appName, smallFont);
+                Point location = new Point(this.ClientRectangle.Right - size.Width - 5, 2);
+                
+                TextRenderer.DrawText(e.Graphics, appName, smallFont, location, Color.Gray);
+            }
         }
 
         private string _text;

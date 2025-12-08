@@ -10,7 +10,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>WiimoteGun</RootNamespace>
     <AssemblyName>WiimoteGun</AssemblyName>
-    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <WarningLevel>4</WarningLevel>
@@ -47,7 +47,7 @@
     <WarningLevel>4</WarningLevel>
     <RunCodeAnalysis>false</RunCodeAnalysis>
     <Prefer32Bit>false</Prefer32Bit>
-    <PlatformTarget>AnyCPU</PlatformTarget>
+    <PlatformTarget>x86</PlatformTarget>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -57,6 +57,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
+    <PlatformTarget>x86</PlatformTarget>
   </PropertyGroup>
   <PropertyGroup>
     <StartupObject>WiimoteGun.Program</StartupObject>
@@ -71,6 +72,7 @@
     <Reference Include="System.Drawing" />
     <Reference Include="System.Management" />
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="Microsoft.VisualBasic" />
     <Reference Include="System.Xml" />
     <Reference Include="WindowsBase">
       <RequiredTargetFramework>3.0</RequiredTargetFramework>
@@ -85,9 +87,22 @@
     </Compile>
     <Compile Include="Common\SimpleLogger.cs" />
     <Compile Include="Common\Win32.cs" />
+    <Compile Include="MappingForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MappingForm.Designer.cs">
+      <DependentUpon>MappingForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="IRVisualizerForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="GyroVisualizerForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="NotifyForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="PlayerMappings.cs" />
     <Compile Include="Options.cs" />
     <Compile Include="OptionsForm.cs">
       <SubType>Form</SubType>
@@ -96,6 +111,37 @@
       <DependentUpon>OptionsForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
+    <Compile Include="ProfileOverlay.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ProfileOverlay.Designer.cs">
+      <DependentUpon>ProfileOverlay.cs</DependentUpon>
+    </Compile>
+    <Compile Include="KeySelectorDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="PlayerDeviceDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ProfileOverlay.OptionsPage.cs">
+      <DependentUpon>ProfileOverlay.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ProfileOverlay.AssignPage.cs">
+      <DependentUpon>ProfileOverlay.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ProfileOverlay.IRPage.cs">
+      <DependentUpon>ProfileOverlay.cs</DependentUpon>
+    </Compile>
+    <Compile Include="GameProfileMapping.cs" />
+    <Compile Include="ToastNotification.cs" />
+    <Compile Include="ModalInputDialog.cs" />
+    <Compile Include="InterceptionDriver.cs" />
+    <Compile Include="IVirtualMouse.cs" />
+    <Compile Include="VirtualInterceptionMouse.cs" />
+    <Compile Include="VirtualInterceptionKeyboard.cs" />
+    <Compile Include="WelcomeDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="WiimoteHiddenWnd.cs" />
     <Compile Include="WiimoteLib\DataTypes\AccelCalibrationInfo.cs" />
     <Compile Include="WiimoteLib\DataTypes\AccelState.cs" />
@@ -179,9 +225,26 @@
     <Compile Include="CalibrateForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="CalibrationModeSelectionForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Common\EsInput.cs" />
     <Compile Include="Common\Extensions.cs" />
-    <Compile Include="MouseEventSimulator.cs" />
+    <Compile Include="DeviceHelper.cs" />
+    <Compile Include="VMultiDeviceDetector.cs" />
+    <Compile Include="VirtualKeyboard.cs" />
+    <Compile Include="Hotkey.cs" />
+    <Compile Include="HotkeyProfile.cs" />
+    <Compile Include="HotkeyManager.cs" />
+    <Compile Include="HotkeyEditorDialog.cs" />
+    <Compile Include="UsbIdProvider.cs" />
+    <Compile Include="MessageWindow.cs" />
+    <Compile Include="EmulatorProcessMonitor.cs" />
+    <Compile Include="RemapProfileManager.cs" />
+    <Compile Include="VirtualSendInputMouse.cs" />
+    <Compile Include="VirtualSendInputKeyboard.cs" />
+    <!-- VirtualRawMouse.cs removed - replaced by VirtualInterceptionMouse.cs -->
+    <Compile Include="WiimoteControllerManager.cs" />
     <Compile Include="VirtualJoy\IVirtualJoy.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>
@@ -244,6 +307,15 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="red.ico" />
+  </ItemGroup>
+  <!-- VMultiDllWrapper reference removed - replaced by Interception -->
+  <ItemGroup>
+    <Content Include="interception.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="WiimoteGunDriver\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

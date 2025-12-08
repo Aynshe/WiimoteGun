@@ -29,13 +29,17 @@ namespace WiimoteLib.Helpers {
 
 		private ElapsedTimer1Delegate _elapsedTimer1Handler;
 
-		private ElapsedTimer2Delegate _elapsedTimer2Handler;
+#pragma warning disable CS0169
+	private ElapsedTimer2Delegate _elapsedTimer2Handler;
 
-		private ElapsedTimer3Delegate _elapsedTimer3Handler;
+	private ElapsedTimer3Delegate _elapsedTimer3Handler;
+#pragma warning restore CS0169
 
 		private ElapsedTimerDelegate _elapsedTimerHandler;
 
-		private bool _enabled;
+#pragma warning disable CS0169
+	private bool _enabled;
+#pragma warning restore CS0169
 
 		public ATimer(int timerType, int intervalMS, ElapsedTimerDelegate callback) {
 			_timerType = timerType;
@@ -136,9 +140,11 @@ namespace WiimoteLib.Helpers {
 		}
 
 		private int mTimerId;
-		private TimerEventHandler mHandler;
-		private int mTestTick;
-		private DateTime mTestStart;
+	private TimerEventHandler mHandler;
+#pragma warning disable CS0414
+	private int mTestTick;
+#pragma warning restore CS0414
+	private DateTime mTestStart;
 
 		// P/Invoke declarations
 		private delegate void TimerEventHandler(int id, int msg, IntPtr user, int dw1, int dw2);

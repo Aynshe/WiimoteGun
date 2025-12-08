@@ -9,7 +9,9 @@ namespace WiimoteLib.Helpers {
 	public class MultimediaTimer {
 		private int _interval;
 
+#pragma warning disable CS0169
 		private ElapsedTimer3Delegate _elapsedTimer3Handler;
+#pragma warning restore CS0169
 
 		private ElapsedTimerDelegate _elapsedTimerHandler;
 

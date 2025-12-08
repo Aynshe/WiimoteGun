@@ -1,6 +1,270 @@
-# WiimoteGun
+# Wiimote4Guns 🎮
 
-WiimoteGun is a tool designed to use your wiimote as a mouse.
+Multi-player Wiimote to Virtual Mouse/Keyboard adapter with Interception driver support.
 
-You can also calibrate the Wiimote with a long press 'Home'.
-Usefull for lightgun games.
+Fork of [WiimoteGun](https://github.com/fcaruso/WiimoteGun) with extensive enhancements for multi-player support and LED layouts.
+
+## ✨ Features
+
+- **Multi-Wiimote Support**: Connect up to 4 Wiimotes simultaneously
+- **Dual Connection Mode**: Supports both Bluetooth and DolphinBar Mode 4
+- **Dual Mode**: 2-player stable mode / 4-player experimental mode
+- **Per-Player Calibration**: Independent screen calibration for each player
+- **LED Layout Support**: Wiimote Bar (default), Gun4IR Diamond ✅, Retroshooter 4-Corners ✅
+- **Virtual HID**: Uses Interception driver for unique RawInput device IDs per player
+- **Nunchuk Support**: Full Nunchuk detection (hotplug and coldplug)
+- **IR Visualizer**: Real-time IR camera visualization tool
+
+> [!NOTE]
+> **Gun4IR Diamond and Retroshooter 4-Corners are now validated and fully functional!**  
+> Both LED layouts have been tested and confirmed working. All three layouts (Wiimote Bar, Gun4IR Diamond, Retroshooter 4-Corners) are production-ready.
+
+## 🎯 Requirements
+
+- Windows 10/11 (64-bit)
+- **Bluetooth adapter** (for Bluetooth mode) OR **Mayflash DolphinBar** (Mode 4)
+- **Interception Driver** (included, installation required)
+
+### Wiimote Compatibility
+
+> [!WARNING]
+> **Newer Wiimotes (post-2011) are NOT compatible with Microsoft Bluetooth Stack**  
+> Wiimotes with serial numbers ending in **Z-C4**, **Z-C6**, or **C-C4** will NOT work via standard Bluetooth.
+
+**Recommended Wiimotes:**
+- ✅ Official Nintendo Wiimotes manufactured **before November 2011**
+- ✅ Any Wiimote via **Mayflash DolphinBar Mode 4** (bypasses Bluetooth issues)
+- ⚠️ Clone/third-party Wiimotes: **NOT TESTED** (may work via DolphinBar only)
+
+**If you have a newer Wiimote (2011+):**
+- **Easiest solution**: Use **Mayflash DolphinBar** in Mode 4 (recommended)
+- **Advanced solution**: Install Toshiba Bluetooth Stack (driver signature issues, not recommended)
+  - Guide: [TouchMote Wiimote TR Setup](https://touchmote.net/wiimotetr)
+
+> [!NOTE]
+> This limitation is due to changes in Wiimote firmware after 2011 that are incompatible with Microsoft's Bluetooth stack. The DolphinBar works around this by using its own HID protocol.  
+> Compatibility information source: [TouchMote](https://touchmote.net)
+
+### For 4-Player Mode
+- **Virtual Interception Driver** installed (provides 4 virtual mice/keyboards)
+- No extra physical hardware required
+
+> [!NOTE]
+> Physical keyboards and mice are only used as fallbacks if the Virtual Driver is not installed. For the best experience, please install the driver via **Options -> Install Drivers**.
+
+## 📦 Installation
+
+1. **Download** the latest release
+2. **Extract** to your desired location
+3. **Install Interception Driver**:
+   - Right-click WiimoteGun tray icon → Options → Install Drivers
+   - OR manually run `WiimoteGunDriver\\command line installer\\install-interception.exe` as Administrator
+4. **Restart your PC**
+5. Launch `WiimoteGun.exe`
+
+## 🎮 Quick Start
+
+### Connecting Wiimotes
+- **2 Players**: Press 1+2 on each Wiimote → Auto-assigned as P1/P2
+- **3-4 Players**: Enable "4 Players Mode" in Options first
+
+### Calibration
+1. **Long press HOME button** on Wiimote
+2. **Aim at calibration points** displayed on screen
+3. **Press A or B** to confirm each point
+4. **Press ESC** to exit calibration
+
+### Controls
+- **HOME**: Toggle modes (Mouse/Keyboard/Disabled)
+- **HOME (long press)**: Calibrate
+- **Right-click tray icon**: Settings & mappings
+
+## 🔧 Configuration
+
+### LED Layout Selection
+Choose your LED bar type in Options:
+- **Wiimote Bar** (Recommended): Standard 2-LED sensor bar
+- **Gun4IR Diamond**: 4 LEDs in diamond pattern (⚠️ Experimental)
+- **Retroshooter (4-Corners)**: 4 LEDs at screen corners (⚠️ Untested)
+
+### Button Mappings
+- Right-click tray icon → **Open Mappings**
+- Use player dropdown for per-player configurations
+- Each player can have unique button assignments
+
+### Monitor Selection
+- Choose which screen to track in **Options**
+- Calibration is saved per-player and per-monitor
+
+### Off-Screen Reload
+Reload by aiming outside the screen edges:
+- **On Click**: Triggers reload when you click while off-screen
+- **Automatic**: Triggers reload immediately when aiming off-screen
+- Configured globally in **Options** → **Gestures & Reload**
+
+### Auto-Load Profile per Executable
+Automatically load specific profiles when launching games:
+- Enable **"⚙️ Auto-load for this executable"** checkbox in Button Mapping overlay
+- Links current profile to the detected game executable
+- Profile loads automatically when the game starts
+- Managed via **Button Mapping** overlay
+
+### Hotkeys (Global Keyboard Shortcuts)
+Configure system-wide hotkeys for quick actions:
+- **Calibrate**: Trigger calibration for current player
+- **Toggle Overlay**: Open/close the configuration overlay
+- **Reload Profile**: Reload current remap profile
+- Access via **Button Mapping** → **⚡ Hotkeys** button
+
+### Rumble/Vibration (Per-Player)
+Configure haptic feedback for each player:
+- **Enable/Disable**: Toggle rumble on weapon fire
+- **Intensity**: Adjust vibration strength (0-100%)
+- **Duration**: Set rumble duration in milliseconds (50-1000ms)
+- Configured in **Assign Wiimote** page
+
+### Wiimote Assignment
+**Preferred MAC Addresses**: Lock specific Wiimotes to specific players
+- Prevents auto-reassignment when reconnecting
+- Configured in Overlay → **Options** → **Players** tab
+- Useful for consistent multi-player setups
+
+### Device Assignment (Advanced)
+**Per-Player Mouse/Keyboard**: Assign specific input devices to each player
+- Required for 4-player mode
+- Auto-Lock VMulti option for automatic P1/P2 assignment
+- Configured in **Assign Wiimote** → **⚙️ Devices** button
+
+## 🐛 Troubleshooting
+
+### Wiimotes won't connect
+- Ensure Bluetooth is on
+- Unpair Wiimotes from Windows Bluetooth settings first
+- Check if Interception driver is installed (`C:\\Windows\\System32\\drivers\\keyboard.sys` exists)
+
+### Mouse doesn't work in games
+- Verify Interception driver installation
+- Restart PC after driver installation
+- Check `WiimoteGun_Log.txt` for errors
+
+### Tracking accuracy issues (Gun4IR / Retroshooter)
+- Re-calibrate carefully, aiming precisely at each point
+- Ensure all 4 LEDs are visible at all times
+- If tracking is unstable, switch to **Wiimote Bar** mode
+- Report issues on GitHub with screenshots of IR Visualizer
+
+## 🎮 Emulator Compatibility & Conflict Resolution
+
+WiimoteGun includes a built-in monitor to prevent conflicts with emulators that take exclusive control of Wiimotes (Dolphin, Cemu).
+
+### Automatic Restart System
+When **Dolphin.exe** or **Cemu.exe** is detected:
+1. WiimoteGun automatically **restarts** to release Wiimote control.
+2. While the emulator is running, WiimoteGun stays in "passive" mode (Wiimotes disconnected).
+3. When the emulator closes, WiimoteGun **restarts again** to reclaim and reconnect the Wiimotes.
+
+### Configuration
+You can control this behavior in `settings.cfg` (generated after first run):
+- `RestartOnDolphin`: `true` (default) - Auto-restart when Dolphin starts/stops
+- `RestartOnCemu`: `true` (default) - Auto-restart when Cemu starts/stops
+
+## 💻 Command Line & PATH
+
+WiimoteGun automatically adds itself to your user **PATH** environment variable.
+You can run it from any command prompt using:
+
+```cmd
+wiimotegun.exe [arguments]
+```
+
+### Arguments
+- `-refresh`: Reloads configuration and restarts the running instance
+- `-remap "subfolder/profile.remap"`: Loads a specific remap profile (**hot-reload without restart**)
+- `-installdrivers`: Installs the Interception driver
+- `-uninstalldrivers`: Removes the Interception driver
+
+## 🎮 Remap Profiles
+
+WiimoteGun supports **remap profiles** to quickly switch between different button mappings for different games.
+
+### Profile Storage
+Profiles are stored in:
+- `[RetroBatPath]/user/WiimoteGunRemap/` (if RetroBat is installed)
+- `./RemapProfiles/` (fallback if RetroBat not found)
+
+The RetroBat path is automatically detected from the registry: `HKEY_CURRENT_USER\Software\RetroBat` → `LatestKnownInstallPath`
+
+### Default Profile
+If `default.remap` exists at the root of the remap directory, it will be **automatically loaded** at startup instead of using `settings.cfg` mappings.
+
+### Hot-Reload via Command Line (No Restart)
+```cmd
+wiimotegun.exe -remap "mygames/doom.remap"
+```
+
+This command:
+1. **If WiimoteGun is running**: Sends IPC message → **instantly reloads** the profile without restarting
+2. **If WiimoteGun is closed**: Starts WiimoteGun with the profile loaded
+3. Shows a tray notification confirming the profile was loaded
+
+**Priority**: `-remap` argument > `default.remap` > `settings.cfg`
+
+### UI Profile Management
+Open **Button Mapping** → **Profiles** tab:
+
+- **Save Profile**: Enter a name and save current mappings (all 4 players)
+- **Load Profile**: Select from dropdown and load instantly
+- **Delete Profile**: Remove unwanted profiles
+- **New Folder**: Organize profiles by game/genre in subfolders
+- **Refresh**: Update the list of available profiles
+
+### Notifications
+WiimoteGun displays tray notifications when profiles are loaded:
+- At startup: `"Remap profile loaded: [name] (command line)"` or `"Remap profile loaded: [name] (default.remap)"`
+- Hot-reload: `"Remap profile loaded: [name]"`
+
+## 🧪 Developer Features (Experimental)
+
+Some experimental gesture features are hidden by default and require manual activation:
+
+### Enabling Dev Gestures
+1. Close WiimoteGun
+2. Open `%AppData%\WiimoteGun\settings.xml` in a text editor
+3. Find `<EnableDevGestures>false</EnableDevGestures>`
+4. Change to `<EnableDevGestures>true</EnableDevGestures>`
+5. Save and restart WiimoteGun
+
+### Available Dev Gestures & Features
+- **Shake Reload**: Reload by shaking Wiimote or Nunchuk
+  - Configurable sensitivity (Low/Medium/High)
+  - ⚠️ May trigger unexpectedly due to calibration differences
+- **Grenade Gesture**: Throw grenade with "pump" motion
+  - ⚠️ Detection is experimental and may be unreliable
+- **Gyro Aiming (FPS Mode)**: Use Wiimote gyroscope for camera control
+  - ⚠️ Work in progress, not fully functional
+- **3D Gyro Visualizer**: Real-time 3D visualization of Wiimote/Nunchuk orientation
+  - Displays both Wiimote and Nunchuk orientation when connected
+  - Accessible via IR Visualizer page
+
+> [!CAUTION]
+> These features are **disabled by default** as they are experimental and require fine-tuning. Enable at your own risk.
+
+### Keyboard inputs not working in TeknoParrot
+- Enable `KeyboardDebugMode` in `settings.cfg` to diagnose
+
+## 📄 License
+
+Same as original WiimoteGun project.
+
+## 🙏 Credits
+
+- **Original Author**: [f.caruso](https://github.com/fcaruso/WiimoteGun)
+- **v2.x Fork**: Aynshe - RetroBat Team (2025)
+- **WiimoteLib.Net**: [Robert Jordan](https://github.com/trigger-segfault/WiimoteLib.Net)
+- **Interception**: [oblita](http://www.oblita.com/interception.html)
+- **vmulti**: [djpnewton](https://github.com/djpnewton/vmulti/)
+
+## 🔗 Links
+
+- [Original WiimoteGun](https://github.com/fcaruso/WiimoteGun)
+- [RetroBat Project](https://www.retrobat.org/)

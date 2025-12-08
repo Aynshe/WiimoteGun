@@ -186,14 +186,34 @@ namespace WiimoteLib {
 		/// <summary>Connects the Wiimote device.</summary>
 		/// <param name="device">The Wiimote device to connect.</param>
 		/// <returns>The created Wiimote.</returns>
+		// Optimization for discovery lag
+		private static DateTime _firstConnectionTime = DateTime.MinValue;
+
 		private static Wiimote Connect(WiimoteDeviceInfo device) {
 			lock (wiimotes) {
 				if (device.IsOpen)
 					throw new ArgumentException("Cannot connect to device that is already in use!",
 						nameof(device));
-				Wiimote connected = wiimotes.Find(wm => wm.Address == device.Address);
+
+				// Check for duplicate using unique ID instead of just MAC (EN/FR: Vérifier doublons avec ID unique au lieu de juste MAC)
+				// This supports both Bluetooth (MAC-based) and DolphinBar (HID path-based) identification
+				// (EN/FR: Cela supporte l'identification Bluetooth (basée sur MAC) et DolphinBar (basée sur chemin HID))
+				Wiimote connected = wiimotes.Find(wm => wm.Device.UniqueId == device.UniqueId);
 				if (connected != null)
-					throw new WiimoteAlreadyConnectedException(connected);
+				{
+					// Use appropriate exception based on connection type (EN/FR: Utiliser l'exception appropriée selon le type de connexion)
+					if (device.IsBluetooth && !device.Address.IsInvalid && device.Address.ToString() != "00:00:00:00:00:00")
+						throw new WiimoteAlreadyConnectedException(connected, device.Address);
+					else
+						throw new WiimoteAlreadyConnectedException(connected, device.DevicePath);
+				}
+
+				// If this is the first Wiimote connecting (or re-connecting after all were disconnected)
+				if (wiimotes.Count == 0)
+				{
+					_firstConnectionTime = DateTime.Now;
+					//Log.Info($"First Wiimote connected at {_firstConnectionTime}. Discovery will slow down in 15s."); // Log.Info is not defined here
+				}
 
 				Wiimote wiimote = new Wiimote(device);
 				wiimotes.Add(wiimote);

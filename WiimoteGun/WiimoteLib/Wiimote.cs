@@ -50,6 +50,7 @@ namespace WiimoteLib {
 
 		internal Wiimote(WiimoteDeviceInfo device) {
 			this.device = device;
+            this.ID = Guid.NewGuid();
 			disposed = false;
 			ioLock = new object();
 			wiimoteState = new WiimoteState();
@@ -76,7 +77,7 @@ namespace WiimoteLib {
 				}
 
 				// force a status check to get the state of any extensions plugged in at startup
-				GetStatus(3000);
+				//GetStatus(3000);
 			}
 			catch {
 				Dispose();
@@ -227,9 +228,16 @@ namespace WiimoteLib {
 		public BluetoothAddress Address => Device.Address;
 
 		/// <summary>The HID device path of this Wiimote device.</summary>
-		public string DevicePath => Device.DevicePath;
+	public string DevicePath => Device.DevicePath;
 
-		/// <summary>The type of this Wiimote.</summary>
+	/// <summary>Unique identifier for this Wiimote (MAC for Bluetooth, HID path for DolphinBar).</summary>
+	/// <summary lang="fr">Identifiant unique pour cette Wiimote (MAC pour Bluetooth, chemin HID pour DolphinBar).</summary>
+	public string UniqueId => Device.UniqueId;
+
+    /// <summary>Unique GUID for this Wiimote instance.</summary>
+    public Guid ID { get; private set; }
+
+	/// <summary>The type of this Wiimote.</summary>
 		public WiimoteType Type => device.Type;
 
 		/// <summary>True if the wiimote is connected.</summary>

@@ -45,7 +45,8 @@ namespace WiimoteLib.Helpers {
 			catch (FileNotFoundException) {
 				throw;
 			}
-			catch (Exception ex) {
+			catch (Exception)
+			{
 				if (ffmpeg)
 					throw;
 			}

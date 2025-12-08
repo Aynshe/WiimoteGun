@@ -52,8 +52,9 @@ namespace WiimoteLib.Helpers {
 			catch (FileNotFoundException) {
 				throw;
 			}
-			catch (Exception ex) {
-				//if (ffmpeg)
+			catch (Exception)
+			{
+				if (ffmpeg)
 					throw;
 			}
 			return Convert(file, convSampleRate);

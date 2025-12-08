@@ -1,4 +1,6 @@
-﻿namespace WiimoteGun
+﻿using System.Windows.Forms;
+
+namespace WiimoteGun
 {
     interface IVirtualJoy
     {
@@ -6,6 +8,7 @@
 
         void SetAxis(bool AxisX, int value);
         void SetButton(uint nButton, bool value);
+        void SendKeyEvent(Keys key, bool pressed);
         void CommitChanges();
     }
 }
