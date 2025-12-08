@@ -232,7 +232,7 @@ WiimoteGun displays tray notifications when profiles are loaded:
 
 ### Enabling Dev Gestures (For Development Only)
 1. Close WiimoteGun
-2. Open `%AppData%\WiimoteGun\settings.xml` in a text editor
+2. Open `settings.cfg` (located in the application folder) in a text editor
 3. Find `<EnableDevGestures>false</EnableDevGestures>`
 4. Change to `<EnableDevGestures>true</EnableDevGestures>`
 5. Save and restart WiimoteGun
