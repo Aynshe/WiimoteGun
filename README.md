@@ -8,7 +8,7 @@ Fork of [WiimoteGun](https://github.com/fcaruso/WiimoteGun) with extensive enhan
 
 - **Multi-Wiimote Support**: Connect up to 4 Wiimotes simultaneously
 - **Dual Connection Mode**: Supports both Bluetooth and DolphinBar Mode 4
-- **Dual Mode**: 2-player stable mode / 4-player experimental mode
+- **Dual Mode**: 2-player mode / 4-player mode
 - **Per-Player Calibration**: Independent screen calibration for each player
 - **LED Layout Support**: Wiimote Bar (default), Gun4IR Diamond ✅, Retroshooter 4-Corners ✅
 - **Virtual HID**: Uses Interception driver for unique RawInput device IDs per player
@@ -84,8 +84,8 @@ Fork of [WiimoteGun](https://github.com/fcaruso/WiimoteGun) with extensive enhan
 ### LED Layout Selection
 Choose your LED bar type in Options:
 - **Wiimote Bar** (Recommended): Standard 2-LED sensor bar
-- **Gun4IR Diamond**: 4 LEDs in diamond pattern (⚠️ Experimental)
-- **Retroshooter (4-Corners)**: 4 LEDs at screen corners (⚠️ Untested)
+- **Gun4IR Diamond**: 4 LEDs in diamond pattern
+- **Retroshooter (4-Corners)**: 4 LEDs at screen corners
 
 ### Button Mappings
 - Right-click tray icon → **Open Mappings**
@@ -145,7 +145,7 @@ Configure haptic feedback for each player:
 ### Mouse doesn't work in games
 - Verify Interception driver installation
 - Restart PC after driver installation
-- Check `WiimoteGun_Log.txt` for errors
+- Check `WiimoteGun.log` for errors
 
 ### Tracking accuracy issues (Gun4IR / Retroshooter)
 - Re-calibrate carefully, aiming precisely at each point
