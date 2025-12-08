@@ -223,11 +223,14 @@ WiimoteGun displays tray notifications when profiles are loaded:
 - At startup: `"Remap profile loaded: [name] (command line)"` or `"Remap profile loaded: [name] (default.remap)"`
 - Hot-reload: `"Remap profile loaded: [name]"`
 
-## 🧪 Developer Features (Experimental)
+## 🚧 Developer Features (Non-Functional / To Be Developed)
 
-Some experimental gesture features are hidden by default and require manual activation:
+> [!CAUTION]
+> **THESE FEATURES ARE NOT FUNCTIONAL.**
+> They are unfinished prototypes or placeholders that **require development work**.
+> They are disabled by default and should only be enabled by developers intending to implement them.
 
-### Enabling Dev Gestures
+### Enabling Dev Gestures (For Development Only)
 1. Close WiimoteGun
 2. Open `%AppData%\WiimoteGun\settings.xml` in a text editor
 3. Find `<EnableDevGestures>false</EnableDevGestures>`
@@ -236,21 +239,19 @@ Some experimental gesture features are hidden by default and require manual acti
 
 ### Available Dev Gestures & Features
 - **Shake Reload**: Reload by shaking Wiimote or Nunchuk
-  - Configurable sensitivity (Low/Medium/High)
-  - ⚠️ May trigger unexpectedly due to calibration differences
+  - ⚠️ **Status**: Not working. Logic needs to be implemented.
 - **Grenade Gesture**: Throw grenade with "pump" motion
-  - ⚠️ Detection is experimental and may be unreliable
+  - ⚠️ **Status**: Not working. Motion detection algorithms need to be written.
 - **Gyro Aiming (FPS Mode)**: Use Wiimote gyroscope for camera control
-  - ⚠️ Work in progress, not fully functional
+  - ⚠️ **Status**: Non-functional. Gyro data mapping to mouse input is incomplete.
 - **3D Gyro Visualizer**: Real-time 3D visualization of Wiimote/Nunchuk orientation
   - Displays both Wiimote and Nunchuk orientation when connected
   - Accessible via IR Visualizer page
 
-> [!CAUTION]
-> These features are **disabled by default** as they are experimental and require fine-tuning. Enable at your own risk.
+> [!WARNING]
+> Do not enable these features expecting them to improve your gameplay. They are placeholders for future development.
 
-### Keyboard inputs not working in TeknoParrot
-- Enable `KeyboardDebugMode` in `settings.cfg` to diagnose
+
 
 ## 📄 License
 
