@@ -3,7 +3,7 @@ using System.Drawing;
 using System.Reflection;
 using System.Windows.Forms;
 
-namespace WiimoteGun
+namespace WiimoteGun.Forms
 {
     partial class AboutBox : Form
     {

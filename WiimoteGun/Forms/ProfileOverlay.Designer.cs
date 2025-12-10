@@ -59,6 +59,18 @@ namespace WiimoteGun
             this.chkEnableGyro = new System.Windows.Forms.CheckBox();
             this.comboBoxProfiles = new System.Windows.Forms.ComboBox();
             this.lblLoadProfile = new System.Windows.Forms.Label();
+            this.panelHome = new System.Windows.Forms.Panel();
+            this.panelMapping = new System.Windows.Forms.Panel();
+            this.lblHomeTitle = new System.Windows.Forms.Label();
+            this.lblHomeDescription = new System.Windows.Forms.Label();
+            this.btnNavOptions = new System.Windows.Forms.Button();
+            this.btnNavMapping = new System.Windows.Forms.Button();
+            this.btnNavAssign = new System.Windows.Forms.Button();
+            this.btnNavIRViz = new System.Windows.Forms.Button();
+            this.lblFooter = new System.Windows.Forms.Label();
+            this.btnBackToHome = new System.Windows.Forms.Button();
+            this.panelHome.SuspendLayout();
+            this.panelMapping.SuspendLayout();
             this.tabControlPlayers.SuspendLayout();
             this.tabP1.SuspendLayout();
             this.tabP2.SuspendLayout();
@@ -66,6 +78,104 @@ namespace WiimoteGun
             this.tabP4.SuspendLayout();
             this.SuspendLayout();
             // 
+            // panelHome
+            //
+            this.panelHome.Controls.Add(this.lblHomeTitle);
+            this.panelHome.Controls.Add(this.lblHomeDescription);
+            this.panelHome.Controls.Add(this.btnNavOptions);
+            this.panelHome.Controls.Add(this.btnNavMapping);
+            this.panelHome.Controls.Add(this.btnNavAssign);
+            this.panelHome.Controls.Add(this.btnNavIRViz);
+            this.panelHome.Location = new System.Drawing.Point(20, 30);
+            this.panelHome.Name = "panelHome";
+            this.panelHome.Size = new System.Drawing.Size(560, 620);
+            this.panelHome.TabIndex = 17;
+            //
+            // lblHomeTitle
+            //
+            this.lblHomeTitle.AutoSize = true;
+            this.lblHomeTitle.Font = new System.Drawing.Font("Segoe UI", 24F, System.Drawing.FontStyle.Bold);
+            this.lblHomeTitle.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(224)))), ((int)(((byte)(224)))), ((int)(((byte)(224)))));
+            this.lblHomeTitle.Location = new System.Drawing.Point(80, 50);
+            this.lblHomeTitle.Name = "lblHomeTitle";
+            this.lblHomeTitle.Size = new System.Drawing.Size(361, 45);
+            this.lblHomeTitle.TabIndex = 0;
+            this.lblHomeTitle.Text = "WiimoteGun - RetroBat";
+            //
+            // lblHomeDescription
+            //
+            this.lblHomeDescription.Font = new System.Drawing.Font("Segoe UI", 10F);
+            this.lblHomeDescription.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(180)))), ((int)(((byte)(180)))), ((int)(((byte)(180)))));
+            this.lblHomeDescription.Location = new System.Drawing.Point(80, 110);
+            this.lblHomeDescription.Name = "lblHomeDescription";
+            this.lblHomeDescription.Size = new System.Drawing.Size(400, 50);
+            this.lblHomeDescription.TabIndex = 1;
+            this.lblHomeDescription.Text = "Lightgun gaming solution for RetroBat\nChoose a menu to configure your Wiimotes";
+            //
+            // btnNavOptions
+            //
+            this.btnNavOptions.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(204)))));
+            this.btnNavOptions.FlatAppearance.BorderSize = 0;
+            this.btnNavOptions.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnNavOptions.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold);
+            this.btnNavOptions.ForeColor = System.Drawing.Color.White;
+            this.btnNavOptions.Location = new System.Drawing.Point(160, 200);
+            this.btnNavOptions.Name = "btnNavOptions";
+            this.btnNavOptions.Padding = new System.Windows.Forms.Padding(20, 0, 0, 0);
+            this.btnNavOptions.Size = new System.Drawing.Size(240, 80);
+            this.btnNavOptions.TabIndex = 2;
+            this.btnNavOptions.Text = "⚙️ Options";
+            this.btnNavOptions.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.btnNavOptions.UseVisualStyleBackColor = false;
+            //
+            // btnNavMapping
+            //
+            this.btnNavMapping.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(204)))));
+            this.btnNavMapping.FlatAppearance.BorderSize = 0;
+            this.btnNavMapping.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnNavMapping.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold);
+            this.btnNavMapping.ForeColor = System.Drawing.Color.White;
+            this.btnNavMapping.Location = new System.Drawing.Point(160, 300);
+            this.btnNavMapping.Name = "btnNavMapping";
+            this.btnNavMapping.Padding = new System.Windows.Forms.Padding(20, 0, 0, 0);
+            this.btnNavMapping.Size = new System.Drawing.Size(240, 80);
+            this.btnNavMapping.TabIndex = 3;
+            this.btnNavMapping.Text = "🎮 Button Mapping";
+            this.btnNavMapping.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.btnNavMapping.UseVisualStyleBackColor = false;
+            //
+            // btnNavAssign
+            //
+            this.btnNavAssign.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(204)))));
+            this.btnNavAssign.FlatAppearance.BorderSize = 0;
+            this.btnNavAssign.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnNavAssign.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold);
+            this.btnNavAssign.ForeColor = System.Drawing.Color.White;
+            this.btnNavAssign.Location = new System.Drawing.Point(160, 400);
+            this.btnNavAssign.Name = "btnNavAssign";
+            this.btnNavAssign.Padding = new System.Windows.Forms.Padding(20, 0, 0, 0);
+            this.btnNavAssign.Size = new System.Drawing.Size(240, 80);
+            this.btnNavAssign.TabIndex = 4;
+            this.btnNavAssign.Text = "📡 Assign Wiimote";
+            this.btnNavAssign.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.btnNavAssign.UseVisualStyleBackColor = false;
+            //
+            // btnNavIRViz
+            //
+            this.btnNavIRViz.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(204)))));
+            this.btnNavIRViz.FlatAppearance.BorderSize = 0;
+            this.btnNavIRViz.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnNavIRViz.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold);
+            this.btnNavIRViz.ForeColor = System.Drawing.Color.White;
+            this.btnNavIRViz.Location = new System.Drawing.Point(160, 500);
+            this.btnNavIRViz.Name = "btnNavIRViz";
+            this.btnNavIRViz.Padding = new System.Windows.Forms.Padding(20, 0, 0, 0);
+            this.btnNavIRViz.Size = new System.Drawing.Size(240, 80);
+            this.btnNavIRViz.TabIndex = 5;
+            this.btnNavIRViz.Text = "📊 IR Visualizer";
+            this.btnNavIRViz.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.btnNavIRViz.UseVisualStyleBackColor = false;
+            //
             // lblTitle
             // 
             this.lblTitle.AutoSize = true;
@@ -77,6 +187,34 @@ namespace WiimoteGun
             this.lblTitle.TabIndex = 0;
             this.lblTitle.Text = "🎮 Remap Profile Manager";
             // 
+            // panelMapping
+            //
+            this.panelMapping.Controls.Add(this.lblCurrentGame);
+            this.panelMapping.Controls.Add(this.lblLinkedExe);
+            this.panelMapping.Controls.Add(this.btnSelectExe);
+            this.panelMapping.Controls.Add(this.lblProfileName);
+            this.panelMapping.Controls.Add(this.txtProfileName);
+            this.panelMapping.Controls.Add(this.lblSubfolder);
+            this.panelMapping.Controls.Add(this.comboBoxSubfolders);
+            this.panelMapping.Controls.Add(this.btnNewFolder);
+            this.panelMapping.Controls.Add(this.lblLoadProfile);
+            this.panelMapping.Controls.Add(this.comboBoxProfiles);
+            this.panelMapping.Controls.Add(this.lblQuickMappings);
+            this.panelMapping.Controls.Add(this.btnAssignMode);
+            this.panelMapping.Controls.Add(this.btnHotkeys);
+            this.panelMapping.Controls.Add(this.lblAssignStatus);
+            this.panelMapping.Controls.Add(this.comboActionSelector);
+            this.panelMapping.Controls.Add(this.btnConfirmAssign);
+            this.panelMapping.Controls.Add(this.btnCancelAssign);
+            this.panelMapping.Controls.Add(this.tabControlPlayers);
+            this.panelMapping.Controls.Add(this.chkAutoLoad);
+            this.panelMapping.Controls.Add(this.chkEnableGyro);
+            this.panelMapping.Location = new System.Drawing.Point(20, 30);
+            this.panelMapping.Name = "panelMapping";
+            this.panelMapping.Size = new System.Drawing.Size(560, 720);
+            this.panelMapping.TabIndex = 18;
+            this.panelMapping.Visible = false;
+            //
             // lblCurrentGame
             // 
             this.lblCurrentGame.AutoSize = true;
@@ -467,38 +605,52 @@ namespace WiimoteGun
             this.btnClose.UseVisualStyleBackColor = false;
             this.btnClose.Click += new System.EventHandler(this.btnClose_Click);
             // 
+            // lblFooter
+            //
+            this.lblFooter.AutoSize = true;
+            this.lblFooter.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.lblFooter.ForeColor = System.Drawing.Color.FromArgb(128, 128, 128);
+            this.lblFooter.Location = new System.Drawing.Point(225, 815);
+            this.lblFooter.Name = "lblFooter";
+            this.lblFooter.Size = new System.Drawing.Size(130, 13);
+            this.lblFooter.TabIndex = 19;
+            this.lblFooter.Text = "WiimoteGun - RetroBat";
+            //
+            // btnBackToHome
+            //
+            this.btnBackToHome.BackColor = System.Drawing.Color.FromArgb(60, 60, 60);
+            this.btnBackToHome.FlatAppearance.BorderSize = 0;
+            this.btnBackToHome.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnBackToHome.Font = new System.Drawing.Font("Segoe UI", 10F);
+            this.btnBackToHome.ForeColor = System.Drawing.Color.White;
+            this.btnBackToHome.Location = new System.Drawing.Point(20, 800);
+            this.btnBackToHome.Name = "btnBackToHome";
+            this.btnBackToHome.Size = new System.Drawing.Size(80, 30);
+            this.btnBackToHome.TabIndex = 20;
+            this.btnBackToHome.Text = "⬅ Back";
+            this.btnBackToHome.UseVisualStyleBackColor = false;
+            this.btnBackToHome.Visible = false;
+            //
             // ProfileOverlay
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(600, 840);
-            this.Controls.Add(this.btnCancelAssign);
-            this.Controls.Add(this.btnConfirmAssign);
-            this.Controls.Add(this.comboActionSelector);
-            this.Controls.Add(this.lblAssignStatus);
-            this.Controls.Add(this.btnAssignMode);
-            this.Controls.Add(this.btnHotkeys);
-            this.Controls.Add(this.chkAutoLoad);
-            this.Controls.Add(this.chkEnableGyro);
+            this.Controls.Add(this.panelMapping);
+            this.Controls.Add(this.panelHome);
+            this.Controls.Add(this.lblFooter);
+            this.Controls.Add(this.btnBackToHome);
             this.Controls.Add(this.btnClose);
             this.Controls.Add(this.btnLoad);
             this.Controls.Add(this.btnSave);
-            this.Controls.Add(this.tabControlPlayers);
-            this.Controls.Add(this.lblQuickMappings);
-            this.Controls.Add(this.comboBoxProfiles);
-            this.Controls.Add(this.lblLoadProfile);
-            this.Controls.Add(this.btnNewFolder);
-            this.Controls.Add(this.comboBoxSubfolders);
-            this.Controls.Add(this.lblSubfolder);
-            this.Controls.Add(this.txtProfileName);
-            this.Controls.Add(this.lblProfileName);
-            this.Controls.Add(this.lblLinkedExe);
-            this.Controls.Add(this.btnSelectExe);
-            this.Controls.Add(this.lblCurrentGame);
             this.Controls.Add(this.lblTitle);
             this.Name = "ProfileOverlay";
             this.Text = "ProfileOverlay";
             this.Load += new System.EventHandler(this.ProfileOverlay_Load);
+            this.panelHome.ResumeLayout(false);
+            this.panelHome.PerformLayout();
+            this.panelMapping.ResumeLayout(false);
+            this.panelMapping.PerformLayout();
             this.tabControlPlayers.ResumeLayout(false);
             this.tabP1.ResumeLayout(false);
             this.tabP2.ResumeLayout(false);

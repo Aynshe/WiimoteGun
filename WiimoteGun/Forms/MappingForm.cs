@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using WiimoteGun.Forms;
 
 namespace WiimoteGun
 {
@@ -178,28 +179,11 @@ namespace WiimoteGun
 
         private void btnNewFolder_Click(object sender, EventArgs e)
         {
-            using (var inputDialog = new Form())
+            using (var inputDialog = new InputDialog("New Folder", "Folder Name:"))
             {
-                inputDialog.Text = "New Folder";
-                inputDialog.Width = 300;
-                inputDialog.Height = 120;
-                inputDialog.StartPosition = FormStartPosition.CenterParent;
-                
-                Label label = new Label() { Left = 10, Top = 15, Width = 280, Text = "Folder Name:" };
-                TextBox textBox = new TextBox() { Left = 10, Top = 35, Width = 260 };
-                Button okButton = new Button() { Text = "OK", Left = 110, Top = 60, DialogResult = DialogResult.OK };
-                Button cancelButton = new Button() { Text = "Cancel", Left = 190, Top = 60, DialogResult = DialogResult.Cancel };
-                
-                inputDialog.Controls.Add(label);
-                inputDialog.Controls.Add(textBox);
-                inputDialog.Controls.Add(okButton);
-                inputDialog.Controls.Add(cancelButton);
-                inputDialog.AcceptButton = okButton;
-                inputDialog.CancelButton = cancelButton;
-                
                 if (inputDialog.ShowDialog() == DialogResult.OK)
                 {
-                    string folderName = textBox.Text.Trim();
+                    string folderName = inputDialog.InputText.Trim();
                     if (!string.IsNullOrEmpty(folderName))
                     {
                         try

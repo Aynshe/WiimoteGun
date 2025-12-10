@@ -91,7 +91,6 @@ namespace WiimoteGun
             }
             
             SetupModernUI();
-            InitializeNavigation(); // Setup navigation system (EN/FR: Configurer système navigation)
             
             // Initialize UI components (EN/FR: Initialiser composants UI)
             _toastNotification = new ToastNotification();
@@ -107,6 +106,13 @@ namespace WiimoteGun
             this.MouseClick += ProfileOverlay_MouseClick; // Right-click to go home (EN/FR: Clic droit pour retour accueil)
             this.MouseMove += ProfileOverlay_MouseMove; // Magnetic pointer effect (EN/FR: Effet pointer magnétique)
             
+            // Wire up navigation events
+            btnNavOptions.Click += (s, e) => ShowPage("Options");
+            btnNavMapping.Click += (s, e) => ShowPage("Mapping");
+            btnNavAssign.Click += (s, e) => ShowPage("Assign");
+            btnNavIRViz.Click += (s, e) => ShowPage("IRViz");
+            btnBackToHome.Click += (s, e) => ShowPage("Home");
+
             // Show home page by default (EN/FR: Afficher page d'accueil par défaut)
             ShowPage("Home");
             
@@ -624,338 +630,14 @@ namespace WiimoteGun
             _isDragging = false;
         }
         
-        /// <summary>
-        /// Initialize navigation system with home page and panels (EN/FR: Initialiser système navigation avec page accueil et panels)
-        /// </summary>
-        private void InitializeNavigation()
-        {
-            // 1. Create panelHome
-            int topOffset = _windowedMode ? 32 : 0; // Offset for title bar (EN/FR: Décalage pour barre de titre)
-            
-            panelHome = new Panel
-            {
-                Name = "panelHome",
-                Size = new Size(560, 620),
-                Location = new Point(20, 30 + topOffset),
-                BackColor = Color.Transparent,
-                Visible = true
-            };
-            
-            // 2. Home Title
-            lblHomeTitle = new Label
-            {
-                Text = "WiimoteGun - RetroBat",
-                Font = new Font("Segoe UI", 24F, FontStyle.Bold),
-                ForeColor = ColorText,
-                AutoSize = true,
-                Location = new Point(80, 50)
-            };
-            
-            // 3. Home Description
-            lblHomeDescription = new Label
-            {
-                Text = "Lightgun gaming solution for RetroBat\nChoose a menu to configure your Wiimotes",
-                Font = new Font("Segoe UI", 10F),
-                ForeColor = Color.FromArgb(180, 180, 180),
-                AutoSize = false,
-                Size = new Size(400, 50),
-                Location = new Point(80, 110),
-                TextAlign = ContentAlignment.TopLeft
-            };
-            
-            // 4. Navigation buttons (4 buttons)
-            int buttonWidth = 240;
-            int buttonHeight = 80;
-            int buttonSpacing = 20;
-            int startY = 200;
-            int centerX = (560 - buttonWidth) / 2;
-            
-            btnNavOptions = CreateNavButton("⚙️ Options", centerX, startY);
-            btnNavMapping = CreateNavButton("🎮 Button Mapping", centerX, startY + (buttonHeight + buttonSpacing));
-            btnNavAssign = CreateNavButton("📡 Assign Wiimote", centerX, startY + 2 * (buttonHeight + buttonSpacing));
-            btnNavIRViz = CreateNavButton("📊 IR Visualizer", centerX, startY + 3 * (buttonHeight + buttonSpacing));
-            
-            // Event handlers
-            btnNavOptions.Click += (s, e) => ShowPage("Options");
-            btnNavMapping.Click += (s, e) => ShowPage("Mapping");
-            btnNavAssign.Click += (s, e) => ShowPage("Assign");
-            btnNavIRViz.Click += (s, e) => ShowPage("IRViz");
-            
-            // 5. Add to panelHome
-            panelHome.Controls.Add(lblHomeTitle);
-            panelHome.Controls.Add(lblHomeDescription);
-            panelHome.Controls.Add(btnNavOptions);
-            panelHome.Controls.Add(btnNavMapping);
-            panelHome.Controls.Add(btnNavAssign);
-            panelHome.Controls.Add(btnNavIRViz);
-            
-            // 6. Create panelMapping (wrap existing controls)
-            // topOffset is already defined above
-            panelMapping = new Panel
-            {
-                Name = "panelMapping",
-                Size = new Size(560, 720),
-                Location = new Point(20, 30 + topOffset),
-                BackColor = Color.Transparent,
-                Visible = false
-            };
-            
-            // Move existing mapping controls to panelMapping (will be done after InitializeComponent)
-            // We'll do this in a separate call after the form is fully initialized
-            
-            // 7. Back button (bottom-left) (EN/FR: Bouton retour en bas à gauche)
-            btnBackToHome = new Button
-            {
-                Text = "⬅ Back",
-                Size = new Size(80, 30),
-                Location = new Point(20, 800), // Bottom position (EN/FR: Position en bas)
-                BackColor = Color.FromArgb(60, 60, 60),
-                ForeColor = ColorText,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 10F),
-                Visible = false
-            };
-            btnBackToHome.FlatAppearance.BorderSize = 0;
-            btnBackToHome.Click += (s, e) => ShowPage("Home");
-            this.Controls.Add(btnBackToHome);
-            
-            // Initialize Delete Profile Button (EN/FR: Initialiser bouton supprimer profil)
-            btnDeleteProfile = new Button
-            {
-                Text = "🗑",
-                Size = new Size(40, 25),
-                BackColor = Color.FromArgb(192, 0, 0), // Red (EN/FR: Rouge)
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 9F),
-                Visible = true
-            };
-            btnDeleteProfile.FlatAppearance.BorderSize = 0;
-            btnDeleteProfile.Click += btnDeleteProfile_Click;
-            
-            // Attach TextChanged event to txtProfileName (EN/FR: Attacher événement TextChanged à txtProfileName)
-            if (txtProfileName != null)
-            {
-                txtProfileName.TextChanged += txtProfileName_TextChanged;
-                txtProfileName.Click += txtProfileName_Click; // Show virtual keyboard (EN/FR: Afficher clavier virtuel)
-            }
-            btnBackToHome.Click += (s, e) => ShowPage("Home");
-            
-            // 8. Footer
-            lblFooter = new Label
-            {
-                Text = "WiimoteGun - RetroBat",
-                Font = new Font("Segoe UI", 8F),
-                ForeColor = Color.FromArgb(128, 128, 128),
-                AutoSize = true,
-                Location = new Point(225, 815) // Centered on 600px visible width (EN/FR: Centré sur largeur visible 600px)
-            };
-            
-            // Add panels to form
-            this.Controls.Add(panelHome);
-            this.Controls.Add(panelMapping);
-            this.Controls.Add(btnBackToHome);
-            this.Controls.Add(lblFooter);
-            
-            // Bring to front
-            panelHome.BringToFront();
-            btnBackToHome.BringToFront();
-            lblFooter.BringToFront();
-            
-            // Ensure Close button will always be on top (EN/FR: S'assurer que bouton Close sera toujours au dessus)
-            // Will be called again after controls are moved
-            
-            // Initialize Options panel (EN/FR: Initialiser panel Options)
-            InitializeOptionsPanel();
-            
-            // Initialize Assign panel (EN/FR: Initialiser panel Assign)
-            InitializeAssignPanel();
-            
-            // Initialize IR panel (EN/FR: Initialiser panel IR)
-            InitializeIRPanel();
-            
-            // Move existing controls after Load event
-            this.Load += ProfileOverlay_Load_MoveControls;
-        }
-        
-        private void ProfileOverlay_Load_MoveControls(object sender, EventArgs e)
-        {
-            // Move existing mapping controls to panelMapping
-            MoveControlToPanel(panelMapping, lblCurrentGame);
-            MoveControlToPanel(panelMapping, lblLinkedExe);
-            MoveControlToPanel(panelMapping, btnSelectExe);
-            MoveControlToPanel(panelMapping, lblProfileName);
-            MoveControlToPanel(panelMapping, txtProfileName);
-            MoveControlToPanel(panelMapping, lblSubfolder);
-            MoveControlToPanel(panelMapping, comboBoxSubfolders);
-            MoveControlToPanel(panelMapping, btnNewFolder);
-            MoveControlToPanel(panelMapping, btnDeleteProfile);
-            MoveControlToPanel(panelMapping, lblLoadProfile);
-            MoveControlToPanel(panelMapping, comboBoxProfiles);
-            MoveControlToPanel(panelMapping, lblQuickMappings);
-            MoveControlToPanel(panelMapping, btnAssignMode);
-            MoveControlToPanel(panelMapping, btnHotkeys); // Hotkeys button (EN/FR: Bouton Hotkeys)
-            MoveControlToPanel(panelMapping, lblAssignStatus);
-            MoveControlToPanel(panelMapping, comboActionSelector);
-            MoveControlToPanel(panelMapping, btnConfirmAssign);
-            MoveControlToPanel(panelMapping, btnCancelAssign);
-            MoveControlToPanel(panelMapping, tabControlPlayers);
-            MoveControlToPanel(panelMapping, chkAutoLoad);
-            MoveControlToPanel(panelMapping, chkEnableGyro);
-            
-            // Don't move btnSave, btnLoad, btnClose - keep them on main form (EN/FR: Ne pas déplacer btnSave, btnLoad, btnClose)
-            // Ensure Close button is always on top (EN/FR: S'assurer que bouton Close est toujours au dessus)
-            if (btnClose != null)
-            {
-                btnClose.BringToFront();
-                // Fix Close button position (EN/FR: Corriger position bouton Close)
-                // Place it below the navigation buttons, centered
-                // Center block is 240 wide, centered at (560-240)/2 = 160. Center X = 160 + 120 = 280 (relative to panel).
-                // Panel is at 20. So Form X Center = 300.
-                // IR Viz button ends at Y=580.
-                btnClose.Location = new Point(300 - btnClose.Width / 2, 680); 
-            }
-            
-            // Reflow mapping panel layout (EN/FR: Refondre disposition panel mapping)
-            ReflowMappingPanel();
-        }
-        
-        private void ReflowMappingPanel()
-        {
-            // Organize controls in panelMapping to fit windowed mode (EN/FR: Organiser contrôles dans panelMapping pour mode fenêtré)
-            int y = 10;
-            int x = 10;
-            int width = panelMapping.Width - 20;
-            
-            // 1. Game Info
-            if (lblCurrentGame != null) { lblCurrentGame.Location = new Point(x, y); }
-            
-            // Position Manual Select Exe button (EN/FR: Positionner bouton sélection manuelle exe)
-            if (btnSelectExe != null)
-            {
-                btnSelectExe.Location = new Point(x + width - btnSelectExe.Width, y - 2);
-                btnSelectExe.BringToFront();
-            }
-            y += 25;
-            
-            if (lblLinkedExe != null) { lblLinkedExe.Location = new Point(x, y); y += 25; }
-            
-            // 2. Profile Selection
-            y += 10;
-            if (lblProfileName != null) { lblProfileName.Location = new Point(x, y); }
-            if (txtProfileName != null) { txtProfileName.Location = new Point(x + 100, y - 3); txtProfileName.Width = 200; }
-            y += 30;
-            
-            if (lblSubfolder != null) { lblSubfolder.Location = new Point(x, y); }
-            if (comboBoxSubfolders != null) { comboBoxSubfolders.Location = new Point(x + 100, y - 3); comboBoxSubfolders.Width = 200; }
-            if (btnNewFolder != null) { btnNewFolder.Location = new Point(x + 310, y - 3); }
-            y += 30;
-            
-            if (lblLoadProfile != null) { lblLoadProfile.Location = new Point(x, y); }
-            if (comboBoxProfiles != null) { comboBoxProfiles.Location = new Point(x + 100, y - 3); comboBoxProfiles.Width = 200; }
-            if (btnDeleteProfile != null) { btnDeleteProfile.Location = new Point(x + 310, y - 3); } // Next to comboBoxProfiles (EN/FR: À côté de comboBoxProfiles)
-            y += 40;
-            
-            // 3. Assign Button Area
-            if (lblQuickMappings != null) { lblQuickMappings.Location = new Point(x, y); }
-            if (btnAssignMode != null) { btnAssignMode.Location = new Point(x + 180, y - 5); } // Increased offset to avoid overlap (EN/FR: Offset augmenté pour éviter chevauchement)
-            if (btnHotkeys != null) { btnHotkeys.Location = new Point(x + 350, y - 5); } // Same Y as Assign Button, right next to it (EN/FR: Même Y que Assign Button, juste à côté)
-            y += 35;
-            
-            // 4. Tab Control (The big one)
-            if (tabControlPlayers != null)
-            {
-                tabControlPlayers.Location = new Point(x, y);
-                tabControlPlayers.Width = width;
-                // Calculate remaining height, leaving space for footer/buttons
-                // Panel height is 720. We are at y ~ 200.
-                // Leave 50px at bottom for AutoLoad checkbox and Save/Load buttons
-                int remainingHeight = 720 - y - 100; 
-                tabControlPlayers.Height = Math.Max(300, remainingHeight);
-                y += tabControlPlayers.Height + 10;
-            }
-            
-            // 5. Auto Load Checkbox
-            if (chkAutoLoad != null) { chkAutoLoad.Location = new Point(x, y); }
-            y += 25; // Space for next checkbox (EN/FR: Espace pour prochaine checkbox)
-            
-            // 6. Gyro Aiming Checkbox (EN/FR: Checkbox visée gyroscopique)
-            if (chkEnableGyro != null) 
-            { 
-                bool showGyro = Options.Instance.EnableDevGestures;
-                chkEnableGyro.Visible = showGyro;
-                chkEnableGyro.Enabled = showGyro;
-                
-                if (showGyro)
-                {
-                    chkEnableGyro.Location = new Point(x, y); 
-                }
-                else
-                {
-                    // If hidden, move up to close gap (EN/FR: Si caché, remonter pour fermer l'espace)
-                    y -= 25;
-                }
-            }
-            y += 10; // Small gap before buttons (EN/FR: Petit espace avant boutons)
-            
-            // Position Save/Load buttons relative to AutoLoad (EN/FR: Positionner boutons Save/Load par rapport à AutoLoad)
-            // They are on the form, not the panel, so we need to add panel.Location
-            int formX = panelMapping.Location.X + x;
-            int formY = panelMapping.Location.Y + y + 35;
-            
-            if (btnSave != null) 
-            { 
-                btnSave.Location = new Point(formX, formY); 
-                btnSave.BringToFront();
-            }
-            if (btnLoad != null) 
-            { 
-                btnLoad.Location = new Point(formX + 160, formY); 
-                btnLoad.BringToFront();
-            }
-        }
-        
-        private Button CreateNavButton(string text, int x, int y)
-        {
-            var btn = new Button
-            {
-                Text = text,
-                Size = new Size(240, 80),
-                Location = new Point(x, y),
-                BackColor = Color.FromArgb(0, 122, 204),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 12F, FontStyle.Bold),
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(20, 0, 0, 0)
-            };
-            btn.FlatAppearance.BorderSize = 0;
-            
-            // Hover effect
-            btn.MouseEnter += (s, e) => btn.BackColor = Color.FromArgb(28, 151, 234);
-            btn.MouseLeave += (s, e) => btn.BackColor = Color.FromArgb(0, 122, 204);
-            
-            return btn;
-        }        
-        private void MoveControlToPanel(Panel panel, Control control)
-        {
-            if (control != null && this.Controls.Contains(control))
-            {
-                Point oldLocation = control.Location;
-                this.Controls.Remove(control);
-                control.Location = oldLocation; // Keep same position
-                panel.Controls.Add(control);
-            }
-        }
-        
         private void ShowPage(string pageName)
         {
             // Hide all panels
             if (panelHome != null) panelHome.Visible = false;
             if (panelMapping != null) panelMapping.Visible = false;
-            if (panelOptions != null) panelOptions.Visible = false;
-            if (panelAssign != null) panelAssign.Visible = false;
-            if (panelIRViz != null) panelIRViz.Visible = false;
+            //if (panelOptions != null) panelOptions.Visible = false;
+            //if (panelAssign != null) panelAssign.Visible = false;
+            //if (panelIRViz != null) panelIRViz.Visible = false;
             
             // Show requested panel
             switch (pageName)
@@ -982,7 +664,7 @@ namespace WiimoteGun
                     
                     
                 case "Options":
-                    if (panelOptions != null) panelOptions.Visible = true;
+                    //if (panelOptions != null) panelOptions.Visible = true;
                     if (btnBackToHome != null) btnBackToHome.Visible = true;
                     if (lblTitle != null) lblTitle.Visible = false;
                     // Hide Save/Load buttons on Options page (EN/FR: Cacher boutons Save/Load sur page Options)
@@ -991,11 +673,11 @@ namespace WiimoteGun
                     break;
                     
                 case "Assign":
-                    if (panelAssign != null) 
-                    {
-                        panelAssign.Visible = true;
-                        LoadAssignPage(); // Refresh list when showing page
-                    }
+                    //if (panelAssign != null)
+                    //{
+                    //    panelAssign.Visible = true;
+                    //    LoadAssignPage(); // Refresh list when showing page
+                    //}
                     if (btnBackToHome != null) btnBackToHome.Visible = true;
                     if (lblTitle != null) lblTitle.Visible = false;
                     if (btnSave != null) btnSave.Visible = false;
@@ -1003,11 +685,11 @@ namespace WiimoteGun
                     break;
                     
                 case "IRViz":
-                    if (panelIRViz != null)
-                    {
-                        panelIRViz.Visible = true;
-                        LoadIRPage();
-                    }
+                    //if (panelIRViz != null)
+                    //{
+                    //    panelIRViz.Visible = true;
+                    //    LoadIRPage();
+                    //}
                     if (btnBackToHome != null) btnBackToHome.Visible = true;
                     if (lblTitle != null) lblTitle.Visible = false;
                     // Hide Save/Load buttons on IR page (EN/FR: Cacher boutons Save/Load sur page IR)
@@ -1035,7 +717,6 @@ namespace WiimoteGun
             if (btnSave != null && btnSave.Visible) btnSave.BringToFront();
             if (btnLoad != null && btnLoad.Visible) btnLoad.BringToFront();
         }
-        
 
         /// <summary>
         /// Show overlay with fade-in animation (EN/FR: Afficher overlay avec animation)
