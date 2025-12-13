@@ -12,6 +12,7 @@
     <AssemblyName>WiimoteGun</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
+
     <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <WarningLevel>4</WarningLevel>
     <ApplicationIcon>gray.ico</ApplicationIcon>
@@ -36,6 +37,7 @@
     <IsWebBootstrapper>false</IsWebBootstrapper>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
+    <RuntimeIdentifiers>win;win-x86;win-x64</RuntimeIdentifiers>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -48,6 +50,7 @@
     <RunCodeAnalysis>false</RunCodeAnalysis>
     <Prefer32Bit>false</Prefer32Bit>
     <PlatformTarget>x86</PlatformTarget>
+    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -58,9 +61,11 @@
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
     <PlatformTarget>x86</PlatformTarget>
+    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
   </PropertyGroup>
   <PropertyGroup>
     <StartupObject>WiimoteGun.Program</StartupObject>
+
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -72,77 +77,132 @@
     <Reference Include="System.Drawing" />
     <Reference Include="System.Management" />
     <Reference Include="System.Windows.Forms" />
-    <Reference Include="Microsoft.VisualBasic" />
     <Reference Include="System.Xml" />
-    <Reference Include="WindowsBase">
-      <RequiredTargetFramework>3.0</RequiredTargetFramework>
-    </Reference>
+    <Reference Include="System.ServiceProcess" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AboutBox.cs">
+
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="UI\Legacy\AboutBox.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="AboutBox.Designer.cs">
+    <Compile Include="UI\Legacy\AboutBox.Designer.cs">
       <DependentUpon>AboutBox.cs</DependentUpon>
     </Compile>
     <Compile Include="Common\SimpleLogger.cs" />
     <Compile Include="Common\Win32.cs" />
-    <Compile Include="MappingForm.cs">
+    <Compile Include="UI\Legacy\MappingForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="MappingForm.Designer.cs">
+    <Compile Include="UI\Legacy\MappingForm.Designer.cs">
       <DependentUpon>MappingForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="IRVisualizerForm.cs">
+    <Compile Include="UI\Legacy\IRVisualizerForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="GyroVisualizerForm.cs">
+    <Compile Include="UI\Legacy\IRVisualizerForm.Designer.cs">
+      <DependentUpon>IRVisualizerForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\GyroVisualizerForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="NotifyForm.cs">
+    <Compile Include="UI\Modern\Forms\GyroVisualizerForm.Designer.cs">
+      <DependentUpon>GyroVisualizerForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\NotifyForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="PlayerMappings.cs" />
-    <Compile Include="Options.cs" />
-    <Compile Include="OptionsForm.cs">
+    <Compile Include="UI\Calibrate\CalibrationModeSelectionForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="OptionsForm.Designer.cs">
+    <Compile Include="UI\Calibrate\CalibrationModeSelectionForm.Designer.cs">
+      <DependentUpon>CalibrationModeSelectionForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\SetupWizard.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\SetupWizard.Designer.cs">
+      <DependentUpon>SetupWizard.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Core\PlayerMappings.cs" />
+    <Compile Include="Core\Options.cs" />
+    <Compile Include="UI\Legacy\OptionsForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Legacy\OptionsForm.Designer.cs">
       <DependentUpon>OptionsForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
-    <Compile Include="ProfileOverlay.cs">
+    <Compile Include="UI\Modern\ProfileOverlay.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="ProfileOverlay.Designer.cs">
+    <Compile Include="UI\Modern\ProfileOverlay.Designer.cs">
       <DependentUpon>ProfileOverlay.cs</DependentUpon>
     </Compile>
-    <Compile Include="KeySelectorDialog.cs">
+    <Compile Include="UI\Modern\Forms\KeySelectorDialog.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="PlayerDeviceDialog.cs">
+    <Compile Include="UI\Modern\Forms\KeySelectorDialog.Designer.cs">
+      <DependentUpon>KeySelectorDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\PlayerDeviceDialog.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="ProfileOverlay.OptionsPage.cs">
-      <DependentUpon>ProfileOverlay.cs</DependentUpon>
+    <Compile Include="UI\Modern\Forms\PlayerDeviceDialog.Designer.cs">
+      <DependentUpon>PlayerDeviceDialog.cs</DependentUpon>
     </Compile>
-    <Compile Include="ProfileOverlay.AssignPage.cs">
-      <DependentUpon>ProfileOverlay.cs</DependentUpon>
+    <Compile Include="UI\Modern\Controls\HomeControl.cs">
+      <SubType>UserControl</SubType>
     </Compile>
-    <Compile Include="ProfileOverlay.IRPage.cs">
-      <DependentUpon>ProfileOverlay.cs</DependentUpon>
+    <Compile Include="UI\Modern\Controls\HomeControl.Designer.cs">
+      <DependentUpon>HomeControl.cs</DependentUpon>
     </Compile>
-    <Compile Include="GameProfileMapping.cs" />
-    <Compile Include="ToastNotification.cs" />
-    <Compile Include="ModalInputDialog.cs" />
-    <Compile Include="InterceptionDriver.cs" />
-    <Compile Include="IVirtualMouse.cs" />
-    <Compile Include="VirtualInterceptionMouse.cs" />
-    <Compile Include="VirtualInterceptionKeyboard.cs" />
-    <Compile Include="WelcomeDialog.cs">
+    <Compile Include="UI\Modern\Controls\AssignControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Controls\AssignControl.Designer.cs">
+      <DependentUpon>AssignControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Modern\Controls\OptionsControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Controls\OptionsControl.Designer.cs">
+      <DependentUpon>OptionsControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Modern\Controls\MappingControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Controls\MappingControl.Designer.cs">
+      <DependentUpon>MappingControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Modern\Controls\IRControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Controls\IRControl.Designer.cs">
+      <DependentUpon>IRControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Core\GameProfileMapping.cs" />
+    <Compile Include="UI\Modern\Controls\ToastNotification.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\ModalInputDialog.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="WiimoteHiddenWnd.cs" />
+    <Compile Include="UI\Modern\Forms\ModalInputDialog.Designer.cs">
+      <DependentUpon>ModalInputDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Core\InterceptionDriver.cs" />
+    <Compile Include="Core\IVirtualMouse.cs" />
+    <Compile Include="Core\VirtualInterceptionMouse.cs" />
+    <Compile Include="Core\VirtualInterceptionKeyboard.cs" />
+    <Compile Include="UI\Modern\Forms\WelcomeDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\WelcomeDialog.Designer.cs">
+      <DependentUpon>WelcomeDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Core\WiimoteHiddenWnd.cs" />
     <Compile Include="WiimoteLib\DataTypes\AccelCalibrationInfo.cs" />
     <Compile Include="WiimoteLib\DataTypes\AccelState.cs" />
     <Compile Include="WiimoteLib\DataTypes\ButtonState.cs" />
@@ -222,29 +282,44 @@
     <None Include="WiimoteLib\Native\HIDapi.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CalibrateForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="CalibrationModeSelectionForm.cs">
+    <Compile Include="UI\Calibrate\CalibrateForm.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Common\EsInput.cs" />
     <Compile Include="Common\Extensions.cs" />
-    <Compile Include="DeviceHelper.cs" />
-    <Compile Include="VMultiDeviceDetector.cs" />
-    <Compile Include="VirtualKeyboard.cs" />
-    <Compile Include="Hotkey.cs" />
-    <Compile Include="HotkeyProfile.cs" />
-    <Compile Include="HotkeyManager.cs" />
-    <Compile Include="HotkeyEditorDialog.cs" />
-    <Compile Include="UsbIdProvider.cs" />
-    <Compile Include="MessageWindow.cs" />
-    <Compile Include="EmulatorProcessMonitor.cs" />
-    <Compile Include="RemapProfileManager.cs" />
-    <Compile Include="VirtualSendInputMouse.cs" />
-    <Compile Include="VirtualSendInputKeyboard.cs" />
-    <!-- VirtualRawMouse.cs removed - replaced by VirtualInterceptionMouse.cs -->
-    <Compile Include="WiimoteControllerManager.cs" />
+    <Compile Include="Core\DeviceHelper.cs" />
+    <Compile Include="Core\VMultiDeviceDetector.cs" />
+    <Compile Include="Core\VirtualKeyboard.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Core\Hotkey.cs" />
+    <Compile Include="Core\HotkeyProfile.cs" />
+    <Compile Include="Core\HotkeyManager.cs" />
+    <Compile Include="UI\Modern\Forms\HotkeyEditorDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\HotkeyEditorDialog.Designer.cs">
+      <DependentUpon>HotkeyEditorDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\HotkeyInputDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\HotkeyInputDialog.Designer.cs">
+      <DependentUpon>HotkeyInputDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\KeyCaptureDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\KeyCaptureDialog.Designer.cs">
+      <DependentUpon>KeyCaptureDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Core\UsbIdProvider.cs" />
+    <Compile Include="Core\MessageWindow.cs" />
+    <Compile Include="Services\EmulatorProcessMonitor.cs" />
+    <Compile Include="Core\RemapProfileManager.cs" />
+    <Compile Include="Core\VirtualSendInputMouse.cs" />
+    <Compile Include="Core\VirtualSendInputKeyboard.cs" />
+    <Compile Include="Core\WiimoteControllerManager.cs" />
     <Compile Include="VirtualJoy\IVirtualJoy.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>
@@ -254,38 +329,36 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
-    <Compile Include="ScreenPositionCalculator.cs" />
+    <Compile Include="Core\ScreenPositionCalculator.cs" />
+    <Compile Include="Services\ServiceClient.cs" />
     <Compile Include="VirtualJoy\VirtualVJoy.cs" />
     <Compile Include="VirtualJoy\VirtualSendKey.cs" />
     <None Include="Resources\gun.png" />
-    <Compile Include="WiiMoteController.cs" />
-    <None Include="app.config" />
-    <AppDesigner Include="Properties\" />
-    <None Include="WiimoteLib\docs\APIHelp\AdditionalContent\changes.topic" />
-    <None Include="WiimoteLib\docs\APIHelp\AdditionalContent\copyright.topic" />
-    <None Include="WiimoteLib\docs\APIHelp\AdditionalContent\license.topic" />
-    <None Include="WiimoteLib\docs\APIHelp\AdditionalContent\overview.topic" />
-    <None Include="WiimoteLib\docs\APIHelp\Help\WiimoteLib.chm" />
-    <None Include="WiimoteLib\docs\APIHelp\WiimoteLib.shfb" />
-    <None Include="WiimoteLib\docs\APIHelp\WiimoteLib.sitemap" />
+    <Compile Include="Core\WiiMoteController.cs" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="AboutBox.resx">
+    <EmbeddedResource Include="UI\Legacy\AboutBox.resx">
       <DependentUpon>AboutBox.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="OptionsForm.resx">
+    <EmbeddedResource Include="UI\Modern\Forms\ModalInputDialog.resx">
+      <DependentUpon>ModalInputDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UI\Legacy\OptionsForm.resx">
       <DependentUpon>OptionsForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <Resource Include="WiimoteLib\docs\copyright.txt" />
+    <Resource Include="WiimoteLib\docs\license.txt" />
+    <Resource Include="WiimoteLib\docs\readme.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="UI\Modern\Forms\SetupWizard.resx">
+      <DependentUpon>SetupWizard.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
       <SubType>Designer</SubType>
     </EmbeddedResource>
-  </ItemGroup>
-  <ItemGroup>
-    <Resource Include="WiimoteLib\docs\copyright.txt" />
-    <Resource Include="WiimoteLib\docs\license.txt" />
-    <Resource Include="WiimoteLib\docs\readme.txt" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.6.1">
@@ -298,6 +371,9 @@
       <ProductName>.NET Framework 3.5 SP1</ProductName>
       <Install>false</Install>
     </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+
   </ItemGroup>
   <ItemGroup>
     <None Include="gray.ico" />

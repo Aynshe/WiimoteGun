@@ -7,6 +7,11 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Linq;
 using System.Text;
+using System.ServiceProcess;
+using WiimoteGun.Forms;
+using WiimoteGun.UI.Legacy;
+using WiimoteGun.UI;
+using WiimoteGun.UI.Calibrate;
 
 namespace WiimoteGun
 {
@@ -223,6 +228,20 @@ namespace WiimoteGun
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
+            // First Run / Setup Checker
+            if (WiimoteGun.Options.Instance.ShowSetupWizard)
+            {
+                if (!IsServiceInstalled("interception") || !IsServiceInstalled("WiimoteGunHelper"))
+                {
+                    using (var wizard = new Forms.SetupWizard())
+                    {
+                         wizard.ShowDialog();
+                         // We don't block start even if they cancel, unless critical?
+                         // User asked for "Skip" option, so we just run.
+                    }
+                }
+            }
+
             _appContext = new ApplicationContext();
             _wiiMoteManager = new WiimoteControllerManager();
             _synchronizationContext = new WindowsFormsSynchronizationContext();
@@ -234,7 +253,7 @@ namespace WiimoteGun
             _messageWindow.MenuRequested += OnMenuRequested;
             
             // Initialize Overlay (EN/FR: Initialiser Overlay)
-            _profileOverlay = new ProfileOverlay();
+            _profileOverlay = new ProfileOverlay(_menuMode);
             
             // Initialize Hotkey Manager (EN/FR: Initialiser gestionnaire hotkeys)
             HotkeyManager.Initialize();
@@ -2114,6 +2133,17 @@ namespace WiimoteGun
                     string newDestinationDir = Path.Combine(destinationDir, subDir.Name);
                     CopyDirectory(subDir.FullName, newDestinationDir, true);
                 }
+            }
+        }
+        private static bool IsServiceInstalled(string serviceName)
+        {
+            try
+            {
+                return ServiceController.GetServices().Any(s => s.ServiceName.Equals(serviceName, StringComparison.OrdinalIgnoreCase));
+            }
+            catch
+            {
+                return false;
             }
         }
     }
