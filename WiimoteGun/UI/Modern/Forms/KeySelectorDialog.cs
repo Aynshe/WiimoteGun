@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Linq;
+using WiimoteGun.UI.Modern.Forms;
 
 namespace WiimoteGun
 {
@@ -21,6 +22,8 @@ namespace WiimoteGun
             btnCancel.FlatAppearance.BorderSize = 0;
             
             PopulateKeys();
+            
+            txtSearch.Click += (s, e) => ShowVirtualKeyboard();
         }
         
         // Event handlers
@@ -28,6 +31,7 @@ namespace WiimoteGun
         {
             if (listBoxKeys.SelectedItem != null)
             {
+                SelectedKey = (Keys)listBoxKeys.SelectedItem;
                 this.DialogResult = DialogResult.OK;
                 this.Close();
             }
@@ -92,6 +96,27 @@ namespace WiimoteGun
                 this.DialogResult = DialogResult.Cancel;
             }
             this.Close();
+            }
+        
+        private void ShowVirtualKeyboard()
+        {
+             VirtualKeyboard keyboard = new VirtualKeyboard(txtSearch);
+             keyboard.StartPosition = FormStartPosition.Manual;
+             
+             Point screenPos = txtSearch.PointToScreen(new Point(0, txtSearch.Height));
+             keyboard.Location = new Point(
+                screenPos.X + (txtSearch.Width - keyboard.Width) / 2,
+                screenPos.Y + 5 
+             );
+             
+            var screen = Screen.FromControl(this);
+            if (keyboard.Bottom > screen.WorkingArea.Bottom)
+            {
+                 keyboard.Top = txtSearch.PointToScreen(Point.Empty).Y - keyboard.Height - 5;
+            }
+
+             keyboard.ShowDialog(this);
         }
     }
-}
+    }
+

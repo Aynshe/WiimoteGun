@@ -44,6 +44,10 @@ namespace WiimoteGun
         private bool _isShaking = false; // Track shake state (EN/FR: Suivi état secousse)
         private DateTime _lastGrenadeTime = DateTime.MinValue;
         
+        // Manual Device Disable Hotkey (EN/FR: Hotkey Désactivation Manuelle)
+        private DateTime _manualDisableStartTime = DateTime.MinValue;
+        private bool _manualDisableTriggered = false;
+        
         // Off-screen Reload state tracking (EN/FR: Suivi d'état rechargement hors écran)
         private bool _wasOnScreen = true;
         private int _offScreenReloadClickSequence = 0; // 0=idle, 1-4=sending 2 clicks
@@ -179,9 +183,53 @@ namespace WiimoteGun
             // Enable Virtual Driver via Service (if in RawInput mode)
             if (Options.Instance.DefaultMouseMode == MouseMode.RawInput)
             {
+
                  ServiceClient.EnablePlayer(PlayerIndex);
-                 // Allow sufficient time (2s) for pnputil to execute and device to enumerate
-                 System.Threading.Thread.Sleep(2000); 
+                 
+                 // Robust wait loop for device initialization (EN/FR: Boucle d'attente robuste pour l'initialisation du périphérique)
+                 SimpleLogger.Instance.Info($"Waiting for VMulti P{PlayerIndex} initialization...");
+                 
+                 bool deviceReady = false;
+                 // Try for up to 6 seconds (12 * 500ms)
+                 for (int i = 0; i < 12; i++)
+                 {
+                     System.Threading.Thread.Sleep(500);
+                     VirtualInterceptionMouse.ReloadContext();
+                     
+                     var (mouseId, _) = VMultiDeviceDetector.DetectPlayerVMultiDevices(PlayerIndex);
+                     if (!string.IsNullOrEmpty(mouseId))
+                     {
+                         deviceReady = true;
+                         SimpleLogger.Instance.Info($"VMulti P{PlayerIndex} ready after {(i + 1) * 500}ms");
+                         break;
+                     }
+                 }
+                 
+                 if (!deviceReady)
+                 {
+                     SimpleLogger.Instance.Warning($"VMulti P{PlayerIndex} detection timed out. Retrying enable...");
+                     ServiceClient.EnablePlayer(PlayerIndex);
+                     System.Threading.Thread.Sleep(1500);
+                     VirtualInterceptionMouse.ReloadContext();
+                 }
+
+                 // Auto-detect and save VMulti mouse after activation (EN/FR: Auto-détecter et sauvegarder souris VMulti après activation)
+                 // VMulti mice only exist AFTER EnablePlayer, so we detect them here, not at startup
+                 if (Options.Instance.AutoLockVMultiDevices)
+                 {
+                     string currentPreferredMouse = Options.Instance.GetPreferredMouseId(PlayerIndex);
+                     // Only auto-assign if no preference set or if current preference seems invalid
+                     if (string.IsNullOrEmpty(currentPreferredMouse) || currentPreferredMouse.Contains("vmulti"))
+                     {
+                         var (mouseId, _) = VMultiDeviceDetector.DetectPlayerVMultiDevices(PlayerIndex);
+                         if (!string.IsNullOrEmpty(mouseId))
+                         {
+                             Options.Instance.SetPreferredMouseId(PlayerIndex, mouseId);
+                             Options.Instance.Save();
+                             SimpleLogger.Instance.Info($"[VMulti Post-Activation] Auto-saved P{PlayerIndex} Mouse: {mouseId}");
+                         }
+                     }
+                 }
             }
 
             _lastState = new ButtonState();
@@ -249,8 +297,11 @@ namespace WiimoteGun
             _watchDolphinThread.IsBackground = true;
             _watchDolphinThread.Start();
 
-            // Start auto-sleep check timer (check every minute) (EN/FR: Démarrer le timer de vérification de mise en veille)
-            _sleepCheckTimer = new System.Threading.Timer(_ => CheckSleep(), null, 60000, 60000);
+            // Start auto-sleep/disconnect check timer (EN/FR: Démarrer le timer de vérification veille/déconnexion)
+            // DolphinBar: 5s interval for fast disconnect detection (EN/FR: Intervalle 5s pour détection rapide)
+            // Bluetooth: 60s interval for battery-friendly sleep check (EN/FR: Intervalle 60s pour économie batterie)
+            int checkInterval = Wiimote.Device.IsBluetooth ? 60000 : 5000;
+            _sleepCheckTimer = new System.Threading.Timer(_ => CheckSleep(), null, checkInterval, checkInterval);
             
             // Initialize rumble timer (disabled by default) (EN/FR: Initialiser timer vibration (désactivé par défaut))
             _rumbleTimer = new System.Threading.Timer(_ => RumbleRepetitionCallback(), null, Timeout.Infinite, Timeout.Infinite);
@@ -263,6 +314,23 @@ namespace WiimoteGun
                 if (Wiimote == null || !Wiimote.IsConnected)
                     return;
 
+                // DolphinBar: Use GetStatus to detect disconnections (EN/FR: Utiliser GetStatus pour détecter déconnexions)
+                // GetStatus will timeout if Wiimote is turned off, triggering exception handling
+                if (!Wiimote.Device.IsBluetooth)
+                {
+                    try
+                    {
+                        Wiimote.GetStatus(500); // 500ms timeout for faster detection
+                    }
+                    catch (TimeoutException)
+                    {
+                        SimpleLogger.Instance.Warning($"DolphinBar Wiimote P{PlayerIndex} disconnected (GetStatus timeout)");
+                        Wiimote.Disconnect();
+                    }
+                    return;
+                }
+
+                // Bluetooth: Auto-sleep after inactivity (EN/FR: Mise en veille auto après inactivité)
                 double inactiveMinutes = (DateTime.Now - _lastActivityTime).TotalMinutes;
                 
                 if (inactiveMinutes >= SLEEP_TIMEOUT_MINUTES)
@@ -407,8 +475,10 @@ namespace WiimoteGun
 
             // Display connection notification with mouse mode (EN/FR: Afficher notification connexion avec mode souris)
             string mouseMode = Options.Instance.DefaultMouseMode == MouseMode.SendInput ? "SendInput (Legacy)" : "RawInput/Interception";
-            Program.Notify($"Wiimote P{PlayerIndex} connected - {mouseMode}");
-            SimpleLogger.Instance.Info($"Wiimote P{PlayerIndex} connected with HID path: {Wiimote.DevicePath}");
+            string connType = Wiimote.Device.IsBluetooth ? "Bluetooth" : "DolphinBar";
+            
+            Program.Notify($"Wiimote P{PlayerIndex} connected ({connType}) - {mouseMode}");
+            SimpleLogger.Instance.Info($"Wiimote P{PlayerIndex} connected via {connType}. HID path: {Wiimote.DevicePath}");
 
             if (_hiddenWnd == null && Options.Instance.DefaultMouseMode == MouseMode.SendInput)
             {
@@ -467,7 +537,18 @@ namespace WiimoteGun
             // Disable Virtual Driver via Service
             if (Options.Instance.DefaultMouseMode == MouseMode.RawInput)
             {
-                ServiceClient.DisablePlayer(PlayerIndex);
+                if (Options.Instance.DisableDeviceOnDisconnect)
+                {
+                    // Standard PnP behavior: Disable device on disconnect
+                    // (EN/FR: Comportement PnP standard : Désactiver à la déconnexion)
+                    ServiceClient.DisablePlayer(PlayerIndex);
+                }
+                else
+                {
+                    // Persistent mode: Keep device enabled to avoid Windows PnP instability
+                    // (EN/FR: Mode persistant : Garder activé pour éviter l'instabilité PnP Windows)
+                    SimpleLogger.Instance.Info($"[Persistent P{PlayerIndex}] Keeping VMulti device enabled (DisableDeviceOnDisconnect=false).");
+                } 
             }
         }
 
@@ -638,6 +719,31 @@ namespace WiimoteGun
                 ButtonState buttons = e.WiimoteState.Buttons;
                 IRState ir = e.WiimoteState.IRState;
 
+                // --- MANUAL DISABLE HOTKEY (Off-Screen + Minus + Plus > 3s) ---
+                bool isOffScreen = !ir.IRSensor0.Found && !ir.IRSensor1.Found;
+                bool suppressMinusPlus = false;
+
+                if (isOffScreen && buttons.Minus && buttons.Plus)
+                {
+                    if (_manualDisableStartTime == DateTime.MinValue)
+                        _manualDisableStartTime = DateTime.Now;
+
+                    if (!_manualDisableTriggered && (DateTime.Now - _manualDisableStartTime).TotalSeconds >= 3.0)
+                    {
+                        SimpleLogger.Instance.Info($"[P{PlayerIndex}] Manual Disable Hotkey Triggered (Off-Screen + Minus + Plus)");
+                        ServiceClient.DisablePlayer(PlayerIndex);
+                        Vibrate(e.Wiimote); // Feedback
+                        _manualDisableTriggered = true;
+                    }
+                    
+                    suppressMinusPlus = true;
+                }
+                else
+                {
+                    _manualDisableStartTime = DateTime.MinValue;
+                    _manualDisableTriggered = false;
+                }
+
                 // Read and process gyroscope data (EN/FR: Lire et traiter données gyroscope)
                 ProcessGyroscopeData(e.WiimoteState);
 
@@ -681,6 +787,9 @@ namespace WiimoteGun
 
 
                     
+                // Hotkey detection: notify HotkeyManager FIRST (EN/FR: Détection hotkeys : notifier d'abord)
+                DetectHotkeyButtonChanges(buttons, _lastState);
+
                 ManageCalibration(e.Wiimote, buttons, _lastState);
 
                 NunchukState nunchuk = e.WiimoteState.Nunchuk;
@@ -688,6 +797,12 @@ namespace WiimoteGun
 
                 if (_mode == WiiMoteMode.Mouse)
                 {
+                    // ... (Keeping hybrid tracking logic as is, it's too big to include in replace block if not needed)
+                    // I will target the SendInput block specifically in next step or use bigger context if I can.
+                    // Actually, replace_file_content works best with contiguous blocks.
+                    // Since DetectHotkeyButtonChanges was at the end, I'll remove it from there in valid step.
+                    // This step inserts it at the top.
+
                     bool wasCalibrating = _calculator.IsCalibrating;
                     var scaledPos = _calculator.GetScaledPosition(ir, buttons, _lastState);
 
@@ -909,20 +1024,17 @@ namespace WiimoteGun
 
                 if ((_mode == WiiMoteMode.Mouse || _mode == WiiMoteMode.Keyboardpad) && _joy != null && _joy.IsEnabled && !_calculator.IsCalibrating)
                 {
-                    // Mask inputs if Home is pressed (Hotkey mode) (EN/FR: Masquer inputs si Home pressé)
-                    // This prevents standard actions from triggering while using hotkeys
-                    bool homePressed = buttons.Home;
-
-                    SendKeyEvent(_playerMappings.WiiA, buttons.A && !homePressed, _lastState.A);
-                    SendKeyEvent(_playerMappings.WiiB, buttons.B && !homePressed, _lastState.B);
-                    SendKeyEvent(_playerMappings.WiiUp, buttons.Up && !homePressed, _lastState.Up);
-                    SendKeyEvent(_playerMappings.WiiDown, buttons.Down && !homePressed, _lastState.Down);
-                    SendKeyEvent(_playerMappings.WiiLeft, buttons.Left && !homePressed, _lastState.Left);
-                    SendKeyEvent(_playerMappings.WiiRight, buttons.Right && !homePressed, _lastState.Right);
-                    SendKeyEvent(_playerMappings.WiiOne, buttons.One && !homePressed, _lastState.One);
-                    SendKeyEvent(_playerMappings.WiiTwo, buttons.Two && !homePressed, _lastState.Two);
-                    SendKeyEvent(_playerMappings.WiiPlus, buttons.Plus && !homePressed, _lastState.Plus);
-                    SendKeyEvent(_playerMappings.WiiMinus, buttons.Minus && !homePressed, _lastState.Minus);
+                    // Mask inputs if specific button is consumed by hotkey (EN/FR: Masquer inputs si bouton consommé par hotkey)
+                    SendKeyEvent(_playerMappings.WiiA, buttons.A && !HotkeyManager.IsButtonConsumed(PlayerIndex, "A"), _lastState.A);
+                    SendKeyEvent(_playerMappings.WiiB, buttons.B && !HotkeyManager.IsButtonConsumed(PlayerIndex, "B"), _lastState.B);
+                    SendKeyEvent(_playerMappings.WiiUp, buttons.Up && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Up"), _lastState.Up);
+                    SendKeyEvent(_playerMappings.WiiDown, buttons.Down && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Down"), _lastState.Down);
+                    SendKeyEvent(_playerMappings.WiiLeft, buttons.Left && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Left"), _lastState.Left);
+                    SendKeyEvent(_playerMappings.WiiRight, buttons.Right && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Right"), _lastState.Right);
+                    SendKeyEvent(_playerMappings.WiiOne, buttons.One && !HotkeyManager.IsButtonConsumed(PlayerIndex, "One"), _lastState.One);
+                    SendKeyEvent(_playerMappings.WiiTwo, buttons.Two && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Two"), _lastState.Two);
+                    SendKeyEvent(_playerMappings.WiiPlus, buttons.Plus && !suppressMinusPlus && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Plus"), _lastState.Plus);
+                    SendKeyEvent(_playerMappings.WiiMinus, buttons.Minus && !suppressMinusPlus && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Minus"), _lastState.Minus);
 
                     if (hasNunchuk)
                     {
@@ -936,10 +1048,6 @@ namespace WiimoteGun
 
                     _joy.CommitChanges();
                 }
-
-                // Hotkey detection: notify HotkeyManager of button presses/releases
-                // (EN/FR: Détection hotkeys : notifier HotkeyManager des pressions/relâchements)
-                DetectHotkeyButtonChanges(buttons, _lastState);
 
                 _lastState = e.WiimoteState.Buttons;
                 if (hasNunchuk)
@@ -1112,23 +1220,6 @@ namespace WiimoteGun
             if (_calculator.IsCalibrating)
                 return;
 
-            // CRITICAL: Check if any hotkey button is pressed with Home (EN/FR: Vérifier si bouton hotkey pressé avec Home)
-            // This blocks Home native functions (mode switch, calibration) when hotkey is active
-            bool isHotkeyActive = buttons.Home && (buttons.A || buttons.B || buttons.One || buttons.Two || 
-                                                    buttons.Minus || buttons.Up || buttons.Down || 
-                                                    buttons.Left || buttons.Right);
-            
-            if (isHotkeyActive)
-            {
-                // Cancel Home native actions for hotkey combos (EN/FR: Annuler actions Home natives pour hotkeys)
-                // EXCEPT Home+Plus (overlay) which is handled below
-                if (!buttons.Plus)
-                {
-                    ticks = -1;
-                    return; // Don't process Home native functions
-                }
-            }
-
             // Check for Home + D-pad combo for offset adjustment (IR Visualizer) (EN/FR: Vérifier combo Home + D-pad pour ajustement offset)
             // This should be checked BEFORE Home + Plus to have priority (EN/FR: Vérifier AVANT Home + Plus pour priorité)
             if (buttons.Home && (buttons.Up || buttons.Down || buttons.Left || buttons.Right))
@@ -1147,6 +1238,14 @@ namespace WiimoteGun
                     OverlayRequested?.Invoke(this, EventArgs.Empty);
                     ticks = -1; // Cancel Home button standard action
                 }
+                return;
+            }
+
+            // CRITICAL: Check if Home is consumed by HotkeyManager (EN/FR: Vérifier si Home consommé par HotkeyManager)
+            // Checked AFTER specific combos to allow them to work (EN/FR: Vérifié APRÈS combos spécifiques pour les laisser fonctionner)
+            if (HotkeyManager.IsButtonConsumed(PlayerIndex, "Home"))
+            {
+                ticks = -1; // Suppress Home native functions (Mode Switch, Calibration)
                 return;
             }
 

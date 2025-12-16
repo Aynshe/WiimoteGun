@@ -187,6 +187,9 @@ namespace WiimoteLib {
 				}
 				catch (Exception ex) {
 					Log.Error($"Failed to send: {this} FileWrite: {ex}");
+					// Propagate write errors as WiimoteException to trigger disconnect for DolphinBar
+					// (EN/FR: Propager erreurs d'écriture pour déclencher déconnexion DolphinBar)
+					WiimoteManager.RaiseWiimoteException(Wiimote, ex);
 					return false;
 				}
 			}

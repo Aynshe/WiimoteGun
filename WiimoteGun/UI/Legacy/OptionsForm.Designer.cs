@@ -36,8 +36,7 @@ namespace WiimoteGun
             this.cbStartWithWindows = new System.Windows.Forms.CheckBox();
             this.rbBoth = new System.Windows.Forms.RadioButton();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
-            this.btn4PlayersInfo = new System.Windows.Forms.Button();
-            this.chk4Players = new System.Windows.Forms.CheckBox();
+
             this.chkSharedKeyboard = new System.Windows.Forms.CheckBox();
             this.chkNotifications = new System.Windows.Forms.CheckBox();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
@@ -60,6 +59,7 @@ namespace WiimoteGun
             this.btnInstallPlayer4 = new System.Windows.Forms.Button();
             this.btnUninstallPlayer4= new System.Windows.Forms.Button();
             this.chkAutoLockVMulti = new System.Windows.Forms.CheckBox();
+            this.chkDisableDeviceOnDisconnect = new System.Windows.Forms.CheckBox();
             this.chkPermissiveCalibration = new System.Windows.Forms.CheckBox();
             
             // Gesture Controls Init
@@ -161,8 +161,7 @@ namespace WiimoteGun
             this.groupBox1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.groupBox1.Controls.Add(this.chkSharedKeyboard);
-            this.groupBox1.Controls.Add(this.btn4PlayersInfo);
-            this.groupBox1.Controls.Add(this.chk4Players);
+
             this.groupBox1.Controls.Add(this.chkNotifications);
             this.groupBox1.Controls.Add(this.cbStartWithWindows);
             this.groupBox1.Controls.Add(this.chkNotifications);
@@ -265,26 +264,7 @@ namespace WiimoteGun
             this.rbDolphinbar.TabIndex = 6;
             this.rbDolphinbar.Text = "Dolphinbar";
             this.rbDolphinbar.UseVisualStyleBackColor = true;
-            // 
-            // chk4Players
-            // 
-            this.chk4Players.AutoSize = true;
-            this.chk4Players.Location = new System.Drawing.Point(13, 76);
-            this.chk4Players.Name = "chk4Players";
-            this.chk4Players.Size = new System.Drawing.Size(200, 17);
-            this.chk4Players.TabIndex = 6;
-            this.chk4Players.Text = "Enable 4 Players (Experimental)";
-            this.chk4Players.UseVisualStyleBackColor = true;
-            // 
-            // btn4PlayersInfo
-            // 
-            this.btn4PlayersInfo.Location = new System.Drawing.Point(219, 72);
-            this.btn4PlayersInfo.Name = "btn4PlayersInfo";
-            this.btn4PlayersInfo.Size = new System.Drawing.Size(24, 24);
-            this.btn4PlayersInfo.TabIndex = 7;
-            this.btn4PlayersInfo.Text = "?";
-            this.btn4PlayersInfo.UseVisualStyleBackColor = true;
-            this.btn4PlayersInfo.Click += new System.EventHandler(this.btn4PlayersInfo_Click);
+
             // 
             // chkSharedKeyboard
             // 
@@ -293,7 +273,7 @@ namespace WiimoteGun
             this.chkSharedKeyboard.Name = "chkSharedKeyboard";
             this.chkSharedKeyboard.Size = new System.Drawing.Size(235, 17);
             this.chkSharedKeyboard.TabIndex = 8;
-            this.chkSharedKeyboard.Text = "Use Shared Keyboard (Recommended)";
+            this.chkSharedKeyboard.Text = "Use Shared Keyboard (Physical Devices Only)";
             this.chkSharedKeyboard.UseVisualStyleBackColor = true;
             // 
             // groupBox3
@@ -503,6 +483,7 @@ namespace WiimoteGun
             // 
             // groupBox4
             // 
+            this.groupBox4.Controls.Add(this.chkDisableDeviceOnDisconnect);
             this.groupBox4.Controls.Add(this.chkAutoLockVMulti);
             this.groupBox4.Controls.Add(this.btnInstallPlayer1);
             this.groupBox4.Controls.Add(this.btnUninstallPlayer1);
@@ -520,6 +501,16 @@ namespace WiimoteGun
             this.groupBox4.TabIndex = 10;
             this.groupBox4.TabStop = false;
             this.groupBox4.Text = "Virtual HID Driver";
+            // 
+            // chkDisableDeviceOnDisconnect
+            // 
+            this.chkDisableDeviceOnDisconnect.AutoSize = true;
+            this.chkDisableDeviceOnDisconnect.Location = new System.Drawing.Point(13, 140);
+            this.chkDisableDeviceOnDisconnect.Name = "chkDisableDeviceOnDisconnect";
+            this.chkDisableDeviceOnDisconnect.Size = new System.Drawing.Size(270, 17);
+            this.chkDisableDeviceOnDisconnect.TabIndex = 11;
+            this.chkDisableDeviceOnDisconnect.Text = "Disable VMulti Device on Disconnect";
+            this.chkDisableDeviceOnDisconnect.UseVisualStyleBackColor = true;
             // 
             // chkAutoLockVMulti
             // 
@@ -697,8 +688,7 @@ namespace WiimoteGun
         private System.Windows.Forms.Button btnUninstallPlayer3;
         private System.Windows.Forms.Button btnInstallPlayer4;
         private System.Windows.Forms.Button btnUninstallPlayer4;
-        private System.Windows.Forms.CheckBox chk4Players;
-        private System.Windows.Forms.Button btn4PlayersInfo;
+
         private System.Windows.Forms.ComboBox cboLEDLayout;
         private System.Windows.Forms.Label lblLEDLayout;
         private System.Windows.Forms.CheckBox chkSharedKeyboard;
@@ -721,6 +711,7 @@ namespace WiimoteGun
         private System.Windows.Forms.RadioButton rbMouseRawInput;
         private System.Windows.Forms.Label lblMouseModeWarning;
         private System.Windows.Forms.CheckBox chkAutoLockVMulti;
+        private System.Windows.Forms.CheckBox chkDisableDeviceOnDisconnect;
         private System.Windows.Forms.CheckBox chkPermissiveCalibration;
     }
 }

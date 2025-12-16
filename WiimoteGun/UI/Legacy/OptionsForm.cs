@@ -20,7 +20,7 @@ namespace WiimoteGun
             
             cbStartWithWindows.DataBindings.Add("Checked", Options.Instance, "StartWithWindows");
             chkNotifications.DataBindings.Add("Checked", Options.Instance, "ShowNotifications");
-            chk4Players.DataBindings.Add("Checked", Options.Instance, "Enable4Players");
+
             chkSharedKeyboard.DataBindings.Add("Checked", Options.Instance, "UseSharedKeyboard");
             
             if (Options.Instance.DetectBlueTooth && Options.Instance.DetectDolphinbar)
@@ -33,7 +33,7 @@ namespace WiimoteGun
             trackBar1.SetRange(0, 5);
             trackBar1.Value = Options.Instance.IRSensitivity;
             
-            chk4Players.Checked = Options.Instance.Enable4Players;
+
 
             // LED Layout ComboBox (EN/FR: ComboBox disposition LED)
             // LED Layout ComboBox (EN/FR: ComboBox disposition LED)
@@ -90,6 +90,9 @@ namespace WiimoteGun
             
             // VMulti Auto-Lock binding (EN/FR: Liaison Auto-Lock VMulti)
             chkAutoLockVMulti.DataBindings.Add("Checked", Options.Instance, "AutoLockVMultiDevices");
+            
+            // Disable logic binding (EN/FR: Liaison logique désactivation)
+            chkDisableDeviceOnDisconnect.Checked = Options.Instance.DisableDeviceOnDisconnect;
         }
 
         private void btnCancel_Click(object sender, EventArgs e)
@@ -105,9 +108,7 @@ namespace WiimoteGun
             Options.Instance.ShowNotifications = chkNotifications.Checked;
             Options.Instance.MonitorId = (int) numericUpDown1.Value;
             Options.Instance.IRSensitivity = trackBar1.Value;
-            Options.Instance.Enable4Players = chk4Players.Checked;
-            Options.Instance.Enable4Players = chk4Players.Checked;
-            Options.Instance.Enable4Players = chk4Players.Checked;
+
             Options.Instance.LEDLayout = (LEDLayoutType)cboLEDLayout.SelectedIndex; // Save LED layout (EN/FR: Sauvegarder layout LED)
             // Options.Instance.PermissiveWiimoteBarCalibration = chkPermissiveCalibration.Checked;
             
@@ -122,6 +123,8 @@ namespace WiimoteGun
             
             // Save Mouse Mode (EN/FR: Sauvegarder Mode Souris)
             Options.Instance.DefaultMouseMode = rbMouseSendInput.Checked ? MouseMode.SendInput : MouseMode.RawInput;
+
+            Options.Instance.DisableDeviceOnDisconnect = chkDisableDeviceOnDisconnect.Checked;
             
             Options.Instance.Save();
 
@@ -193,25 +196,7 @@ namespace WiimoteGun
             }
         }
 
-        private void btn4PlayersInfo_Click(object sender, EventArgs e)
-        {
-            MessageBox.Show(
-                "4-Player Mode (Experimental)\n\n" +
-                "This mode allows up to 4 Wiimotes to connect simultaneously.\n\n" +
-                "IMPORTANT REQUIREMENTS:\n" +
-                "• You need 4 physical keyboard devices (USB keyboards or dongles)\n" +
-                "• You need 4 physical mouse devices (USB mice)\n" +
-                "• Each player will be assigned a unique keyboard/mouse pair\n\n" +
-                "NOTE: This feature is experimental and may be unstable with some\n" +
-                "Bluetooth adapters. If you experience connection issues, disable\n" +
-                "this option to limit to 2 players (stable mode).\n\n" +
-                "Current detected devices:\n" +
-                "- Keyboards: Check WiimoteGun.log for 'Assigned Keyboard Device ID'\n" +
-                "- Mice: Interception drivers should detect all connected mice",
-                "4-Player Mode Information",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-        }
+
 
         private void rbMouseSendInput_CheckedChanged(object sender, EventArgs e)
         {

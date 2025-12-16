@@ -129,7 +129,7 @@ namespace WiimoteGun
                 PreferredMacP3 = "";
                 PreferredMacP4 = "";
 
-                Enable4Players = false;
+                Enable4Players = true;
                 FirstRun = true;
                 ShowSetupWizard = true;
                 UseSharedKeyboard = true;
@@ -161,6 +161,7 @@ namespace WiimoteGun
                 ShakeFromNunchuk = false; // false=Wiimote, true=Nunchuk
                 EnableGrenadeGesture = false;
                 GrenadeFromNunchuk = false;
+                DisableDeviceOnDisconnect = true;
             }
         }
 
@@ -649,7 +650,7 @@ namespace WiimoteGun
         [DefaultValue(5)]
         public int IRSensitivity { get; set; }
 
-        [DefaultValue(false)]
+        [DefaultValue(true)]
         public bool Enable4Players { get; set; }
 
         [DefaultValue(true)]
@@ -660,6 +661,9 @@ namespace WiimoteGun
 
         [DefaultValue(true)]
         public bool UseSharedKeyboard { get; set; }
+
+        [DefaultValue(false)]
+        public bool UseSharedHotkeys { get; set; }
 
         // Keyboard Device ID forcing for TeknoParrot compatibility (EN/FR: Forçage des Device ID clavier pour compatibilité TeknoParrot)
         // Set to 0 for auto-detect, or 1-10 to force a specific keyboard Device ID (EN/FR: 0 pour auto-détection, ou 1-10 pour forcer un Device ID)
@@ -682,6 +686,12 @@ namespace WiimoteGun
         // LED layout type for calibration (EN/FR: Type de disposition LED pour calibration)
         // Determines how IR sensors are positioned and how position is calculated
         // (EN/FR: Détermine comment les capteurs IR sont positionnés et comment la position est calculée)
+        // Disable VMulti device on disconnect (Standard behavior)
+        // If false, device remains enabled (Persistent mode) to avoid Windows PnP instability
+        // (EN/FR: Désactiver périphérique VMulti à la déconnexion - Si faux, mode Persistant)
+        [DefaultValue(true)]
+        public bool DisableDeviceOnDisconnect { get; set; }
+
         [DefaultValue(LEDLayoutType.WiimoteBar)]
         public LEDLayoutType LEDLayout { get; set; }
 

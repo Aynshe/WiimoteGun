@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using WiimoteGun.UI.Modern.Forms;
 
 namespace WiimoteGun
 {
@@ -18,22 +19,78 @@ namespace WiimoteGun
     {
         private int _playerIndex;
         private HotkeyProfile _hotkeyProfile;
-        
-        // Colors are now handled in Designer, or can be kept here if dynamic
         private static readonly Color ColorAccent = Color.FromArgb(0, 122, 204);
+        private CheckBox _cbShared;
 
         public HotkeyEditorDialog(int playerIndex)
         {
             _playerIndex = playerIndex;
+            // Get initial profile based on current options
             _hotkeyProfile = HotkeyManager.GetProfile(playerIndex);
             
             InitializeComponent();
+            InitializeCustomControls();
             
             // Dynamic Title setting
-            this.Text = $"Hotkeys - Player {_playerIndex}";
-            _lblTitle.Text = $"⚡ Hotkeys Configuration - Player {_playerIndex}";
+            UpdateTitle();
             
             LoadHotkeys();
+        }
+
+        private void UpdateTitle()
+        {
+            if (Options.Instance.UseSharedHotkeys && _playerIndex != 1)
+            {
+                 this.Text = $"Hotkeys - Player {_playerIndex} (Using Shared P1)";
+                 _lblTitle.Text = $"⚡ Hotkeys - Player {_playerIndex} (Shared P1)";
+            }
+            else
+            {
+                this.Text = $"Hotkeys - Player {_playerIndex}";
+                _lblTitle.Text = $"⚡ Hotkeys Configuration - Player {_playerIndex}";
+            }
+        }
+
+        private void InitializeCustomControls()
+        {
+            // Create "Use Shared Hotkeys" checkbox
+            _cbShared = new CheckBox();
+            _cbShared.AutoSize = true;
+            _cbShared.Font = new System.Drawing.Font("Segoe UI", 10F);
+            _cbShared.ForeColor = System.Drawing.Color.White;
+            _cbShared.Location = new Point(20, this.Height - 70); // Bottom left (approx)
+            _cbShared.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            _cbShared.Text = _playerIndex == 1 ? "Apply to All Players (Shared)" : "Use Shared Configuration (From P1)";
+            _cbShared.Checked = Options.Instance.UseSharedHotkeys;
+            _cbShared.CheckedChanged += _cbShared_CheckedChanged;
+            
+            this.Controls.Add(_cbShared);
+            // Ensure it's on top
+            _cbShared.BringToFront();
+        }
+
+        private void _cbShared_CheckedChanged(object sender, EventArgs e)
+        {
+            // Calculate logic
+            bool isShared = _cbShared.Checked;
+            
+            // Update global option
+            if (Options.Instance.UseSharedHotkeys != isShared)
+            {
+                Options.Instance.UseSharedHotkeys = isShared;
+                Options.Instance.Save();
+                
+                // Refresh profile reference
+                // If Shared=True: GetProfile(P2) returns P1.
+                // If Shared=False: GetProfile(P2) returns P2.
+                _hotkeyProfile = HotkeyManager.GetProfile(_playerIndex);
+                
+                UpdateTitle();
+                LoadHotkeys();
+                
+                // If we are P2 and switched to Shared -> We see P1 keys.
+                // If we are P2 and switched to Individual -> We see P2 keys (Empty or Custom).
+            }
         }
 
         private void LoadHotkeys()
@@ -44,7 +101,7 @@ namespace WiimoteGun
             {
                 var item = new ListViewItem(new[]
                 {
-                    $"Home + {hotkey.TriggerButton}",
+                    $"{hotkey.ModifierButton} + {hotkey.TriggerButton}",
                     hotkey.PressType == HotkeyPressType.Short ? "Short" : "Long",
                     string.Join(" + ", hotkey.KeyCombination),
                     hotkey.Description
@@ -87,7 +144,7 @@ namespace WiimoteGun
                 {
                     // Remove the OLD hotkey (using original values from selectedHotkey)
                     // (EN/FR: Supprimer l'ANCIENNE hotkey)
-                    _hotkeyProfile.RemoveHotkey(selectedHotkey.TriggerButton, selectedHotkey.PressType);
+                    _hotkeyProfile.RemoveHotkey(selectedHotkey.TriggerButton, selectedHotkey.PressType, selectedHotkey.ModifierButton);
                     
                     // Add the NEW/UPDATED hotkey
                     // (EN/FR: Ajouter la NOUVELLE hotkey)
@@ -128,7 +185,7 @@ namespace WiimoteGun
 
             if (result == DialogResult.Yes)
             {
-                _hotkeyProfile.RemoveHotkey(selectedHotkey.TriggerButton, selectedHotkey.PressType);
+                _hotkeyProfile.RemoveHotkey(selectedHotkey.TriggerButton, selectedHotkey.PressType, selectedHotkey.ModifierButton);
                 LoadHotkeys();
             }
         }

@@ -36,9 +36,7 @@ namespace WiimoteGun.UI.Calibrate
                 case LEDLayoutType.WiimoteBar:
                     _totalCalibrationSteps = 4;  // 4-POINT CALIBRATION (EN/FR: CALIBRATION 4-POINTS)
                     break;
-                case LEDLayoutType.TwoWiimoteBar:
-                    _totalCalibrationSteps = 4;  // 4-CORNER CALIBRATION - NO CENTER (EN/FR: CALIBRATION 4-COINS - SANS CENTRE)
-                    break;
+                // TwoWiimoteBar & FourCorners now fall to default (5 steps)
                 default:
                     _totalCalibrationSteps = 5; // Gun4IR & 4Corners: 5 steps with center
                     break;
@@ -172,14 +170,14 @@ namespace WiimoteGun.UI.Calibrate
                     break;
 
                 case LEDLayoutType.TwoWiimoteBar:
-                    // 4 corners: TL → TR → BR → BL (NO CENTER)
-                    // (EN/FR: 4 coins : HG → HD → BD → BG - SANS CENTRE)
+                    // 5 positions: Center + 4 corners (EN/FR: 5 positions : Centre + 4 coins)
                     switch (_currentCalibrationStep)
                     {
-                        case 0: return new Point(margin, margin);                  // Top-left
-                        case 1: return new Point(w - margin, margin);              // Top-right
-                        case 2: return new Point(w - margin, h - margin);          // Bottom-right
-                        case 3: return new Point(margin, h - margin);              // Bottom-left
+                        case 0: return new Point(centerX, centerY);                // Center
+                        case 1: return new Point(margin, margin);                  // Top-left
+                        case 2: return new Point(w - margin, margin);              // Top-right
+                        case 3: return new Point(w - margin, h - margin);          // Bottom-right
+                        case 4: return new Point(margin, h - margin);              // Bottom-left
                     }
                     break;
 
@@ -306,15 +304,18 @@ namespace WiimoteGun.UI.Calibrate
                         g.DrawLine(ledPen, botBarStart, botBarEnd);
                         g.DrawString("SENSOR BAR (BOTTOM)", font, Brushes.Cyan, centerX - 85, h - margin - 25);
 
-                        // Draw calibration target corners - 4-CORNER CALIBRATION (NO CENTER)
-                        // (EN/FR: Dessiner coins cibles de calibration - CALIBRATION 4-COINS (SANS CENTRE))
+                        // Draw calibration target corners - 4-CORNER CALIBRATION WITH CENTER
+                        // (EN/FR: Dessiner coins cibles de calibration - AVEC CENTRE)
                         string[] twoBarLabels = { "TL", "TR", "BR", "BL" };
                         
-                        // Draw 4 corner markers (steps 0-3, NO center point)
-                        // (EN/FR: Dessiner 4 marqueurs de coin - étapes 0-3, PAS de point central)
+                        // Draw Center Marker (Step 0)
+                        DrawLEDMarker(g, new Point(centerX, centerY), "CENTER", _currentCalibrationStep == 0);
+
+                        // Draw 4 corner markers (steps 1-4)
                         for (int i = 0; i < twoBarCorners.Length; i++)
                         {
-                            bool isCurrent = (_currentCalibrationStep == i);
+                            // Corners are steps 1-4
+                            bool isCurrent = (_currentCalibrationStep == (i + 1));
                             DrawLEDMarker(g, twoBarCorners[i], twoBarLabels[i], isCurrent);
                         }
 
@@ -401,11 +402,16 @@ namespace WiimoteGun.UI.Calibrate
                     break;
 
                 case LEDLayoutType.TwoWiimoteBar:
-                    // 4-CORNER CALIBRATION WITHOUT CENTER (EN/FR: CALIBRATION 4-COINS SANS CENTRE)
-                    string[] twoBarSteps = { "TOP-LEFT / HAUT-GAUCHE", "TOP-RIGHT / HAUT-DROIT", 
+                    // 5 Steps with Center
+                    string[] twoBarSteps = { "CENTER", "TOP-LEFT / HAUT-GAUCHE", "TOP-RIGHT / HAUT-DROIT", 
                                              "BOTTOM-RIGHT / BAS-DROIT", "BOTTOM-LEFT / BAS-GAUCHE" };
                     if (_currentCalibrationStep < twoBarSteps.Length)
-                        return $"Calibrating 2 Wiimote Bars ({_currentCalibrationStep + 1}/4)\\r\\n\\r\\nAim at {twoBarSteps[_currentCalibrationStep].Split('/')[0].Trim()}\\r\\nVisez {twoBarSteps[_currentCalibrationStep].Split('/')[1].Trim()} et appuyez sur A ou B";
+                    {
+                        if (_currentCalibrationStep == 0) // Center has no dual language label in array
+                             return "Calibrating 2 Wiimote Bars (1/5)\r\n\r\nAim at CENTER and press A or B";
+                        else
+                             return $"Calibrating 2 Wiimote Bars ({_currentCalibrationStep + 1}/5)\\r\\n\\r\\nAim at {twoBarSteps[_currentCalibrationStep].Split('/')[0].Trim()}\\r\\nVisez {twoBarSteps[_currentCalibrationStep].Split('/')[1].Trim()} et appuyez sur A ou B";
+                    }
                     break;
 
                 case LEDLayoutType.FourCorners:

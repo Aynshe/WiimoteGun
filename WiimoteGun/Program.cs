@@ -552,6 +552,27 @@ namespace WiimoteGun
             // Scan for mice using Interception (EN/FR: Scanner les souris avec Interception)
             var detectedMice = new System.Collections.Generic.List<(int deviceId, string hardwareId)>();
             
+            // 1. Manually check for VMulti Mice (SetupAPI) to ensure they are listed even if Interception scan misses them originally
+            // (EN/FR: Vérifier manuellement les souris VMulti (SetupAPI) pour assurer qu'elles sont listées même si le scan Interception les manque)
+            string[] vMultiSuffixes = { "vmultia", "vmultib", "vmultic", "vmultid" };
+            for (int p = 1; p <= 4; p++)
+            {
+                string suffix = vMultiSuffixes[p-1];
+                string uniqueId = WiimoteGun.DeviceHelper.FindVMultiMouseUniqueId(suffix);
+                
+                if (!string.IsNullOrEmpty(uniqueId) && uniqueId != "Unknown")
+                {
+                    // Construct hardware ID compatible with our preferences
+                    string vid = (p == 1) ? "001F" : (p == 2) ? "002F" : (p == 3) ? "003F" : "004F";
+                    string vmultiId = $"HID\\{suffix}&Col03HID\\VID_{vid}&UP:0001_U:0002HID_DEVICE_SYSTEM_MOUSEHID_DEVICE_UP:0001_U:0002HID_DEVICE";
+                    
+                    // Add to detected list with a fake device ID (e.g. 90+p) just for the menu list
+                    // The actual device ID (11-20) will be resolved by VirtualInterceptionMouse at runtime
+                    detectedMice.Add((90 + p, vmultiId));
+                    SimpleLogger.Instance.Info($"[MENU] Added VMulti Mouse P{p} (SetupAPI)");
+                }
+            }
+
             try
             {
                 var context = WiimoteGun.Interception.InterceptionDriver.interception_create_context();
@@ -578,8 +599,13 @@ namespace WiimoteGun
                                 
                                 if (!string.IsNullOrEmpty(hardwareId))
                                 {
-                                    SimpleLogger.Instance.Info($"[MENU SCAN] Mouse {i} Hardware ID: {hardwareId}");
-                                    detectedMice.Add((i, hardwareId));
+                                    // Avoid duplicates if SetupAPI already found this VMulti device
+                                    bool isDuplicate = detectedMice.Any(m => WiimoteGun.DeviceHelper.IsHardwareIdMatch(m.hardwareId, hardwareId));
+                                    if (!isDuplicate)
+                                    {
+                                        SimpleLogger.Instance.Info($"[MENU SCAN] Mouse {i} Hardware ID: {hardwareId}");
+                                        detectedMice.Add((i, hardwareId));
+                                    }
                                 }
                             }
                         }
@@ -1444,6 +1470,34 @@ namespace WiimoteGun
                 if (profile.P4Mappings != null)
                     Options.Instance.P4Mappings.CopyFrom(profile.P4Mappings);
 
+                // Apply Shared Hotkeys setting (EN/FR: Appliquer paramètre hotkeys partagées)
+                Options.Instance.UseSharedHotkeys = profile.UseSharedHotkeys;
+
+                // Apply Hotkeys to Options AND HotkeyManager (EN/FR: Appliquer Hotkeys aux Options ET HotkeyManager)
+                // P1
+                var hotkeysP1 = profile.P1Hotkeys ?? new List<Hotkey>();
+                Options.Instance.HotkeyProfileP1 = new HotkeyProfile(1) { Hotkeys = hotkeysP1.Select(h => h.Clone()).ToList() };
+                HotkeyManager.SetProfile(1, Options.Instance.HotkeyProfileP1);
+
+                // P2
+                var hotkeysP2 = profile.P2Hotkeys ?? new List<Hotkey>();
+                Options.Instance.HotkeyProfileP2 = new HotkeyProfile(2) { Hotkeys = hotkeysP2.Select(h => h.Clone()).ToList() };
+                HotkeyManager.SetProfile(2, Options.Instance.HotkeyProfileP2);
+
+                // P3
+                var hotkeysP3 = profile.P3Hotkeys ?? new List<Hotkey>();
+                Options.Instance.HotkeyProfileP3 = new HotkeyProfile(3) { Hotkeys = hotkeysP3.Select(h => h.Clone()).ToList() };
+                HotkeyManager.SetProfile(3, Options.Instance.HotkeyProfileP3);
+
+                // P4
+                var hotkeysP4 = profile.P4Hotkeys ?? new List<Hotkey>();
+                Options.Instance.HotkeyProfileP4 = new HotkeyProfile(4) { Hotkeys = hotkeysP4.Select(h => h.Clone()).ToList() };
+                HotkeyManager.SetProfile(4, Options.Instance.HotkeyProfileP4);
+                
+                // CRITICAL: Clear active hotkey state to prevent stuck modification
+                // (EN/FR: CRITIQUE : Effacer état hotkey actif pour éviter blocage)
+                HotkeyManager.ClearActiveState();
+
                 SimpleLogger.Instance.Info($"Applied remap profile: {profile.ProfileName}");
             }
             catch (Exception ex)
@@ -1746,17 +1800,22 @@ namespace WiimoteGun
         {
             try
             {
+                SimpleLogger.Instance.Info($"Hot loading profile: {profilePath} (Manual: {isManualLoad})");
                 _activeRemapProfile = profilePath;
-                ApplyRemapProfile();
-                Options.Instance.Save();
                 
-                // If manual load, set override flag to prevent auto-reload
-                // (EN/FR: Si chargement manuel, définir flag pour éviter rechargement auto)
+                // Force Apply
+                if (ApplyRemapProfile())
+                {
+                    Options.Instance.Save();
+                }
+                
+
+                // If manual load, set override flag
+                // (EN/FR: Si chargement manuel, définir flag)
                 if (isManualLoad)
                 {
                     _manualProfileOverride = true;
                 }
-                // Notification is handled in ApplyRemapProfile
             }
             catch (Exception ex)
             {

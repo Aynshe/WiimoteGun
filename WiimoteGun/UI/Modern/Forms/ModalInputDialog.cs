@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using WiimoteGun.UI.Modern.Forms;
 
 namespace WiimoteGun
 {
@@ -27,6 +28,9 @@ namespace WiimoteGun
             // Set FlatAppearance border sizes (Designer doesn't support this)
             _okButton.FlatAppearance.BorderSize = 0;
             _cancelButton.FlatAppearance.BorderSize = 0;
+            
+            // Enable Virtual Keyboard on click (EN/FR: Activer Clavier Virtuel au clic)
+            _inputTextBox.Click += (s, e) => ShowVirtualKeyboard();
         }
 
         public ModalInputDialog(string title, string prompt) : this()
@@ -99,6 +103,29 @@ namespace WiimoteGun
             base.OnShown(e);
             _inputTextBox.Focus();
             _inputTextBox.SelectAll();
+        }
+
+
+        private void ShowVirtualKeyboard()
+        {
+             VirtualKeyboard keyboard = new VirtualKeyboard(_inputTextBox);
+             keyboard.StartPosition = FormStartPosition.Manual;
+             
+             // Position below the dialog (EN/FR: Positionner sous le dialogue)
+             keyboard.Location = new Point(
+                this.Location.X + (this.Width - keyboard.Width) / 2, 
+                this.Location.Y + this.Height + 5
+             );
+             
+             // Check screen bounds (EN/FR: Vérifier limites écran)
+             var screen = Screen.FromControl(this);
+             if (keyboard.Bottom > screen.WorkingArea.Bottom)
+             {
+                 // Place above if no space below (EN/FR: Placer au-dessus si manque place)
+                 keyboard.Top = this.Top - keyboard.Height - 5;
+             }
+
+             keyboard.ShowDialog(this);
         }
     }
 }

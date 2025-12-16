@@ -35,12 +35,16 @@ namespace WiimoteGun
         /// <summary>
         /// Add or update a hotkey (EN/FR: Ajouter ou mettre à jour hotkey)
         /// </summary>
+        /// <summary>
+        /// Add or update a hotkey (EN/FR: Ajouter ou mettre à jour hotkey)
+        /// </summary>
         public void AddOrUpdateHotkey(Hotkey hotkey)
         {
-            // Remove existing hotkey with same button and press type if exists
-            // (EN/FR: Supprimer hotkey existante avec même bouton et type)
+            // Remove existing hotkey with same button, modifier and press type if exists
+            // (EN/FR: Supprimer hotkey existante avec même bouton, modificateur et type)
             var existing = Hotkeys.FirstOrDefault(h => 
-                h.TriggerButton == hotkey.TriggerButton && 
+                string.Equals(h.TriggerButton, hotkey.TriggerButton, StringComparison.OrdinalIgnoreCase) && 
+                string.Equals(h.ModifierButton, hotkey.ModifierButton, StringComparison.OrdinalIgnoreCase) &&
                 h.PressType == hotkey.PressType);
 
             if (existing != null)
@@ -55,35 +59,37 @@ namespace WiimoteGun
         /// <summary>
         /// Remove a hotkey (EN/FR: Supprimer une hotkey)
         /// </summary>
-        public void RemoveHotkey(string triggerButton, HotkeyPressType pressType)
+        public void RemoveHotkey(string triggerButton, HotkeyPressType pressType, string modifier = "Home")
         {
             var hotkey = Hotkeys.FirstOrDefault(h => 
-                h.TriggerButton == triggerButton && 
+                string.Equals(h.TriggerButton, triggerButton, StringComparison.OrdinalIgnoreCase) && 
+                string.Equals(h.ModifierButton, modifier, StringComparison.OrdinalIgnoreCase) &&
                 h.PressType == pressType);
 
             if (hotkey != null)
             {
                 Hotkeys.Remove(hotkey);
-                SimpleLogger.Instance.Info($"[Hotkey] Removed: Home + {triggerButton} ({pressType}) for Player {PlayerIndex}");
+                SimpleLogger.Instance.Info($"[Hotkey] Removed: {modifier} + {triggerButton} ({pressType}) for Player {PlayerIndex}");
             }
         }
 
         /// <summary>
         /// Get hotkey by trigger button and press type (EN/FR: Obtenir hotkey)
         /// </summary>
-        public Hotkey GetHotkey(string triggerButton, HotkeyPressType pressType)
+        public Hotkey GetHotkey(string triggerButton, HotkeyPressType pressType, string modifier = "Home")
         {
             return Hotkeys.FirstOrDefault(h => 
-                h.TriggerButton == triggerButton && 
+                string.Equals(h.TriggerButton, triggerButton, StringComparison.OrdinalIgnoreCase) && 
+                string.Equals(h.ModifierButton, modifier, StringComparison.OrdinalIgnoreCase) &&
                 h.PressType == pressType);
         }
 
         /// <summary>
         /// Check if a hotkey exists (EN/FR: Vérifier si hotkey existe)
         /// </summary>
-        public bool HasHotkey(string triggerButton, HotkeyPressType pressType)
+        public bool HasHotkey(string triggerButton, HotkeyPressType pressType, string modifier = "Home")
         {
-            return GetHotkey(triggerButton, pressType) != null;
+            return GetHotkey(triggerButton, pressType, modifier) != null;
         }
 
         /// <summary>

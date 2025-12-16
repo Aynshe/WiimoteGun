@@ -32,7 +32,7 @@ namespace WiimoteGun.Controls
             btnTabDetection.Click += (s, e) => SwitchTab(btnTabDetection, 2);
             btnTabGestures.Click += (s, e) => SwitchTab(btnTabGestures, 3);
             btnTabEmulators.Click += (s, e) => SwitchTab(btnTabEmulators, 4);
-            btnTabPlayers.Click += (s, e) => SwitchTab(btnTabPlayers, 5);
+
 
             // Button Actions
             btnApply.Click += BtnApplyOptions_Click;
@@ -44,9 +44,8 @@ namespace WiimoteGun.Controls
             SetupHoverEffect(btnTabDetection);
             SetupHoverEffect(btnTabGestures);
             SetupHoverEffect(btnTabEmulators);
-            SetupHoverEffect(btnTabPlayers);
+
             SetupHoverEffect(btnTabEmulators);
-            SetupHoverEffect(btnTabPlayers);
 
             // Back
             if (btnBack != null)
@@ -71,7 +70,7 @@ namespace WiimoteGun.Controls
                 else if (btn == btnTabDetection) index = 2;
                 else if (btn == btnTabGestures) index = 3;
                 else if (btn == btnTabEmulators) index = 4;
-                else if (btn == btnTabPlayers) index = 5;
+
 
                 if (tabsOptions.SelectedIndex == index)
                     btn.BackColor = Color.FromArgb(0, 122, 204);
@@ -93,7 +92,7 @@ namespace WiimoteGun.Controls
             btnTabDetection.BackColor = dark;
             btnTabGestures.BackColor = dark;
             btnTabEmulators.BackColor = dark;
-            btnTabPlayers.BackColor = dark;
+
             
             // Set active
             activeBtn.BackColor = active;
@@ -114,6 +113,7 @@ namespace WiimoteGun.Controls
             // Detection
             optDetectDolphin.Checked = Options.Instance.DetectDolphinbar;
             optDetectBluetooth.Checked = Options.Instance.DetectBlueTooth;
+            optDisableDeviceOnDisconnect.Checked = Options.Instance.DisableDeviceOnDisconnect;
 
             // Gestures
             optEnableOffScreenReload.Checked = Options.Instance.EnableOffScreenReload;
@@ -127,8 +127,7 @@ namespace WiimoteGun.Controls
             optRestartOnDolphin.Checked = Options.Instance.RestartOnDolphin;
             optRestartOnCemu.Checked = Options.Instance.RestartOnCemu;
 
-            // Players
-            optEnable4Players.Checked = Options.Instance.Enable4Players;
+
         }
 
         private void BtnApplyOptions_Click(object sender, EventArgs e)
@@ -153,6 +152,7 @@ namespace WiimoteGun.Controls
                 // Detection
                 Options.Instance.DetectDolphinbar = optDetectDolphin.Checked;
                 Options.Instance.DetectBlueTooth = optDetectBluetooth.Checked;
+                Options.Instance.DisableDeviceOnDisconnect = optDisableDeviceOnDisconnect.Checked;
 
                 // Gestures
                 Options.Instance.EnableOffScreenReload = optEnableOffScreenReload.Checked;
@@ -166,8 +166,7 @@ namespace WiimoteGun.Controls
                 Options.Instance.RestartOnDolphin = optRestartOnDolphin.Checked;
                 Options.Instance.RestartOnCemu = optRestartOnCemu.Checked;
 
-                // Players
-                Options.Instance.Enable4Players = optEnable4Players.Checked;
+
 
                 // Save
                 Options.Instance.Save();
@@ -179,7 +178,7 @@ namespace WiimoteGun.Controls
                 ProcessStartInfo psi = new ProcessStartInfo
                 {
                     FileName = "wiimotegun.exe",
-                    Arguments = "-refresh",
+                    Arguments = "-restart",
                     UseShellExecute = true,
                     WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory
                 };

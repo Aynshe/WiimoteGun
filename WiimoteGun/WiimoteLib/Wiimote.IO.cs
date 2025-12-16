@@ -84,11 +84,13 @@ namespace WiimoteLib {
 
 					if (readStates.Remove(ar)) {
 						// end the current read
-						device.Stream.EndRead(ar);
+						if (device.Stream.EndRead(ar) == 0) 
+                            throw new IOException("Connection closed");
 					}
 				}
 			}
-			catch (IOException) {
+			catch (IOException ex) {
+                RaiseWiimoteException(ex);
 				return;
 			}
 			catch (OperationCanceledException) {

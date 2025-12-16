@@ -23,7 +23,7 @@ namespace WiimoteGun.Controls
             this.btnTabDetection = new System.Windows.Forms.Button();
             this.btnTabGestures = new System.Windows.Forms.Button();
             this.btnTabEmulators = new System.Windows.Forms.Button();
-            this.btnTabPlayers = new System.Windows.Forms.Button();
+
             this.btnBack = new System.Windows.Forms.Button();
             this.tabsOptions = new System.Windows.Forms.TabControl();
             this.tabGeneral = new System.Windows.Forms.TabPage();
@@ -43,6 +43,7 @@ namespace WiimoteGun.Controls
             this.lblDetectionInfo = new System.Windows.Forms.Label();
             this.optDetectBluetooth = new System.Windows.Forms.CheckBox();
             this.optDetectDolphin = new System.Windows.Forms.CheckBox();
+            this.optDisableDeviceOnDisconnect = new System.Windows.Forms.CheckBox();
             this.tabGestures = new System.Windows.Forms.TabPage();
             this.optShakeSensitivity = new System.Windows.Forms.TrackBar();
             this.lblShakeSensitivity = new System.Windows.Forms.Label();
@@ -54,9 +55,7 @@ namespace WiimoteGun.Controls
             this.tabEmulators = new System.Windows.Forms.TabPage();
             this.optRestartOnCemu = new System.Windows.Forms.CheckBox();
             this.optRestartOnDolphin = new System.Windows.Forms.CheckBox();
-            this.tabPlayers = new System.Windows.Forms.TabPage();
-            this.lblPlayersInfo = new System.Windows.Forms.Label();
-            this.optEnable4Players = new System.Windows.Forms.CheckBox();
+
             this.btnApply = new System.Windows.Forms.Button();
             this.btnReset = new System.Windows.Forms.Button();
             this.panelOptionsSidebar.SuspendLayout();
@@ -69,7 +68,7 @@ namespace WiimoteGun.Controls
             this.tabGestures.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.optShakeSensitivity)).BeginInit();
             this.tabEmulators.SuspendLayout();
-            this.tabPlayers.SuspendLayout();
+
             this.SuspendLayout();
             // 
             // panelOptionsSidebar
@@ -80,7 +79,7 @@ namespace WiimoteGun.Controls
             this.panelOptionsSidebar.Controls.Add(this.btnTabDetection);
             this.panelOptionsSidebar.Controls.Add(this.btnTabGestures);
             this.panelOptionsSidebar.Controls.Add(this.btnTabEmulators);
-            this.panelOptionsSidebar.Controls.Add(this.btnTabPlayers);
+
             this.panelOptionsSidebar.Controls.Add(this.btnBack);
             this.panelOptionsSidebar.Dock = System.Windows.Forms.DockStyle.Left;
             this.panelOptionsSidebar.Location = new System.Drawing.Point(0, 0);
@@ -162,21 +161,7 @@ namespace WiimoteGun.Controls
             this.btnTabEmulators.Text = "🎮 Emulators";
             this.btnTabEmulators.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             this.btnTabEmulators.UseVisualStyleBackColor = false;
-            // 
-            // btnTabPlayers
-            // 
-            this.btnTabPlayers.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(40)))), ((int)(((byte)(40)))), ((int)(((byte)(40)))));
-            this.btnTabPlayers.FlatAppearance.BorderSize = 0;
-            this.btnTabPlayers.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnTabPlayers.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.btnTabPlayers.ForeColor = System.Drawing.Color.White;
-            this.btnTabPlayers.Location = new System.Drawing.Point(2, 260);
-            this.btnTabPlayers.Name = "btnTabPlayers";
-            this.btnTabPlayers.Size = new System.Drawing.Size(145, 45);
-            this.btnTabPlayers.TabIndex = 0;
-            this.btnTabPlayers.Text = "👥 Players";
-            this.btnTabPlayers.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.btnTabPlayers.UseVisualStyleBackColor = false;
+
             // 
             // btnBack
             // 
@@ -199,7 +184,7 @@ namespace WiimoteGun.Controls
             this.tabsOptions.Controls.Add(this.tabDetection);
             this.tabsOptions.Controls.Add(this.tabGestures);
             this.tabsOptions.Controls.Add(this.tabEmulators);
-            this.tabsOptions.Controls.Add(this.tabPlayers);
+
             this.tabsOptions.Location = new System.Drawing.Point(155, 10);
             this.tabsOptions.Name = "tabsOptions";
             this.tabsOptions.SelectedIndex = 0;
@@ -375,6 +360,7 @@ namespace WiimoteGun.Controls
             this.tabDetection.Controls.Add(this.lblDetectionInfo);
             this.tabDetection.Controls.Add(this.optDetectBluetooth);
             this.tabDetection.Controls.Add(this.optDetectDolphin);
+            this.tabDetection.Controls.Add(this.optDisableDeviceOnDisconnect);
             this.tabDetection.Location = new System.Drawing.Point(4, 5);
             this.tabDetection.Name = "tabDetection";
             this.tabDetection.Size = new System.Drawing.Size(392, 591);
@@ -384,7 +370,7 @@ namespace WiimoteGun.Controls
             // lblDetectionInfo
             // 
             this.lblDetectionInfo.ForeColor = System.Drawing.Color.Gray;
-            this.lblDetectionInfo.Location = new System.Drawing.Point(20, 100);
+            this.lblDetectionInfo.Location = new System.Drawing.Point(20, 140);
             this.lblDetectionInfo.Name = "lblDetectionInfo";
             this.lblDetectionInfo.Size = new System.Drawing.Size(350, 40);
             this.lblDetectionInfo.TabIndex = 0;
@@ -411,6 +397,19 @@ namespace WiimoteGun.Controls
             this.optDetectDolphin.TabIndex = 1;
             this.optDetectDolphin.Text = "Detect DolphinBar";
             this.optDetectDolphin.UseVisualStyleBackColor = true;
+
+            // 
+            // optDisableDeviceOnDisconnect
+            // 
+            this.optDisableDeviceOnDisconnect.AutoSize = true;
+            this.optDisableDeviceOnDisconnect.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.optDisableDeviceOnDisconnect.ForeColor = System.Drawing.Color.White;
+            this.optDisableDeviceOnDisconnect.Location = new System.Drawing.Point(20, 100);
+            this.optDisableDeviceOnDisconnect.Name = "optDisableDeviceOnDisconnect";
+            this.optDisableDeviceOnDisconnect.Size = new System.Drawing.Size(250, 25);
+            this.optDisableDeviceOnDisconnect.TabIndex = 2;
+            this.optDisableDeviceOnDisconnect.Text = "Disable Device on Disconnect";
+            this.optDisableDeviceOnDisconnect.UseVisualStyleBackColor = true;
             // 
             // tabGestures
             // 
@@ -532,37 +531,7 @@ namespace WiimoteGun.Controls
             this.optRestartOnDolphin.TabIndex = 1;
             this.optRestartOnDolphin.Text = "Restart on Dolphin";
             this.optRestartOnDolphin.UseVisualStyleBackColor = true;
-            // 
-            // tabPlayers
-            // 
-            this.tabPlayers.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(20)))), ((int)(((byte)(20)))));
-            this.tabPlayers.Controls.Add(this.lblPlayersInfo);
-            this.tabPlayers.Controls.Add(this.optEnable4Players);
-            this.tabPlayers.Location = new System.Drawing.Point(4, 5);
-            this.tabPlayers.Name = "tabPlayers";
-            this.tabPlayers.Size = new System.Drawing.Size(392, 591);
-            this.tabPlayers.TabIndex = 5;
-            this.tabPlayers.Text = "Players";
-            // 
-            // lblPlayersInfo
-            // 
-            this.lblPlayersInfo.ForeColor = System.Drawing.Color.Gray;
-            this.lblPlayersInfo.Location = new System.Drawing.Point(20, 60);
-            this.lblPlayersInfo.Name = "lblPlayersInfo";
-            this.lblPlayersInfo.Size = new System.Drawing.Size(350, 40);
-            this.lblPlayersInfo.TabIndex = 0;
-            this.lblPlayersInfo.Text = "Enable support for up to 4 Wiimotes.";
-            // 
-            // optEnable4Players
-            // 
-            this.optEnable4Players.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.optEnable4Players.ForeColor = System.Drawing.Color.White;
-            this.optEnable4Players.Location = new System.Drawing.Point(20, 20);
-            this.optEnable4Players.Name = "optEnable4Players";
-            this.optEnable4Players.Size = new System.Drawing.Size(200, 25);
-            this.optEnable4Players.TabIndex = 1;
-            this.optEnable4Players.Text = "Enable 4 Players Mode";
-            this.optEnable4Players.UseVisualStyleBackColor = true;
+
             // 
             // btnApply
             // 
@@ -617,8 +586,7 @@ namespace WiimoteGun.Controls
             ((System.ComponentModel.ISupportInitialize)(this.optShakeSensitivity)).EndInit();
             this.tabEmulators.ResumeLayout(false);
             this.tabEmulators.PerformLayout();
-            this.tabPlayers.ResumeLayout(false);
-            this.tabPlayers.PerformLayout();
+
             this.ResumeLayout(false);
 
         }
@@ -631,7 +599,7 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.Button btnTabDetection;
         private System.Windows.Forms.Button btnTabGestures;
         private System.Windows.Forms.Button btnTabEmulators;
-        private System.Windows.Forms.Button btnTabPlayers;
+
 
         private System.Windows.Forms.TabControl tabsOptions;
         private System.Windows.Forms.TabPage tabGeneral;
@@ -639,7 +607,7 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.TabPage tabDetection;
         private System.Windows.Forms.TabPage tabGestures;
         private System.Windows.Forms.TabPage tabEmulators;
-        private System.Windows.Forms.TabPage tabPlayers;
+
         
         private System.Windows.Forms.Button btnApply;
         private System.Windows.Forms.Button btnReset;
@@ -662,6 +630,7 @@ namespace WiimoteGun.Controls
         // Detection
         private System.Windows.Forms.CheckBox optDetectDolphin;
         private System.Windows.Forms.CheckBox optDetectBluetooth;
+        private System.Windows.Forms.CheckBox optDisableDeviceOnDisconnect;
         private System.Windows.Forms.Label lblDetectionInfo;
 
         // Gestures
@@ -677,9 +646,7 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.CheckBox optRestartOnDolphin;
         private System.Windows.Forms.CheckBox optRestartOnCemu;
 
-        // Players
-        private System.Windows.Forms.CheckBox optEnable4Players;
-        private System.Windows.Forms.Label lblPlayersInfo;
+
         
         public System.Windows.Forms.Button btnBack;
     }

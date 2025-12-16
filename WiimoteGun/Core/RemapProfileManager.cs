@@ -184,7 +184,14 @@ namespace WiimoteGun
                         P1Mappings = Options.Instance.P1Mappings?.Clone() ?? new PlayerMappings(),
                         P2Mappings = Options.Instance.P2Mappings?.Clone() ?? new PlayerMappings(),
                         P3Mappings = Options.Instance.P3Mappings?.Clone() ?? new PlayerMappings(),
-                        P4Mappings = Options.Instance.P4Mappings?.Clone() ?? new PlayerMappings()
+                        P4Mappings = Options.Instance.P4Mappings?.Clone() ?? new PlayerMappings(),
+                        
+                        // Capture current hotkeys for default profile (EN/FR: Capturer hotkeys actuelles pour profil par défaut)
+                        P1Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(1).Hotkeys.Select(h => h.Clone())),
+                        P2Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(2).Hotkeys.Select(h => h.Clone())),
+                        P3Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(3).Hotkeys.Select(h => h.Clone())),
+                        P4Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(4).Hotkeys.Select(h => h.Clone())),
+                        UseSharedHotkeys = Options.Instance.UseSharedHotkeys
                     };
                     
                     XmlSerializer serializer = new XmlSerializer(typeof(RemapProfile));
@@ -350,6 +357,13 @@ namespace WiimoteGun
         public PlayerMappings P2Mappings { get; set; }
         public PlayerMappings P3Mappings { get; set; }
         public PlayerMappings P4Mappings { get; set; }
+        
+        // Hotkey storage (EN/FR: Stockage des hotkeys)
+        public List<Hotkey> P1Hotkeys { get; set; }
+        public List<Hotkey> P2Hotkeys { get; set; }
+        public List<Hotkey> P3Hotkeys { get; set; }
+        public List<Hotkey> P4Hotkeys { get; set; }
+        public bool UseSharedHotkeys { get; set; }
 
         public RemapProfile()
         {
@@ -358,6 +372,12 @@ namespace WiimoteGun
             P2Mappings = new PlayerMappings();
             P3Mappings = new PlayerMappings();
             P4Mappings = new PlayerMappings();
+            
+            P1Hotkeys = new List<Hotkey>();
+            P2Hotkeys = new List<Hotkey>();
+            P3Hotkeys = new List<Hotkey>();
+            P4Hotkeys = new List<Hotkey>();
+            UseSharedHotkeys = false;
         }
     }
 }

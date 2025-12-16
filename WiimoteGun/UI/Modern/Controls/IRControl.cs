@@ -66,24 +66,7 @@ namespace WiimoteGun.Controls
             };
 
             // Open Fullscreen IR Viz
-            btnOpenFullScreenIR.Click += (s, e) =>
-            {
-                 try {
-                    // Similar reflection based approach or direct if possible
-                    var formType = System.Reflection.Assembly.GetExecutingAssembly().GetTypes()
-                        .FirstOrDefault(t => t.Name == "IRVisualizerForm" && t.Namespace != null && t.Namespace.Contains("Legacy"));
-                    
-                    if (formType != null)
-                    {
-                        Form form = (Form)Activator.CreateInstance(formType);
-                        form.Show(); // Independent window
-                    }
-                    else 
-                    {
-                         MessageBox.Show("IRVisualizerForm (Legacy) not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    }
-                 } catch (Exception ex) { MessageBox.Show($"Error opening IR Visualizer: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error); }
-            };
+            btnOpenFullScreenIR.Click += (s, e) => OpenFullscreenIR();
 
             // Back
             if (btnBack != null)
@@ -96,11 +79,47 @@ namespace WiimoteGun.Controls
         {
             LoadCalibrationValues();
             _irRefreshTimer.Start();
+            
+            // Auto-open Fullscreen IR Visualizer (EN/FR: Ouverture auto IR Visualizer plein écran)
+            OpenFullscreenIR();
         }
         
         public void UnloadData()
         {
             _irRefreshTimer.Stop();
+        }
+
+        private void OpenFullscreenIR()
+        {
+            try 
+            {
+                // Check if already open
+                var existingForm = Application.OpenForms.Cast<Form>().FirstOrDefault(f => f.Name == "IRVisualizerForm");
+                if (existingForm != null)
+                {
+                    existingForm.BringToFront();
+                    existingForm.Activate();
+                    return;
+                }
+
+                // Find type and instantiate
+                var formType = System.Reflection.Assembly.GetExecutingAssembly().GetTypes()
+                    .FirstOrDefault(t => t.Name == "IRVisualizerForm");
+                
+                if (formType != null)
+                {
+                    Form form = (Form)Activator.CreateInstance(formType);
+                    form.Show(); // Independent window
+                }
+                else 
+                {
+                     MessageBox.Show("IRVisualizerForm not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+             } 
+             catch (Exception ex) 
+             { 
+                MessageBox.Show($"Error opening IR Visualizer: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error); 
+             }
         }
 
         private void LoadCalibrationValues()
@@ -131,7 +150,8 @@ namespace WiimoteGun.Controls
                 if (controller != null && controller.Wiimote != null && controller.Wiimote.WiimoteState != null)
                 {
                     var buttons = controller.Wiimote.WiimoteState.Buttons;
-                    if (buttons.Home)
+                    // Support HOME (BT) or MINUS (Mayflash)
+                    if (buttons.Home || buttons.Minus)
                     {
                         bool offsetChanged = false;
                         if (buttons.Left) { nudIROffsetX.Value = Math.Max(nudIROffsetX.Minimum, nudIROffsetX.Value - 1); offsetChanged = true; }

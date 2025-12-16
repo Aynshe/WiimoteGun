@@ -74,16 +74,78 @@ namespace WiimoteGun
             }
         }
 
+        /// <summary>
+        /// Force reload of Interception driver context to detect new devices (like VMulti mice).
+        /// This is required because Interception snapshots devices at context creation.
+        /// (EN/FR: Forcer rechargement contexte Interception pour détecter nouveaux devices)
+        /// </summary>
+        public static void ReloadContext()
+        {
+            lock (_lock)
+            {
+                SimpleLogger.Instance.Info("[DRIVER] Reloading Interception Context to detect new hardware...");
+                
+                if (_context != IntPtr.Zero)
+                {
+                    InterceptionDriver.interception_destroy_context(_context);
+                    _context = IntPtr.Zero;
+                    
+                    // Safety delay to allow driver to release resources (EN/FR: Délai de sécurité pour libération ressources)
+                    System.Threading.Thread.Sleep(100);
+                }
+
+                _context = InterceptionDriver.interception_create_context();
+                
+                // Retry mechanism if creation fails (EN/FR: Mécanisme de réessai si échec)
+                if (_context == IntPtr.Zero)
+                {
+                    SimpleLogger.Instance.Warning("[DRIVER] Context creation failed, retrying after delay...");
+                    System.Threading.Thread.Sleep(500);
+                    _context = InterceptionDriver.interception_create_context();
+                }
+
+                if (_context == IntPtr.Zero)
+                {
+                    SimpleLogger.Instance.Error("Failed to recreate Interception context!");
+                    return; // Should propagate error but for now log it
+                }
+                
+                SimpleLogger.Instance.Info("[DRIVER] Interception Context Recreated. Rescanning...");
+                ScanMice();
+                
+                foreach (var instance in _instances)
+                {
+                    instance.UpdateDeviceId();
+                }
+            }
+        }
+
         private static void ScanMice()
         {
             _availableMice.Clear();
+            SimpleLogger.Instance.Info("[SCAN DEBUG] Starting deep scan of mouse slots 11-20...");
+            
             // Mice are usually 11-20
             for (int i = 11; i <= 20; i++)
             {
-                if (InterceptionDriver.interception_is_mouse(i) != 0)
+                bool isMouse = InterceptionDriver.interception_is_mouse(i) != 0;
+                
+                byte[] buffer = new byte[1000];
+                uint result = InterceptionDriver.interception_get_hardware_id(_context, i, buffer, (uint)buffer.Length);
+                string hardwareId = "";
+                
+                if (result > 0)
+                {
+                    int byteCount = Math.Min((int)result * 2, buffer.Length);
+                    hardwareId = System.Text.Encoding.Unicode.GetString(buffer, 0, byteCount).Replace("\0", "").Trim();
+                }
+
+                SimpleLogger.Instance.Info($"[SCAN DEBUG] Slot {i}: IsMouse={isMouse}, HWID='{hardwareId}'");
+
+                if (isMouse || (!string.IsNullOrEmpty(hardwareId) && hardwareId.IndexOf("vmulti", StringComparison.OrdinalIgnoreCase) >= 0))
                 {
                     _availableMice.Add(i);
-                    SimpleLogger.Instance.Info($"Detected Mouse Device ID: {i}");
+                    SimpleLogger.Instance.Info($"[SCAN DEBUG] -> Accepted Device {i}");
                 }
             }
             SimpleLogger.Instance.Info($"Using {_availableMice.Count} mice for up to 4 players");

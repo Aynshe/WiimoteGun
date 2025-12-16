@@ -21,6 +21,15 @@ namespace WiimoteGun
         /// <summary>
         /// Press type: Short or Long (EN/FR: Type de pression)
         /// </summary>
+        /// <summary>
+        /// Modifier button (e.g., "Home", "Minus", "Plus", "One", "Two", "A", "B")
+        /// Default: "Home"
+        /// </summary>
+        public string ModifierButton { get; set; } = "Home";
+
+        /// <summary>
+        /// Press type: Short or Long (EN/FR: Type de pression)
+        /// </summary>
         public HotkeyPressType PressType { get; set; }
 
         /// <summary>
@@ -46,14 +55,16 @@ namespace WiimoteGun
         public Hotkey()
         {
             KeyCombination = new List<Keys>();
+            ModifierButton = "Home";
         }
 
-        public Hotkey(string triggerButton, HotkeyPressType pressType, List<Keys> keyCombination, string description = "")
+        public Hotkey(string triggerButton, HotkeyPressType pressType, List<Keys> keyCombination, string description = "", string modifier = "Home")
         {
             TriggerButton = triggerButton;
             PressType = pressType;
             KeyCombination = keyCombination ?? new List<Keys>();
             Description = description;
+            ModifierButton = modifier;
         }
 
         /// <summary>
@@ -63,7 +74,7 @@ namespace WiimoteGun
         {
             string pressTypeStr = PressType == HotkeyPressType.Short ? "Short" : "Long";
             string keysStr = string.Join("+", KeyCombination);
-            return $"Home + {TriggerButton} ({pressTypeStr}) → {keysStr}";
+            return $"{ModifierButton} + {TriggerButton} ({pressTypeStr}) → {keysStr}";
         }
 
         /// <summary>
@@ -102,6 +113,7 @@ namespace WiimoteGun
             return new Hotkey
             {
                 TriggerButton = this.TriggerButton,
+                ModifierButton = this.ModifierButton,
                 PressType = this.PressType,
                 KeyCombination = new List<Keys>(this.KeyCombination),
                 Description = this.Description

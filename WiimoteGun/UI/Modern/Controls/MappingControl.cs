@@ -1,12 +1,35 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Drawing;
 using System.Windows.Forms;
 using System.IO;
+using WiimoteGun.UI.Modern.Forms;
 
 namespace WiimoteGun.Controls
 {
     public partial class MappingControl : UserControl
     {
+        private void ShowVirtualKeyboard(TextBox target)
+        {
+            VirtualKeyboard keyboard = new VirtualKeyboard(target);
+            keyboard.StartPosition = FormStartPosition.Manual;
+            
+            Point screenPos = target.PointToScreen(new Point(0, target.Height));
+            keyboard.Location = new Point(
+                screenPos.X + (target.Width - keyboard.Width) / 2,
+                screenPos.Y + 5 
+            );
+            
+            var screen = Screen.FromControl(this);
+            if (keyboard.Bottom > screen.WorkingArea.Bottom)
+            {
+                 keyboard.Top = target.PointToScreen(Point.Empty).Y - keyboard.Height - 5;
+            }
+
+            keyboard.ShowDialog(this.FindForm());
+        }
+
         // State (EN/FR: État)
         private string _currentExecutable;
         private string _currentExecutablePath;
@@ -26,6 +49,7 @@ namespace WiimoteGun.Controls
         public MappingControl()
         {
             InitializeComponent();
+            if (txtProfileName != null) txtProfileName.Click += (s, e) => ShowVirtualKeyboard(txtProfileName);
             
             // Set FlatAppearance properties (Designer doesn't support all)
             // (EN/FR: Définir propriétés d'apparence)
@@ -38,6 +62,8 @@ namespace WiimoteGun.Controls
             btnLoad.FlatAppearance.BorderSize = 0;
             btnConfirmAssign.FlatAppearance.BorderSize = 0;
             btnCancelAssign.FlatAppearance.BorderSize = 0;
+            
+
             
             // Initialize UI (EN/FR: Initialiser UI)
             LoadProfileUI();
@@ -618,6 +644,43 @@ namespace WiimoteGun.Controls
             // Cancel notification
         }
 
+        // Handle dynamic keyboard mapping (EN/FR: Gérer mapping clavier dynamique)
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            // Only active if we are in assignment mode AND waiting for user input
+            if (_isAssignMode && !string.IsNullOrEmpty(_waitingForButton) && comboActionSelector.Visible)
+            {
+                Keys code = keyData & Keys.KeyCode;
+
+                // Allow navigation keys to control the menu (EN/FR: Permettre touches navigation menu)
+                if (code == Keys.Enter || code == Keys.Escape || code == Keys.Up || code == Keys.Down || code == Keys.Tab)
+                {
+                    return base.ProcessCmdKey(ref msg, keyData);
+                }
+                
+                // Exclude modifiers alone
+                if (code == Keys.ControlKey || code == Keys.ShiftKey || code == Keys.Menu || code == Keys.Alt)
+                {
+                    return base.ProcessCmdKey(ref msg, keyData);
+                }
+
+                // Dynamic Assign! (EN/FR: Assignation dynamique !)
+                ButtonAction newAction = new ButtonAction(keyData);
+                
+                ApplyMapping(_waitingForPlayer, _waitingForButton, newAction);
+                Options.Instance.Save();
+                
+                LoadCurrentMappings(); 
+                
+                SimpleLogger.Instance?.Info($"[Dynamic] Assigned Key {keyData} to {_waitingForButton} for P{_waitingForPlayer}");
+                
+                ExitAssignMode();
+                return true; // Key handled
+            }
+
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
         // ============================================
         // Event Handlers (EN/FR: Gestionnaires d'événements)
         // ============================================
@@ -752,6 +815,14 @@ namespace WiimoteGun.Controls
                 profile.P3Mappings.CopyFrom(Options.Instance.P3Mappings);
                 profile.P4Mappings.CopyFrom(Options.Instance.P4Mappings);
                 
+                // Save Hotkeys (EN/FR: Sauvegarder les hotkeys)
+                // Use a copy to avoid reference issues (EN/FR: Utiliser une copie)
+                profile.P1Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(1).Hotkeys.Select(h => h.Clone()));
+                profile.P2Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(2).Hotkeys.Select(h => h.Clone()));
+                profile.P3Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(3).Hotkeys.Select(h => h.Clone()));
+                profile.P4Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(4).Hotkeys.Select(h => h.Clone()));
+                profile.UseSharedHotkeys = Options.Instance.UseSharedHotkeys;
+                
                 string selectedFolder = comboBoxSubfolders.SelectedItem?.ToString();
                 string subfolder = selectedFolder == "(Root)" ? null : selectedFolder;
                 
@@ -795,6 +866,35 @@ namespace WiimoteGun.Controls
                     if (profile.P2Mappings != null) Options.Instance.P2Mappings.CopyFrom(profile.P2Mappings);
                     if (profile.P3Mappings != null) Options.Instance.P3Mappings.CopyFrom(profile.P3Mappings);
                     if (profile.P4Mappings != null) Options.Instance.P4Mappings.CopyFrom(profile.P4Mappings);
+                    
+                    // Load Hotkeys (EN/FR: Charger les hotkeys)
+                    // CRITICAL: Always release current hotkeys, even if profile has none (Global fix)
+                    // (EN/FR: Toujours relâcher hotkeys actuelles, même si profil n'en a pas)
+                    
+                    var p1Lines = profile.P1Hotkeys ?? new List<Hotkey>();
+                    var p1Prof = new HotkeyProfile(1);
+                    p1Prof.Hotkeys = new List<Hotkey>(p1Lines);
+                    HotkeyManager.SetProfile(1, p1Prof);
+
+                    var p2Lines = profile.P2Hotkeys ?? new List<Hotkey>();
+                    var p2Prof = new HotkeyProfile(2);
+                    p2Prof.Hotkeys = new List<Hotkey>(p2Lines);
+                    HotkeyManager.SetProfile(2, p2Prof);
+                    
+                    var p3Lines = profile.P3Hotkeys ?? new List<Hotkey>();
+                    var p3Prof = new HotkeyProfile(3);
+                    p3Prof.Hotkeys = new List<Hotkey>(p3Lines);
+                    HotkeyManager.SetProfile(3, p3Prof);
+                    
+                    var p4Lines = profile.P4Hotkeys ?? new List<Hotkey>();
+                    var p4Prof = new HotkeyProfile(4);
+                    p4Prof.Hotkeys = new List<Hotkey>(p4Lines);
+                    HotkeyManager.SetProfile(4, p4Prof);
+                    
+                    Options.Instance.UseSharedHotkeys = profile.UseSharedHotkeys;
+                    
+                    // Force clear active modifier states to prevent stuck keys
+                    HotkeyManager.ClearActiveState();
                     
                     Options.Instance.Save();
                     Program.LoadRemapProfileHot(relativePath, true);

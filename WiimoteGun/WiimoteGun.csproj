@@ -289,8 +289,11 @@
     <Compile Include="Common\Extensions.cs" />
     <Compile Include="Core\DeviceHelper.cs" />
     <Compile Include="Core\VMultiDeviceDetector.cs" />
-    <Compile Include="Core\VirtualKeyboard.cs">
+    <Compile Include="UI\Modern\Forms\VirtualKeyboard.cs">
       <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\VirtualKeyboard.Designer.cs">
+      <DependentUpon>VirtualKeyboard.cs</DependentUpon>
     </Compile>
     <Compile Include="Core\Hotkey.cs" />
     <Compile Include="Core\HotkeyProfile.cs" />

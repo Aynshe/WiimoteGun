@@ -14,15 +14,24 @@ namespace WiimoteGun
         // Hotkey profiles per player (EN/FR: Profils hotkeys par joueur)
         private static Dictionary<int, HotkeyProfile> _playerHotkeys = new Dictionary<int, HotkeyProfile>();
 
-        // Home button state tracking (EN/FR: Suivi état bouton Home)
-        private static Dictionary<int, bool> _homeButtonPressed = new Dictionary<int, bool>();
+        // Active modifiers tracking: PlayerIndex -> ModifierName -> WasConsumed (EN/FR: Suivi modificateurs: Idx -> Nom -> Consommé)
+        private static Dictionary<int, Dictionary<string, bool>> _activeModifiers = new Dictionary<int, Dictionary<string, bool>>();
+        
+        // Active triggers tracking: PlayerIndex -> HashSet<ButtonName> (EN/FR: Suivi déclencheurs actifs)
+        private static Dictionary<int, HashSet<string>> _activeTriggers = new Dictionary<int, HashSet<string>>();
+        
         private static Dictionary<int, DateTime> _lastButtonPressTime = new Dictionary<int, DateTime>();
         private static Dictionary<int, string> _lastButtonPressed = new Dictionary<int, string>();
 
         // Constants (EN/FR: Constantes)
         private const int LONG_PRESS_THRESHOLD_MS = 500; // Seuil pression longue
-        private const string HOME_BUTTON = "Home";
         private const string PLUS_BUTTON = "Plus"; // Reserved for overlay toggle
+        
+        // Allowed modifiers (EN/FR: Modificateurs autorisés)
+        public static readonly HashSet<string> AllowedModifiers = new HashSet<string> 
+        { 
+            "Home", "Minus", "Plus", "One", "Two", "A", "B", "Up", "Down", "Left", "Right" 
+        };
 
         // Overlay state delegate (EN/FR: Délégué état overlay)
         public static Func<bool> IsOverlayOpen { get; set; }
@@ -33,7 +42,8 @@ namespace WiimoteGun
         public static void Initialize()
         {
             _playerHotkeys.Clear();
-            _homeButtonPressed.Clear();
+            _activeModifiers.Clear();
+            _activeTriggers.Clear();
             _lastButtonPressTime.Clear();
             _lastButtonPressed.Clear();
 
@@ -41,7 +51,8 @@ namespace WiimoteGun
             for (int i = 1; i <= 4; i++)
             {
                 _playerHotkeys[i] = new HotkeyProfile(i);
-                _homeButtonPressed[i] = false;
+                _activeModifiers[i] = new Dictionary<string, bool>();
+                _activeTriggers[i] = new HashSet<string>();
             }
 
             // Load saved hotkeys from Options (EN/FR: Charger hotkeys sauvegardées depuis Options)
@@ -122,6 +133,29 @@ namespace WiimoteGun
         /// </summary>
         public static HotkeyProfile GetProfile(int playerIndex)
         {
+            if (Options.Instance.UseSharedHotkeys)
+            {
+                // If shared, always use Player 1's profile (EN/FR: Si partagé, toujours utiliser profil P1)
+                if (!_playerHotkeys.ContainsKey(1))
+                {
+                    _playerHotkeys[1] = new HotkeyProfile(1);
+                }
+                return _playerHotkeys[1];
+            }
+
+            if (!_playerHotkeys.ContainsKey(playerIndex))
+            {
+                _playerHotkeys[playerIndex] = new HotkeyProfile(playerIndex);
+            }
+            return _playerHotkeys[playerIndex];
+        }
+
+        /// <summary>
+        /// Get the hotkey profile for a specific player (Raw access without Shared Logic)
+        /// (EN/FR: Obtenir le profil hotkey pour un joueur donné (Accès brut sans logique partagée))
+        /// </summary>
+        public static HotkeyProfile GetRawProfile(int playerIndex)
+        {
             if (!_playerHotkeys.ContainsKey(playerIndex))
             {
                 _playerHotkeys[playerIndex] = new HotkeyProfile(playerIndex);
@@ -146,36 +180,58 @@ namespace WiimoteGun
         public static void OnButtonPressed(int playerIndex, string button)
         {
             // CRITICAL: Hotkeys only active when overlay is CLOSED
-            // (EN/FR: CRITIQUE: Hotkeys actives seulement si overlay FERMÉ)
             if (IsOverlayOpen != null && IsOverlayOpen())
-            {
-                return; // Ignore all hotkey processing if overlay open
-            }
-
-            if (button == HOME_BUTTON)
-            {
-                // Home button pressed, start tracking (EN/FR: Home pressé, commencer suivi)
-                _homeButtonPressed[playerIndex] = true;
-                SimpleLogger.Instance.Debug($"[Hotkey] P{playerIndex} Home pressed");
                 return;
+
+            var profile = GetProfile(playerIndex);
+            
+            // 1. Modifier Check: If button is a configured modifier, track it
+            // (EN/FR: 1. Vérification Modificateur : si bouton est modificateur configuré, le suivre)
+            bool isConfiguredModifier = AllowedModifiers.Contains(button) && 
+                                        profile.Hotkeys.Any(h => string.Equals(h.ModifierButton, button, StringComparison.OrdinalIgnoreCase));
+
+            if (isConfiguredModifier)
+            {
+                if (!_activeModifiers.ContainsKey(playerIndex))
+                    _activeModifiers[playerIndex] = new Dictionary<string, bool>();
+
+                if (!_activeModifiers[playerIndex].ContainsKey(button))
+                {
+                    _activeModifiers[playerIndex][button] = false; // Not yet consumed
+                    SimpleLogger.Instance.Debug($"[Hotkey] P{playerIndex} Modifier {button} down");
+                }
             }
 
-            // Check if Home is currently held down (EN/FR: Vérifier si Home maintenu)
-            if (_homeButtonPressed.ContainsKey(playerIndex) && _homeButtonPressed[playerIndex])
+            // 2. Combo Check: Check active modifiers
+            if (_activeModifiers.ContainsKey(playerIndex) && _activeModifiers[playerIndex].Count > 0)
             {
-                // Home + Plus = Reserved for overlay toggle (EN/FR: Réservé pour overlay)
-                if (button == PLUS_BUTTON)
+                foreach (var modifier in _activeModifiers[playerIndex].Keys.ToList())
                 {
-                    SimpleLogger.Instance.Debug($"[Hotkey] P{playerIndex} Home+Plus (reserved for overlay)");
-                    return; // Let overlay system handle this
-                }
+                    if (modifier == button) continue;
 
-                // Record button press time for short/long detection
-                // (EN/FR: Enregistrer temps pression pour détection court/long)
-                _lastButtonPressed[playerIndex] = button;
-                _lastButtonPressTime[playerIndex] = DateTime.Now;
-                
-                SimpleLogger.Instance.Debug($"[Hotkey] P{playerIndex} Home+{button} detected, waiting for release...");
+                    // Case-Inensitive comparison
+                    if (string.Equals(modifier, "Home", StringComparison.OrdinalIgnoreCase) && 
+                        string.Equals(button, PLUS_BUTTON, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    if (profile.HasHotkey(button, HotkeyPressType.Short, modifier) || 
+                        profile.HasHotkey(button, HotkeyPressType.Long, modifier))
+                    {
+                        // Match found!
+                        _activeModifiers[playerIndex][modifier] = true; // Modifier Consumed
+
+                        // Mark Trigger as Consumed
+                        if (!_activeTriggers.ContainsKey(playerIndex))
+                            _activeTriggers[playerIndex] = new HashSet<string>();
+                        _activeTriggers[playerIndex].Add(button); // Trigger Consumed
+
+                        // Start Timing
+                        _lastButtonPressed[playerIndex] = button;
+                        _lastButtonPressTime[playerIndex] = DateTime.Now;
+
+                        SimpleLogger.Instance.Debug($"[Hotkey] P{playerIndex} {modifier}+{button} combo started (Consumed)");
+                        break; // Only trigger one combo at a time per button press
+                    }
+                }
             }
         }
 
@@ -190,46 +246,82 @@ namespace WiimoteGun
                 return;
             }
 
-            if (button == HOME_BUTTON)
+            // 1. Handle Trigger Release
+            if (_activeTriggers.ContainsKey(playerIndex) && _activeTriggers[playerIndex].Contains(button))
             {
-                // Home button released, reset state (EN/FR: Home relâché, réinitialiser)
-                _homeButtonPressed[playerIndex] = false;
-                _lastButtonPressed.Remove(playerIndex);
-                _lastButtonPressTime.Remove(playerIndex);
-                SimpleLogger.Instance.Debug($"[Hotkey] P{playerIndex} Home released");
-                return;
+                _activeTriggers[playerIndex].Remove(button);
+
+                // Check if it was tracked for timing
+                if (_lastButtonPressed.ContainsKey(playerIndex) && _lastButtonPressed[playerIndex] == button)
+                {
+                    TimeSpan pressDuration = DateTime.Now - _lastButtonPressTime[playerIndex];
+                    // Clean up tracking
+                    _lastButtonPressed.Remove(playerIndex);
+                    _lastButtonPressTime.Remove(playerIndex);
+
+                    bool isLongPress = pressDuration.TotalMilliseconds >= LONG_PRESS_THRESHOLD_MS;
+                    HotkeyPressType pressType = isLongPress ? HotkeyPressType.Long : HotkeyPressType.Short;
+                    
+                    var profile = GetProfile(playerIndex);
+                    
+                    // Find which modifier triggered this
+                    if (_activeModifiers.ContainsKey(playerIndex))
+                    {
+                        foreach (var mod in _activeModifiers[playerIndex].Keys)
+                        {
+                            var hotkey = profile.GetHotkey(button, pressType, mod);
+                            
+                            // Fallback: If Long press detected but no Long hotkey defined, try Short
+                            // (EN/FR: Fallback : Si appui long détecté mais pas de hotkey long, essayer court)
+                            if (hotkey == null && pressType == HotkeyPressType.Long)
+                            {
+                                hotkey = profile.GetHotkey(button, HotkeyPressType.Short, mod);
+                            }
+
+                            if (hotkey != null)
+                            {
+                                SimpleLogger.Instance.Info($"[Hotkey] P{playerIndex} Executing {hotkey.GetDisplayName()}");
+                                ExecuteHotkey(hotkey);
+                                break; 
+                            }
+                        }
+                    }
+                }
+                return; // Trigger released, done.
             }
 
-            // Check if this is a hotkey button release (EN/FR: Vérifier si relâchement hotkey)
-            if (_homeButtonPressed.ContainsKey(playerIndex) && _homeButtonPressed[playerIndex] &&
-                _lastButtonPressed.ContainsKey(playerIndex) && _lastButtonPressed[playerIndex] == button &&
-                _lastButtonPressTime.ContainsKey(playerIndex))
+            // 2. Handle Modifier Release
+            if (_activeModifiers.ContainsKey(playerIndex) && _activeModifiers[playerIndex].ContainsKey(button))
             {
-                // Calculate press duration (EN/FR: Calculer durée pression)
-                TimeSpan pressDuration = DateTime.Now - _lastButtonPressTime[playerIndex];
-                bool isLongPress = pressDuration.TotalMilliseconds >= LONG_PRESS_THRESHOLD_MS;
-                HotkeyPressType pressType = isLongPress ? HotkeyPressType.Long : HotkeyPressType.Short;
-
-                SimpleLogger.Instance.Info($"[Hotkey] P{playerIndex} Home+{button} released after {pressDuration.TotalMilliseconds:F0}ms ({pressType})");
-
-                // Find and execute hotkey (EN/FR: Trouver et exécuter hotkey)
-                var profile = GetProfile(playerIndex);
-                var hotkey = profile.GetHotkey(button, pressType);
-
-                if (hotkey != null)
-                {
-                    SimpleLogger.Instance.Info($"[Hotkey] Executing: {hotkey.GetDisplayName()}");
-                    ExecuteHotkey(hotkey);
-                }
-                else
-                {
-                    SimpleLogger.Instance.Debug($"[Hotkey] No hotkey defined for Home+{button} ({pressType})");
-                }
-
-                // Clear tracking (EN/FR: Effacer suivi)
-                _lastButtonPressed.Remove(playerIndex);
-                _lastButtonPressTime.Remove(playerIndex);
+                bool wasConsumed = _activeModifiers[playerIndex][button];
+                _activeModifiers[playerIndex].Remove(button);
+                
+                SimpleLogger.Instance.Debug($"[Hotkey] P{playerIndex} Modifier {button} released (Consumed: {wasConsumed})");
             }
+        }
+
+        /// <summary>
+        /// Check if a button should be suppressed (swallowed) because it's a modifier
+        /// (EN/FR: Vérifier si bouton doit être supprimé car modificateur)
+        /// </summary>
+        public static bool ShouldSuppressButton(int playerIndex, string button)
+        {
+            // If button is currently acting as a Modifier (Held), suppress it.
+            // (EN/FR: Si bouton agit comme modificateur (Maintenu), supprimer)
+            if (_activeModifiers.ContainsKey(playerIndex) && _activeModifiers[playerIndex].ContainsKey(button))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Check if any modifier is currently active (used to suppress triggers)
+        /// (EN/FR: Vérifier si un modificateur est actif)
+        /// </summary>
+        public static bool IsAnyModifierActive(int playerIndex)
+        {
+             return _activeModifiers.ContainsKey(playerIndex) && _activeModifiers[playerIndex].Count > 0;
         }
 
         /// <summary>
@@ -291,6 +383,28 @@ namespace WiimoteGun
             {
                 SimpleLogger.Instance.Error($"[Hotkey] Failed to execute hotkey: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Check if a button has been consumed by a hotkey combo
+        /// (EN/FR: Vérifier si bouton a été consommé par un combo)
+        /// </summary>
+        public static bool IsButtonConsumed(int playerIndex, string button)
+        {
+            // 1. Check Modifiers (Always suppress active modifiers)
+            if (_activeModifiers.ContainsKey(playerIndex) && 
+                _activeModifiers[playerIndex].ContainsKey(button))
+            {
+                return true;
+            }
+
+            // 2. Check Triggers (Suppress inputs that are part of a combo)
+            if (_activeTriggers.ContainsKey(playerIndex) && _activeTriggers[playerIndex].Contains(button))
+            {
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -359,12 +473,28 @@ namespace WiimoteGun
         /// <summary>
         /// Clear all hotkeys for all players (EN/FR: Effacer toutes les hotkeys)
         /// </summary>
+        /// <summary>
+        /// Force clear active modifier/trigger states (EN/FR: Forcer l'effacement des états modificateurs/déclencheurs)
+        /// Used when switching profiles or modes
+        /// </summary>
+        public static void ClearActiveState()
+        {
+            _activeModifiers.Clear();
+            _activeTriggers.Clear();
+            _lastButtonPressTime.Clear();
+            _lastButtonPressed.Clear();
+            
+            // Release held keys just in case? Usually risky.
+            // Better to just clear tracking.
+        }
+
         public static void ClearAll()
         {
             foreach (var profile in _playerHotkeys.Values)
             {
                 profile.ClearAll();
             }
+            ClearActiveState();
             SimpleLogger.Instance.Info("[HotkeyManager] Cleared all hotkeys");
         }
     }

@@ -391,8 +391,11 @@ namespace WiimoteGun.Forms
                         batchContent += $"devcon.exe /r install \"{infPath}\" {driver.hwid}\n";
                         batchContent += "echo.\n";
                         batchContent += $"echo Disabling unused devices for {charLower}...\n";
+                        // Disable unwanted HID collections to avoid clutter and conflicts
+                        // (EN/FR: Désactiver collections HID inutiles pour éviter conflits)
                         batchContent += $"devcon.exe disable \"*vmulti{charLower}*COL01*\"\n";
                         batchContent += $"devcon.exe disable \"*vmulti{charLower}*COL02*\"\n";
+                        batchContent += $"devcon.exe disable \"*vmulti{charLower}*COL03*\"\n"; // Disable system mouse collection (Col03) for initial installation (EN/FR: Désactiver la collection souris système (Col03) pour l'installation initiale)
                         batchContent += $"devcon.exe disable \"*vmulti{charLower}*COL04*\"\n";
                         batchContent += $"devcon.exe disable \"*vmulti{charLower}*COL05*\"\n";
                         batchContent += $"devcon.exe disable \"*vmulti{charLower}*COL06*\"\n";

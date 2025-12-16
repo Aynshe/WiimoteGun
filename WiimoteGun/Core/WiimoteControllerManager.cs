@@ -75,6 +75,40 @@ namespace WiimoteGun
         private void OnWiimoteException(object sender, WiimoteExceptionEventArgs e)
         {
             SimpleLogger.Instance.Error("Wiimote Exception from Manager: " + e.ToString());
+            
+            // Critical fix: Disconnect Wiimote on fatal errors (IO/Timeout) to ensure cleanup and Service disable command
+            // (EN/FR: Fix critique : Déconnecter Wiimote sur erreur fatale pour assurer cleanup et commande service)
+            if (e.Wiimote != null)
+            {
+                System.Threading.Tasks.Task.Run(() => 
+                {
+                    try 
+                    {
+                        // Use static Disconnect method to force cleanup even if IsConnected is false (partially disposed)
+                        // (EN/FR: Utiliser méthode Disconnect statique pour forcer cleanup même si déjà disposé)
+                        SimpleLogger.Instance.Warning($"Force disconnecting Wiimote {e.Wiimote.Address} due to exception.");
+                        WiimoteManager.Disconnect(e.Wiimote);
+                    }
+                    catch (Exception ex)
+                    {
+                        SimpleLogger.Instance.Error($"Error disconnecting Wiimote after exception: {ex.Message}");
+                        // If Disconnect failed (already removed from manager list), manually trigger cleanup
+                        // (EN/FR: Si Disconnect échoue (déjà retiré de la liste), déclencher cleanup manuellement)
+                        var controller = _controllers.FirstOrDefault(c => c.Wiimote == e.Wiimote);
+                        if (controller != null)
+                        {
+                            SimpleLogger.Instance.Warning($"Forcing manual cleanup for P{controller.PlayerIndex}");
+                            _controllers.Remove(controller);
+                            controller.Dispose(); // This will call ServiceClient.DisablePlayer
+                            SimpleLogger.Instance.Info($"Wiimote P{controller.PlayerIndex} disconnected (manual cleanup).");
+                            if (_controllers.Count == 0)
+                            {
+                                Program.SetConnectedState(false);
+                            }
+                        }
+                    }
+                });
+            }
         }
 
         private void OnWiimoteConnected(object sender, WiimoteEventArgs e)
@@ -161,6 +195,14 @@ namespace WiimoteGun
                 _controllers.Add(controller);
 
                 Program.SetConnectedState(true);
+
+                // CRITICAL: For DolphinBar, enable periodic GetStatus polling for disconnect detection
+                // (EN/FR: CRITIQUE : Pour DolphinBar, activer polling GetStatus périodique pour détection déconnexion)
+                // DolphinBar doesn't generate Windows disconnect events when Wiimote turns off
+                if (!e.Wiimote.Device.IsBluetooth)
+                {
+                    SimpleLogger.Instance.Info("Enabling periodic disconnect detection for DolphinBar");
+                }
             }
             catch (BadImageFormatException)
             {

@@ -32,7 +32,8 @@ namespace WiimoteGun
 
             try
             {
-                // Detect Mouse
+                // Detect Mouse (EN/FR: Détecter souris)
+                // Try Interception first for enabled mice (EN/FR: Essayer d'abord Interception pour souris activées)
                 var context = Interception.InterceptionDriver.interception_create_context();
                 if (context != IntPtr.Zero)
                 {
@@ -60,6 +61,20 @@ namespace WiimoteGun
                         }
                     }
                     Interception.InterceptionDriver.interception_destroy_context(context);
+                }
+
+                // Fallback: If mouse not found via Interception (disabled), construct hardware ID using SetupAPI
+                // (EN/FR: Fallback : Si souris non trouvée via Interception, construire hardware ID via SetupAPI)
+                if (mouseId == null)
+                {
+                    string uniqueId = DeviceHelper.FindVMultiMouseUniqueId(targetSuffix);
+                    if (!string.IsNullOrEmpty(uniqueId) && uniqueId != "Unknown")
+                    {
+                        // Construct a hardware ID similar to what Interception would return
+                        // Format: HID\vmultia&Col03HID\VID_001F&UP:0001_U:0002HID_DEVICE_SYSTEM_MOUSEHID_DEVICE_UP:0001_U:0002HID_DEVICE
+                        mouseId = $"HID\\{targetSuffix}&Col03HID\\VID_{GetVidFromSuffix(targetSuffix)}&UP:0001_U:0002HID_DEVICE_SYSTEM_MOUSEHID_DEVICE_UP:0001_U:0002HID_DEVICE";
+                        SimpleLogger.Instance.Info($"[VMulti Detector] Found {targetSuffix} Mouse (P{playerIndex}) via fallback (disabled device ID: {uniqueId})");
+                    }
                 }
 
                 // Detect Keyboard
@@ -136,6 +151,21 @@ namespace WiimoteGun
             // Lock if corresponding VMulti device is detected
             var (mouseId, keyboardId) = DetectPlayerVMultiDevices(playerIndex);
             return mouseId != null || keyboardId != null;
+        }
+
+        /// <summary>
+        /// Get VID from VMulti suffix (EN/FR: Obtenir VID depuis suffixe VMulti)
+        /// \u003c/summary>
+        private static string GetVidFromSuffix(string suffix)
+        {
+            switch (suffix.ToLowerInvariant())
+            {
+                case "vmultia": return "001F";
+                case "vmultib": return "002F";
+                case "vmultic": return "003F";
+                case "vmultid": return "004F";
+                default: return "XXXX";
+            }
         }
     }
 }

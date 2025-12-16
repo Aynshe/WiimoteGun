@@ -279,7 +279,7 @@ namespace WiimoteGun.Controls
             this.chkEnableGyro.Name = "chkEnableGyro";
             this.chkEnableGyro.Size = new System.Drawing.Size(136, 19);
             this.chkEnableGyro.TabIndex = 17;
-            this.chkEnableGyro.Text = "Enable Gyro Aiming";
+            this.chkEnableGyro.Text = "Enable Gyro Aiming (In Development)";
             this.chkEnableGyro.UseVisualStyleBackColor = true;
             this.chkEnableGyro.CheckedChanged += new System.EventHandler(this.ChkEnableGyro_CheckedChanged);
             // 

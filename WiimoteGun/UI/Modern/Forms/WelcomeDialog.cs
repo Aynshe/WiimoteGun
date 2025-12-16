@@ -36,17 +36,13 @@ namespace WiimoteGun
             
             // DRIVER INSTALLATION
             AppendColoredTitle("⚠️ DRIVER INSTALLATION REQUIRED / INSTALLATION DU DRIVER REQUISE\n", Color.FromArgb(220, 50, 50));
-            AppendText("Before using Wiimote4Guns, you MUST install the Interception driver:\n");
-            AppendText("Avant d'utiliser Wiimote4Guns, vous DEVEZ installer le driver Interception :\n\n");
+            AppendText("Before using Wiimote4Guns, you MUST install the Interception driver AND WiimoteGun Drivers:\n");
+            AppendText("Avant d'utiliser Wiimote4Guns, vous DEVEZ installer le driver Interception ET les drivers WiimoteGun :\n\n");
             
-            AppendText("1. Right-click tray icon → Options → Install Drivers\n");
-            AppendText("   Clic droit icône → Options → Install Drivers\n\n");
+            AppendText("If you just installed drivers, you MUST restart Windows:\n");
+            AppendText("Si vous venez d'installer les pilotes, vous DEVEZ redémarrer Windows :\n\n");
             
-            AppendText("2. Choose player count / Choisissez le nombre de joueurs:\n");
-            AppendText("   • 'Add 1 Player' - single player / un joueur\n");
-            AppendText("   • 'Add 2 Player' - two players / deux joueurs\n\n");
-            
-            AppendText("3. Restart your PC / Redémarrez votre PC\n\n");
+            AppendText("• Restart your PC / Redémarrez votre PC\n\n");
             
             AppendText("─────────────────────────────────────────────────────────────────────\n\n");
             
@@ -58,7 +54,7 @@ namespace WiimoteGun
             AppendText("• Uniquement Wiimotes première génération (avant 2011)\n");
             AppendText("• Serial NOT ending in Z-C4, Z-C6, C-C4\n\n");
             
-            AppendBoldText("🎮 DolphinBar Mayflash Mode 4 (RECOMMENDED):\n");
+            AppendBoldText("🎮 DolphinBar Mayflash Mode 4:\n");
             AppendText("• Works with ALL Wiimotes (new/old/clones)\n");
             AppendText("• Fonctionne avec TOUTES les Wiimotes\n\n");
             
@@ -67,17 +63,22 @@ namespace WiimoteGun
             // CONNECTING WIIMOTES
             AppendColoredTitle("🎮 CONNECTING WIIMOTES / CONNECTER LES WIIMOTES\n", Color.FromArgb(0, 150, 100));
             
-            AppendBoldText("Driver Installation / Installation des Pilotes:\n");
-            AppendText("• Install Virtual Driver according to the number of players desired\n");
-            AppendText("• Installez le pilote virtuel selon le nombre de joueurs souhaité\n\n");
+            AppendBoldText("Connection / Connexion:\n");
+            AppendText("• Press Red SYNC button or 1 + 2 buttons\n");
+            AppendText("• Appuyez sur le bouton rouge SYNC ou les boutons 1 + 2\n\n");
 
-            AppendBoldText("No Driver / Sans Pilote:\n");
-            AppendText("• Physical Mouse/Keyboard will be used for one player\n");
-            AppendText("• Souris/Clavier physique utilisé pour un joueur\n\n");
-            
-            AppendBoldText("Multi-Player Setup / Configuration Multijoueur:\n");
-            AppendText("• Enable '4 Players Mode' in Options for >2 players\n");
-            AppendText("• Activez 'Mode 4 Joueurs' dans les Options pour >2 joueurs\n\n");
+            AppendBoldText("If Bluetooth connection fails / Si la connexion Bluetooth échoue :\n");
+            AppendText("1. Bluetooth Manager -> Add Device / Ajouter appareil\n");
+            AppendText("2. Press 1+2 repeatedly / Appuyez plusieurs fois sur 1+2\n");
+            AppendText("3. Click 'Nintendo RVL-CNT-01' (or 'Input device/Saisie')\n");
+            AppendText("4. CANCEL PIN code request (Do not enter anything!)\n");
+            AppendText("   ANNULEZ la demande de code PIN (Ne rien saisir !)\n");
+            AppendText("5. Keep pressing 1+2 until connected\n");
+            AppendText("   Continuez d'appuyer sur 1+2 jusqu'à connexion\n\n");
+
+            AppendBoldText("Reset:\n");
+            AppendText("• Long press SYNC resets DolphinBar hardware link\n");
+            AppendText("• Appui long SYNC réinitialise le lien matériel DolphinBar\n\n");
             
             AppendText("─────────────────────────────────────────────────────────────────────\n\n");
             
@@ -86,10 +87,25 @@ namespace WiimoteGun
             AppendText("• HOME - toggle modes (Mouse/Keyboard/Disabled)\n");
             AppendText("• HOME (long press) - calibrate / calibrer\n");
             AppendText("• HOME + Plus - open overlay menu / ouvrir menu overlay\n");
+            AppendText("• OFF-SCREEN + Minus + Plus (3s) - Manually Disable Virtual Device / Désactiver Périphérique Virtuel Manuellement\n");
             AppendText("• Right-click tray icon - settings / paramètres\n\n");
             
             AppendText("─────────────────────────────────────────────────────────────────────\n\n");
             
+            // TROUBLESHOOTING
+            AppendColoredTitle("🛠️ TROUBLESHOOTING / DÉPANNAGE\n", Color.FromArgb(200, 50, 200));
+            AppendBoldText("Fix Virtual Device Bugs / Corriger Bugs Périphériques Virtuels:\n");
+            AppendText("If virtual devices stop working after disconnect (requiring reboot):\n");
+            AppendText("Si les périphériques virtuels ne répondent plus après déconnexion (nécessitant reboot) :\n");
+            AppendText("• Uncheck 'Disable Device on Disconnect' in Options\n");
+            AppendText("• Décochez 'Désactiver le périphérique à la déconnexion' dans les Options\n");
+            AppendText("This prevents Windows PnP bugs by keeping devices active.\n");
+            AppendText("Cela évite les bugs PnP Windows en gardant les périphériques actifs.\n");
+            AppendText("If unchecked, use the Manual Disable hotkey (Off-screen Minus+Plus 3s) if you really need to disable it.\n");
+            AppendText("Si décoché, utilisez le raccourci Désactivation Manuelle (Hors-écran Moins+Plus 3s) si vous devez vraiment le désactiver.\n\n");
+
+            AppendText("─────────────────────────────────────────────────────────────────────\n\n");
+
             // Footer
             AppendColoredTitle("Enjoy! / Amusez-vous bien ! 🎮", Color.FromArgb(0, 120, 215));
         }

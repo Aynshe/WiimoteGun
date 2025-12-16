@@ -153,7 +153,7 @@ namespace WiimoteGun.UI.Legacy
             this.lblWiimoteInfo.Name = "lblWiimoteInfo";
             this.lblWiimoteInfo.Size = new System.Drawing.Size(250, 13);
             this.lblWiimoteInfo.TabIndex = 8;
-            this.lblWiimoteInfo.Text = "💡 Hold HOME + D-Pad to adjust offset in real-time";
+            this.lblWiimoteInfo.Text = "💡 Hold HOME (BT) or MINUS (Mayflash) + D-Pad to adjust offset";
             // 
             // _updateTimer
             // 

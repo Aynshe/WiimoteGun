@@ -45,6 +45,8 @@ namespace WiimoteGun.UI.Legacy
             cmbPlayer.SelectedIndex = 0;
             
             UpdateOffsetLabel();
+            
+            // Default selection
 
             // Add Close Button for Wiimote usage (EN/FR: Ajouter bouton fermer pour usage Wiimote)
             Button btnClose = new Button();
@@ -69,7 +71,7 @@ namespace WiimoteGun.UI.Legacy
             var wiimotes = WiimoteManager.ConnectedWiimotes;
             foreach (var wm in wiimotes)
             {
-                if (wm.WiimoteState != null && wm.WiimoteState.Buttons.Home)
+                if (wm.WiimoteState != null && (wm.WiimoteState.Buttons.Home || wm.WiimoteState.Buttons.Minus))
                 {
                     homePressed = true;
                     break;
@@ -216,8 +218,9 @@ namespace WiimoteGun.UI.Legacy
                     {
                         var buttons = wm.WiimoteState.Buttons;
                         
-                        // Home button must be held (EN/FR: Bouton Home doit être maintenu)
-                        if (buttons.Home)
+                        // Home button OR Minus button must be held (EN/FR: Bouton Home OU Moins doit être maintenu)
+                        // Minus is needed for DolphinBar where HOME changes mode
+                        if (buttons.Home || buttons.Minus)
                         {
                             // Apply offset adjustments on D-pad press (EN/FR: Appliquer ajustements offset sur pression D-pad)
                             if (buttons.Left)
@@ -385,8 +388,8 @@ namespace WiimoteGun.UI.Legacy
                         var point = ir[p];
                         if (point.Found)
                         {
-                            // Scale 0-1023 to 0-drawW
-                            float x = rectX + (point.RawPosition.X / 1023f) * drawW;
+                            // Scale 0-1023 to 0-drawW (Mirrored axis for intuitive view)
+                            float x = rectX + (1.0f - point.RawPosition.X / 1023f) * drawW;
                             float y = rectY + (point.RawPosition.Y / 767f) * drawH;
                             
                             // Scale dot size relative to screen size (min 5px)
@@ -412,7 +415,7 @@ namespace WiimoteGun.UI.Legacy
                                 {
                                     if (calPoints[k].HasValue)
                                     {
-                                        float cx = rectX + (calPoints[k].Value.X) * drawW;
+                                        float cx = rectX + (1.0f - calPoints[k].Value.X) * drawW;
                                         float cy = rectY + (calPoints[k].Value.Y) * drawH;
                                         
                                         g.DrawEllipse(Pens.Magenta, cx - 5, cy - 5, 10, 10);
@@ -456,7 +459,7 @@ namespace WiimoteGun.UI.Legacy
                         var center = centerController.Calculator.LastCalculatedCenter;
                         if (center.X != 0 && center.Y != 0)
                         {
-                            float cx = rectX + (center.X / 1023f) * drawW;
+                            float cx = rectX + (1.0f - center.X / 1023f) * drawW;
                             float cy = rectY + (center.Y / 767f) * drawH;
                             
                             // Triangulation lines
@@ -465,7 +468,7 @@ namespace WiimoteGun.UI.Legacy
                                 var point = ir[p];
                                 if (point.Found)
                                 {
-                                    float px = rectX + (point.RawPosition.X / 1023f) * drawW;
+                                    float px = rectX + (1.0f - point.RawPosition.X / 1023f) * drawW;
                                     float py = rectY + (point.RawPosition.Y / 767f) * drawH;
                                     g.DrawLine(Pens.DarkCyan, px, py, cx, cy);
                                 }

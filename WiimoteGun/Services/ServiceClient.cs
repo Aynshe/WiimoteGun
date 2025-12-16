@@ -10,30 +10,36 @@ namespace WiimoteGun
     {
         private const string PIPE_NAME = "WiimoteGunService";
 
+        private static readonly object _lock = new object();
+        private static Task _lastTask = Task.CompletedTask;
+
         public static void SendCommand(string command)
         {
-            Task.Run(() => 
+            lock (_lock)
             {
-                try
+                _lastTask = _lastTask.ContinueWith(_ => 
                 {
-                    using (NamedPipeClientStream pipeClient = new NamedPipeClientStream(".", PIPE_NAME, PipeDirection.InOut))
+                    try
                     {
-                        // Increased timeout to 3000ms to avoid flaky connection failures
-                        pipeClient.Connect(3000); 
-                        using (StreamWriter sw = new StreamWriter(pipeClient))
+                        using (NamedPipeClientStream pipeClient = new NamedPipeClientStream(".", PIPE_NAME, PipeDirection.InOut))
                         {
-                            sw.AutoFlush = true;
-                            sw.WriteLine(command);
+                            // Increased timeout to 3000ms to avoid flaky connection failures
+                            pipeClient.Connect(3000); 
+                            using (StreamWriter sw = new StreamWriter(pipeClient))
+                            {
+                                sw.AutoFlush = true;
+                                sw.WriteLine(command);
+                            }
                         }
+                        SimpleLogger.Instance.Info($"Service Command Sent: {command}");
                     }
-                    SimpleLogger.Instance.Info($"Service Command Sent: {command}");
-                }
-                catch (Exception ex)
-                {
-                    // Service likely not running or not installed
-                    SimpleLogger.Instance.Debug($"Service IPC failed ({command}): {ex.Message}");
-                }
-            });
+                    catch (Exception ex)
+                    {
+                        // Service likely not running or not installed
+                        SimpleLogger.Instance.Debug($"Service IPC failed ({command}): {ex.Message}");
+                    }
+                });
+            }
         }
 
         public static void EnablePlayer(int index) => SendCommand($"ENABLE_P{index}");

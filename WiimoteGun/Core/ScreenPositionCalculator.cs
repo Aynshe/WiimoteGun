@@ -122,22 +122,17 @@ namespace WiimoteGun
         private int _framesSinceTransition = 0;
 
         private CalibrateForm _calibrateForm;
+        private WiimoteGun.UI.Legacy.IRVisualizerForm _irVisualizer; // (EN/FR: Fenêtre visualisation IR)
 
         public bool IsCalibrating { get { return _calibrateForm != null; } }
         public bool IsCalibrated 
         { 
             get
             {
-                if (_ledLayout == LEDLayoutType.TwoWiimoteBar)
+                if (_ledLayout == LEDLayoutType.Gun4IRDiamond || _ledLayout == LEDLayoutType.FourCorners || _ledLayout == LEDLayoutType.TwoWiimoteBar)
                 {
-                    // TwoWiimoteBar: Only 4 corners (indices 0-3), NO center
-                    return _gun4irPoints != null &&
-                           _gun4irPoints[0].HasValue && _gun4irPoints[1].HasValue &&
-                           _gun4irPoints[2].HasValue && _gun4irPoints[3].HasValue;
-                }
-                else if (_ledLayout == LEDLayoutType.Gun4IRDiamond || _ledLayout == LEDLayoutType.FourCorners)
-                {
-                    // Gun4IR/FourCorners: 5 points including center (all indices)
+                    // Gun4IR/FourCorners/TwoWiimoteBar: 5 points including center (all indices)
+                    // (EN/FR: 5 points incluant le centre)
                     return _gun4irPoints != null && _gun4irPoints.All(p => p.HasValue);
                 }
                 // WiimoteBar: Check 4 points (TL, TR, BR, BL) OR 3 points in permissive mode
@@ -201,6 +196,9 @@ namespace WiimoteGun
             // Gun4IR / 4 Corners: Ask user for mode (Dynamic vs Standard)
             if (_ledLayout == LEDLayoutType.Gun4IRDiamond || _ledLayout == LEDLayoutType.FourCorners)
             {
+                // Reset calibration immediately on entry (User request)
+                ResetCalibration();
+
                 // Show full-screen mode selection form (EN/FR: Afficher le formulaire plein écran de sélection)
                 Program.PostToUIThread(() =>
                 {
@@ -244,6 +242,17 @@ namespace WiimoteGun
         private void StartCalibrationForm()
         {
             ResetCalibration();
+            
+            // OPEN IR VISUALIZER (EN/FR: Ouvrir IR Visualizer) - Requested by User to be behind CalibrateForm
+            Program.PostToUIThread(() =>
+            {
+                if (_irVisualizer == null || _irVisualizer.IsDisposed)
+                {
+                    _irVisualizer = new WiimoteGun.UI.Legacy.IRVisualizerForm();
+                    _irVisualizer.TopMost = true; // Stay on top of other apps (EN/FR: Rester au-dessus des autres apps)
+                    _irVisualizer.Show();
+                }
+            });
             // Pass LED layout to calibration form (EN/FR: Passer le layout LED au formulaire de calibration)
             // Use current MonitorId from options (EN/FR: Utiliser le MonitorId actuel des options)
             _calibrateForm = new CalibrateForm(Options.Instance.MonitorId, _ledLayout);
@@ -309,7 +318,18 @@ namespace WiimoteGun
             var frm = _calibrateForm;
             _calibrateForm = null;
 
-            Program.PostToUIThread(() => { frm.Dispose(); });
+            Program.PostToUIThread(() => 
+            { 
+                frm.Dispose(); 
+                
+                // Close IR Visualizer (EN/FR: Fermer IR Visualizer)
+                if (_irVisualizer != null && !_irVisualizer.IsDisposed)
+                {
+                    _irVisualizer.Close();
+                    _irVisualizer.Dispose();
+                    _irVisualizer = null;
+                }
+            });
         }
 
         public void ResetCalibration()
@@ -401,20 +421,7 @@ namespace WiimoteGun
                     }
                     else if (!_bottomLeftPt.HasValue) _bottomLeftPt = _lastRawPoint;   // Step 4/4
                 }
-                else if (_ledLayout == LEDLayoutType.TwoWiimoteBar)
-                {
-                    // TwoWiimoteBar: 4 CORNERS ONLY (NO CENTER) - TL → TR → BR → BL
-                    // (EN/FR: TwoWiimoteBar : 4 COINS SEULEMENT (SANS CENTRE) - HG → HD → BD → BG)
-                    for (int i = 0; i < 4; i++)  // Changed from 5 to 4
-                    {
-                        if (!_gun4irPoints[i].HasValue)
-                        {
-                            _gun4irPoints[i] = _lastRawPoint;
-                            break;
-                        }
-                    }
-                }
-                else // Gun4IR / FourCorners with center (5 points)
+                else // Gun4IR / FourCorners / TwoWiimoteBar with center (5 points)
                 {
                     for (int i = 0; i < 5; i++)
                     {
@@ -677,18 +684,20 @@ namespace WiimoteGun
                                 }
                             }
                         }
-                        else // TwoWiimoteBar / FourCorners: Use indices 0-3 (TL, TR, BR, BL)
+                        else if (_ledLayout == LEDLayoutType.FourCorners || _ledLayout == LEDLayoutType.TwoWiimoteBar)
                         {
-                            if (_gun4irPoints[0].HasValue && _gun4irPoints[1].HasValue && 
-                                _gun4irPoints[2].HasValue && _gun4irPoints[3].HasValue)
+                            // FourCorners / TwoWiimoteBar (5 pts captured): Use indices 1-4 (TL, TR, BR, BL) - Ignore 0 (Center)
+                            // (EN/FR: Utiliser indices 1-4 (HG, HD, BD, BG) - Ignorer 0 (Centre))
+                            if (_gun4irPoints[1].HasValue && _gun4irPoints[2].HasValue && 
+                                _gun4irPoints[3].HasValue && _gun4irPoints[4].HasValue)
                             {
                                 Point2F[] src = new Point2F[4];
                                 Point2F[] dst = new Point2F[4];
 
-                                src[0] = _gun4irPoints[0].Value; // TL
-                                src[1] = _gun4irPoints[1].Value; // TR
-                                src[2] = _gun4irPoints[2].Value; // BR
-                                src[3] = _gun4irPoints[3].Value; // BL
+                                src[0] = _gun4irPoints[1].Value; // TL (was param 1)
+                                src[1] = _gun4irPoints[2].Value; // TR (was param 2)
+                                src[2] = _gun4irPoints[3].Value; // BR (was param 3)
+                                src[3] = _gun4irPoints[4].Value; // BL (was param 4)
 
                                 dst[0] = new Point2F(0.0f, 0.0f); // TL
                                 dst[1] = new Point2F(1.0f, 0.0f); // TR
@@ -709,6 +718,10 @@ namespace WiimoteGun
                                     relativePosition.Y = (H[3] * x + H[4] * y + H[5]) / w;
                                 }
                             }
+                        }
+                        else // Final Fallback (Should be unreachable if all handled)
+                        {
+                             // ... existing fallback or empty ...
                         }
                     }
                 }

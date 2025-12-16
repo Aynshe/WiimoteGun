@@ -680,6 +680,16 @@ namespace WiimoteGun
             return false;
         }
         /// <summary>
+        /// Find the Unique/Instance ID of a VMulti device (mouse or keyboard) by scanning Windows devices via SetupAPI.
+        /// Works for both enabled and disabled devices.
+        /// (EN/FR: Trouver l'ID Unique VMulti (souris ou clavier) via SetupAPI - fonctionne pour devices activés et désactivés)
+        /// </summary>
+        public static string FindVMultiMouseUniqueId(string vmultiSuffix)
+        {
+            return FindVMultiUniqueId(vmultiSuffix);
+        }
+
+        /// <summary>
         /// Find the Unique/Instance ID of a VMulti device by scanning Windows devices via SetupAPI.
         /// Useful when Interception provides a truncated hardware ID.
         /// (EN/FR: Trouver l'ID Unique VMulti via SetupAPI quand Interception donne un ID tronqué)

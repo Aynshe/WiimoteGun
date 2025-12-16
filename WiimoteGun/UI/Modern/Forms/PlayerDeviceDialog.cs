@@ -48,6 +48,31 @@ namespace WiimoteGun
             cmbMouse.Items.Add("None (Auto)");
             _mouseDevices["None (Auto)"] = "";
             
+            // 1. Force Add VMulti Mouse Option (Offline Support)
+            // (EN/FR: Forcer l'ajout de l'option Souris VMulti - Support Offline)
+            // Since VMulti mice are created dynamically, they might not exist when this dialog is opened.
+            // We blindly add the correct ID so the user can select it in advance.
+            
+             string[] vMultiSuffixes = { "vmultia", "vmultib", "vmultic", "vmultid" };
+             if (_playerIndex >= 1 && _playerIndex <= 4)
+             {
+                 string suffix = vMultiSuffixes[_playerIndex - 1];
+                 string vid = (_playerIndex == 1) ? "001F" : (_playerIndex == 2) ? "002F" : (_playerIndex == 3) ? "003F" : "004F";
+                 
+                 // Exact ID format expected by the driver/registry
+                 string vmultiId = $"HID\\{suffix}&Col03HID\\VID_{vid}&UP:0001_U:0002HID_DEVICE_SYSTEM_MOUSEHID_DEVICE_UP:0001_U:0002HID_DEVICE";
+                 
+                 string displayName = $"VMulti Mouse [Player {_playerIndex}] (Virtual/Offline)";
+                 
+                 // Only add if not already present (should not be, but safety check)
+                 if (!_mouseDevices.ContainsKey(displayName))
+                 {
+                     _mouseDevices[displayName] = vmultiId;
+                     cmbMouse.Items.Add(displayName);
+                     SimpleLogger.Instance.Info($"[DIALOG] Force-added VMulti Mouse option for P{_playerIndex}");
+                 }
+             }
+
             // Enumerate mouse devices via Interception (EN/FR: Énumérer périphériques souris via Interception)
             try
             {
@@ -56,60 +81,70 @@ namespace WiimoteGun
                 {
                     for (int i = 11; i <= 20; i++)
                     {
-                        if (WiimoteGun.Interception.InterceptionDriver.interception_is_mouse(i) != 0)
+                        bool isMouse = WiimoteGun.Interception.InterceptionDriver.interception_is_mouse(i) != 0;
+                        
+                        // Get hardware ID (EN/FR: Récupérer ID matériel)
+                        byte[] buffer = new byte[1000];
+                        uint result = WiimoteGun.Interception.InterceptionDriver.interception_get_hardware_id(context, i, buffer, (uint)buffer.Length);
+                        string hardwareId = "";
+
+                        if (result > 0)
                         {
-                            // Get hardware ID (EN/FR: Récupérer ID matériel)
-                            byte[] buffer = new byte[1000];
-                            uint result = WiimoteGun.Interception.InterceptionDriver.interception_get_hardware_id(context, i, buffer, (uint)buffer.Length);
-                            
-                            if (result > 0)
+                            // Convert byte array to string (EN/FR: Convertir tableau bytes en string)
+                            int byteCount = Math.Min((int)result * 2, buffer.Length);
+                            hardwareId = System.Text.Encoding.Unicode.GetString(buffer, 0, byteCount);
+                                
+                            // Remove NULL characters (EN/FR: Supprimer caractères NULL)
+                            hardwareId = hardwareId.Replace("\0", "").Trim();
+                        }
+
+                        // Accept if it's a mouse OR if we detected a VMulti ID (even if isMouse is false)
+                        if (isMouse || (!string.IsNullOrEmpty(hardwareId) && hardwareId.IndexOf("vmulti", StringComparison.OrdinalIgnoreCase) >= 0))
+                        {
+                            if (!string.IsNullOrEmpty(hardwareId))
                             {
-                                // Convert byte array to string (EN/FR: Convertir tableau bytes en string)
-                                int byteCount = Math.Min((int)result * 2, buffer.Length);
-                                string hardwareId = System.Text.Encoding.Unicode.GetString(buffer, 0, byteCount);
-                                
-                                // Remove NULL characters (EN/FR: Supprimer caractères NULL)
-                                hardwareId = hardwareId.Replace("\0", "").Trim();
-                                
-                                if (!string.IsNullOrEmpty(hardwareId))
+                                // Check for duplicates (SetupAPI might have already added this)
+                                // (EN/FR: Vérifier doublons - SetupAPI peut déjà l'avoir ajouté)
+                                bool exists = _mouseDevices.ContainsValue(hardwareId) || 
+                                              _mouseDevices.Values.Any(v => DeviceHelper.IsHardwareIdMatch(v, hardwareId));
+                                              
+                                if (exists)
                                 {
-                                    // Extract VID/PID for friendly name and unique identification (EN/FR: Extraire VID/PID pour nom et identification)
-                                    var vidPidResult = DeviceHelper.ExtractVidPid(hardwareId);
-                                    string vid = vidPidResult.vid;
-                                    string pid = vidPidResult.pid;
+                                    SimpleLogger.Instance.Info($"[DIALOG] Skipping Interception duplicate for {hardwareId}");
+                                    continue;
+                                }
+
+                                // Extract VID/PID for friendly name and unique identification (EN/FR: Extraire VID/PID pour nom et identification)
+                                var vidPidResult = DeviceHelper.ExtractVidPid(hardwareId);
+                                string vid = vidPidResult.vid;
+                                string pid = vidPidResult.pid;
                                     
-                                    string displayName;
-                                    string identifierToSave;
+                                string displayName;
                                     
-                                    if (vid != null)
+                                if (vid != null)
+                                {
+                                    string vidPidKey = pid != null ? $"VID_{vid}&PID_{pid}" : $"VID_{vid}";
+                                        
+                                    // Get friendly name (EN/FR: Récupérer nom commercial)
+                                    // Pass hardwareId for robust VMulti detection
+                                    string friendlyName = DeviceHelper.GetDeviceFriendlyName(vidPidKey, hardwareId);
+                                        
+                                    if (!string.IsNullOrEmpty(friendlyName))
                                     {
-                                        string vidPidKey = pid != null ? $"VID_{vid}&PID_{pid}" : $"VID_{vid}";
-                                        
-                                        // Get friendly name (EN/FR: Récupérer nom commercial)
-                                        // Pass hardwareId for robust VMulti detection
-                                        string friendlyName = DeviceHelper.GetDeviceFriendlyName(vidPidKey, hardwareId);
-                                        
-                                        if (!string.IsNullOrEmpty(friendlyName))
-                                        {
-                                            displayName = $"{friendlyName} (Device {i})";
-                                        }
-                                        else
-                                        {
-                                            displayName = $"Mouse {i} ({vidPidKey})";
-                                        }
-                                        
-                                        // Save full hardware ID for unique identification (EN/FR: Sauvegarder ID matériel complet pour identification unique)
-                                        identifierToSave = hardwareId;
+                                        displayName = $"{friendlyName} (Device {i})";
                                     }
                                     else
                                     {
-                                        displayName = $"Mouse {i} (Unknown)";
-                                        identifierToSave = hardwareId;
+                                        displayName = $"Mouse {i} ({vidPidKey})";
                                     }
-                                    
-                                    _mouseDevices[displayName] = identifierToSave;
-                                    cmbMouse.Items.Add(displayName);
                                 }
+                                else
+                                {
+                                    displayName = $"Mouse {i} (Unknown)";
+                                }
+                                    
+                                _mouseDevices[displayName] = hardwareId;
+                                cmbMouse.Items.Add(displayName);
                             }
                         }
                     }

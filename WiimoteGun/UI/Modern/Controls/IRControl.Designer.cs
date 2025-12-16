@@ -187,7 +187,7 @@ namespace WiimoteGun.Controls
             this.lblWiimoteHelp.Name = "lblWiimoteHelp";
             this.lblWiimoteHelp.Size = new System.Drawing.Size(520, 20);
             this.lblWiimoteHelp.TabIndex = 5;
-            this.lblWiimoteHelp.Text = "💡 Hold HOME + D-Pad to adjust offset in real-time";
+            this.lblWiimoteHelp.Text = "💡 Hold HOME (BT) or MINUS (Mayflash) + D-Pad to adjust offset";
             
             // 
             // btnOpenGyroViz

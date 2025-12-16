@@ -264,6 +264,7 @@ Same as original WiimoteGun project.
 - **WiimoteLib.Net**: [Robert Jordan](https://github.com/trigger-segfault/WiimoteLib.Net)
 - **Interception**: [oblita](http://www.oblita.com/interception.html)
 - **vmulti**: [djpnewton](https://github.com/djpnewton/vmulti/)
+- **EcoTUIODriver**: [ecologylab](https://github.com/ecologylab/EcoTUIODriver)
 
 ## 🔗 Links
 
