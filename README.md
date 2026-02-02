@@ -55,12 +55,11 @@ Fork of [WiimoteGun](https://github.com/fcaruso/WiimoteGun) with extensive enhan
 
 1. **Download** the latest release
 2. **Extract** to your desired location
-3. **Manage Virtual Drivers**:
-   - Open Options → **Virtual HID Driver**.
-   - Install drivers for the players you want to use (e.g., "Add Player 1").
-   - You can uninstall unused drivers individually if needed.
-4. **Restart your PC**
-5. Launch `WiimoteGun.exe`
+3. **Launch** `WiimoteGun.exe`
+4. **Follow the Setup Wizard**: On first launch, a wizard will guide you through driver and service installation
+5. **Restart your PC** when prompted
+
+> **Note**: To uninstall drivers later, use the systray menu: Options → Virtual HID Driver → Remove drivers
 
 ## 🎮 Quick Start
 
