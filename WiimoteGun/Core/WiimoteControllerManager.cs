@@ -196,6 +196,14 @@ namespace WiimoteGun
 
                 Program.SetConnectedState(true);
 
+                // Schedule VMulti collection cleanup after Wiimote connection
+                // (EN/FR: Planifier le nettoyage des collections VMulti après connexion Wiimote)
+                Core.VMultiDeviceCleanup.ScheduleCleanupAfterWiimoteConnect();
+
+                // Remove COL03 mice for unconnected players to hide ghost lightgun icons in ES
+                // (EN/FR: Supprimer les souris COL03 des joueurs non connectés pour masquer icônes fantômes)
+                ScheduleRemoveUnconnectedMice();
+
                 // CRITICAL: For DolphinBar, enable periodic GetStatus polling for disconnect detection
                 // (EN/FR: CRITIQUE : Pour DolphinBar, activer polling GetStatus périodique pour détection déconnexion)
                 // DolphinBar doesn't generate Windows disconnect events when Wiimote turns off
@@ -224,9 +232,14 @@ namespace WiimoteGun
             var controller = _controllers.FirstOrDefault(c => c.Wiimote == e.Wiimote);
             if (controller != null)
             {
+                int playerIndex = controller.PlayerIndex;
                 _controllers.Remove(controller);
                 controller.Dispose();
-                SimpleLogger.Instance.Info($"Wiimote P{controller.PlayerIndex} disconnected.");
+                SimpleLogger.Instance.Info($"Wiimote P{playerIndex} disconnected.");
+
+                // Remove COL03 mouse for this disconnected player to hide ghost lightgun icon
+                // (EN/FR: Supprimer la souris COL03 du joueur déconnecté pour masquer icône fantôme)
+                Core.VMultiDeviceCleanup.RemoveMouseForDisconnectedPlayer(playerIndex);
             }
 
             if (_controllers.Count == 0)
@@ -237,6 +250,32 @@ namespace WiimoteGun
         public IEnumerable<WiiMoteController> GetControllers()
         {
             return _controllers.ToList();
+        }
+
+        /// <summary>
+        /// EN: Schedule removal of COL03 mice for unconnected players (with delay).
+        /// FR: Planifier la suppression des souris COL03 pour les joueurs non connectés (avec délai).
+        /// </summary>
+        private void ScheduleRemoveUnconnectedMice()
+        {
+            System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    // EN: Wait for device enumeration after Wiimote connect
+                    // FR: Attendre l'énumération des périphériques après connexion Wiimote
+                    await System.Threading.Tasks.Task.Delay(3500).ConfigureAwait(false);
+
+                    // EN: Get list of currently connected player indexes
+                    // FR: Obtenir la liste des index des joueurs actuellement connectés
+                    var connectedIndexes = _controllers.Select(c => c.PlayerIndex).ToArray();
+                    Core.VMultiDeviceCleanup.RemoveMouseForUnconnectedPlayers(connectedIndexes);
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.Instance.Error($"[WiimoteControllerManager] Error in ScheduleRemoveUnconnectedMice: {ex.Message}");
+                }
+            });
         }
         public WiiMoteController GetController(Guid id)
         {

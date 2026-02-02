@@ -1,0 +1,247 @@
+using System;
+using System.Runtime.InteropServices;
+
+namespace WiimoteGun.VMulti
+{
+    /// <summary>
+    /// VMulti HID Report structures based on vmulticommon.h
+    /// (EN/FR: Structures de rapports HID VMulti basées sur vmulticommon.h)
+    /// </summary>
+
+    // Report IDs (EN/FR: Identifiants de rapports)
+    public static class VMultiReportIds
+    {
+        public const byte MultiTouch = 0x01;
+        public const byte Feature = 0x02;
+        public const byte Mouse = 0x03;
+        public const byte RelativeMouse = 0x04;
+        public const byte Digitizer = 0x05;
+        public const byte Joystick = 0x06;
+        public const byte Keyboard = 0x07;
+        public const byte Message = 0x10;
+        public const byte Control = 0x40;
+    }
+
+    // VMulti device identification (EN/FR: Identification des périphériques VMulti)
+    public static class VMultiDeviceIds
+    {
+        // Default VMulti VID/PID
+        public const ushort DefaultVid = 0x00FF;
+        public const ushort DefaultPid = 0xBACC;
+        
+        // Custom VIDs for multi-player support (EN/FR: VID personnalisés pour support multi-joueurs)
+        // These correspond to vmultia, vmultib, vmultic, vmultid drivers
+        public static readonly ushort[] PlayerVids = { 0x001F, 0x002F, 0x003F, 0x004F };
+        
+        // Usage pages for HID device detection (EN/FR: Pages d'usage pour détection HID)
+        public const ushort ControlUsagePage = 0xFF00;
+        public const ushort ControlUsage = 0x0001;
+        public const ushort MessageUsagePage = 0xFF00;
+        public const ushort MessageUsage = 0x0002;
+    }
+
+    // Control report header (EN/FR: En-tête de rapport de contrôle)
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct VMultiControlReportHeader
+    {
+        public byte ReportID;      // REPORTID_CONTROL (0x40)
+        public byte ReportLength;  // Length of the embedded report
+    }
+
+    // Mouse button flags (EN/FR: Flags des boutons de souris)
+    [Flags]
+    public enum VMultiMouseButton : byte
+    {
+        None = 0x00,
+        Left = 0x01,
+        Right = 0x02,
+        Middle = 0x04
+    }
+
+    // Absolute mouse report (EN/FR: Rapport de souris absolue)
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct VMultiMouseReport
+    {
+        public byte ReportID;       // REPORTID_MOUSE (0x03)
+        public byte Button;         // Button flags
+        public ushort XValue;       // Absolute X (0-32767)
+        public ushort YValue;       // Absolute Y (0-32767)
+        public byte WheelPosition;  // Wheel position (-127 to 127)
+
+        public const ushort MinCoordinate = 0x0000;
+        public const ushort MaxCoordinate = 0x7FFF;
+
+        public static VMultiMouseReport Create()
+        {
+            return new VMultiMouseReport
+            {
+                ReportID = VMultiReportIds.Mouse,
+                Button = 0,
+                XValue = 0,
+                YValue = 0,
+                WheelPosition = 0
+            };
+        }
+    }
+
+    // Relative mouse report (EN/FR: Rapport de souris relative)
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct VMultiRelativeMouseReport
+    {
+        public byte ReportID;       // REPORTID_RELATIVE_MOUSE (0x04)
+        public byte Button;         // Button flags
+        public sbyte XValue;        // Relative X (-127 to 127)
+        public sbyte YValue;        // Relative Y (-127 to 127)
+        public sbyte WheelPosition; // Wheel position (-127 to 127)
+
+        public static VMultiRelativeMouseReport Create()
+        {
+            return new VMultiRelativeMouseReport
+            {
+                ReportID = VMultiReportIds.RelativeMouse,
+                Button = 0,
+                XValue = 0,
+                YValue = 0,
+                WheelPosition = 0
+            };
+        }
+    }
+
+    // Keyboard modifier flags (EN/FR: Flags des modificateurs clavier)
+    [Flags]
+    public enum VMultiKeyboardModifier : byte
+    {
+        None = 0x00,
+        LeftControl = 0x01,
+        LeftShift = 0x02,
+        LeftAlt = 0x04,
+        LeftGui = 0x08,
+        RightControl = 0x10,
+        RightShift = 0x20,
+        RightAlt = 0x40,
+        RightGui = 0x80
+    }
+
+    // Keyboard report (EN/FR: Rapport de clavier)
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct VMultiKeyboardReport
+    {
+        public byte ReportID;            // REPORTID_KEYBOARD (0x07)
+        public byte ShiftKeyFlags;       // Modifier key flags
+        public byte Reserved;            // Always 0
+        public byte KeyCode0;            // Key codes (up to 6 simultaneous keys)
+        public byte KeyCode1;
+        public byte KeyCode2;
+        public byte KeyCode3;
+        public byte KeyCode4;
+        public byte KeyCode5;
+
+        public const int MaxKeyCodes = 6;
+
+        public static VMultiKeyboardReport Create()
+        {
+            return new VMultiKeyboardReport
+            {
+                ReportID = VMultiReportIds.Keyboard,
+                ShiftKeyFlags = 0,
+                Reserved = 0,
+                KeyCode0 = 0,
+                KeyCode1 = 0,
+                KeyCode2 = 0,
+                KeyCode3 = 0,
+                KeyCode4 = 0,
+                KeyCode5 = 0
+            };
+        }
+
+        // Set key codes from array (EN/FR: Définir les codes de touche depuis un tableau)
+        public void SetKeyCodes(byte[] keyCodes)
+        {
+            KeyCode0 = (keyCodes.Length > 0) ? keyCodes[0] : (byte)0;
+            KeyCode1 = (keyCodes.Length > 1) ? keyCodes[1] : (byte)0;
+            KeyCode2 = (keyCodes.Length > 2) ? keyCodes[2] : (byte)0;
+            KeyCode3 = (keyCodes.Length > 3) ? keyCodes[3] : (byte)0;
+            KeyCode4 = (keyCodes.Length > 4) ? keyCodes[4] : (byte)0;
+            KeyCode5 = (keyCodes.Length > 5) ? keyCodes[5] : (byte)0;
+        }
+
+        // Get key codes as array (EN/FR: Obtenir les codes de touche comme tableau)
+        public byte[] GetKeyCodes()
+        {
+            return new byte[] { KeyCode0, KeyCode1, KeyCode2, KeyCode3, KeyCode4, KeyCode5 };
+        }
+    }
+
+    // Full control report structure for sending via HID (EN/FR: Structure de rapport de contrôle complète)
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct VMultiControlReport
+    {
+        public const int Size = 65; // CONTROL_REPORT_SIZE (0x41)
+        
+        public byte ReportID;      // REPORTID_CONTROL (0x40)
+        public byte ReportLength;  // Length of embedded report
+        
+        // Embedded report data (max 63 bytes)
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 63)]
+        public byte[] Data;
+
+        public static VMultiControlReport Create()
+        {
+            return new VMultiControlReport
+            {
+                ReportID = VMultiReportIds.Control,
+                ReportLength = 0,
+                Data = new byte[63]
+            };
+        }
+
+        // Embed a mouse report (EN/FR: Intégrer un rapport souris)
+        public void EmbedMouseReport(VMultiMouseReport mouseReport)
+        {
+            ReportLength = (byte)Marshal.SizeOf(typeof(VMultiMouseReport));
+            
+            IntPtr ptr = Marshal.AllocHGlobal(ReportLength);
+            try
+            {
+                Marshal.StructureToPtr(mouseReport, ptr, false);
+                Marshal.Copy(ptr, Data, 0, ReportLength);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(ptr);
+            }
+        }
+
+        // Embed a keyboard report (EN/FR: Intégrer un rapport clavier)
+        public void EmbedKeyboardReport(VMultiKeyboardReport keyboardReport)
+        {
+            ReportLength = (byte)Marshal.SizeOf(typeof(VMultiKeyboardReport));
+            
+            IntPtr ptr = Marshal.AllocHGlobal(ReportLength);
+            try
+            {
+                Marshal.StructureToPtr(keyboardReport, ptr, false);
+                Marshal.Copy(ptr, Data, 0, ReportLength);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(ptr);
+            }
+        }
+
+        // Convert to byte array for HID write (EN/FR: Convertir en tableau d'octets pour écriture HID)
+        public byte[] ToByteArray()
+        {
+            byte[] result = new byte[Size];
+            result[0] = ReportID;
+            result[1] = ReportLength;
+            
+            if (Data != null)
+            {
+                Array.Copy(Data, 0, result, 2, Math.Min(Data.Length, 63));
+            }
+            
+            return result;
+        }
+    }
+}

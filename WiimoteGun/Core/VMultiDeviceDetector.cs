@@ -1,16 +1,12 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace WiimoteGun
 {
     /// <summary>
     /// Helper class to detect and manage VMulti virtual HID devices
+    /// Uses VMultiClient directly instead of Interception
     /// (EN/FR: Classe helper pour détecter et gérer les périphériques VMulti)
-    /// </summary>
-    /// <summary>
-    /// Helper class to detect and manage VMulti virtual HID devices
-    /// (EN/FR: Classe helper pour détecter et gérer les périphériques VMulti)
+    /// (EN/FR: Utilise VMultiClient directement au lieu d'Interception)
     /// </summary>
     public static class VMultiDeviceDetector
     {
@@ -19,6 +15,7 @@ namespace WiimoteGun
 
         /// <summary>
         /// Detect VMulti devices for a specific player (1-based index)
+        /// Now uses VMultiClient for detection instead of Interception
         /// (EN/FR: Détecter périphériques VMulti pour un joueur spécifique)
         /// </summary>
         public static (string mouseId, string keyboardId) DetectPlayerVMultiDevices(int playerIndex)
@@ -29,67 +26,34 @@ namespace WiimoteGun
             if (playerIndex < 1 || playerIndex > 4) return (null, null);
 
             string targetSuffix = VMultiSuffixes[playerIndex - 1];
+            string vid = GetVidFromSuffix(targetSuffix);
 
             try
             {
-                // Detect Mouse (EN/FR: Détecter souris)
-                // Try Interception first for enabled mice (EN/FR: Essayer d'abord Interception pour souris activées)
-                var context = Interception.InterceptionDriver.interception_create_context();
-                if (context != IntPtr.Zero)
+                // Detect Mouse using VMultiClient (EN/FR: Détecter souris via VMultiClient)
+                // VMultiClient handles both mouse and keyboard on the same device
+                if (VMultiClient.IsDeviceAvailable(playerIndex))
                 {
-                    for (int i = 11; i <= 20; i++)
-                    {
-                        if (Interception.InterceptionDriver.interception_is_mouse(i) != 0)
-                        {
-                            byte[] buffer = new byte[1000];
-                            uint result = Interception.InterceptionDriver.interception_get_hardware_id(context, i, buffer, (uint)buffer.Length);
-                            
-                            if (result > 0)
-                            {
-                                int byteCount = Math.Min((int)result * 2, buffer.Length);
-                                string hardwareId = System.Text.Encoding.Unicode.GetString(buffer, 0, byteCount);
-                                hardwareId = hardwareId.Replace("\0", "").Trim();
-                                
-                                // Path-based check
-                                if (hardwareId.IndexOf(targetSuffix, StringComparison.OrdinalIgnoreCase) >= 0)
-                                {
-                                    mouseId = hardwareId;
-                                    SimpleLogger.Instance.Info($"[VMulti Detector] Found {targetSuffix} Mouse (P{playerIndex}): Device {i}");
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    Interception.InterceptionDriver.interception_destroy_context(context);
+                    // Device is available - construct the expected hardware ID format
+                    // (EN/FR: Périphérique disponible - construire le format hardware ID attendu)
+                    mouseId = $"HID\\{targetSuffix}&Col03HID\\VID_{vid}&UP:0001_U:0002HID_DEVICE";
+                    keyboardId = $"HID\\{targetSuffix}&Col07HID\\VID_{vid}&UP:0001_U:0006HID_DEVICE";
+                    
+                    SimpleLogger.Instance.Info($"[VMulti Detector] Found {targetSuffix} devices (P{playerIndex}): Mouse & Keyboard available");
                 }
-
-                // Fallback: If mouse not found via Interception (disabled), construct hardware ID using SetupAPI
-                // (EN/FR: Fallback : Si souris non trouvée via Interception, construire hardware ID via SetupAPI)
-                if (mouseId == null)
+                else
                 {
+                    // Try fallback detection via DeviceHelper (EN/FR: Essayer détection fallback via DeviceHelper)
                     string uniqueId = DeviceHelper.FindVMultiMouseUniqueId(targetSuffix);
                     if (!string.IsNullOrEmpty(uniqueId) && uniqueId != "Unknown")
                     {
-                        // Construct a hardware ID similar to what Interception would return
-                        // Format: HID\vmultia&Col03HID\VID_001F&UP:0001_U:0002HID_DEVICE_SYSTEM_MOUSEHID_DEVICE_UP:0001_U:0002HID_DEVICE
-                        mouseId = $"HID\\{targetSuffix}&Col03HID\\VID_{GetVidFromSuffix(targetSuffix)}&UP:0001_U:0002HID_DEVICE_SYSTEM_MOUSEHID_DEVICE_UP:0001_U:0002HID_DEVICE";
-                        SimpleLogger.Instance.Info($"[VMulti Detector] Found {targetSuffix} Mouse (P{playerIndex}) via fallback (disabled device ID: {uniqueId})");
+                        mouseId = $"HID\\{targetSuffix}&Col03HID\\VID_{vid}&UP:0001_U:0002HID_DEVICE";
+                        keyboardId = $"HID\\{targetSuffix}&Col07HID\\VID_{vid}&UP:0001_U:0006HID_DEVICE";
+                        SimpleLogger.Instance.Info($"[VMulti Detector] Found {targetSuffix} (P{playerIndex}) via DeviceHelper fallback");
                     }
-                }
-
-                // Detect Keyboard
-                var availableKeyboards = VirtualInterceptionKeyboard.GetAvailableKeyboardsWithNames();
-                foreach (var kvp in availableKeyboards)
-                {
-                    string hardwareId = VirtualInterceptionKeyboard.GetKeyboardHardwareId(kvp.Key);
-                    if (!string.IsNullOrEmpty(hardwareId))
+                    else
                     {
-                        if (hardwareId.IndexOf(targetSuffix, StringComparison.OrdinalIgnoreCase) >= 0)
-                        {
-                            keyboardId = hardwareId;
-                            SimpleLogger.Instance.Info($"[VMulti Detector] Found {targetSuffix} Keyboard (P{playerIndex}): Device {kvp.Key}");
-                            break;
-                        }
+                        SimpleLogger.Instance.Debug($"[VMulti Detector] No {targetSuffix} device found for P{playerIndex}");
                     }
                 }
             }
@@ -103,7 +67,8 @@ namespace WiimoteGun
 
         /// <summary>
         /// Auto-assign VMulti devices to players if option is enabled
-        /// (EN/FR: Auto-assigner les périphériques VMulti aux joueurs si l'option est activée)
+        /// Simplified: just checks if device is available and assigns fixed IDs
+        /// (EN/FR: Auto-assigner les périphériques VMulti aux joueurs si option activée)
         /// </summary>
         public static void AutoAssignVMultiDevices()
         {
@@ -129,12 +94,7 @@ namespace WiimoteGun
                 
                 if (mouseId == null && keyboardId == null)
                 {
-                     // Optionnel: Reset si non trouvé? Ou garder précédent?
-                     // Pour l'instant on ne reset pas pour éviter de perdre une config manuelle si le driver clignote
-                     // Mais l'auto-lock implique souvent "force". 
-                     // Le comportement précédent ne resetait pas explicitement sauf P2.
-                     // On va logger.
-                     SimpleLogger.Instance.Info($"[VMulti Auto-Assign] P{p} devices not found.");
+                    SimpleLogger.Instance.Info($"[VMulti Auto-Assign] P{p} devices not found.");
                 }
             }
             
@@ -143,19 +103,43 @@ namespace WiimoteGun
 
         /// <summary>
         /// Check if Player should have locked device selection in UI
+        /// Simplified: just checks if VMulti device is available
+        /// (EN/FR: Vérifier si le joueur doit avoir la sélection verrouillée)
         /// </summary>
         public static bool ShouldLockPlayerDevices(int playerIndex)
         {
             if (!Options.Instance.AutoLockVMultiDevices) return false;
             
             // Lock if corresponding VMulti device is detected
-            var (mouseId, keyboardId) = DetectPlayerVMultiDevices(playerIndex);
-            return mouseId != null || keyboardId != null;
+            return VMultiClient.IsDeviceAvailable(playerIndex);
+        }
+
+        /// <summary>
+        /// Check if any VMulti driver is installed
+        /// (EN/FR: Vérifier si un pilote VMulti est installé)
+        /// </summary>
+        public static bool IsAnyVMultiInstalled()
+        {
+            for (int i = 1; i <= 4; i++)
+            {
+                if (VMultiClient.IsDeviceAvailable(i))
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Get list of installed VMulti player indices
+        /// (EN/FR: Obtenir la liste des indices de joueurs VMulti installés)
+        /// </summary>
+        public static System.Collections.Generic.List<int> GetInstalledPlayers()
+        {
+            return VMultiClient.GetAvailablePlayers();
         }
 
         /// <summary>
         /// Get VID from VMulti suffix (EN/FR: Obtenir VID depuis suffixe VMulti)
-        /// \u003c/summary>
+        /// </summary>
         private static string GetVidFromSuffix(string suffix)
         {
             switch (suffix.ToLowerInvariant())
@@ -166,6 +150,15 @@ namespace WiimoteGun
                 case "vmultid": return "004F";
                 default: return "XXXX";
             }
+        }
+
+        /// <summary>
+        /// Get VMulti suffix from player index (EN/FR: Obtenir suffixe VMulti depuis index joueur)
+        /// </summary>
+        public static string GetSuffixFromPlayer(int playerIndex)
+        {
+            if (playerIndex < 1 || playerIndex > 4) return "vmultia";
+            return VMultiSuffixes[playerIndex - 1];
         }
     }
 }

@@ -12,7 +12,6 @@
     <AssemblyName>WiimoteGun</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
-
     <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <WarningLevel>4</WarningLevel>
     <ApplicationIcon>gray.ico</ApplicationIcon>
@@ -65,7 +64,6 @@
   </PropertyGroup>
   <PropertyGroup>
     <StartupObject>WiimoteGun.Program</StartupObject>
-
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -81,7 +79,6 @@
     <Reference Include="System.ServiceProcess" />
   </ItemGroup>
   <ItemGroup>
-
   </ItemGroup>
   <ItemGroup>
     <Compile Include="UI\Legacy\AboutBox.cs">
@@ -109,6 +106,9 @@
     </Compile>
     <Compile Include="UI\Modern\Forms\GyroVisualizerForm.Designer.cs">
       <DependentUpon>GyroVisualizerForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\OffsetAdjustmentOverlay.cs">
+      <SubType>Form</SubType>
     </Compile>
     <Compile Include="UI\NotifyForm.cs">
       <SubType>Form</SubType>
@@ -194,8 +194,7 @@
     </Compile>
     <Compile Include="Core\InterceptionDriver.cs" />
     <Compile Include="Core\IVirtualMouse.cs" />
-    <Compile Include="Core\VirtualInterceptionMouse.cs" />
-    <Compile Include="Core\VirtualInterceptionKeyboard.cs" />
+    <Compile Include="Core\KeyDisplayItem.cs" />
     <Compile Include="UI\Modern\Forms\WelcomeDialog.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -289,6 +288,11 @@
     <Compile Include="Common\Extensions.cs" />
     <Compile Include="Core\DeviceHelper.cs" />
     <Compile Include="Core\VMultiDeviceDetector.cs" />
+    <Compile Include="Core\VMultiClient.cs" />
+    <Compile Include="Core\VMultiReport.cs" />
+    <Compile Include="Core\VirtualVMultiMouse.cs" />
+    <Compile Include="Core\VirtualVMultiKeyboard.cs" />
+    <Compile Include="Core\VMultiDeviceCleanup.cs" />
     <Compile Include="UI\Modern\Forms\VirtualKeyboard.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -316,7 +320,6 @@
     <Compile Include="UI\Modern\Forms\KeyCaptureDialog.Designer.cs">
       <DependentUpon>KeyCaptureDialog.cs</DependentUpon>
     </Compile>
-    <Compile Include="Core\UsbIdProvider.cs" />
     <Compile Include="Core\MessageWindow.cs" />
     <Compile Include="Services\EmulatorProcessMonitor.cs" />
     <Compile Include="Core\RemapProfileManager.cs" />
@@ -376,7 +379,6 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-
   </ItemGroup>
   <ItemGroup>
     <None Include="gray.ico" />
@@ -389,9 +391,6 @@
   </ItemGroup>
   <!-- VMultiDllWrapper reference removed - replaced by Interception -->
   <ItemGroup>
-    <Content Include="interception.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
     <Content Include="WiimoteGunDriver\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

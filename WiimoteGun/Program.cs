@@ -12,6 +12,7 @@ using WiimoteGun.Forms;
 using WiimoteGun.UI.Legacy;
 using WiimoteGun.UI;
 using WiimoteGun.UI.Calibrate;
+using WiimoteGun.Core;
 
 namespace WiimoteGun
 {
@@ -116,13 +117,13 @@ namespace WiimoteGun
             {
                 if (args[0] == "/installDrivers")
                 {
-                    InstallInterceptionDriver();
-                    return;
+                     MessageBox.Show("Interception driver is no longer supported.", "WiimoteGun", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                     return;
                 }
                 if (args[0] == "/uninstallDrivers")
                 {
-                    UninstallInterceptionDriver();
-                    return;
+                     MessageBox.Show("Interception driver is no longer supported.", "WiimoteGun", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                     return;
                 }
                 
                 // VMulti1 (Pentablet)
@@ -231,18 +232,23 @@ namespace WiimoteGun
             // First Run / Setup Checker
             if (WiimoteGun.Options.Instance.ShowSetupWizard)
             {
-                if (!IsServiceInstalled("interception") || !IsServiceInstalled("WiimoteGunHelper"))
+                using (var wizard = new Forms.SetupWizard())
                 {
-                    using (var wizard = new Forms.SetupWizard())
-                    {
-                         wizard.ShowDialog();
-                         // We don't block start even if they cancel, unless critical?
-                         // User asked for "Skip" option, so we just run.
-                    }
+                    wizard.ShowDialog();
                 }
             }
 
             _appContext = new ApplicationContext();
+            // Clean up unwanted VMulti collections (non-COL03) at startup
+            // (EN/FR: Nettoyer collections VMulti non désirées (non-COL03) au démarrage)
+            Core.VMultiDeviceCleanup.RemoveUnwantedCollections();
+            
+            // NOTE: Do NOT call RemoveAllMiceAtStartup() here!
+            // (EN/FR: NE PAS appeler RemoveAllMiceAtStartup() ici!)
+            // If Wiimotes are already connected via Bluetooth, REMOVE_MOUSE_ALL would kill their
+            // devices before ENABLE_P* can complete. The deferred cleanup (ScheduleCleanupAfterWiimoteConnect)
+            // will handle cleanup correctly using REMOVE_MOUSE_EXCEPT for connected players.
+
             _wiiMoteManager = new WiimoteControllerManager();
             _synchronizationContext = new WindowsFormsSynchronizationContext();
 
@@ -314,11 +320,42 @@ namespace WiimoteGun
             // Auto-assign VMulti devices to Player 1 and 2 if option is enabled (EN/FR: Auto-assigner VMulti aux joueurs 1 et 2 si option activée)
             VMultiDeviceDetector.AutoAssignVMultiDevices();
 
+            // Clean up unwanted VMulti collections to prevent them from appearing in emulators
+            // (EN/FR: Nettoyer les collections VMulti non désirées pour éviter qu'elles n'apparaissent dans les émulateurs)
+            // Cleanup logic moved to before WiimoteManager initialization (line 240 approx)
+            // (EN/FR: Logique de nettoyage déplacée avant l'initialisation de WiimoteManager)
+
+            // Register this process with the service for crash/exit monitoring
+            // (EN/FR: Enregistrer ce processus auprès du service pour la surveillance crash/sortie)
+            // If WiimoteGun closes or crashes, the service will cleanup COL03 mice automatically
+            ServiceClient.RegisterClient();
+            
+            // Deferred fallback cleanup: If no Wiimotes connect within 5 seconds, clean up all COL03 devices
+            // (EN/FR: Nettoyage différé de secours : Si aucune Wiimote ne se connecte dans les 5 secondes, nettoyer tous les COL03)
+            // This handles the case where WiimoteGun starts but no Wiimotes are present or they fail to connect.
+            System.Threading.Tasks.Task.Delay(5000).ContinueWith(_ =>
+            {
+                if (_wiiMoteManager != null && _wiiMoteManager.ConnectedWiimotesCount == 0)
+                {
+                    SimpleLogger.Instance.Info("[Startup Fallback] No Wiimotes connected after 5 seconds. Cleaning up all COL03 devices.");
+                    Core.VMultiDeviceCleanup.RemoveAllMiceAtStartup();
+                }
+                else
+                {
+                    SimpleLogger.Instance.Info($"[Startup Fallback] {_wiiMoteManager?.ConnectedWiimotesCount ?? 0} Wiimotes connected. Skipping full cleanup.");
+                }
+            });
+
             // CRITICAL: Apply remap profile AFTER Options loaded but BEFORE WiimoteControllerManager starts
             // (EN/FR: CRITIQUE : Appliquer profil remap APRÈS Options mais AVANT démarrage WiimoteControllerManager)
             // CRITICAL: Apply remap profile AFTER Options loaded but BEFORE WiimoteControllerManager starts
             // (EN/FR: CRITIQUE : Appliquer profil remap APRÈS Options mais AVANT démarrage WiimoteControllerManager)
             ApplyRemapProfile();
+
+            // Initialize In-Game Offset Adjustment Overlay (EN/FR: Initialiser overlay ajustement offset en jeu)
+            // The overlay is singleton and auto-shows/hides via WiiMoteController events
+            var offsetOverlay = WiimoteGun.UI.Modern.Forms.OffsetAdjustmentOverlay.Instance;
+            offsetOverlay.Initialize(); // Subscribe to events on UI thread (EN/FR: S'abonner aux événements sur thread UI)
 
             // Open windowed overlay if requested via -menu argument (EN/FR: Ouvrir overlay fenêtré si demandé via argument -menu)
             if (_menuMode)
@@ -347,64 +384,12 @@ namespace WiimoteGun
             }
 
             string command = args[0].ToLower();
+            
+            // Interception commands removed
             if (command == "/installdrivers" || command == "/uninstalldrivers")
             {
-                try
-                {
-                    // Interception installer path (EN/FR: Chemin de l'installateur Interception)
-                    string installerFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WiimoteGunDriver", "command line installer");
-                    string installerPath = "";
-                    
-                    if (command == "/installdrivers")
-                    {
-                        installerPath = Path.Combine(installerFolder, "install-interception.exe");
-                        SimpleLogger.Instance.Info("Running Interception driver install: " + installerPath);
-                    }
-                    else // /uninstalldrivers
-                    {
-                        installerPath = Path.Combine(installerFolder, "install-interception.exe");
-                        SimpleLogger.Instance.Info("Running Interception driver uninstall: " + installerPath);
-                    }
-
-                    if (!File.Exists(installerPath))
-                    {
-                        MessageBox.Show("Interception installer not found:\n\n" + installerPath + "\n\n" +
-                                        "Please ensure the WiimoteGunDriver folder is complete.",
-                                        "Installer Missing", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return;
-                    }
-
-                    var process = new Process();
-                    process.StartInfo.FileName = installerPath;
-                    process.StartInfo.WorkingDirectory = installerFolder;
-                    process.StartInfo.UseShellExecute = true; // Required for elevation prompt
-                    process.StartInfo.Verb = "runas"; // Request elevation
-                    
-                    // Add /install argument for installation, /uninstall for uninstallation (EN/FR: Ajouter l'argument /install ou /uninstall)
-                    if (command == "/uninstalldrivers")
-                    {
-                        process.StartInfo.Arguments = "/uninstall";
-                    }
-                    else
-                    {
-                        process.StartInfo.Arguments = "/install";
-                    }
-
-                    process.Start();
-                    process.WaitForExit();
-                    
-                    string resultMsg = command == "/installdrivers"
-                        ? "Interception driver installation completed.\n\nYou MUST restart your PC for changes to take effect."
-                        : "Interception driver uninstallation completed.\n\nYou MUST restart your PC for changes to take effect.";
-                    
-                    SimpleLogger.Instance.Info(resultMsg);
-                    MessageBox.Show(resultMsg, "WiimoteGun Driver Management", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-                catch (Exception ex)
-                {
-                    SimpleLogger.Instance.Error("Driver operation failed: " + ex.ToString());
-                    MessageBox.Show("Driver operation failed: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
+                 MessageBox.Show("Interception driver is no longer supported. Please use VMulti.", "WiimoteGun", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                 return;
             }
         }
 
@@ -473,44 +458,9 @@ namespace WiimoteGun
         private static void PopulatePlayerMenu(MenuItem playerMenu, int playerIndex)
         {
             var controllers = _wiiMoteManager.GetControllers();
-            string currentPreferred = "";
-            switch (playerIndex)
-            {
-                case 1: currentPreferred = Options.Instance.PreferredMacP1; break;
-                case 2: currentPreferred = Options.Instance.PreferredMacP2; break;
-                case 3: currentPreferred = Options.Instance.PreferredMacP3; break;
-                case 4: currentPreferred = Options.Instance.PreferredMacP4; break;
-            }
+            // Removed Wiimote MAC assignment (Legacy/Bluetooth only)
+            // (EN/FR: Suppression assignation MAC Wiimote)
 
-            // Add "None" option
-            var noneItem = new MenuItem("None (Auto)");
-            noneItem.Checked = string.IsNullOrEmpty(currentPreferred);
-            noneItem.Click += (s, e) => SetPreferredWiimote(playerIndex, "");
-            playerMenu.MenuItems.Add(noneItem);
-            playerMenu.MenuItems.Add("-");
-
-            if (!controllers.Any())
-            {
-                var noDevItem = new MenuItem("No Wiimotes connected");
-                noDevItem.Enabled = false;
-                playerMenu.MenuItems.Add(noDevItem);
-                return;
-            }
-
-            foreach (var controller in controllers)
-            {
-                string mac = controller.Wiimote.Address.ToString();
-                string label = $"Wiimote {mac}";
-                
-                // Indicate if currently active for this player
-                if (controller.PlayerIndex == playerIndex)
-                    label += " (Active)";
-
-                var item = new MenuItem(label);
-                item.Checked = (mac == currentPreferred);
-                item.Click += (s, e) => SetPreferredWiimote(playerIndex, mac);
-                playerMenu.MenuItems.Add(item);
-            }
 
             // Add separator and Mouse Device submenu (EN/FR: Ajouter séparateur et sous-menu Souris)
             playerMenu.MenuItems.Add("-");
@@ -567,56 +517,14 @@ namespace WiimoteGun
                     string vmultiId = $"HID\\{suffix}&Col03HID\\VID_{vid}&UP:0001_U:0002HID_DEVICE_SYSTEM_MOUSEHID_DEVICE_UP:0001_U:0002HID_DEVICE";
                     
                     // Add to detected list with a fake device ID (e.g. 90+p) just for the menu list
-                    // The actual device ID (11-20) will be resolved by VirtualInterceptionMouse at runtime
+                    // The actual device ID will be resolved at runtime
                     detectedMice.Add((90 + p, vmultiId));
                     SimpleLogger.Instance.Info($"[MENU] Added VMulti Mouse P{p} (SetupAPI)");
                 }
             }
 
-            try
-            {
-                var context = WiimoteGun.Interception.InterceptionDriver.interception_create_context();
-                if (context != IntPtr.Zero)
-                {
-                    for (int i = 11; i <= 20; i++)
-                    {
-                        if (WiimoteGun.Interception.InterceptionDriver.interception_is_mouse(i) != 0)
-                        {
-                            // Use char array instead of StringBuilder for better marshalling
-                            byte[] buffer = new byte[1000];
-                            uint result = WiimoteGun.Interception.InterceptionDriver.interception_get_hardware_id(context, i, buffer, (uint)buffer.Length);
-                            
-                            if (result > 0)
-                            {
-                                // Convert byte array to string (UTF-16LE encoding for wide chars)
-                                // Result is the number of characters, so multiply by 2 for bytes, but cap at buffer length
-                                int byteCount = Math.Min((int)result * 2, buffer.Length);
-                                string hardwareId = System.Text.Encoding.Unicode.GetString(buffer, 0, byteCount);
-                                
-                                // Remove all NULL characters (0x00) to avoid XML serialization errors
-                                // (EN/FR: Supprimer tous les caractères NULL pour éviter erreurs XML)
-                                hardwareId = hardwareId.Replace("\0", "").Trim();
-                                
-                                if (!string.IsNullOrEmpty(hardwareId))
-                                {
-                                    // Avoid duplicates if SetupAPI already found this VMulti device
-                                    bool isDuplicate = detectedMice.Any(m => WiimoteGun.DeviceHelper.IsHardwareIdMatch(m.hardwareId, hardwareId));
-                                    if (!isDuplicate)
-                                    {
-                                        SimpleLogger.Instance.Info($"[MENU SCAN] Mouse {i} Hardware ID: {hardwareId}");
-                                        detectedMice.Add((i, hardwareId));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    WiimoteGun.Interception.InterceptionDriver.interception_destroy_context(context);
-                }
-            }
-            catch (Exception ex)
-            {
-                SimpleLogger.Instance.Error($"Error scanning mice: {ex.Message}");
-            }
+            // Interception scan removed
+
 
             if (detectedMice.Count == 0)
             {
@@ -629,10 +537,8 @@ namespace WiimoteGun
             // Get currently active mouse for this player (EN/FR: Récupérer souris active pour ce joueur)
             int activeMouseId = -1;
             var playerController = _wiiMoteManager?.GetControllers().FirstOrDefault(c => c.PlayerIndex == playerIndex);
-            if (playerController?.VirtualMouse is VirtualInterceptionMouse interceptionMouse)
-            {
-                activeMouseId = interceptionMouse.MouseDeviceId;
-            }
+            // Interception logic removed
+
 
             // Build list of mice already assigned to other players (EN/FR: Liste souris assignées à d'autres joueurs)
             var assignedMice = new System.Collections.Generic.HashSet<string>();
@@ -768,16 +674,10 @@ namespace WiimoteGun
             }
 
             // Get available keyboards with names and hardware IDs (EN/FR: Obtenir claviers avec noms et IDs matériels)
-            var availableKeyboards = VirtualInterceptionKeyboard.GetAvailableKeyboardsWithNames();
+            // Interception keyboard scan removed
+            var availableKeyboards = new System.Collections.Generic.Dictionary<int, string>(); // Empty
             var hardwareIds = new System.Collections.Generic.Dictionary<int, string>();
-            
-            // Get hardware ID for each keyboard (EN/FR: Récupérer ID matériel pour chaque clavier)
-            foreach (int deviceId in availableKeyboards.Keys)
-            {
-                string hwId = VirtualInterceptionKeyboard.GetKeyboardHardwareId(deviceId);
-                if (!string.IsNullOrEmpty(hwId))
-                    hardwareIds[deviceId] = hwId;
-            }
+
             
             if (availableKeyboards.Count == 0)
             {
@@ -799,10 +699,9 @@ namespace WiimoteGun
                 // Check if this keyboard is currently active for this player (EN/FR: Vérifier si ce clavier est actif pour ce joueur)
                 var controller = controllers.FirstOrDefault(c => c.PlayerIndex == playerIndex);
                 bool isActive = false;
-                if (controller != null && controller.VirtualJoy is VirtualInterceptionKeyboard kbd)
+                if (controller != null && controller.VirtualJoy is IVirtualJoy kbd)
                 {
-                     if (kbd.KeyboardDeviceId == deviceId)
-                        isActive = true;
+                     // Interception keyboard check removed
                 }
                 
                 if (isActive)
@@ -827,11 +726,11 @@ namespace WiimoteGun
             // Refresh keyboard assignment for active controller (EN/FR: Rafraîchir l'assignation clavier pour contrôleur actif)
             var controllers = _wiiMoteManager.GetControllers();
             var controller = controllers.FirstOrDefault(c => c.PlayerIndex == playerIndex);
-            if (controller != null && controller.VirtualJoy is VirtualInterceptionKeyboard kbd)
+            if (controller != null && controller.VirtualJoy != null)
             {
-                kbd.RefreshDeviceId();
-                SimpleLogger.Instance.Info($"Refreshed keyboard device assignment for Player {playerIndex}");
+                // Interception keyboard refresh removed
             }
+            SimpleLogger.Instance.Info($"Refreshed keyboard device assignment for Player {playerIndex}");
         }
 
         private static void SetPreferredMouse(int playerIndex, string hardwareId)
@@ -840,7 +739,7 @@ namespace WiimoteGun
             SimpleLogger.Instance.Info($"Set preferred mouse for Player {playerIndex}: {(string.IsNullOrEmpty(hardwareId) ? "Auto" : hardwareId)}");
             
             // Refresh mouse assignment for all controllers (EN/FR: Rafraîchir l'assignation souris pour tous les contrôleurs)
-            VirtualInterceptionMouse.RefreshDevices();
+
             SimpleLogger.Instance.Info($"Refreshed mouse device assignments");
         }
 
@@ -1183,6 +1082,7 @@ namespace WiimoteGun
                 _wiiMoteManager.Dispose();
                 _wiiMoteManager = null;
             }
+
 
             Application.Exit();
         }

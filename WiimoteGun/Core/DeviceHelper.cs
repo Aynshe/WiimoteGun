@@ -296,12 +296,12 @@ namespace WiimoteGun
                                                     return $"{manufacturer} {busReportedName}";
                                                 }
                                                 
-                                                // Otherwise try to get Vendor from Manual Mappings or UsbIdProvider
+                                                // Otherwise try to get Vendor from Manual Mappings
                                                 string vendorName = null;
                                                 if (ManualBrandMappings.ContainsKey(vid))
                                                     vendorName = ManualBrandMappings[vid];
                                                 else
-                                                    vendorName = UsbIdProvider.GetVendorName(vid);
+                                                    vendorName = null;
 
                                                 if (!string.IsNullOrEmpty(vendorName))
                                                     return $"{vendorName} {busReportedName}";
@@ -329,21 +329,8 @@ namespace WiimoteGun
                 SimpleLogger.Instance.Error($"Error getting device property: {ex.Message}");
             }
 
-            // Try USB ID Database (EN/FR: Essayer la base de données USB ID)
-            if (pid != null)
-            {
-                string usbDbName = UsbIdProvider.GetProductName(vid, pid);
-                if (!string.IsNullOrEmpty(usbDbName))
-                {
-                    string vendor = null;
-                    if (ManualBrandMappings.ContainsKey(vid))
-                        vendor = ManualBrandMappings[vid];
-                    else
-                        vendor = UsbIdProvider.GetVendorName(vid);
-                        
-                    return string.IsNullOrEmpty(vendor) ? usbDbName : $"{vendor} {usbDbName}";
-                }
-            }
+            // USB ID Database lookups removed
+
 
             // Fallback to vendor name if product unknown (EN/FR: Utiliser nom vendeur si produit inconnu)
             if (KnownVendors.ContainsKey(vid))
@@ -356,7 +343,7 @@ namespace WiimoteGun
             if (ManualBrandMappings.ContainsKey(vid))
                 usbDbVendor = ManualBrandMappings[vid];
             else
-                usbDbVendor = UsbIdProvider.GetVendorName(vid);
+                usbDbVendor = null;
 
             if (!string.IsNullOrEmpty(usbDbVendor))
             {

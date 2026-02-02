@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Security.Principal;
@@ -44,5 +45,50 @@ namespace WiimoteGun
 
         public static void EnablePlayer(int index) => SendCommand($"ENABLE_P{index}");
         public static void DisablePlayer(int index) => SendCommand($"DISABLE_P{index}");
+        
+        /// <summary>
+        /// EN: Request service to cleanup unwanted VMulti collections (requires admin via service).
+        /// FR: Demander au service de nettoyer les collections VMulti non désirées (nécessite admin via service).
+        /// </summary>
+        public static void CleanupVMulti() => SendCommand("CLEANUP_VMULTI");
+
+        /// <summary>
+        /// EN: Remove (hide) COL03 mouse for all players at startup.
+        /// FR: Supprimer (masquer) COL03 souris pour tous les joueurs au démarrage.
+        /// </summary>
+        public static void RemoveMouseForAllPlayers() => SendCommand("REMOVE_MOUSE_ALL");
+
+        /// <summary>
+        /// EN: Remove (hide) COL03 mouse for a specific player.
+        /// FR: Supprimer (masquer) COL03 souris pour un joueur spécifique.
+        /// </summary>
+        public static void RemoveMouseForPlayer(int playerIndex) => SendCommand($"REMOVE_MOUSE_P{playerIndex}");
+
+        /// <summary>
+        /// EN: Remove (hide) COL03 mouse for all players EXCEPT those connected.
+        /// FR: Supprimer (masquer) COL03 souris pour tous les joueurs SAUF ceux connectés.
+        /// </summary>
+        public static void RemoveMouseExceptPlayers(int[] connectedPlayerIndexes)
+        {
+            string players = string.Join(",", connectedPlayerIndexes);
+            SendCommand($"REMOVE_MOUSE_EXCEPT:{players}");
+        }
+
+        /// <summary>
+        /// EN: Register the current process with the service for crash/exit monitoring.
+        /// FR: Enregistrer le processus actuel auprès du service pour la surveillance crash/sortie.
+        /// When the process exits, the service will trigger COL03 cleanup.
+        /// </summary>
+        public static void RegisterClient()
+        {
+            int pid = Process.GetCurrentProcess().Id;
+            SendCommand($"REGISTER_CLIENT:{pid}");
+        }
+
+        /// <summary>
+        /// EN: Unregister the current process from the service (called on clean shutdown).
+        /// FR: Désenregistrer le processus actuel du service (appelé lors d'un arrêt propre).
+        /// </summary>
+        public static void UnregisterClient() => SendCommand("UNREGISTER_CLIENT");
     }
 }

@@ -21,7 +21,7 @@ namespace WiimoteGun
             cbStartWithWindows.DataBindings.Add("Checked", Options.Instance, "StartWithWindows");
             chkNotifications.DataBindings.Add("Checked", Options.Instance, "ShowNotifications");
 
-            chkSharedKeyboard.DataBindings.Add("Checked", Options.Instance, "UseSharedKeyboard");
+
             
             if (Options.Instance.DetectBlueTooth && Options.Instance.DetectDolphinbar)
                 rbBoth.Checked = true;
@@ -91,8 +91,7 @@ namespace WiimoteGun
             // VMulti Auto-Lock binding (EN/FR: Liaison Auto-Lock VMulti)
             chkAutoLockVMulti.DataBindings.Add("Checked", Options.Instance, "AutoLockVMultiDevices");
             
-            // Disable logic binding (EN/FR: Liaison logique désactivation)
-            chkDisableDeviceOnDisconnect.Checked = Options.Instance.DisableDeviceOnDisconnect;
+
         }
 
         private void btnCancel_Click(object sender, EventArgs e)
@@ -124,7 +123,7 @@ namespace WiimoteGun
             // Save Mouse Mode (EN/FR: Sauvegarder Mode Souris)
             Options.Instance.DefaultMouseMode = rbMouseSendInput.Checked ? MouseMode.SendInput : MouseMode.RawInput;
 
-            Options.Instance.DisableDeviceOnDisconnect = chkDisableDeviceOnDisconnect.Checked;
+
             
             Options.Instance.Save();
 
@@ -141,23 +140,9 @@ namespace WiimoteGun
             Close();
         }
 
-        private void btnInstall_Click(object sender, EventArgs e)
-        {
-            if (RunAsAdmin("/installDrivers"))
-            {
-                MessageBox.Show("Driver installation process started.", "WiimoteGun", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                // App continues running
-            }
-        }
 
-        private void btnUninstall_Click(object sender, EventArgs e)
-        {
-            if (RunAsAdmin("/uninstallDrivers"))
-            {
-                MessageBox.Show("Driver uninstallation process started.", "WiimoteGun", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                // App continues running
-            }
-        }
+
+
 
 
 

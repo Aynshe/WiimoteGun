@@ -8,10 +8,10 @@ Fork of [WiimoteGun](https://github.com/fcaruso/WiimoteGun) with extensive enhan
 
 - **Multi-Wiimote Support**: Connect up to 4 Wiimotes simultaneously
 - **Dual Connection Mode**: Supports both Bluetooth and DolphinBar Mode 4
-- **Dual Mode**: 2-player mode / 4-player mode
+- **Multiplayer**: Compatible with up to 4 players
 - **Per-Player Calibration**: Independent screen calibration for each player
 - **LED Layout Support**: Wiimote Bar (default), Gun4IR Diamond ✅, Retroshooter 4-Corners ✅
-- **Virtual HID**: Uses Interception driver for unique RawInput device IDs per player
+- **Virtual HID**: Uses Virtual HID Driver (vmulti) for unique RawInput device IDs per player
 - **Nunchuk Support**: Full Nunchuk detection (hotplug and coldplug)
 - **IR Visualizer**: Real-time IR camera visualization tool
 
@@ -23,7 +23,7 @@ Fork of [WiimoteGun](https://github.com/fcaruso/WiimoteGun) with extensive enhan
 
 - Windows 10/11 (64-bit)
 - **Bluetooth adapter** (for Bluetooth mode) OR **Mayflash DolphinBar** (Mode 4)
-- **Interception Driver** (included, installation required)
+- **Virtual HID Driver** (included, installation required)
 
 ### Wiimote Compatibility
 
@@ -46,27 +46,27 @@ Fork of [WiimoteGun](https://github.com/fcaruso/WiimoteGun) with extensive enhan
 > Compatibility information source: [TouchMote](https://touchmote.net)
 
 ### For 4-Player Mode
-- **Virtual Interception Driver** installed (provides 4 virtual mice/keyboards)
-- No extra physical hardware required
+- **Virtual HID Driver** installed (provides 4 virtual mice/keyboards)
 
-> [!NOTE]
-> Physical keyboards and mice are only used as fallbacks if the Virtual Driver is not installed. For the best experience, please install the driver via **Options -> Install Drivers**.
+
+
 
 ## 📦 Installation
 
 1. **Download** the latest release
 2. **Extract** to your desired location
-3. **Install Interception Driver**:
-   - Right-click WiimoteGun tray icon → Options → Install Drivers
-   - OR manually run `WiimoteGunDriver\\command line installer\\install-interception.exe` as Administrator
+3. **Manage Virtual Drivers**:
+   - Open Options → **Virtual HID Driver**.
+   - Install drivers for the players you want to use (e.g., "Add Player 1").
+   - You can uninstall unused drivers individually if needed.
 4. **Restart your PC**
 5. Launch `WiimoteGun.exe`
 
 ## 🎮 Quick Start
 
 ### Connecting Wiimotes
-- **2 Players**: Press 1+2 on each Wiimote → Auto-assigned as P1/P2
-- **3-4 Players**: Enable "4 Players Mode" in Options first
+- Press **1 + 2** on each Wiimote to connect.
+- They will be automatically assigned to the next available Player slot (P1, P2, P3, P4).
 
 ### Calibration
 1. **Long press HOME button** on Wiimote
@@ -96,11 +96,14 @@ Choose your LED bar type in Options:
 - Choose which screen to track in **Options**
 - Calibration is saved per-player and per-monitor
 
-### Off-Screen Reload
-Reload by aiming outside the screen edges:
+### Gestures & Reload
+**Off-Screen Reload**:
 - **On Click**: Triggers reload when you click while off-screen
 - **Automatic**: Triggers reload immediately when aiming off-screen
-- Configured globally in **Options** → **Gestures & Reload**
+
+**Motion Gestures (Shake / Grenade)**:
+> [!WARNING]
+> **In Development / Untested**: Motion features require verification (specifically with Wiimote Plus).
 
 ### Auto-Load Profile per Executable
 Automatically load specific profiles when launching games:
@@ -123,16 +126,12 @@ Configure haptic feedback for each player:
 - **Duration**: Set rumble duration in milliseconds (50-1000ms)
 - Configured in **Assign Wiimote** page
 
-### Wiimote Assignment
-**Preferred MAC Addresses**: Lock specific Wiimotes to specific players
-- Prevents auto-reassignment when reconnecting
-- Configured in Overlay → **Options** → **Players** tab
-- Useful for consistent multi-player setups
+
 
 ### Device Assignment (Advanced)
 **Per-Player Mouse/Keyboard**: Assign specific input devices to each player
-- Required for 4-player mode
-- Auto-Lock VMulti option for automatic P1/P2 assignment
+
+- Auto-Lock VMulti option for automatic P1/P2/P3/P4 assignment
 - Configured in **Assign Wiimote** → **⚙️ Devices** button
 
 ## 🐛 Troubleshooting
@@ -140,10 +139,10 @@ Configure haptic feedback for each player:
 ### Wiimotes won't connect
 - Ensure Bluetooth is on
 - Unpair Wiimotes from Windows Bluetooth settings first
-- Check if Interception driver is installed (`C:\\Windows\\System32\\drivers\\keyboard.sys` exists)
+- Ensure Virtual HID drivers are installed via Options menu
 
 ### Mouse doesn't work in games
-- Verify Interception driver installation
+- Verify Virtual HID driver installation in Options
 - Restart PC after driver installation
 - Check `WiimoteGun.log` for errors
 
@@ -180,8 +179,8 @@ wiimotegun.exe [arguments]
 ### Arguments
 - `-refresh`: Reloads configuration and restarts the running instance
 - `-remap "subfolder/profile.remap"`: Loads a specific remap profile (**hot-reload without restart**)
-- `-installdrivers`: Installs the Interception driver
-- `-uninstalldrivers`: Removes the Interception driver
+- `-installPlayer1`: Installs Virtual HID driver for Player 1
+- `-uninstallPlayer1`: Removes Virtual HID driver for Player 1
 
 ## 🎮 Remap Profiles
 
@@ -262,7 +261,6 @@ Same as original WiimoteGun project.
 - **Original Author**: [f.caruso](https://github.com/fcaruso/WiimoteGun)
 - **v2.x Fork**: Aynshe - RetroBat Team (2025)
 - **WiimoteLib.Net**: [Robert Jordan](https://github.com/trigger-segfault/WiimoteLib.Net)
-- **Interception**: [oblita](http://www.oblita.com/interception.html)
 - **vmulti**: [djpnewton](https://github.com/djpnewton/vmulti/)
 - **EcoTUIODriver**: [ecologylab](https://github.com/ecologylab/EcoTUIODriver)
 

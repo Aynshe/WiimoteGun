@@ -10,6 +10,15 @@ using WiimoteLib.Util;
 
 namespace WiimoteLib {
 	public static partial class WiimoteManager {
+		
+		// EN: Blocklist for HID paths that failed to connect (DolphinBar phantom ports)
+		// FR: Liste de blocage pour les chemins HID qui ont échoué la connexion (ports fantômes DolphinBar)
+		// Key = HID device path, Value = timestamp when blocked
+		private static readonly Dictionary<string, DateTime> _failedHidPaths = new Dictionary<string, DateTime>();
+		private static readonly TimeSpan _failedHidBlockDuration = TimeSpan.FromSeconds(5);
+		private static readonly object _failedHidLock = new object();
+
+
 
 		public static void StartDiscovery() {
 			// Discovery also handles idle functionality
@@ -19,6 +28,13 @@ namespace WiimoteLib {
 			lock (taskLock) {
 				if (!IsInDiscoveryMode) {
 					Log.Info("Discovery Mode: Start");
+					
+					// EN: Clear failed HID paths blocklist on new discovery session
+					// FR: Vider la liste de blocage des chemins HID échoués pour une nouvelle session de découverte
+					lock (_failedHidLock) {
+						_failedHidPaths.Clear();
+					}
+					
 					discoverToken = new CancellationTokenSource();
 					CancellationToken token = discoverToken.Token;
 					discoverTask = Task.Run(() => DiscoverTask(token), token);
@@ -187,6 +203,22 @@ namespace WiimoteLib {
 			foreach (HIDDeviceInfo hid in hids) {
 				if (token.IsCancellationRequested)
 					return false;
+				
+				// EN: Skip HID paths that are in the blocklist (DolphinBar phantom ports)
+				// FR: Ignorer les chemins HID dans la liste de blocage (ports fantômes DolphinBar)
+				lock (_failedHidLock) {
+					if (_failedHidPaths.TryGetValue(hid.DevicePath, out DateTime blockedTime)) {
+						if (DateTime.Now - blockedTime < _failedHidBlockDuration) {
+							// Still blocked, skip this device
+							continue;
+						}
+						else {
+							// Block expired, remove from list and retry
+							_failedHidPaths.Remove(hid.DevicePath);
+						}
+					}
+				}
+				
 				Wiimote wiimote = null;
 				lock (wiimotes) {
 					wiimote = wiimotes.Find(wm => wm.DevicePath == hid.DevicePath);
@@ -208,8 +240,19 @@ namespace WiimoteLib {
 						if (wiimoteDevice != null) {
 							try {
 								Connect(wiimoteDevice);
+								// EN: Connection successful, ensure not in blocklist
+								// FR: Connexion réussie, s'assurer qu'il n'est pas dans la liste de blocage
+								lock (_failedHidLock) {
+									_failedHidPaths.Remove(hid.DevicePath);
+								}
 							}
 							catch (Exception ex) {
+								// EN: Connection failed - add to blocklist to prevent endless retry
+								// FR: Connexion échouée - ajouter à la liste de blocage pour éviter les réessais infinis
+								lock (_failedHidLock) {
+									_failedHidPaths[hid.DevicePath] = DateTime.Now;
+									Log.Debug($"HID device blocked for {_failedHidBlockDuration.TotalSeconds}s: {hid.DevicePath}");
+								}
 								RaiseConnectionFailed(wiimoteDevice, ex);
 							}
 						}
@@ -387,7 +430,9 @@ namespace WiimoteLib {
 				BluetoothDeviceInfo device = wiimote.Device.Bluetooth;
 				Stopwatch watch2 = Stopwatch.StartNew();
 				device.Refresh();
-				Log.Debug($"Took {watch2.ElapsedMilliseconds}ms refresh {device}");
+				// EN: Log commented to reduce log spam during Idle mode
+				// FR: Log commenté pour réduire le spam dans le fichier log en mode Idle
+				// Log.Debug($"Took {watch2.ElapsedMilliseconds}ms refresh {device}");
 				if (!device.Connected) {
 					lock (wiimotes) {
 						wiimote.Dispose();

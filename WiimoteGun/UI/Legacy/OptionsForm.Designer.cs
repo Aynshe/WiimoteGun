@@ -37,7 +37,7 @@ namespace WiimoteGun
             this.rbBoth = new System.Windows.Forms.RadioButton();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
 
-            this.chkSharedKeyboard = new System.Windows.Forms.CheckBox();
+
             this.chkNotifications = new System.Windows.Forms.CheckBox();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.rbBlueTooth = new System.Windows.Forms.RadioButton();
@@ -48,8 +48,7 @@ namespace WiimoteGun
             this.label2 = new System.Windows.Forms.Label();
             this.trackBar1 = new System.Windows.Forms.TrackBar();
             this.groupBox4 = new System.Windows.Forms.GroupBox();
-            this.btnInstall = new System.Windows.Forms.Button();
-            this.btnUninstall = new System.Windows.Forms.Button();
+
             this.btnInstallPlayer1 = new System.Windows.Forms.Button();
             this.btnUninstallPlayer1 = new System.Windows.Forms.Button();
             this.btnInstallPlayer2 = new System.Windows.Forms.Button();
@@ -59,7 +58,6 @@ namespace WiimoteGun
             this.btnInstallPlayer4 = new System.Windows.Forms.Button();
             this.btnUninstallPlayer4= new System.Windows.Forms.Button();
             this.chkAutoLockVMulti = new System.Windows.Forms.CheckBox();
-            this.chkDisableDeviceOnDisconnect = new System.Windows.Forms.CheckBox();
             this.chkPermissiveCalibration = new System.Windows.Forms.CheckBox();
             
             // Gesture Controls Init
@@ -160,7 +158,7 @@ namespace WiimoteGun
             // 
             this.groupBox1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.groupBox1.Controls.Add(this.chkSharedKeyboard);
+
 
             this.groupBox1.Controls.Add(this.chkNotifications);
             this.groupBox1.Controls.Add(this.cbStartWithWindows);
@@ -265,16 +263,7 @@ namespace WiimoteGun
             this.rbDolphinbar.Text = "Dolphinbar";
             this.rbDolphinbar.UseVisualStyleBackColor = true;
 
-            // 
-            // chkSharedKeyboard
-            // 
-            this.chkSharedKeyboard.AutoSize = true;
-            this.chkSharedKeyboard.Location = new System.Drawing.Point(13, 102);
-            this.chkSharedKeyboard.Name = "chkSharedKeyboard";
-            this.chkSharedKeyboard.Size = new System.Drawing.Size(235, 17);
-            this.chkSharedKeyboard.TabIndex = 8;
-            this.chkSharedKeyboard.Text = "Use Shared Keyboard (Physical Devices Only)";
-            this.chkSharedKeyboard.UseVisualStyleBackColor = true;
+
             // 
             // groupBox3
             // 
@@ -483,7 +472,6 @@ namespace WiimoteGun
             // 
             // groupBox4
             // 
-            this.groupBox4.Controls.Add(this.chkDisableDeviceOnDisconnect);
             this.groupBox4.Controls.Add(this.chkAutoLockVMulti);
             this.groupBox4.Controls.Add(this.btnInstallPlayer1);
             this.groupBox4.Controls.Add(this.btnUninstallPlayer1);
@@ -493,8 +481,7 @@ namespace WiimoteGun
             this.groupBox4.Controls.Add(this.btnUninstallPlayer3);
             this.groupBox4.Controls.Add(this.btnInstallPlayer4);
             this.groupBox4.Controls.Add(this.btnUninstallPlayer4);
-            this.groupBox4.Controls.Add(this.btnInstall);
-            this.groupBox4.Controls.Add(this.btnUninstall);
+
             this.groupBox4.Location = new System.Drawing.Point(410, 289);
             this.groupBox4.Name = "groupBox4";
             this.groupBox4.Size = new System.Drawing.Size(384, 210);
@@ -502,15 +489,7 @@ namespace WiimoteGun
             this.groupBox4.TabStop = false;
             this.groupBox4.Text = "Virtual HID Driver";
             // 
-            // chkDisableDeviceOnDisconnect
-            // 
-            this.chkDisableDeviceOnDisconnect.AutoSize = true;
-            this.chkDisableDeviceOnDisconnect.Location = new System.Drawing.Point(13, 140);
-            this.chkDisableDeviceOnDisconnect.Name = "chkDisableDeviceOnDisconnect";
-            this.chkDisableDeviceOnDisconnect.Size = new System.Drawing.Size(270, 17);
-            this.chkDisableDeviceOnDisconnect.TabIndex = 11;
-            this.chkDisableDeviceOnDisconnect.Text = "Disable VMulti Device on Disconnect";
-            this.chkDisableDeviceOnDisconnect.UseVisualStyleBackColor = true;
+
             // 
             // chkAutoLockVMulti
             // 
@@ -524,25 +503,7 @@ namespace WiimoteGun
             this.chkAutoLockVMulti.Text = "Auto-Lock VMulti to Player 1 \u0026 2 \u0026 3 \u0026 4";
             this.chkAutoLockVMulti.UseVisualStyleBackColor = true;
             // 
-            // btnInstall
-            // 
-            this.btnInstall.Location = new System.Drawing.Point(13, 20);
-            this.btnInstall.Name = "btnInstall";
-            this.btnInstall.Size = new System.Drawing.Size(180, 25);
-            this.btnInstall.TabIndex = 0;
-            this.btnInstall.Text = "📦 Install Interception Driver";
-            this.btnInstall.UseVisualStyleBackColor = true;
-            this.btnInstall.Click += new System.EventHandler(this.btnInstall_Click);
-            // 
-            // btnUninstall
-            // 
-            this.btnUninstall.Location = new System.Drawing.Point(199, 20);
-            this.btnUninstall.Name = "btnUninstall";
-            this.btnUninstall.Size = new System.Drawing.Size(170, 25);
-            this.btnUninstall.TabIndex = 1;
-            this.btnUninstall.Text = "❌ Uninstall Interception";
-            this.btnUninstall.UseVisualStyleBackColor = true;
-            this.btnUninstall.Click += new System.EventHandler(this.btnUninstall_Click);
+
             // 
             // btnInstallPlayer1
             // 
@@ -678,8 +639,7 @@ namespace WiimoteGun
         private System.Windows.Forms.TrackBar trackBar1;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.GroupBox groupBox4;
-        private System.Windows.Forms.Button btnInstall;
-        private System.Windows.Forms.Button btnUninstall;
+
         private System.Windows.Forms.Button btnInstallPlayer1;
         private System.Windows.Forms.Button btnUninstallPlayer1;
         private System.Windows.Forms.Button btnInstallPlayer2;
@@ -691,7 +651,7 @@ namespace WiimoteGun
 
         private System.Windows.Forms.ComboBox cboLEDLayout;
         private System.Windows.Forms.Label lblLEDLayout;
-        private System.Windows.Forms.CheckBox chkSharedKeyboard;
+
         
         // Gesture Controls
         private System.Windows.Forms.GroupBox grpGestures;
@@ -711,7 +671,6 @@ namespace WiimoteGun
         private System.Windows.Forms.RadioButton rbMouseRawInput;
         private System.Windows.Forms.Label lblMouseModeWarning;
         private System.Windows.Forms.CheckBox chkAutoLockVMulti;
-        private System.Windows.Forms.CheckBox chkDisableDeviceOnDisconnect;
         private System.Windows.Forms.CheckBox chkPermissiveCalibration;
     }
 }

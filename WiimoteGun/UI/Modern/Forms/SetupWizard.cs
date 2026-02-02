@@ -17,8 +17,6 @@ namespace WiimoteGun.Forms
         }
 
         // EN/FR: Event Handlers for Designer compatibility (Gestionnaires d'événements pour compatibilité Designer)
-        private void btnInstallInterception_Click(object sender, EventArgs e) => ManageInterception(install: true);
-        private void btnUninstallInterception_Click(object sender, EventArgs e) => ManageInterception(install: false);
         private void btnInstallService_Click(object sender, EventArgs e) => ManageService(install: true);
         private void btnUninstallService_Click(object sender, EventArgs e) => ManageService(install: false);
         private void btnInstallVMulti_Click(object sender, EventArgs e) => ManageVMulti(install: true);
@@ -35,94 +33,6 @@ namespace WiimoteGun.Forms
 
         private void CheckComponents()
         {
-            // Interception Check Improvements:
-            // 1. Check Service
-            bool isInterceptionInstalled = IsServiceInstalled("interception");
-            
-            // 2. Fallback: Check for driver file (System32/drivers/keyboard.sys & mouse.sys version)
-            // (Using the enhanced check from previous step)
-            if (!isInterceptionInstalled)
-            {
-                try
-                {
-                    string[] drivers = { @"C:\Windows\System32\drivers\keyboard.sys", @"C:\Windows\System32\drivers\mouse.sys" };
-                    foreach (string driverPath in drivers)
-                    {
-                        if (File.Exists(driverPath))
-                        {
-                            FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(driverPath);
-                            if ((fvi.ProductName != null && fvi.ProductName.IndexOf("Interception", StringComparison.OrdinalIgnoreCase) >= 0) ||
-                                (fvi.LegalCopyright != null && fvi.LegalCopyright.Contains("Francisco Lopes da Silva")))
-                            {
-                                isInterceptionInstalled = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                catch { }
-
-                // Fallback 2: Check standard Windows drivers for Interception replacement
-                // Checking for redirection (32-bit app on 64-bit OS) (EN/FR: Vérification redirection 32-bits sur OS 64-bits)
-                if (!isInterceptionInstalled)
-                {
-                    try
-                    {
-                        string system32 = Environment.SystemDirectory;
-                        string sysNative = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "SysNative");
-                        
-                        // Use SysNative if available (64-bit OS viewed from 32-bit app), otherwise standard System32
-                        string driversDir = (Environment.Is64BitOperatingSystem && !Environment.Is64BitProcess && Directory.Exists(sysNative)) 
-                                          ? Path.Combine(sysNative, "drivers") 
-                                          : Path.Combine(system32, "drivers");
-
-                        string[] drivers = { Path.Combine(driversDir, "keyboard.sys"), Path.Combine(driversDir, "mouse.sys") };
-                        foreach (string driverPath in drivers)
-                        {
-                            if (File.Exists(driverPath))
-                            {
-                                FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(driverPath);
-                                if ((fvi.ProductName != null && fvi.ProductName.IndexOf("Interception", StringComparison.OrdinalIgnoreCase) >= 0) ||
-                                    (fvi.LegalCopyright != null && fvi.LegalCopyright.Contains("Francisco Lopes da Silva")))
-                                {
-                                    isInterceptionInstalled = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    catch { }
-                }
-                
-                if (!isInterceptionInstalled)
-                {
-                     try {
-                        using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\interception"))
-                        {
-                            if (key != null) isInterceptionInstalled = true;
-                        }
-                    } catch { }
-                }
-            }
-
-            if (isInterceptionInstalled)
-            {
-                lblInterceptionStatus.Text = "✓ Installed";
-                lblInterceptionStatus.ForeColor = Color.LightGreen;
-                btnInstallInterception.Enabled = false;
-                btnInstallInterception.Text = "Installed";
-                btnInstallInterception.BackColor = Color.Gray;
-                btnUninstallInterception.Enabled = true;
-            }
-            else
-            {
-                lblInterceptionStatus.Text = "❌ Not Installed";
-                lblInterceptionStatus.ForeColor = Color.Red;
-                btnInstallInterception.Enabled = true;
-                btnInstallInterception.BackColor = Color.FromArgb(0, 122, 204);
-                btnUninstallInterception.Enabled = false;
-            }
-
             // WiimoteGun Service Check
             bool isServiceInstalled = IsServiceInstalled("WiimoteGunHelper"); 
             if (!isServiceInstalled) isServiceInstalled = IsServiceInstalled("WiimoteGunService");
@@ -166,7 +76,7 @@ namespace WiimoteGun.Forms
                 btnUninstallVMulti.Enabled = false;
             }
 
-            if (isInterceptionInstalled && isServiceInstalled && isVMultiInstalled)
+            if (isServiceInstalled && isVMultiInstalled)
             {
                 btnContinue.Enabled = true;
                 btnContinue.BackColor = Color.FromArgb(0, 150, 0); // Green
@@ -189,61 +99,6 @@ namespace WiimoteGun.Forms
             catch
             {
                 return false;
-            }
-        }
-
-        private void ManageInterception(bool install)
-        {
-            try
-            {
-                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                // Updated path per user request: \WiimoteGun.Service\WiimoteGunDriver\command line installer\install-interception.exe
-                string installerPath = Path.Combine(baseDir, "WiimoteGun.Service", "WiimoteGunDriver", "command line installer", "install-interception.exe");
-
-                // Verify if specific path exists, if not try legacy Locations
-                if (!File.Exists(installerPath))
-                {
-                     // Fallback 1: Root\WiimoteGunDriver...
-                     string fallback1 = Path.Combine(baseDir, "WiimoteGunDriver", "command line installer", "install-interception.exe");
-                     if (File.Exists(fallback1)) installerPath = fallback1;
-                     else
-                     {
-                         // Fallback 2: Tools...
-                         string fallback2 = Path.Combine(baseDir, "tools", "install-interception.exe");
-                         if (File.Exists(fallback2)) installerPath = fallback2;
-                         // Else keep original to show error, or fallback to root
-                         else 
-                         {
-                            string rootPath = Path.Combine(baseDir, "install-interception.exe");
-                            if (File.Exists(rootPath)) installerPath = rootPath;
-                         }
-                     }
-                }
-
-                if (!File.Exists(installerPath))
-                {
-                    MessageBox.Show($"Installer not found at:\n{installerPath}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-
-                string args = install ? "/install" : "/uninstall";
-                
-                ProcessStartInfo psi = new ProcessStartInfo
-                {
-                    FileName = installerPath,
-                    Arguments = args,
-                    Verb = "runas", // Admin
-                    UseShellExecute = true
-                };
-                Process.Start(psi).WaitForExit();
-                
-                string action = install ? "installed" : "uninstalled";
-                MessageBox.Show($"Interception driver {action}. A REBOOT IS REQUIRED.", "Reboot Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                CheckComponents();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Operation failed: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

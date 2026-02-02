@@ -160,26 +160,32 @@ namespace WiimoteGun
             cmbKeyboard.Items.Add("None (Auto)");
             _keyboardDevices["None (Auto)"] = "";
             
+            // Force Add VMulti Keyboard Option (EN/FR: Forcer l'ajout de l'option Clavier VMulti)
+            // Same logic as mouse: VMulti keyboards are virtual and might not be enumerable
             try
             {
-                var availableKeyboards = VirtualInterceptionKeyboard.GetAvailableKeyboardsWithNames();
-                foreach (var kvp in availableKeyboards)
+                if (_playerIndex >= 1 && _playerIndex <= 4)
                 {
-                    int deviceId = kvp.Key;
-                    string displayName = kvp.Value;
-                    string hardwareId = VirtualInterceptionKeyboard.GetKeyboardHardwareId(deviceId);
+                    string suffix = vMultiSuffixes[_playerIndex - 1];
+                    string vid = (_playerIndex == 1) ? "001F" : (_playerIndex == 2) ? "002F" : (_playerIndex == 3) ? "003F" : "004F";
                     
-                    if (!string.IsNullOrEmpty(hardwareId))
+                    // Keyboard hardware ID format (Col07 for keyboard)
+                    string vmultiKeyboardId = $"HID\\{suffix}&Col07HID\\VID_{vid}&UP:0001_U:0006HID_DEVICE";
+                    string displayName = $"VMulti Keyboard [Player {_playerIndex}] (Virtual)";
+                    
+                    if (!_keyboardDevices.ContainsKey(displayName))
                     {
-                        _keyboardDevices[displayName] = hardwareId;
+                        _keyboardDevices[displayName] = vmultiKeyboardId;
                         cmbKeyboard.Items.Add(displayName);
+                        SimpleLogger.Instance.Info($"[DIALOG] Added VMulti Keyboard option for P{_playerIndex}");
                     }
                 }
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"Failed to enumerate keyboards: {ex.Message}");
+                SimpleLogger.Instance.Error($"Failed to add VMulti keyboard: {ex.Message}");
             }
+
             
             // Set current values (EN/FR: Définir valeurs actuelles)
             string currentMouseId = Options.Instance.GetPreferredMouseId(_playerIndex);

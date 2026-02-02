@@ -46,9 +46,103 @@ namespace WiimoteGun
                 return Special.ToString();
 
             if (Key != Keys.None)
-                return Key.ToString();
+                return GetAzertyKeyName(Key);
 
             return "None";
+        }
+
+        /// <summary>
+        /// Get AZERTY-friendly display name for a key
+        /// (EN/FR: Obtenir nom d'affichage AZERTY pour une touche)
+        /// </summary>
+        private static string GetAzertyKeyName(Keys key)
+        {
+            // AZERTY-specific key names showing both characters (normal/Shift)
+            // (EN/FR: Noms de touches spécifiques AZERTY montrant les deux caractères)
+            switch (key)
+            {
+                // Number row with AZERTY characters (EN/FR: Rangée chiffres avec caractères AZERTY)
+                case Keys.D1: return "1 (&)";
+                case Keys.D2: return "2 (é)";
+                case Keys.D3: return "3 (\")";
+                case Keys.D4: return "4 (')";
+                case Keys.D5: return "5 (()";
+                case Keys.D6: return "6 (-)";
+                case Keys.D7: return "7 (è)";
+                case Keys.D8: return "8 (_)";
+                case Keys.D9: return "9 (ç)";
+                case Keys.D0: return "0 (à)";
+                
+                // OEM keys with AZERTY mapping (EN/FR: Touches OEM avec mapping AZERTY)
+                case Keys.Oemtilde: return "² (Tilde)";
+                case Keys.OemMinus: return ") (°)"; // Right of 0
+                case Keys.Oemplus: return "= (+)";  // Right of )
+                case Keys.OemOpenBrackets: return "^ (¨)"; // Dead key
+                case Keys.OemCloseBrackets: return "$ (£)";
+                case Keys.OemPipe: return "* (µ)"; // Backslash position
+                case Keys.OemSemicolon: return "ù (%)"; // Oem1 = OemSemicolon
+                case Keys.OemQuotes: return "' (²)"; // Oem7 = OemQuotes
+                case Keys.Oemcomma: return ", (?)";
+                case Keys.OemPeriod: return "; (.)";
+                case Keys.OemQuestion: return ": (/)"; // Oem2 = OemQuestion
+                case Keys.Oem102: return "< (>)"; // Extra key left of Z on AZERTY
+                
+                // Modified display for common keys (EN/FR: Affichage modifié pour touches courantes)
+                case Keys.Return: return "Enter ↵";
+                case Keys.Space: return "Space ⎵";
+                case Keys.Back: return "Backspace ⌫";
+                case Keys.Tab: return "Tab ⇥";
+                case Keys.Escape: return "Escape";
+                case Keys.Delete: return "Delete";
+                case Keys.Insert: return "Insert";
+                case Keys.Home: return "Home";
+                case Keys.End: return "End";
+                case Keys.PageUp: return "Page Up";
+                case Keys.PageDown: return "Page Down";
+                case Keys.Up: return "↑ Up";
+                case Keys.Down: return "↓ Down";
+                case Keys.Left: return "← Left";
+                case Keys.Right: return "→ Right";
+                case Keys.CapsLock: return "Caps Lock";
+                case Keys.NumLock: return "Num Lock";
+                case Keys.Scroll: return "Scroll Lock";
+                case Keys.PrintScreen: return "Print Screen";
+                case Keys.Pause: return "Pause";
+                
+                // Modifiers (EN/FR: Modificateurs)
+                case Keys.LShiftKey:
+                case Keys.ShiftKey: return "Shift";
+                case Keys.RShiftKey: return "Right Shift";
+                case Keys.LControlKey:
+                case Keys.ControlKey: return "Ctrl";
+                case Keys.RControlKey: return "Right Ctrl";
+                case Keys.LMenu:
+                case Keys.Menu: return "Alt";
+                case Keys.RMenu: return "Alt Gr";
+                case Keys.LWin: return "Win";
+                case Keys.RWin: return "Right Win";
+                
+                // Numpad (EN/FR: Pavé numérique)
+                case Keys.NumPad0: return "Num 0";
+                case Keys.NumPad1: return "Num 1";
+                case Keys.NumPad2: return "Num 2";
+                case Keys.NumPad3: return "Num 3";
+                case Keys.NumPad4: return "Num 4";
+                case Keys.NumPad5: return "Num 5";
+                case Keys.NumPad6: return "Num 6";
+                case Keys.NumPad7: return "Num 7";
+                case Keys.NumPad8: return "Num 8";
+                case Keys.NumPad9: return "Num 9";
+                case Keys.Multiply: return "Num *";
+                case Keys.Add: return "Num +";
+                case Keys.Subtract: return "Num -";
+                case Keys.Divide: return "Num /";
+                case Keys.Decimal: return "Num .";
+                
+                // Function keys stay the same (EN/FR: Touches fonction restent identiques)
+                default:
+                    return key.ToString();
+            }
         }
 
         public override bool Equals(object obj)
@@ -65,6 +159,7 @@ namespace WiimoteGun
             return Special.GetHashCode() ^ Key.GetHashCode();
         }
     }
+
 
     // LED layout types for different lightgun configurations (EN/FR: Types de configuration LED pour différents lightguns)
     public enum LEDLayoutType
@@ -161,7 +256,6 @@ namespace WiimoteGun
                 ShakeFromNunchuk = false; // false=Wiimote, true=Nunchuk
                 EnableGrenadeGesture = false;
                 GrenadeFromNunchuk = false;
-                DisableDeviceOnDisconnect = true;
             }
         }
 
@@ -656,7 +750,6 @@ namespace WiimoteGun
         [DefaultValue(true)]
         public bool FirstRun { get; set; }
 
-        [DefaultValue(true)]
         public bool ShowSetupWizard { get; set; }
 
         [DefaultValue(true)]
@@ -686,11 +779,8 @@ namespace WiimoteGun
         // LED layout type for calibration (EN/FR: Type de disposition LED pour calibration)
         // Determines how IR sensors are positioned and how position is calculated
         // (EN/FR: Détermine comment les capteurs IR sont positionnés et comment la position est calculée)
-        // Disable VMulti device on disconnect (Standard behavior)
-        // If false, device remains enabled (Persistent mode) to avoid Windows PnP instability
-        // (EN/FR: Désactiver périphérique VMulti à la déconnexion - Si faux, mode Persistant)
-        [DefaultValue(true)]
-        public bool DisableDeviceOnDisconnect { get; set; }
+        // (EN/FR: Détermine comment les capteurs IR sont positionnés et comment la position est calculée)
+
 
         [DefaultValue(LEDLayoutType.WiimoteBar)]
         public LEDLayoutType LEDLayout { get; set; }

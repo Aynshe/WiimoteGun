@@ -6,6 +6,7 @@ using WiimoteGun.UI.Modern.Forms;
 
 namespace WiimoteGun
 {
+    
     /// <summary>
     /// Modal dialog for selecting a keyboard key with scrollable list (EN/FR: Dialogue modal pour sélectionner une touche clavier avec liste scrollable)
     /// </summary>
@@ -29,9 +30,9 @@ namespace WiimoteGun
         // Event handlers
         private void listBoxKeys_DoubleClick(object sender, EventArgs e)
         {
-            if (listBoxKeys.SelectedItem != null)
+            if (listBoxKeys.SelectedItem is KeyDisplayItem item)
             {
-                SelectedKey = (Keys)listBoxKeys.SelectedItem;
+                SelectedKey = item.Key;
                 this.DialogResult = DialogResult.OK;
                 this.Close();
             }
@@ -45,11 +46,12 @@ namespace WiimoteGun
         
         private void PopulateKeys()
         {
-            // Get all Keys enum values (EN/FR: Obtenir toutes valeurs enum Keys)
+            // Get all Keys enum values wrapped with AZERTY display names (EN/FR: Obtenir toutes valeurs Keys avec noms AZERTY)
             var keys = Enum.GetValues(typeof(Keys))
                 .Cast<Keys>()
                 .Where(k => k != Keys.None && k != Keys.Menu) // Exclude None and Menu
-                .OrderBy(k => k.ToString())
+                .Select(k => new KeyDisplayItem(k))
+                .OrderBy(k => k.DisplayName)
                 .ToArray();
             
             listBoxKeys.Items.Clear();
@@ -61,7 +63,8 @@ namespace WiimoteGun
         
         private void TxtSearch_TextChanged(object sender, EventArgs e)
         {
-            // Filter keys based on search (EN/FR: Filtrer touches selon recherche)
+            // Filter keys based on search (check both enum name and display name)
+            // (EN/FR: Filtrer touches selon recherche - vérifie nom enum et nom affiché)
             string searchText = txtSearch.Text.ToLower();
             
             if (string.IsNullOrWhiteSpace(searchText))
@@ -73,8 +76,9 @@ namespace WiimoteGun
             var filteredKeys = Enum.GetValues(typeof(Keys))
                 .Cast<Keys>()
                 .Where(k => k != Keys.None && k != Keys.Menu)
-                .Where(k => k.ToString().ToLower().Contains(searchText))
-                .OrderBy(k => k.ToString())
+                .Select(k => new KeyDisplayItem(k))
+                .Where(k => k.DisplayName.ToLower().Contains(searchText) || k.Key.ToString().ToLower().Contains(searchText))
+                .OrderBy(k => k.DisplayName)
                 .ToArray();
             
             listBoxKeys.Items.Clear();
@@ -86,9 +90,9 @@ namespace WiimoteGun
         
         private void BtnOK_Click(object sender, EventArgs e)
         {
-            if (listBoxKeys.SelectedItem != null)
+            if (listBoxKeys.SelectedItem is KeyDisplayItem item)
             {
-                SelectedKey = (Keys)listBoxKeys.SelectedItem;
+                SelectedKey = item.Key;
                 this.DialogResult = DialogResult.OK;
             }
             else
@@ -96,7 +100,7 @@ namespace WiimoteGun
                 this.DialogResult = DialogResult.Cancel;
             }
             this.Close();
-            }
+        }
         
         private void ShowVirtualKeyboard()
         {
@@ -118,5 +122,4 @@ namespace WiimoteGun
              keyboard.ShowDialog(this);
         }
     }
-    }
-
+}

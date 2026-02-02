@@ -65,6 +65,12 @@ namespace WiimoteGun
         private DateTime _controllerStartTime = DateTime.Now;
         private const int STARTUP_GRACE_PERIOD_MS = 2000; // Ignore gestures for 2s after start
 
+        // In-Game Offset Adjustment (EN/FR: Ajustement offset en jeu)
+        private bool _isOffsetAdjustmentActive = false;
+        private DateTime _lastOffsetAdjustTime = DateTime.MinValue;
+        private const int OFFSET_ADJUST_REPEAT_MS = 80; // Repeat rate for held DPad (EN/FR: Taux de répétition pour DPad maintenu)
+        public static event Action<int, int, int, bool> OffsetAdjustmentChanged; // playerIndex, offsetX, offsetY, isActive
+
         // ... existing code ...
 
         private bool CheckShake(WiimoteState state)
@@ -194,7 +200,7 @@ namespace WiimoteGun
                  for (int i = 0; i < 12; i++)
                  {
                      System.Threading.Thread.Sleep(500);
-                     VirtualInterceptionMouse.ReloadContext();
+                     // VMulti uses HID directly, no context reload needed
                      
                      var (mouseId, _) = VMultiDeviceDetector.DetectPlayerVMultiDevices(PlayerIndex);
                      if (!string.IsNullOrEmpty(mouseId))
@@ -210,7 +216,7 @@ namespace WiimoteGun
                      SimpleLogger.Instance.Warning($"VMulti P{PlayerIndex} detection timed out. Retrying enable...");
                      ServiceClient.EnablePlayer(PlayerIndex);
                      System.Threading.Thread.Sleep(1500);
-                     VirtualInterceptionMouse.ReloadContext();
+                     // VMulti uses HID directly, no context reload needed
                  }
 
                  // Auto-detect and save VMulti mouse after activation (EN/FR: Auto-détecter et sauvegarder souris VMulti après activation)
@@ -247,9 +253,9 @@ namespace WiimoteGun
             }
             else
             {
-                // RawInput mode: Use Interception keyboard (EN/FR: Mode RawInput : Utiliser clavier Interception)
-                _joy = new VirtualInterceptionKeyboard(playerIndex);
-                SimpleLogger.Instance.Info($"P{playerIndex}: Using Interception keyboard");
+                // RawInput mode: Use VMulti keyboard (EN/FR: Mode RawInput : Utiliser clavier VMulti)
+                _joy = new VirtualVMultiKeyboard(playerIndex);
+                SimpleLogger.Instance.Info($"P{playerIndex}: Using VMulti keyboard");
             }
             
             // Select mouse implementation based on configuration (EN/FR: Sélectionner implémentation souris selon configuration)
@@ -277,14 +283,14 @@ namespace WiimoteGun
             }
             else // MouseMode.RawInput
             {
-                // RawInput/Interception mode: All players get independent mice (EN/FR: Mode RawInput : Tous les joueurs ont des souris indépendantes)
-                _virtualMouse = new VirtualInterceptionMouse(playerIndex, uniqueId);
-                SimpleLogger.Instance.Info($"P{playerIndex}: Using Interception mouse (multi-player mode)");
+                // RawInput/VMulti mode: All players get independent mice (EN/FR: Mode RawInput : Tous les joueurs ont des souris indépendantes)
+                _virtualMouse = new VirtualVMultiMouse(playerIndex, uniqueId);
+                SimpleLogger.Instance.Info($"P{playerIndex}: Using VMulti mouse (multi-player mode)");
                 
                 // Subscribe to left mouse button events for rumble (EN/FR: S'abonner aux événements bouton gauche pour vibration)
-                if (_virtualMouse is VirtualInterceptionMouse interceptionMouse)
+                if (_virtualMouse is VirtualVMultiMouse vmultiMouse)
                 {
-                    interceptionMouse.OnLeftMouseButtonChanged += HandleTriggerButton;
+                    vmultiMouse.OnLeftMouseButtonChanged += HandleTriggerButton;
                 }
             }
             
@@ -537,18 +543,23 @@ namespace WiimoteGun
             // Disable Virtual Driver via Service
             if (Options.Instance.DefaultMouseMode == MouseMode.RawInput)
             {
-                if (Options.Instance.DisableDeviceOnDisconnect)
-                {
-                    // Standard PnP behavior: Disable device on disconnect
-                    // (EN/FR: Comportement PnP standard : Désactiver à la déconnexion)
-                    ServiceClient.DisablePlayer(PlayerIndex);
-                }
-                else
-                {
-                    // Persistent mode: Keep device enabled to avoid Windows PnP instability
-                    // (EN/FR: Mode persistant : Garder activé pour éviter l'instabilité PnP Windows)
-                    SimpleLogger.Instance.Info($"[Persistent P{PlayerIndex}] Keeping VMulti device enabled (DisableDeviceOnDisconnect=false).");
-                } 
+                // Persistent mode: Keep device enabled to avoid Windows PnP instability
+                // (EN/FR: Mode persistant : Garder activé pour éviter l'instabilité PnP Windows)
+                SimpleLogger.Instance.Info($"[Persistent P{PlayerIndex}] Keeping VMulti device enabled.");
+            }
+        }
+
+        /// <summary>
+        /// EN: Explicitly refresh/enable the VMulti device for this player.
+        /// FR: Rafraîchir/activer explicitement le périphérique VMulti pour ce joueur.
+        /// Used at startup to ensuring devices are active if they were accidentally cleaned up.
+        /// </summary>
+        public void RefreshVMultiState()
+        {
+            if (Options.Instance.DefaultMouseMode == MouseMode.RawInput)
+            {
+                SimpleLogger.Instance.Info($"[WiiMoteController] Refreshing VMulti state for Player {PlayerIndex}");
+                ServiceClient.EnablePlayer(PlayerIndex);
             }
         }
 
@@ -1027,10 +1038,10 @@ namespace WiimoteGun
                     // Mask inputs if specific button is consumed by hotkey (EN/FR: Masquer inputs si bouton consommé par hotkey)
                     SendKeyEvent(_playerMappings.WiiA, buttons.A && !HotkeyManager.IsButtonConsumed(PlayerIndex, "A"), _lastState.A);
                     SendKeyEvent(_playerMappings.WiiB, buttons.B && !HotkeyManager.IsButtonConsumed(PlayerIndex, "B"), _lastState.B);
-                    SendKeyEvent(_playerMappings.WiiUp, buttons.Up && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Up"), _lastState.Up);
-                    SendKeyEvent(_playerMappings.WiiDown, buttons.Down && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Down"), _lastState.Down);
-                    SendKeyEvent(_playerMappings.WiiLeft, buttons.Left && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Left"), _lastState.Left);
-                    SendKeyEvent(_playerMappings.WiiRight, buttons.Right && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Right"), _lastState.Right);
+                    SendKeyEvent(_playerMappings.WiiUp, buttons.Up && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Up") && !_isOffsetAdjustmentActive, _lastState.Up);
+                    SendKeyEvent(_playerMappings.WiiDown, buttons.Down && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Down") && !_isOffsetAdjustmentActive, _lastState.Down);
+                    SendKeyEvent(_playerMappings.WiiLeft, buttons.Left && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Left") && !_isOffsetAdjustmentActive, _lastState.Left);
+                    SendKeyEvent(_playerMappings.WiiRight, buttons.Right && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Right") && !_isOffsetAdjustmentActive, _lastState.Right);
                     SendKeyEvent(_playerMappings.WiiOne, buttons.One && !HotkeyManager.IsButtonConsumed(PlayerIndex, "One"), _lastState.One);
                     SendKeyEvent(_playerMappings.WiiTwo, buttons.Two && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Two"), _lastState.Two);
                     SendKeyEvent(_playerMappings.WiiPlus, buttons.Plus && !suppressMinusPlus && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Plus"), _lastState.Plus);
@@ -1220,12 +1231,74 @@ namespace WiimoteGun
             if (_calculator.IsCalibrating)
                 return;
 
-            // Check for Home + D-pad combo for offset adjustment (IR Visualizer) (EN/FR: Vérifier combo Home + D-pad pour ajustement offset)
-            // This should be checked BEFORE Home + Plus to have priority (EN/FR: Vérifier AVANT Home + Plus pour priorité)
-            if (buttons.Home && (buttons.Up || buttons.Down || buttons.Left || buttons.Right))
+            // Check for Home + D-pad or Minus + D-pad combo for IN-GAME offset adjustment 
+            // (EN/FR: Vérifier combo Home/Minus + D-pad pour ajustement offset EN JEU)
+            // This should be checked BEFORE Home + Plus to have priority
+            // Minus+DPad only works for DolphinBar mode (not Bluetooth) because Minus behavior differs
+            // (EN/FR: Minus+DPad seulement pour DolphinBar car comportement Minus diffère)
+            bool minusAllowed = !wiimote.Device.IsBluetooth && buttons.Minus;
+            bool isOffsetComboActive = (buttons.Home || minusAllowed) && (buttons.Up || buttons.Down || buttons.Left || buttons.Right);
+            bool wasOffsetComboActive = _isOffsetAdjustmentActive;
+            
+            if (isOffsetComboActive)
             {
+                // Mark offset adjustment as active (EN/FR: Marquer ajustement offset comme actif)
+                if (!_isOffsetAdjustmentActive)
+                {
+                    _isOffsetAdjustmentActive = true;
+                    SimpleLogger.Instance.Info($"[P{PlayerIndex}] Offset adjustment mode activated");
+                }
+                
+                // Apply offset changes with repeat rate limiting (EN/FR: Appliquer changements offset avec limitation de répétition)
+                if ((DateTime.Now - _lastOffsetAdjustTime).TotalMilliseconds >= OFFSET_ADJUST_REPEAT_MS)
+                {
+                    int currentOffsetX = Options.Instance.GetDynamicPerspectiveOffsetX(PlayerIndex);
+                    int currentOffsetY = Options.Instance.GetDynamicPerspectiveOffsetY(PlayerIndex);
+                    bool changed = false;
+                    
+                    if (buttons.Left) { currentOffsetX--; changed = true; }
+                    else if (buttons.Right) { currentOffsetX++; changed = true; }
+                    
+                    if (buttons.Up) { currentOffsetY--; changed = true; }
+                    else if (buttons.Down) { currentOffsetY++; changed = true; }
+                    
+                    if (changed)
+                    {
+                        // Clamp values (-500 to +500) (EN/FR: Limiter valeurs)
+                        currentOffsetX = Math.Max(-500, Math.Min(500, currentOffsetX));
+                        currentOffsetY = Math.Max(-500, Math.Min(500, currentOffsetY));
+                        
+                        Options.Instance.SetDynamicPerspectiveOffsetX(PlayerIndex, currentOffsetX);
+                        Options.Instance.SetDynamicPerspectiveOffsetY(PlayerIndex, currentOffsetY);
+                        _lastOffsetAdjustTime = DateTime.Now;
+                        
+                        // Notify overlay of change (EN/FR: Notifier overlay du changement)
+                        OffsetAdjustmentChanged?.Invoke(PlayerIndex, currentOffsetX, currentOffsetY, true);
+                    }
+                }
+                
                 ticks = -1; // Cancel Home button standard action (EN/FR: Annuler action standard bouton Home)
                 return; // Don't process other Home combinations (EN/FR: Ne pas traiter autres combinaisons Home)
+            }
+            
+            // Auto-save when offset adjustment ends (Home/Minus released) (EN/FR: Auto-save quand ajustement terminé)
+            if (wasOffsetComboActive && !isOffsetComboActive && _isOffsetAdjustmentActive)
+            {
+                _isOffsetAdjustmentActive = false;
+                int finalOffsetX = Options.Instance.GetDynamicPerspectiveOffsetX(PlayerIndex);
+                int finalOffsetY = Options.Instance.GetDynamicPerspectiveOffsetY(PlayerIndex);
+                Options.Instance.Save();
+                SimpleLogger.Instance.Info($"[P{PlayerIndex}] Offset adjustment saved: X={finalOffsetX}, Y={finalOffsetY}");
+                
+                // Notify overlay to hide (EN/FR: Notifier overlay de se cacher)
+                OffsetAdjustmentChanged?.Invoke(PlayerIndex, finalOffsetX, finalOffsetY, false);
+            }
+            
+            // Reset offset adjustment flag when neither Home nor Minus is pressed
+            // (EN/FR: Réinitialiser flag ajustement quand ni Home ni Minus pressé)
+            if (!buttons.Home && !buttons.Minus)
+            {
+                _isOffsetAdjustmentActive = false;
             }
 
             // Check for Home + Plus combo to trigger Overlay (EN/FR: Vérifier combo Home + Plus pour déclencher l'overlay)

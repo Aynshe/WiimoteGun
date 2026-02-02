@@ -19,7 +19,7 @@ namespace WiimoteGun.Controls
         {
             this.panelOptionsSidebar = new System.Windows.Forms.Panel();
             this.btnTabGeneral = new System.Windows.Forms.Button();
-            this.btnTabKeyboard = new System.Windows.Forms.Button();
+
             this.btnTabDetection = new System.Windows.Forms.Button();
             this.btnTabGestures = new System.Windows.Forms.Button();
             this.btnTabEmulators = new System.Windows.Forms.Button();
@@ -36,14 +36,11 @@ namespace WiimoteGun.Controls
             this.lblMonitorId = new System.Windows.Forms.Label();
             this.optMouseMode = new System.Windows.Forms.ComboBox();
             this.lblMouseMode = new System.Windows.Forms.Label();
-            this.tabKeyboard = new System.Windows.Forms.TabPage();
-            this.lblKeyboardInfo = new System.Windows.Forms.Label();
-            this.optUseSharedKeyboard = new System.Windows.Forms.CheckBox();
+
             this.tabDetection = new System.Windows.Forms.TabPage();
             this.lblDetectionInfo = new System.Windows.Forms.Label();
             this.optDetectBluetooth = new System.Windows.Forms.CheckBox();
             this.optDetectDolphin = new System.Windows.Forms.CheckBox();
-            this.optDisableDeviceOnDisconnect = new System.Windows.Forms.CheckBox();
             this.tabGestures = new System.Windows.Forms.TabPage();
             this.optShakeSensitivity = new System.Windows.Forms.TrackBar();
             this.lblShakeSensitivity = new System.Windows.Forms.Label();
@@ -63,7 +60,7 @@ namespace WiimoteGun.Controls
             this.tabGeneral.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.optIRSensitivity)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.optMonitorId)).BeginInit();
-            this.tabKeyboard.SuspendLayout();
+
             this.tabDetection.SuspendLayout();
             this.tabGestures.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.optShakeSensitivity)).BeginInit();
@@ -75,7 +72,7 @@ namespace WiimoteGun.Controls
             // 
             this.panelOptionsSidebar.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
             this.panelOptionsSidebar.Controls.Add(this.btnTabGeneral);
-            this.panelOptionsSidebar.Controls.Add(this.btnTabKeyboard);
+
             this.panelOptionsSidebar.Controls.Add(this.btnTabDetection);
             this.panelOptionsSidebar.Controls.Add(this.btnTabGestures);
             this.panelOptionsSidebar.Controls.Add(this.btnTabEmulators);
@@ -101,21 +98,7 @@ namespace WiimoteGun.Controls
             this.btnTabGeneral.Text = "⚙️ General";
             this.btnTabGeneral.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             this.btnTabGeneral.UseVisualStyleBackColor = false;
-            // 
-            // btnTabKeyboard
-            // 
-            this.btnTabKeyboard.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(40)))), ((int)(((byte)(40)))), ((int)(((byte)(40)))));
-            this.btnTabKeyboard.FlatAppearance.BorderSize = 0;
-            this.btnTabKeyboard.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnTabKeyboard.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.btnTabKeyboard.ForeColor = System.Drawing.Color.White;
-            this.btnTabKeyboard.Location = new System.Drawing.Point(2, 60);
-            this.btnTabKeyboard.Name = "btnTabKeyboard";
-            this.btnTabKeyboard.Size = new System.Drawing.Size(145, 45);
-            this.btnTabKeyboard.TabIndex = 0;
-            this.btnTabKeyboard.Text = "⌨️ Keyboard";
-            this.btnTabKeyboard.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.btnTabKeyboard.UseVisualStyleBackColor = false;
+
             // 
             // btnTabDetection
             // 
@@ -124,7 +107,7 @@ namespace WiimoteGun.Controls
             this.btnTabDetection.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnTabDetection.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.btnTabDetection.ForeColor = System.Drawing.Color.White;
-            this.btnTabDetection.Location = new System.Drawing.Point(2, 110);
+            this.btnTabDetection.Location = new System.Drawing.Point(2, 60);
             this.btnTabDetection.Name = "btnTabDetection";
             this.btnTabDetection.Size = new System.Drawing.Size(145, 45);
             this.btnTabDetection.TabIndex = 0;
@@ -139,7 +122,8 @@ namespace WiimoteGun.Controls
             this.btnTabGestures.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnTabGestures.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.btnTabGestures.ForeColor = System.Drawing.Color.White;
-            this.btnTabGestures.Location = new System.Drawing.Point(2, 160);
+            this.lblGesturesDevSeparator = new System.Windows.Forms.Label();
+            this.btnTabGestures.Location = new System.Drawing.Point(2, 110);
             this.btnTabGestures.Name = "btnTabGestures";
             this.btnTabGestures.Size = new System.Drawing.Size(145, 45);
             this.btnTabGestures.TabIndex = 0;
@@ -154,7 +138,7 @@ namespace WiimoteGun.Controls
             this.btnTabEmulators.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnTabEmulators.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.btnTabEmulators.ForeColor = System.Drawing.Color.White;
-            this.btnTabEmulators.Location = new System.Drawing.Point(2, 210);
+            this.btnTabEmulators.Location = new System.Drawing.Point(2, 160);
             this.btnTabEmulators.Name = "btnTabEmulators";
             this.btnTabEmulators.Size = new System.Drawing.Size(145, 45);
             this.btnTabEmulators.TabIndex = 0;
@@ -180,7 +164,7 @@ namespace WiimoteGun.Controls
             // tabsOptions
             // 
             this.tabsOptions.Controls.Add(this.tabGeneral);
-            this.tabsOptions.Controls.Add(this.tabKeyboard);
+
             this.tabsOptions.Controls.Add(this.tabDetection);
             this.tabsOptions.Controls.Add(this.tabGestures);
             this.tabsOptions.Controls.Add(this.tabEmulators);
@@ -321,38 +305,7 @@ namespace WiimoteGun.Controls
             this.lblMouseMode.TabIndex = 0;
             this.lblMouseMode.Text = "Mouse Mode:";
             this.lblMouseMode.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            // 
-            // tabKeyboard
-            // 
-            this.tabKeyboard.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(20)))), ((int)(((byte)(20)))));
-            this.tabKeyboard.Controls.Add(this.lblKeyboardInfo);
-            this.tabKeyboard.Controls.Add(this.optUseSharedKeyboard);
-            this.tabKeyboard.Location = new System.Drawing.Point(4, 5);
-            this.tabKeyboard.Name = "tabKeyboard";
-            this.tabKeyboard.Size = new System.Drawing.Size(392, 591);
-            this.tabKeyboard.TabIndex = 1;
-            this.tabKeyboard.Text = "Keyboard";
-            // 
-            // lblKeyboardInfo
-            // 
-            this.lblKeyboardInfo.ForeColor = System.Drawing.Color.Gray;
-            this.lblKeyboardInfo.Location = new System.Drawing.Point(20, 60);
-            this.lblKeyboardInfo.Name = "lblKeyboardInfo";
-            this.lblKeyboardInfo.Size = new System.Drawing.Size(350, 60);
-            this.lblKeyboardInfo.TabIndex = 0;
-            this.lblKeyboardInfo.Text = "When enabled, all players share the same keyboard.\nWhen disabled, each player nee" +
-    "ds a separate keyboard (Interception driver required).";
-            // 
-            // optUseSharedKeyboard
-            // 
-            this.optUseSharedKeyboard.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.optUseSharedKeyboard.ForeColor = System.Drawing.Color.White;
-            this.optUseSharedKeyboard.Location = new System.Drawing.Point(20, 20);
-            this.optUseSharedKeyboard.Name = "optUseSharedKeyboard";
-            this.optUseSharedKeyboard.Size = new System.Drawing.Size(200, 25);
-            this.optUseSharedKeyboard.TabIndex = 1;
-            this.optUseSharedKeyboard.Text = "Use Shared Keyboard";
-            this.optUseSharedKeyboard.UseVisualStyleBackColor = true;
+
             // 
             // tabDetection
             // 
@@ -360,7 +313,6 @@ namespace WiimoteGun.Controls
             this.tabDetection.Controls.Add(this.lblDetectionInfo);
             this.tabDetection.Controls.Add(this.optDetectBluetooth);
             this.tabDetection.Controls.Add(this.optDetectDolphin);
-            this.tabDetection.Controls.Add(this.optDisableDeviceOnDisconnect);
             this.tabDetection.Location = new System.Drawing.Point(4, 5);
             this.tabDetection.Name = "tabDetection";
             this.tabDetection.Size = new System.Drawing.Size(392, 591);
@@ -398,22 +350,12 @@ namespace WiimoteGun.Controls
             this.optDetectDolphin.Text = "Detect DolphinBar";
             this.optDetectDolphin.UseVisualStyleBackColor = true;
 
-            // 
-            // optDisableDeviceOnDisconnect
-            // 
-            this.optDisableDeviceOnDisconnect.AutoSize = true;
-            this.optDisableDeviceOnDisconnect.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.optDisableDeviceOnDisconnect.ForeColor = System.Drawing.Color.White;
-            this.optDisableDeviceOnDisconnect.Location = new System.Drawing.Point(20, 100);
-            this.optDisableDeviceOnDisconnect.Name = "optDisableDeviceOnDisconnect";
-            this.optDisableDeviceOnDisconnect.Size = new System.Drawing.Size(250, 25);
-            this.optDisableDeviceOnDisconnect.TabIndex = 2;
-            this.optDisableDeviceOnDisconnect.Text = "Disable Device on Disconnect";
-            this.optDisableDeviceOnDisconnect.UseVisualStyleBackColor = true;
+            this.optDetectDolphin.UseVisualStyleBackColor = true;
             // 
             // tabGestures
             // 
             this.tabGestures.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(20)))), ((int)(((byte)(20)))));
+            this.tabGestures.Controls.Add(this.lblGesturesDevSeparator);
             this.tabGestures.Controls.Add(this.optShakeSensitivity);
             this.tabGestures.Controls.Add(this.lblShakeSensitivity);
             this.tabGestures.Controls.Add(this.optEnableGrenadeGesture);
@@ -499,6 +441,17 @@ namespace WiimoteGun.Controls
             this.optEnableOffScreenReload.Text = "Off-Screen Reload";
             this.optEnableOffScreenReload.UseVisualStyleBackColor = true;
             // 
+            // lblGesturesDevSeparator
+            // 
+            this.lblGesturesDevSeparator.AutoSize = true;
+            this.lblGesturesDevSeparator.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Italic);
+            this.lblGesturesDevSeparator.ForeColor = System.Drawing.Color.Goldenrod;
+            this.lblGesturesDevSeparator.Location = new System.Drawing.Point(20, 95);
+            this.lblGesturesDevSeparator.Name = "lblGesturesDevSeparator";
+            this.lblGesturesDevSeparator.Size = new System.Drawing.Size(200, 15);
+            this.lblGesturesDevSeparator.TabIndex = 0;
+            this.lblGesturesDevSeparator.Text = "—— In Development (For Test) ——";
+            // 
             // tabEmulators
             // 
             this.tabEmulators.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(20)))), ((int)(((byte)(20)))));
@@ -577,8 +530,7 @@ namespace WiimoteGun.Controls
             this.tabGeneral.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.optIRSensitivity)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.optMonitorId)).EndInit();
-            this.tabKeyboard.ResumeLayout(false);
-            this.tabKeyboard.PerformLayout();
+
             this.tabDetection.ResumeLayout(false);
             this.tabDetection.PerformLayout();
             this.tabGestures.ResumeLayout(false);
@@ -595,7 +547,7 @@ namespace WiimoteGun.Controls
 
         private System.Windows.Forms.Panel panelOptionsSidebar;
         private System.Windows.Forms.Button btnTabGeneral;
-        private System.Windows.Forms.Button btnTabKeyboard;
+
         private System.Windows.Forms.Button btnTabDetection;
         private System.Windows.Forms.Button btnTabGestures;
         private System.Windows.Forms.Button btnTabEmulators;
@@ -603,7 +555,7 @@ namespace WiimoteGun.Controls
 
         private System.Windows.Forms.TabControl tabsOptions;
         private System.Windows.Forms.TabPage tabGeneral;
-        private System.Windows.Forms.TabPage tabKeyboard;
+
         private System.Windows.Forms.TabPage tabDetection;
         private System.Windows.Forms.TabPage tabGestures;
         private System.Windows.Forms.TabPage tabEmulators;
@@ -623,14 +575,11 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.NumericUpDown optIRSensitivity;
         private System.Windows.Forms.CheckBox optShowNotifications;
 
-        // Keyboard
-        private System.Windows.Forms.CheckBox optUseSharedKeyboard;
-        private System.Windows.Forms.Label lblKeyboardInfo;
+
 
         // Detection
         private System.Windows.Forms.CheckBox optDetectDolphin;
         private System.Windows.Forms.CheckBox optDetectBluetooth;
-        private System.Windows.Forms.CheckBox optDisableDeviceOnDisconnect;
         private System.Windows.Forms.Label lblDetectionInfo;
 
         // Gestures
@@ -639,6 +588,7 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.CheckBox optEnableShakeReload;
         private System.Windows.Forms.CheckBox optShakeFromNunchuk;
         private System.Windows.Forms.CheckBox optEnableGrenadeGesture;
+        private System.Windows.Forms.Label lblGesturesDevSeparator;
         private System.Windows.Forms.Label lblShakeSensitivity;
         private System.Windows.Forms.TrackBar optShakeSensitivity;
 

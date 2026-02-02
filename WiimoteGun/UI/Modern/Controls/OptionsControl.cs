@@ -27,11 +27,11 @@ namespace WiimoteGun.Controls
         private void BindEvents()
         {
             // Tab Switching
+            // Tab Switching
             btnTabGeneral.Click += (s, e) => SwitchTab(btnTabGeneral, 0);
-            btnTabKeyboard.Click += (s, e) => SwitchTab(btnTabKeyboard, 1);
-            btnTabDetection.Click += (s, e) => SwitchTab(btnTabDetection, 2);
-            btnTabGestures.Click += (s, e) => SwitchTab(btnTabGestures, 3);
-            btnTabEmulators.Click += (s, e) => SwitchTab(btnTabEmulators, 4);
+            btnTabDetection.Click += (s, e) => SwitchTab(btnTabDetection, 1);
+            btnTabGestures.Click += (s, e) => SwitchTab(btnTabGestures, 2);
+            btnTabEmulators.Click += (s, e) => SwitchTab(btnTabEmulators, 3);
 
 
             // Button Actions
@@ -40,7 +40,7 @@ namespace WiimoteGun.Controls
             
             // Hover Effects for Sidebar
             SetupHoverEffect(btnTabGeneral);
-            SetupHoverEffect(btnTabKeyboard);
+
             SetupHoverEffect(btnTabDetection);
             SetupHoverEffect(btnTabGestures);
             SetupHoverEffect(btnTabEmulators);
@@ -66,10 +66,9 @@ namespace WiimoteGun.Controls
                 // If this is the active tab, keep blue, else dark
                 int index = -1;
                 if (btn == btnTabGeneral) index = 0;
-                else if (btn == btnTabKeyboard) index = 1;
-                else if (btn == btnTabDetection) index = 2;
-                else if (btn == btnTabGestures) index = 3;
-                else if (btn == btnTabEmulators) index = 4;
+                else if (btn == btnTabDetection) index = 1;
+                else if (btn == btnTabGestures) index = 2;
+                else if (btn == btnTabEmulators) index = 3;
 
 
                 if (tabsOptions.SelectedIndex == index)
@@ -88,7 +87,6 @@ namespace WiimoteGun.Controls
             Color active = Color.FromArgb(0, 122, 204);
             
             btnTabGeneral.BackColor = dark;
-            btnTabKeyboard.BackColor = dark;
             btnTabDetection.BackColor = dark;
             btnTabGestures.BackColor = dark;
             btnTabEmulators.BackColor = dark;
@@ -107,13 +105,11 @@ namespace WiimoteGun.Controls
             optIRSensitivity.Value = Math.Min(Math.Max(Options.Instance.IRSensitivity, optIRSensitivity.Minimum), optIRSensitivity.Maximum);
             optShowNotifications.Checked = Options.Instance.ShowNotifications;
 
-            // Keyboard
-            optUseSharedKeyboard.Checked = Options.Instance.UseSharedKeyboard;
+
 
             // Detection
             optDetectDolphin.Checked = Options.Instance.DetectDolphinbar;
             optDetectBluetooth.Checked = Options.Instance.DetectBlueTooth;
-            optDisableDeviceOnDisconnect.Checked = Options.Instance.DisableDeviceOnDisconnect;
 
             // Gestures
             optEnableOffScreenReload.Checked = Options.Instance.EnableOffScreenReload;
@@ -146,13 +142,11 @@ namespace WiimoteGun.Controls
                 Options.Instance.IRSensitivity = (int)optIRSensitivity.Value;
                 Options.Instance.ShowNotifications = optShowNotifications.Checked;
 
-                // Keyboard
-                Options.Instance.UseSharedKeyboard = optUseSharedKeyboard.Checked;
+
 
                 // Detection
                 Options.Instance.DetectDolphinbar = optDetectDolphin.Checked;
                 Options.Instance.DetectBlueTooth = optDetectBluetooth.Checked;
-                Options.Instance.DisableDeviceOnDisconnect = optDisableDeviceOnDisconnect.Checked;
 
                 // Gestures
                 Options.Instance.EnableOffScreenReload = optEnableOffScreenReload.Checked;

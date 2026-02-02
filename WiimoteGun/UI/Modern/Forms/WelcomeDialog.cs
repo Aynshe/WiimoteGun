@@ -35,9 +35,9 @@ namespace WiimoteGun
             richTextBox.Clear();
             
             // DRIVER INSTALLATION
-            AppendColoredTitle("⚠️ DRIVER INSTALLATION REQUIRED / INSTALLATION DU DRIVER REQUISE\n", Color.FromArgb(220, 50, 50));
-            AppendText("Before using Wiimote4Guns, you MUST install the Interception driver AND WiimoteGun Drivers:\n");
-            AppendText("Avant d'utiliser Wiimote4Guns, vous DEVEZ installer le driver Interception ET les drivers WiimoteGun :\n\n");
+            AppendColoredTitle("⚠️ DRIVER & SERVICE INSTALLATION REQ. / INSTALLATION PILOTES ET SERVICE REQUISE\n", Color.FromArgb(220, 50, 50));
+            AppendText("Before using Wiimote4Guns, you MUST install the WiimoteGun Drivers AND the WiimoteGun Service:\n");
+            AppendText("Avant d'utiliser Wiimote4Guns, vous DEVEZ installer les pilotes WiimoteGun ET le Service WiimoteGun :\n\n");
             
             AppendText("If you just installed drivers, you MUST restart Windows:\n");
             AppendText("Si vous venez d'installer les pilotes, vous DEVEZ redémarrer Windows :\n\n");
@@ -95,14 +95,10 @@ namespace WiimoteGun
             // TROUBLESHOOTING
             AppendColoredTitle("🛠️ TROUBLESHOOTING / DÉPANNAGE\n", Color.FromArgb(200, 50, 200));
             AppendBoldText("Fix Virtual Device Bugs / Corriger Bugs Périphériques Virtuels:\n");
-            AppendText("If virtual devices stop working after disconnect (requiring reboot):\n");
-            AppendText("Si les périphériques virtuels ne répondent plus après déconnexion (nécessitant reboot) :\n");
-            AppendText("• Uncheck 'Disable Device on Disconnect' in Options\n");
-            AppendText("• Décochez 'Désactiver le périphérique à la déconnexion' dans les Options\n");
-            AppendText("This prevents Windows PnP bugs by keeping devices active.\n");
-            AppendText("Cela évite les bugs PnP Windows en gardant les périphériques actifs.\n");
-            AppendText("If unchecked, use the Manual Disable hotkey (Off-screen Minus+Plus 3s) if you really need to disable it.\n");
-            AppendText("Si décoché, utilisez le raccourci Désactivation Manuelle (Hors-écran Moins+Plus 3s) si vous devez vraiment le désactiver.\n\n");
+            AppendText("If you need to disable a Player (will only reactivate on next connection, reboot needed between disable/enable):\n");
+            AppendText("Si vous devez désactiver un Joueur (réactivation à la prochaine connexion, redémarrage nécessaire entre désactivation et activation) :\n");
+            AppendText("• Use the Manual Disable hotkey (Off-screen Minus+Plus 3s)\n");
+            AppendText("• Utilisez le raccourci Désactivation Manuelle (Hors-écran Moins+Plus 3s)\n\n");
 
             AppendText("─────────────────────────────────────────────────────────────────────\n\n");
 
