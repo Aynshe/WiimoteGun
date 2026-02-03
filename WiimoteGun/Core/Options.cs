@@ -174,7 +174,7 @@ namespace WiimoteGun
     public enum MouseMode
     {
         SendInput = 0,   // Legacy single-player mode using SendInput (EN/FR: Mode legacy mono-joueur utilisant SendInput)
-        RawInput = 1     // Multi-player mode using Interception driver (EN/FR: Mode multi-joueur utilisant pilote Interception)
+        RawInput = 1     // Multi-player mode using VMulti driver (EN/FR: Mode multi-joueur utilisant pilote VMulti)
     }
 
     public class WiimoteCalibration

@@ -214,9 +214,9 @@ namespace WiimoteGun
             }
             catch (BadImageFormatException)
             {
-                System.Windows.Forms.MessageBox.Show("A fatal error occurred while connecting to the Interception driver.\n\n" +
+                System.Windows.Forms.MessageBox.Show("A fatal error occurred while connecting to the virtual driver components.\n\n" +
                                                       "This is likely caused by a 32-bit/64-bit architecture mismatch.\n\n" +
-                                                      "Please ensure that 'interception.dll' is the x86 (32-bit) version and the Interception driver is installed correctly.",
+                                                      "Please ensure that all DLLs (vmulti, interception) are the correct versions for your system.",
                                                       "Architecture Mismatch", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
                 // Optionally, shut down the application
                 Program.PostToUIThread(() => System.Windows.Forms.Application.Exit());

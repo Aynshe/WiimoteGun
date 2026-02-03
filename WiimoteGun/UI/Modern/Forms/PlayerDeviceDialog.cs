@@ -73,7 +73,7 @@ namespace WiimoteGun
                  }
              }
 
-            // Enumerate mouse devices via Interception (EN/FR: Énumérer périphériques souris via Interception)
+            // Enumerate mouse devices (legacy enumeration) (EN/FR: Énumérer périphériques souris)
             try
             {
                 var context = WiimoteGun.Interception.InterceptionDriver.interception_create_context();
@@ -110,7 +110,7 @@ namespace WiimoteGun
                                               
                                 if (exists)
                                 {
-                                    SimpleLogger.Instance.Info($"[DIALOG] Skipping Interception duplicate for {hardwareId}");
+                                    SimpleLogger.Instance.Info($"[DIALOG] Skipping duplicate for {hardwareId}");
                                     continue;
                                 }
 

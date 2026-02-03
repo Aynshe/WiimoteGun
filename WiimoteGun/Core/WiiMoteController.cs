@@ -492,7 +492,7 @@ namespace WiimoteGun
             Wiimote.StateChanged += OnWiiMoteStateChanged;
 
             // Display connection notification with mouse mode (EN/FR: Afficher notification connexion avec mode souris)
-            string mouseMode = Options.Instance.DefaultMouseMode == MouseMode.SendInput ? "SendInput (Legacy)" : "RawInput/Interception";
+            string mouseMode = Options.Instance.DefaultMouseMode == MouseMode.SendInput ? "SendInput (Legacy)" : "VMulti (Multi-Player)";
             string connType = Wiimote.Device.IsBluetooth ? "Bluetooth" : "DolphinBar";
             
             Program.Notify($"Wiimote P{PlayerIndex} connected ({connType}) - {mouseMode}");

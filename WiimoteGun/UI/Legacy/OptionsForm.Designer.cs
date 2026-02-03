@@ -253,7 +253,7 @@ namespace WiimoteGun
             this.rbMouseRawInput.Size = new System.Drawing.Size(220, 17);
             this.rbMouseRawInput.TabIndex = 1;
             this.rbMouseRawInput.TabStop = true;
-            this.rbMouseRawInput.Text = "RawInput/Interception (Multi-Player)";
+            this.rbMouseRawInput.Text = "VMulti (Multi-Player)";
             this.rbMouseRawInput.UseVisualStyleBackColor = true;
             // 
             // lblMouseModeWarning
