@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Security.Principal;
 using System.Windows.Forms;
 using WiimoteLib;
+using WiimoteGun.Controls;
 
 namespace WiimoteGun
 {
@@ -20,6 +21,7 @@ namespace WiimoteGun
             
             cbStartWithWindows.DataBindings.Add("Checked", Options.Instance, "StartWithWindows");
             chkNotifications.DataBindings.Add("Checked", Options.Instance, "ShowNotifications");
+            chkEnableGamePadSwap.DataBindings.Add("Checked", Options.Instance, "EnableGamePadSwapMode");
 
 
             
@@ -105,6 +107,7 @@ namespace WiimoteGun
             Options.Instance.DetectBlueTooth = rbBoth.Checked || rbBlueTooth.Checked;
             Options.Instance.StartWithWindows = cbStartWithWindows.Checked;
             Options.Instance.ShowNotifications = chkNotifications.Checked;
+            Options.Instance.EnableGamePadSwapMode = chkEnableGamePadSwap.Checked;
             Options.Instance.MonitorId = (int) numericUpDown1.Value;
             Options.Instance.IRSensitivity = trackBar1.Value;
 
@@ -323,6 +326,29 @@ namespace WiimoteGun
             bool isWiimoteBar = cboLEDLayout.SelectedIndex == 0;
             // chkPermissiveCalibration.Visible = isWiimoteBar;
             chkPermissiveCalibration.Visible = false; // Always hidden as requested
+        }
+
+        private void btnConfigureGamePad_Click(object sender, EventArgs e)
+        {
+            using (Form form = new Form())
+            {
+                form.Text = "GamePad Mapping Configuration";
+                form.Size = new Size(580, 820);
+                form.StartPosition = FormStartPosition.CenterParent;
+                form.ShowIcon = false;
+                form.FormBorderStyle = FormBorderStyle.FixedDialog;
+                form.MaximizeBox = false;
+                form.MinimizeBox = false;
+                form.BackColor = Color.FromArgb(20, 20, 20);
+
+                var control = new WiimoteGun.Controls.GamePadMappingControl();
+                control.Dock = DockStyle.Fill;
+                if (control.btnBack != null) control.btnBack.Visible = false; 
+                control.BackRequested += (s, args) => form.Close();
+                
+                form.Controls.Add(control);
+                form.ShowDialog(this);
+            }
         }
     }
 }

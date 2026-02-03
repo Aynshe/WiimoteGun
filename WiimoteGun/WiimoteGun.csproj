@@ -3,6 +3,7 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
     <ProductVersion>9.0.21022</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{74ADD987-9BDD-4DDE-BFB1-E777A985B0BF}</ProjectGuid>
@@ -126,6 +127,8 @@
       <DependentUpon>SetupWizard.cs</DependentUpon>
     </Compile>
     <Compile Include="Core\PlayerMappings.cs" />
+    <Compile Include="Core\GamePadMappings.cs" />
+    <Compile Include="Core\VMultiGamepad.cs" />
     <Compile Include="Core\Options.cs" />
     <Compile Include="UI\Legacy\OptionsForm.cs">
       <SubType>Form</SubType>
@@ -175,6 +178,12 @@
     </Compile>
     <Compile Include="UI\Modern\Controls\MappingControl.Designer.cs">
       <DependentUpon>MappingControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Modern\Controls\GamePadMappingControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Controls\GamePadMappingControl.Designer.cs">
+      <DependentUpon>GamePadMappingControl.cs</DependentUpon>
     </Compile>
     <Compile Include="UI\Modern\Controls\IRControl.cs">
       <SubType>UserControl</SubType>

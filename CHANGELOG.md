@@ -1,0 +1,110 @@
+# Changelog
+
+All notable changes to Wiimote4Guns will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+## [2.2.0] - 2026-02-03
+
+### Added
+- **Native Virtual GamePad Support (DirectInput)** - Fully integrated 4-player virtual gamepads for emulator compatibility (e.g. PCSX2 Dual Lightgun).
+- **Interception Driver Removal** - Removed dependency on the Interception driver; all keyboard and gamepad reports are now handled natively via VMulti.
+- **Analog IR Stick Mapping** - Ability to map IR tracking directly to Left or Right analog sticks for better controller-ready game support.
+- **GamePad Mapping UI** - New modern UI tab for configuring per-player analog mappings and digital buttons.
+
+## [2.1.0] - 2025-12-09
+
+### Added
+- **Native 4-Player VMulti Support** - Fully implemented virtual HID driver for 4 independent players
+- **Gun4IR Diamond Validation** - LED layout validated and production-ready
+- **Retroshooter Validation** - 4-Corners LED layout validated and production-ready
+- **Auto-Lock Improvements** - Removed deprecated VID restrictions for VMulti devices
+- **New Overlay Menu** - Complete redesign with sidebar navigation and categorized settings
+- **Enhanced Options** - Added dedicated "Players" page with Mac Address locking and device management
+
+### Changed
+- **Default Rumble Intensity** - Lowered from 75% to 50% for better out-of-box experience
+- **Permissive Calibration** - Feature is now disabled and hidden by default (requires manual activation)
+- **Driver Installation** - Streamlined install/cleanup scripts into single elevated session
+- **UI Improvements** - Fixed overlay layout shift on option selection
+
+## [2.0.3] - 2025-11-21
+
+### Added
+- **Per-player screen calibration** - Each player can now calibrate independently from their position
+- Calibration properties for each player (P1-P4) with separate Top, Left, CenterX, CenterY values
+- Helper methods `GetCalibrationForPlayer()` and `SetCalibrationForPlayer()` in `Options.cs`
+- Automatic migration from legacy global calibration to per-player calibration
+
+### Changed
+- `ScreenPositionCalculator` now accepts `playerIndex` parameter for player-specific calibration
+- Calibration points are now per-instance instead of static/global
+
+### Fixed
+- **Critical bug**: Removed `static` keyword from calibration points to prevent shared calibration between players
+- Players at different positions (left/right, near/far) now have accurate independent calibration
+
+## [2.0.2] - 2025-11-21
+
+### Added
+- **DolphinBar multi-Wiimote support** - Multiple Wiimotes can now be connected simultaneously via Mayflash DolphinBar Mode 4
+- HID path-based unique identification for DolphinBar devices
+- Automatic detection and routing between Bluetooth (MAC-based) and DolphinBar (HID path-based) modes
+
+### Changed
+- Wiimote duplicate detection now uses `UniqueId` property instead of MAC address only
+- Enhanced `WiimoteDeviceInfo` with automatic identification fallback for devices without valid MAC addresses
+
+### Fixed
+- "Wiimote already connected" error when connecting multiple Wiimotes via DolphinBar
+- Device identification for DolphinBar devices that report MAC address as `00:00:00:00:00:00`
+
+## [2.0.1] - 2025-11-21
+
+### Added
+- Advanced keyboard routing options for TeknoParrot/RetroBat compatibility
+- `KeyboardDebugMode` configuration option for detailed input diagnostics
+- `ForceKeyboardDeviceIdP1/P2/P3/P4` settings to manually specify keyboard Device IDs
+- Comprehensive TeknoParrot troubleshooting documentation
+- Developer testing guides for keyboard routing diagnostics
+- Documentation organization in `docs/` folder
+
+### Changed
+- Reorganized technical documentation into `docs/` directory
+- Updated main README with advanced configuration options
+- Enhanced logging in `VirtualInterceptionKeyboard` (optional, disabled by default)
+
+### Fixed
+- Clarified Interception driver behavior (reuses physical keyboards vs creating virtual ones)
+- Documented keyboard Device ID routing for games using RawInput API
+
+## [2.0.0] - 2024-2025
+
+### Added
+- Multi-Wiimote support (up to 4 players)
+- Per-player button mappings
+- Interception driver integration replacing vMulti for keyboards
+- MAC-based Wiimote assignment preferences
+- 4-player experimental mode
+- Shared keyboard option
+- Nunchuk coldplug detection
+- First-launch welcome dialog
+- IR visualizer tool
+- Nunchuk-only mode (virtual analog stick)
+
+### Changed
+- Migrated from vMulti to Interception driver for keyboard input
+- Improved connection stability
+- Enhanced Bluetooth pairing workflow
+
+### Fixed
+- Persistent rumble issue
+- Nunchuk detection on coldplug
+- Multiple player assignment conflicts
+
+## [1.0.0] - Original
+
+- Initial WiimoteGun implementation by f.caruso
+- Basic Wiimote to mouse/keyboard mapping
+- Single player support
+- vMulti driver integration

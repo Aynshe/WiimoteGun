@@ -90,5 +90,19 @@ namespace WiimoteGun
         /// FR: Désenregistrer le processus actuel du service (appelé lors d'un arrêt propre).
         /// </summary>
         public static void UnregisterClient() => SendCommand("UNREGISTER_CLIENT");
+
+        // ========== GamePad Mode Col06 Commands (EN/FR: Commandes GamePad Mode Col06) ==========
+
+        /// <summary>
+        /// EN: Enable Col06 gamepad device for a specific player.
+        /// FR: Activer le périphérique gamepad Col06 pour un joueur spécifique.
+        /// </summary>
+        public static void EnableGamepad(int playerIndex) => SendCommand($"ENABLE_GAMEPAD_P{playerIndex}");
+
+        /// <summary>
+        /// EN: Remove (disable) Col06 gamepad device for a specific player.
+        /// FR: Supprimer (désactiver) le périphérique gamepad Col06 pour un joueur spécifique.
+        /// </summary>
+        public static void RemoveGamepad(int playerIndex) => SendCommand($"REMOVE_GAMEPAD_P{playerIndex}");
     }
 }

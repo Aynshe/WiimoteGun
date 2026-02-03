@@ -123,6 +123,7 @@ namespace WiimoteGun.Service
                             // EN: Trigger cleanup (respects IsDeviceEnabled check already in DriverController)
                             // FR: Déclencher le nettoyage (respecte déjà la vérification IsDeviceEnabled dans DriverController)
                             DriverController.RemoveMouseForAllPlayers();
+                            DriverController.RemoveGamepadForAllPlayers();
                         }
                     }
 
@@ -204,6 +205,17 @@ namespace WiimoteGun.Service
                     case "REMOVE_MOUSE_P2": DriverController.RemoveMouseForPlayer(2); break;
                     case "REMOVE_MOUSE_P3": DriverController.RemoveMouseForPlayer(3); break;
                     case "REMOVE_MOUSE_P4": DriverController.RemoveMouseForPlayer(4); break;
+
+                    // EN: Enable/Remove Col06 gamepad for specific players
+                    // FR: Activer/Supprimer gamepad Col06 pour joueurs spécifiques
+                    case "ENABLE_GAMEPAD_P1": DriverController.EnableGamepadForPlayer(1); break;
+                    case "ENABLE_GAMEPAD_P2": DriverController.EnableGamepadForPlayer(2); break;
+                    case "ENABLE_GAMEPAD_P3": DriverController.EnableGamepadForPlayer(3); break;
+                    case "ENABLE_GAMEPAD_P4": DriverController.EnableGamepadForPlayer(4); break;
+                    case "REMOVE_GAMEPAD_P1": DriverController.RemoveGamepadForPlayer(1); break;
+                    case "REMOVE_GAMEPAD_P2": DriverController.RemoveGamepadForPlayer(2); break;
+                    case "REMOVE_GAMEPAD_P3": DriverController.RemoveGamepadForPlayer(3); break;
+                    case "REMOVE_GAMEPAD_P4": DriverController.RemoveGamepadForPlayer(4); break;
                     default:
                         // EN: Handle REMOVE_MOUSE_EXCEPT:1,2 format
                         // FR: Gérer le format REMOVE_MOUSE_EXCEPT:1,2

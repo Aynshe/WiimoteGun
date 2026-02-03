@@ -1,6 +1,6 @@
 @echo off
-REM Disable Unused vmultia Devices (Match Gunmote behavior)
-REM Keeps only Col03 (relative mouse for WiimoteGun)
+REM Disable Unused vmultia Devices
+REM (relative mouse for WiimoteGun)
 
 echo ═══════════════════════════════════════════════════════
 echo   vmultia - Disable Unused Devices
@@ -21,7 +21,7 @@ if not exist "%DEVCON%" (
 echo Removing unused vmultia collections...
 echo.
 
-REM Disable Col01, Col02, Col04, Col05, Col06, Col08, Col09 (matching Gunmote)
+REM Disable Col01, Col02, Col04, Col05, Col06
 echo Disabling Col01 (Touchscreen)...
 "%DEVCON%" disable "*vmultia*COL01*"
 

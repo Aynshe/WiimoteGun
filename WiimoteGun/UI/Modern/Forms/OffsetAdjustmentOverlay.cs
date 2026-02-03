@@ -25,8 +25,8 @@ namespace WiimoteGun.UI.Modern.Forms
         private volatile bool _isFadingOut = false;
         
         // Fade animation (EN/FR: Animation de fondu)
-        // Slower fade: 0.025 opacity decrease per 30ms tick = ~1.2 seconds total fade
-        private const double FADE_STEP = 0.025;
+        // Very slow fade: 0.007 opacity decrease per 30ms tick = ~4.0 seconds total fade
+        private const double FADE_STEP = 0.007;
         private System.Windows.Forms.Timer _fadeTimer;
         
         // Colors per player (EN/FR: Couleurs par joueur)
@@ -39,9 +39,9 @@ namespace WiimoteGun.UI.Modern.Forms
         };
         
         // Panel size (EN/FR: Taille panneau)
-        private const int PANEL_WIDTH = 110;
-        private const int PANEL_HEIGHT = 60;
-        private const int OFFSET_FROM_CURSOR = 45;
+        private const int PANEL_WIDTH = 220;
+        private const int PANEL_HEIGHT = 120;
+        private const int OFFSET_FROM_CURSOR = 90;
         
         // Fonts (EN/FR: Polices)
         private Font _titleFont;
@@ -52,6 +52,10 @@ namespace WiimoteGun.UI.Modern.Forms
         
         private OffsetAdjustmentOverlay()
         {
+            // Double buffering (EN/FR: Double buffering)
+            this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.DoubleBuffer, true);
+            this.UpdateStyles();
+
             InitializeComponent();
         }
         
@@ -100,17 +104,14 @@ namespace WiimoteGun.UI.Modern.Forms
             this.StartPosition = FormStartPosition.Manual;
             this.ShowInTaskbar = false;
             this.TopMost = true;
-            this.Size = new Size(PANEL_WIDTH, PANEL_HEIGHT);
+            this.Size = new Size(220, 120); // PANEL_WIDTH=220, PANEL_HEIGHT=120
             this.BackColor = Color.FromArgb(30, 30, 35);
             this.Name = "OffsetAdjustmentOverlay";
             this.Opacity = 0.95;
             
-            // Double buffering (EN/FR: Double buffering)
-            this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.DoubleBuffer, true);
-            
             // Create fonts (EN/FR: Créer polices)
-            _titleFont = new Font("Segoe UI", 9, FontStyle.Bold);
-            _valueFont = new Font("Consolas", 11, FontStyle.Bold);
+            _titleFont = new Font("Segoe UI", 16, FontStyle.Bold); // x2 approx (9->18 is too big for UI sometimes, 16 is good)
+            _valueFont = new Font("Consolas", 20, FontStyle.Bold); // x2 approx (11->22, 20 is good)
             
             // Timer for position updates (EN/FR: Timer pour mise à jour position)
             _updateTimer = new System.Windows.Forms.Timer();
@@ -320,21 +321,21 @@ namespace WiimoteGun.UI.Modern.Forms
             string title = string.Format("P{0} OFFSET", _playerIndex);
             using (SolidBrush titleBrush = new SolidBrush(pColor))
             {
-                g.DrawString(title, _titleFont, titleBrush, 8, 6);
+                g.DrawString(title, _titleFont, titleBrush, 16, 12);
             }
             
             // Draw X value (EN/FR: Dessiner valeur X)
             string xText = string.Format("X: {0}", _offsetX >= 0 ? "+" + _offsetX : _offsetX.ToString());
             using (SolidBrush valueBrush = new SolidBrush(Color.White))
             {
-                g.DrawString(xText, _valueFont, valueBrush, 10, 24);
+                g.DrawString(xText, _valueFont, valueBrush, 20, 48);
             }
             
             // Draw Y value (EN/FR: Dessiner valeur Y)
             string yText = string.Format("Y: {0}", _offsetY >= 0 ? "+" + _offsetY : _offsetY.ToString());
             using (SolidBrush valueBrush = new SolidBrush(Color.White))
             {
-                g.DrawString(yText, _valueFont, valueBrush, 10, 40);
+                g.DrawString(yText, _valueFont, valueBrush, 20, 80);
             }
         }
         
@@ -370,6 +371,10 @@ namespace WiimoteGun.UI.Modern.Forms
         
         public CursorDotForm()
         {
+            // Double buffering (EN/FR: Double buffering)
+            this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.DoubleBuffer, true);
+            this.UpdateStyles();
+
             InitializeComponent();
         }
         
@@ -379,12 +384,9 @@ namespace WiimoteGun.UI.Modern.Forms
             this.StartPosition = FormStartPosition.Manual;
             this.ShowInTaskbar = false;
             this.TopMost = true;
-            this.Size = new Size(DOT_SIZE, DOT_SIZE);
+            this.Size = new Size(20, 20); // DOT_SIZE = 20
             this.BackColor = Color.Magenta;
             this.TransparencyKey = Color.Magenta;
-            
-            // Double buffering (EN/FR: Double buffering)
-            this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.DoubleBuffer, true);
             
             this.Paint += CursorDot_Paint;
             

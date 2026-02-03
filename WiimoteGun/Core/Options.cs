@@ -952,6 +952,41 @@ namespace WiimoteGun
         [DefaultValue(true)]
         public bool AutoLockVMultiDevices { get; set; } = true;
 
+        // ========== GamePad Mode Settings (EN/FR: Paramètres Mode GamePad) ==========
+        
+        /// <summary>
+        /// EN: Enable GamePad mode in the Home button swap cycle (Mouse→Keyboard→GamePad→Disabled).
+        /// FR: Activer le mode GamePad dans le cycle swap bouton Home (Mouse→Keyboard→GamePad→Disabled).
+        /// Default: false (disabled, user must enable in options).
+        /// </summary>
+        [DefaultValue(false)]
+        public bool EnableGamePadSwapMode { get; set; } = false;
+
+        /// <summary>
+        /// EN: GamePad button and axis mappings per player.
+        /// FR: Mappings boutons et axes GamePad par joueur.
+        /// </summary>
+        public GamePadMappings GamePadMappingsP1 { get; set; } = new GamePadMappings();
+        public GamePadMappings GamePadMappingsP2 { get; set; } = new GamePadMappings();
+        public GamePadMappings GamePadMappingsP3 { get; set; } = new GamePadMappings();
+        public GamePadMappings GamePadMappingsP4 { get; set; } = new GamePadMappings();
+
+        /// <summary>
+        /// EN: Get GamePad mappings for a specific player (1-4).
+        /// FR: Obtenir les mappings GamePad pour un joueur spécifique (1-4).
+        /// </summary>
+        public GamePadMappings GetGamePadMappingsForPlayer(int playerIndex)
+        {
+            switch (playerIndex)
+            {
+                case 1: return GamePadMappingsP1 ?? (GamePadMappingsP1 = new GamePadMappings());
+                case 2: return GamePadMappingsP2 ?? (GamePadMappingsP2 = new GamePadMappings());
+                case 3: return GamePadMappingsP3 ?? (GamePadMappingsP3 = new GamePadMappings());
+                case 4: return GamePadMappingsP4 ?? (GamePadMappingsP4 = new GamePadMappings());
+                default: return new GamePadMappings();
+            }
+        }
+
 
         public WiimoteLib.Geometry.Point2F?[] GetGun4IRCalibration(int playerIndex)
         {

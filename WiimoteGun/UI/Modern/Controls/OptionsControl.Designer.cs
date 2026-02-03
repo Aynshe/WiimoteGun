@@ -28,6 +28,8 @@ namespace WiimoteGun.Controls
             this.tabsOptions = new System.Windows.Forms.TabControl();
             this.tabGeneral = new System.Windows.Forms.TabPage();
             this.optShowNotifications = new System.Windows.Forms.CheckBox();
+            this.optEnableGamePadSwap = new System.Windows.Forms.CheckBox();
+            this.btnConfigureGamePad = new System.Windows.Forms.Button();
             this.optIRSensitivity = new System.Windows.Forms.NumericUpDown();
             this.lblIRSensitivity = new System.Windows.Forms.Label();
             this.optLEDLayout = new System.Windows.Forms.ComboBox();
@@ -179,6 +181,8 @@ namespace WiimoteGun.Controls
             // tabGeneral
             // 
             this.tabGeneral.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(20)))), ((int)(((byte)(20)))));
+            this.tabGeneral.Controls.Add(this.btnConfigureGamePad);
+            this.tabGeneral.Controls.Add(this.optEnableGamePadSwap);
             this.tabGeneral.Controls.Add(this.optShowNotifications);
             this.tabGeneral.Controls.Add(this.optIRSensitivity);
             this.tabGeneral.Controls.Add(this.lblIRSensitivity);
@@ -205,6 +209,32 @@ namespace WiimoteGun.Controls
             this.optShowNotifications.TabIndex = 1;
             this.optShowNotifications.Text = "Show Notifications";
             this.optShowNotifications.UseVisualStyleBackColor = true;
+            // 
+            // 
+            // optEnableGamePadSwap
+            // 
+            this.optEnableGamePadSwap.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.optEnableGamePadSwap.ForeColor = System.Drawing.Color.White;
+            this.optEnableGamePadSwap.Location = new System.Drawing.Point(20, 260);
+            this.optEnableGamePadSwap.Name = "optEnableGamePadSwap";
+            this.optEnableGamePadSwap.Size = new System.Drawing.Size(220, 25);
+            this.optEnableGamePadSwap.TabIndex = 2;
+            this.optEnableGamePadSwap.Text = "Enable GamePad Swap Mode (Col06)";
+            this.optEnableGamePadSwap.UseVisualStyleBackColor = true;
+            // 
+            // btnConfigureGamePad
+            // 
+            this.btnConfigureGamePad.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
+            this.btnConfigureGamePad.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnConfigureGamePad.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.btnConfigureGamePad.ForeColor = System.Drawing.Color.White;
+            this.btnConfigureGamePad.Location = new System.Drawing.Point(250, 260);
+            this.btnConfigureGamePad.Name = "btnConfigureGamePad";
+            this.btnConfigureGamePad.Size = new System.Drawing.Size(120, 25);
+            this.btnConfigureGamePad.TabIndex = 3;
+            this.btnConfigureGamePad.Text = "Configure...";
+            this.btnConfigureGamePad.UseVisualStyleBackColor = false;
+            this.btnConfigureGamePad.Click += new System.EventHandler(this.BtnConfigureGamePad_Click);
             // 
             // optIRSensitivity
             // 
@@ -574,6 +604,7 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.Label lblIRSensitivity;
         private System.Windows.Forms.NumericUpDown optIRSensitivity;
         private System.Windows.Forms.CheckBox optShowNotifications;
+        private System.Windows.Forms.CheckBox optEnableGamePadSwap;
 
 
 
@@ -591,6 +622,7 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.Label lblGesturesDevSeparator;
         private System.Windows.Forms.Label lblShakeSensitivity;
         private System.Windows.Forms.TrackBar optShakeSensitivity;
+        private System.Windows.Forms.Button btnConfigureGamePad;
 
         // Emulators
         private System.Windows.Forms.CheckBox optRestartOnDolphin;

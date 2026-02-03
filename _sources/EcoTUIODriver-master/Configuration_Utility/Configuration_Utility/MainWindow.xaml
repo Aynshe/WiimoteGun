@@ -1,0 +1,43 @@
+﻿<Controls:MetroWindow  x:Class="Configuration_Utility.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Configure" Icon="/Configuration_Utility;component/Configuration_Utility.ico" ResizeMode="CanMinimize" Closing="MetroWindow_Closing"  mc:Ignorable="d" Width="600" Height="630" xmlns:d="http://schemas.microsoft.com/expression/blend/2008" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Colours.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Accents/Blue.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Accents/BaseLight.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+    <StackPanel Orientation="Vertical" >
+   
+        <Label FontSize="15" Name="Title1" Content="Select Sensor" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Normal" />
+       
+        <!--<Canvas Width="auto"  Height="auto" Name="display_stackpanel"/>-->
+        <ScrollViewer Height="97">
+            <StackPanel Orientation="Horizontal" Name="display_stackpanel" VerticalAlignment="Center" HorizontalAlignment="Center" ScrollViewer.CanContentScroll="True"/>
+            
+        </ScrollViewer>
+        <Label FontSize="15" Name="Title2"  Content="Configure" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Normal" />
+    
+        <StackPanel Background="WhiteSmoke" Name="sensor_stackpanel" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Stretch"/>
+        <Border VerticalAlignment="Stretch" Height="5"></Border>
+            <StackPanel Orientation="Horizontal"  HorizontalAlignment="Right" VerticalAlignment="Top">
+            <Button ToolTip="Assign Monitors to the TUIO Sensors  " Content="Assign Displays to Sensors" Name="assign_displays" Click="assign_displays_Click" HorizontalAlignment="Right" VerticalAlignment="Top" Width="225" Height="51"  />
+            <Border Width="15" />
+                <Button Content="Apply" Click="apply_Click" Height="51" HorizontalAlignment="Right" Name="apply" VerticalAlignment="Top" Width="91"  />
+            <Border Width="15"/>
+                <Button Content="Cancel" Height="52" HorizontalAlignment="Right" Click="cancel_Click" Name="cancel" VerticalAlignment="Top" Width="89" />
+            <Border Width="15" />
+                <Button Content="Ok" Height="52" HorizontalAlignment="Right" Click="ok_Click" Name="ok" VerticalAlignment="Top" Width="92" />
+            <Border Width="15" />
+
+        </StackPanel>
+
+    </StackPanel>
+</Controls:MetroWindow >

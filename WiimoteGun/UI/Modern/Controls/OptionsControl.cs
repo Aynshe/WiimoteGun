@@ -104,6 +104,7 @@ namespace WiimoteGun.Controls
             optLEDLayout.SelectedItem = GetLEDLayoutName(Options.Instance.LEDLayout);
             optIRSensitivity.Value = Math.Min(Math.Max(Options.Instance.IRSensitivity, optIRSensitivity.Minimum), optIRSensitivity.Maximum);
             optShowNotifications.Checked = Options.Instance.ShowNotifications;
+            optEnableGamePadSwap.Checked = Options.Instance.EnableGamePadSwapMode;
 
 
 
@@ -141,6 +142,7 @@ namespace WiimoteGun.Controls
                 
                 Options.Instance.IRSensitivity = (int)optIRSensitivity.Value;
                 Options.Instance.ShowNotifications = optShowNotifications.Checked;
+                Options.Instance.EnableGamePadSwapMode = optEnableGamePadSwap.Checked;
 
 
 
@@ -205,6 +207,29 @@ namespace WiimoteGun.Controls
                 case "Two Wiimote Bars": return LEDLayoutType.TwoWiimoteBar;
                 case "Four Corners": return LEDLayoutType.FourCorners;
                 default: return LEDLayoutType.WiimoteBar;
+            }
+        }
+
+        private void BtnConfigureGamePad_Click(object sender, EventArgs e)
+        {
+            using (Form form = new Form())
+            {
+                form.Text = "GamePad Mapping Configuration";
+                form.Size = new Size(580, 820);
+                form.StartPosition = FormStartPosition.CenterParent;
+                form.ShowIcon = false;
+                form.FormBorderStyle = FormBorderStyle.FixedDialog;
+                form.MaximizeBox = false;
+                form.MinimizeBox = false;
+                form.BackColor = Color.FromArgb(20, 20, 20);
+
+                var control = new GamePadMappingControl();
+                control.Dock = DockStyle.Fill;
+                if (control.btnBack != null) control.btnBack.Visible = false;
+                control.BackRequested += (s, args) => form.Close();
+                
+                form.Controls.Add(control);
+                form.ShowDialog(this);
             }
         }
     }

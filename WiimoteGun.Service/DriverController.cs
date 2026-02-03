@@ -80,9 +80,11 @@ namespace WiimoteGun.Service
             // Small delay to allow Windows to re-enumerate the device
             System.Threading.Thread.Sleep(500);
             
-            // Enable specific interfaces: Mouse (Col03) and Keyboard (Col07)
+            // Enable specific interfaces: Mouse (Col03), Control (Col08) and Keyboard (Col07/Col08)
             RunDevCon($"enable \"*VMULTI{playerChar}*COL03*\""); // Mouse
-            RunDevCon($"enable \"*VMULTI{playerChar}*COL07*\""); // Keyboard
+            RunDevCon($"enable \"*VMULTI{playerChar}*COL07*\""); // Message/Keyboard
+            RunDevCon($"enable \"*VMULTI{playerChar}*COL08*\""); // Keyboard/Control (Essential for GamePad/Keyboard reports)
+            RunDevCon($"enable \"*VMULTI{playerChar}*COL09*\""); // Control Interface Extension
             
             // EN: CRITICAL: Remove COL03 for players NOT in the enabled list
             // FR: CRITIQUE: Supprimer les COL03 pour les joueurs NON dans la liste activée
@@ -183,14 +185,20 @@ namespace WiimoteGun.Service
                 Log($"Driver P{playerIndex} installed. Running cleanup...");
 
                 // Cleanup: Disable unused columns to avoid interference/ghost devices
-                // Matching batch script: COL01, COL02, COL04, COL05, COL06, COL08, COL09
-                string[] colsToDisable = { "01", "02", "04", "05", "06", "08", "09" };
+                // Matching batch script: COL01, COL02, COL04, COL05, COL08, COL09 (Exclude 06 - Gamepad managed via Remove)
+                // EN: COL06 (Gamepad) is removed separately to avoid disable-loop crashes
+                // FR: COL06 (Gamepad) est supprimé séparément pour éviter les crashs de boucle disable
+                string[] colsToDisable = { "01", "02", "04", "05", "08", "09" };
                 foreach (string col in colsToDisable)
                 {
                     // Pattern: *vmultia*COL01*
                     string colPattern = $"*vmulti{charLower}*COL{col}*";
                     RunDevCon($"disable \"{colPattern}\"");
                 }
+
+                // Explicitly REMOVE Gamepad (06) to hide it by default
+                string gamepadPattern = $"*vmulti{charLower}*COL06*";
+                RunDevCon($"remove \"{gamepadPattern}\"");
 
                 Log($"Driver P{playerIndex} installation and cleanup finished.");
             }
@@ -274,167 +282,206 @@ namespace WiimoteGun.Service
         }
 
         /// <summary>
-        /// EN: Cleanup unwanted VMulti collections for all players (COL01, COL02, COL04, COL05, COL06).
-        /// FR: Nettoyer les collections VMulti non désirées pour tous les joueurs (COL01, COL02, COL04, COL05, COL06).
+        /// EN: Cleanup unwanted VMulti collections for all players (COL01, COL02, COL04, COL05).
+        /// FR: Nettoyer les collections VMulti non désirées pour tous les joueurs (COL01, COL02, COL04, COL05).
         /// Called via IPC from WiimoteGun app when Wiimotes connect.
         /// </summary>
+
         public static void CleanupUnwantedCollections()
         {
             CheckDevCon();
             Log("CleanupUnwantedCollections command received");
 
-            // EN: Collections to disable (same as Gunmote: Touch, Multi-touch, Gamepad, Config, Joystick)
-            // FR: Collections à désactiver (comme Gunmote : Touch, Multi-touch, Gamepad, Config, Joystick)
-            // Note: COL03 (Mouse), COL07 (Keyboard), COL08 (Control) are kept enabled
-            string[] colsToDisable = { "01", "02", "04", "05", "06" };
+            // EN: Collections to disable (same as Gunmote: Touch, Multi-touch, Config, Joystick)
+            // FR: Collections à désactiver (comme Gunmote : Touch, Multi-touch, Config, Joystick)
+            string[] colsToDisable = { "01", "02", "04", "05" }; // Excluded "06"
 
             // EN: Process all 4 possible players / FR: Traiter les 4 joueurs possibles
-            char[] players = { 'a', 'b', 'c', 'd' };
-
-            foreach (char playerChar in players)
+            for (int i = 1; i <= 4; i++)
             {
+                char playerChar = GetPlayerChar(i);
+
                 foreach (string col in colsToDisable)
                 {
-                    // Pattern: *vmultia*COL01*
                     string colPattern = $"*vmulti{playerChar}*COL{col}*";
                     RunDevCon($"disable \"{colPattern}\"");
+                }
+
+                bool isEnabled = _enabledPlayers.Contains(i);
+
+                // Gamepad (COL06) Logic:
+                // Keep if enabled (even in mouse mode), Remove if disabled/disconnected
+                string gamepadPattern = $"*vmulti{playerChar}*COL06*";
+                if (!isEnabled)
+                {
+                    if (IsDeviceEnabled(gamepadPattern))
+                    {
+                        Log($"Cleanup: Removing COL06 for inactive P{i}");
+                        RunDevCon($"remove \"{gamepadPattern}\"");
+                    }
+                }
+                
+                // Mouse (COL03) Logic (Restored):
+                // Keep if enabled, Remove if disabled/disconnected
+                // This replaces removed Update logic
+                string mousePattern = $"*vmulti{playerChar}*COL03*";
+                if (!isEnabled)
+                {
+                     if (IsDeviceEnabled(mousePattern))
+                     {
+                         Log($"Cleanup: Removing COL03 for inactive P{i}");
+                         RunDevCon($"remove \"{mousePattern}\"");
+                     }
                 }
             }
 
             Log("CleanupUnwantedCollections completed");
         }
 
-        /// <summary>
-        /// EN: Remove (hide) COL03 mouse device for a specific player.
-        /// FR: Supprimer (masquer) le périphérique souris COL03 pour un joueur spécifique.
-        /// Only removes if the device is NOT already disabled.
-        /// </summary>
-        public static void RemoveMouseForPlayer(int playerIndex)
-        {
-            CheckDevCon();
-            
-            // EN: Remove from enabled players tracking / FR: Retirer du suivi des joueurs activés
-            _enabledPlayers.Remove(playerIndex);
-            Log($"Removed P{playerIndex} from enabled list. Now enabled: {string.Join(",", _enabledPlayers)}");
-            
-            char playerChar = GetPlayerChar(playerIndex);
-            string pattern = $"*vmulti{playerChar}*COL03*";
-            
-            if (!IsDeviceEnabled(pattern))
-            {
-                Log($"RemoveMouseForPlayer P{playerIndex}: COL03 already disabled, skipping");
-                return;
-            }
-            
-            Log($"RemoveMouseForPlayer P{playerIndex}: {pattern}");
-            RunDevCon($"remove \"{pattern}\"");
-        }
-
-        /// <summary>
-        /// EN: Remove (hide) COL03 mouse device for all players.
-        /// FR: Supprimer (masquer) le périphérique souris COL03 pour tous les joueurs.
-        /// Only removes devices that are NOT already disabled.
-        /// </summary>
         public static void RemoveMouseForAllPlayers()
         {
             CheckDevCon();
-            
-            // EN: Clear enabled players tracking / FR: Vider le suivi des joueurs activés
-            _enabledPlayers.Clear();
-            Log("RemoveMouseForAllPlayers: clearing enabled list and removing COL03 for all vmulti devices");
-            char[] players = { 'a', 'b', 'c', 'd' };
-            foreach (char playerChar in players)
-            {
-                string pattern = $"*vmulti{playerChar}*COL03*";
-                if (IsDeviceEnabled(pattern))
-                {
-                    RunDevCon($"remove \"{pattern}\"");
-                }
-                else
-                {
-                    Log($"  vmulti{playerChar} COL03 already disabled, skipping");
-                }
-            }
-            Log("RemoveMouseForAllPlayers completed");
-        }
-
-        /// <summary>
-        /// EN: Remove (hide) COL03 mouse device for all players EXCEPT those connected.
-        /// FR: Supprimer (masquer) COL03 pour tous les joueurs SAUF ceux connectés.
-        /// Format: comma-separated player indexes (e.g., "1,2" for P1 and P2 connected)
-        /// Only removes devices that are NOT already disabled.
-        /// </summary>
-        public static void RemoveMouseExceptPlayers(string connectedPlayersStr)
-        {
-            CheckDevCon();
-            Log($"RemoveMouseExceptPlayers: connected={connectedPlayersStr}");
-
-            // EN: Parse connected player indexes / FR: Parser les index des joueurs connectés
-            var connected = new System.Collections.Generic.HashSet<int>();
-            if (!string.IsNullOrWhiteSpace(connectedPlayersStr))
-            {
-                foreach (var part in connectedPlayersStr.Split(','))
-                {
-                    if (int.TryParse(part.Trim(), out int idx))
-                        connected.Add(idx);
-                }
-            }
-
-            // EN: Remove COL03 for players NOT in connected list (if device is enabled)
-            // FR: Supprimer COL03 pour les joueurs NON dans la liste connectée (si device enabled)
+            Log("RemoveMouseForAllPlayers command received");
             for (int i = 1; i <= 4; i++)
             {
-                if (!connected.Contains(i))
+                RemoveMouseForPlayer(i);
+            }
+        }
+
+        public static void RemoveMouseForPlayer(int playerIndex)
+        {
+            char playerChar = GetPlayerChar(playerIndex);
+            string pattern = $"*vmulti{playerChar}*COL03*";
+            if (IsDeviceEnabled(pattern))
+            {
+                Log($"Removing Mouse (COL03) for P{playerIndex}");
+                RunDevCon($"remove \"{pattern}\"");
+            }
+        }
+
+        public static void RemoveMouseExceptPlayers(string playersStr)
+        {
+            CheckDevCon();
+            Log($"RemoveMouseExceptPlayers received: {playersStr}");
+            
+            HashSet<int> keepPlayers = new HashSet<int>();
+            if (!string.IsNullOrEmpty(playersStr))
+            {
+                string[] parts = playersStr.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (string part in parts)
                 {
-                    char playerChar = GetPlayerChar(i);
-                    string pattern = $"*vmulti{playerChar}*COL03*";
-                    if (IsDeviceEnabled(pattern))
+                    if (int.TryParse(part.Trim(), out int pId))
                     {
-                        RunDevCon($"remove \"{pattern}\"");
-                    }
-                    else
-                    {
-                        Log($"  vmulti{playerChar} COL03 already disabled, skipping");
+                        keepPlayers.Add(pId);
                     }
                 }
             }
-            Log("RemoveMouseExceptPlayers completed");
+
+            for (int i = 1; i <= 4; i++)
+            {
+                if (!keepPlayers.Contains(i))
+                {
+                    RemoveMouseForPlayer(i);
+                }
+            }
         }
 
         /// <summary>
-        /// EN: Check if a device matching the pattern is enabled (exists and not disabled).
-        /// FR: Vérifier si un périphérique correspondant au pattern est activé (existe et non désactivé).
-        /// Uses devcon status to check device state.
+        /// EN: Enable Col06 gamepad device for a specific player.
+        /// FR: Activer le périphérique gamepad Col06 pour un joueur spécifique.
         /// </summary>
+        public static void EnableGamepadForPlayer(int playerIndex)
+        {
+            CheckDevCon();
+            // Ensure player is marked as enabled
+            _enabledPlayers.Add(playerIndex);
+
+            char playerChar = GetPlayerChar(playerIndex);
+            string pattern = $"*vmulti{playerChar}*COL06*";
+
+            if (IsDeviceEnabled(pattern))
+            {
+                Log($"EnableGamepadForPlayer P{playerIndex}: COL06 already enabled, skipping");
+                CleanupUnwantedCollections(); // Run cleanup even if already enabled to ensure others are clean
+                return;
+            }
+
+            Log($"EnableGamepadForPlayer P{playerIndex}: {pattern}");
+            
+            // Try enable (fast path, if it was disabled or just exists)
+            RunDevCon($"enable \"{pattern}\"");
+            
+            // Check if successful
+            System.Threading.Thread.Sleep(200);
+            if (IsDeviceEnabled(pattern))
+            {
+                 Log($"EnableGamepadForPlayer P{playerIndex}: Successfully enabled.");
+                 CleanupUnwantedCollections();
+                 return;
+            }
+
+            // If failed, it might be removed/missing. We MUST Rescan.
+            Log($"EnableGamepadForPlayer P{playerIndex}: Enable failed (not found?), triggering Rescan...");
+            RunDevCon("rescan");
+            System.Threading.Thread.Sleep(500);
+
+            // After rescan, it should be enabled by default (since we removed it from cleanup list)
+            // Or we check and enable again just to be sure
+            if (!IsDeviceEnabled(pattern))
+            {
+                RunDevCon($"enable \"{pattern}\"");
+            }
+
+            // Run global cleanup to remove ghosts
+            CleanupUnwantedCollections();
+        }
+
+        public static void RemoveGamepadForAllPlayers()
+        {
+            CheckDevCon();
+            Log("RemoveGamepadForAllPlayers command received");
+            for (int i = 1; i <= 4; i++)
+            {
+                RemoveGamepadForPlayer(i);
+            }
+        }
+
+        /// <summary>
+        /// EN: Remove (hide) Col06 gamepad device for a specific player.
+        /// FR: Supprimer (masquer) le périphérique gamepad Col06 pour un joueur spécifique.
+        /// </summary>
+        public static void RemoveGamepadForPlayer(int playerIndex)
+        {
+            CheckDevCon();
+            Log($"RemoveGamepadForPlayer P{playerIndex}: Marking as disabled.");
+            
+            // CRITICAL: Do NOT remove from enabled list, as this would also kill the Mouse (COL03) during Cleanup!
+            // _enabledPlayers.Remove(playerIndex);
+
+            char playerChar = GetPlayerChar(playerIndex);
+            string pattern = $"*vmulti{playerChar}*COL06*";
+
+            // Also explicitly remove right now
+            if (IsDeviceEnabled(pattern))
+            {
+                Log($"RemoveGamepadForPlayer P{playerIndex}: REMOVING {pattern}");
+                RunDevCon($"remove \"{pattern}\"");
+            }
+            
+            // Also run cleanup to catch COL03 if it was left over
+            CleanupUnwantedCollections();
+        }
+
+        private static char GetPlayerChar(int playerIndex)
+        {
+            if (playerIndex < 1) return 'A';
+            return (char)('A' + playerIndex - 1);
+        }
+
         private static bool IsDeviceEnabled(string pattern)
         {
             string output = RunDevConWithOutput($"status \"{pattern}\"");
-
-            // EN: If output contains "running" or "started", device is enabled
-            // FR: Si la sortie contient "running" ou "started", le device est activé
-            // If output contains "disabled" or "No matching devices", device is not enabled
-            bool isEnabled = output.IndexOf("running", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                             output.IndexOf("started", StringComparison.OrdinalIgnoreCase) >= 0;
-            bool isDisabled = output.IndexOf("disabled", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                              output.IndexOf("No matching devices", StringComparison.OrdinalIgnoreCase) >= 0;
-
-            return isEnabled && !isDisabled;
-        }
-
-        /// <summary>
-        /// EN: Get player character (a, b, c, d) from index (1-4).
-        /// FR: Obtenir le caractère joueur (a, b, c, d) depuis l'index (1-4).
-        /// </summary>
-        private static char GetPlayerChar(int playerIndex)
-        {
-            switch (playerIndex)
-            {
-                case 1: return 'a';
-                case 2: return 'b';
-                case 3: return 'c';
-                case 4: return 'd';
-                default: return 'a';
-            }
+            return output.IndexOf("Driver is running", StringComparison.OrdinalIgnoreCase) >= 0;
         }
     }
 }

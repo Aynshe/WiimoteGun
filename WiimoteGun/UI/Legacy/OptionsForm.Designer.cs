@@ -39,6 +39,8 @@ namespace WiimoteGun
 
 
             this.chkNotifications = new System.Windows.Forms.CheckBox();
+            this.chkEnableGamePadSwap = new System.Windows.Forms.CheckBox();
+            this.btnConfigureGamePad = new System.Windows.Forms.Button();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.rbBlueTooth = new System.Windows.Forms.RadioButton();
             this.rbDolphinbar = new System.Windows.Forms.RadioButton();
@@ -160,8 +162,8 @@ namespace WiimoteGun
             | System.Windows.Forms.AnchorStyles.Right)));
 
 
-            this.groupBox1.Controls.Add(this.chkNotifications);
-            this.groupBox1.Controls.Add(this.cbStartWithWindows);
+            this.groupBox1.Controls.Add(this.btnConfigureGamePad);
+            this.groupBox1.Controls.Add(this.chkEnableGamePadSwap);
             this.groupBox1.Controls.Add(this.chkNotifications);
             this.groupBox1.Controls.Add(this.cbStartWithWindows);
             this.groupBox1.Location = new System.Drawing.Point(410, 153);
@@ -170,6 +172,8 @@ namespace WiimoteGun
             this.groupBox1.TabIndex = 6;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Misc options";
+            // 
+            // 
             // 
             // chkNotifications
             // 
@@ -180,6 +184,26 @@ namespace WiimoteGun
             this.chkNotifications.TabIndex = 5;
             this.chkNotifications.Text = "Show notifications";
             this.chkNotifications.UseVisualStyleBackColor = true;
+            // 
+            // chkEnableGamePadSwap
+            // 
+            this.chkEnableGamePadSwap.AutoSize = true;
+            this.chkEnableGamePadSwap.Location = new System.Drawing.Point(13, 76);
+            this.chkEnableGamePadSwap.Name = "chkEnableGamePadSwap";
+            this.chkEnableGamePadSwap.Size = new System.Drawing.Size(200, 17);
+            this.chkEnableGamePadSwap.TabIndex = 6;
+            this.chkEnableGamePadSwap.Text = "Enable GamePad Swap Mode (Col06)";
+            this.chkEnableGamePadSwap.UseVisualStyleBackColor = true;
+            // 
+            // btnConfigureGamePad
+            // 
+            this.btnConfigureGamePad.Location = new System.Drawing.Point(220, 72);
+            this.btnConfigureGamePad.Name = "btnConfigureGamePad";
+            this.btnConfigureGamePad.Size = new System.Drawing.Size(100, 23);
+            this.btnConfigureGamePad.TabIndex = 7;
+            this.btnConfigureGamePad.Text = "Configure...";
+            this.btnConfigureGamePad.UseVisualStyleBackColor = true;
+            this.btnConfigureGamePad.Click += new System.EventHandler(this.btnConfigureGamePad_Click);
             // 
             // groupBox2
             // 
@@ -672,5 +696,7 @@ namespace WiimoteGun
         private System.Windows.Forms.Label lblMouseModeWarning;
         private System.Windows.Forms.CheckBox chkAutoLockVMulti;
         private System.Windows.Forms.CheckBox chkPermissiveCalibration;
+        private System.Windows.Forms.CheckBox chkEnableGamePadSwap;
+        private System.Windows.Forms.Button btnConfigureGamePad;
     }
 }

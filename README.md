@@ -14,6 +14,8 @@ Fork of [WiimoteGun](https://github.com/fcaruso/WiimoteGun) with extensive enhan
 - **Virtual HID**: Uses Virtual HID Driver (vmulti) for unique RawInput device IDs per player
 - **Nunchuk Support**: Full Nunchuk detection (hotplug and coldplug)
 - **IR Visualizer**: Real-time IR camera visualization tool
+- **GamePad Mode**: Emulate a DirectInput gamepad per player (e.g. for PCSX2 dual lightgun support)
+
 
 > [!NOTE]
 > **Gun4IR Diamond and Retroshooter 4-Corners are now validated and fully functional!**  
@@ -74,8 +76,9 @@ Fork of [WiimoteGun](https://github.com/fcaruso/WiimoteGun) with extensive enhan
 4. **Press ESC** to exit calibration
 
 ### Controls
-- **HOME**: Toggle modes (Mouse/Keyboard/Disabled)
+- **HOME**: Toggle modes (Mouse/Keyboard/GamePad/Disabled)
 - **HOME (long press)**: Calibrate
+
 - **Right-click tray icon**: Settings & mappings
 
 ## 🔧 Configuration
@@ -124,6 +127,16 @@ Configure haptic feedback for each player:
 - **Intensity**: Adjust vibration strength (0-100%)
 - **Duration**: Set rumble duration in milliseconds (50-1000ms)
 - Configured in **Assign Wiimote** page
+
+### 🎮 GamePad Mode (DirectInput)
+Mode for emulators like **PCSX2** or games requiring separate controllers for each player.
+- **DInput Support**: Each Wiimote is seen as a unique Virtual GamePad.
+- **Analog Mapping**: Map IR tracking to Left or Right stick.
+- **Nunchuk Integration**: Use Nunchuk joystick for movement or as a Digital D-Pad.
+- **Configuration**: Right-click tray → **Open Mappings** → **GamePad Mapping** tab.
+
+*FR: Mode GamePad pour PCSX2 (Dual Lightgun) : Chaque Wiimote est émulée comme une manette DirectInput indépendante avec axes analogiques pour la visée.*
+
 
 
 

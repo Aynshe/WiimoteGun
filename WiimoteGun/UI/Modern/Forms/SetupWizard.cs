@@ -254,8 +254,9 @@ namespace WiimoteGun.Forms
                         batchContent += $"devcon.exe disable \"*vmulti{charLower}*COL04*\"\n";
                         batchContent += $"devcon.exe disable \"*vmulti{charLower}*COL05*\"\n";
                         batchContent += $"devcon.exe disable \"*vmulti{charLower}*COL06*\"\n";
-                        batchContent += $"devcon.exe disable \"*vmulti{charLower}*COL08*\"\n";
-                        batchContent += $"devcon.exe disable \"*vmulti{charLower}*COL09*\"\n";
+                        // EN: Keep COL08 and COL09 for Keyboard and Gamepad Control (FR: Garder COL08 et COL09 pour Clavier et Contrôle Gamepad)
+                        // batchContent += $"devcon.exe disable \"*vmulti{charLower}*COL08*\"\n";
+                        // batchContent += $"devcon.exe disable \"*vmulti{charLower}*COL09*\"\n";
                         batchContent += "echo.\n\n";
                     }
                     
