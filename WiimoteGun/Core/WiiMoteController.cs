@@ -133,7 +133,7 @@ namespace WiimoteGun
                     {
                         _lastShakeTime = DateTime.Now;
                         triggered = true;
-                        SimpleLogger.Instance.Info($"Shake fired! Mag: {magnitude:F2} > {threshold}");
+                        SimpleLogger.Instance.Info(string.Format("Shake fired! Mag: {0:F2} > {1}", magnitude, threshold));
                     }
                 }
             }
@@ -148,6 +148,10 @@ namespace WiimoteGun
         private float _lastGyroYaw = 0f;   // Last Yaw value in °/s or accel delta (EN/FR: Dernière valeur Yaw en °/s ou delta accel)
         private float _lastGyroPitch = 0f; // Last Pitch value in °/s or accel delta (EN/FR: Dernière valeur Pitch en °/s ou delta accel)
         private float _lastGyroRoll = 0f;  // Last Roll value in °/s (EN/FR: Dernière valeur Roll en °/s)
+
+        // Battery level monitoring (EN/FR: Suivi du niveau de batterie)
+        private float _lastBatteryLevel = -1f;
+        private DateTime _lastBatteryLogTime = DateTime.MinValue;
         
         // Previous accelerometer values for delta calculation (EN/FR: Valeurs accéléromètre précédentes pour calcul delta)
         private float _lastAccelX = 0f;
@@ -200,6 +204,13 @@ namespace WiimoteGun
 
                  ServiceClient.EnablePlayer(PlayerIndex);
                  
+                 // Proactive gamepad removal if global mode is disabled (EN/FR: Suppression proactive du gamepad si le mode global est désactivé)
+                 // Avoids waiting for the 3-second scheduled cleanup
+                 if (!Options.Instance.EnableGamePadSwapMode)
+                 {
+                     ServiceClient.RemoveGamepad(PlayerIndex);
+                 }
+                 
                  // Robust wait loop for device initialization (EN/FR: Boucle d'attente robuste pour l'initialisation du périphérique)
                  SimpleLogger.Instance.Info($"Waiting for VMulti P{PlayerIndex} initialization...");
                  
@@ -210,11 +221,12 @@ namespace WiimoteGun
                      System.Threading.Thread.Sleep(500);
                      // VMulti uses HID directly, no context reload needed
                      
-                     var (mouseId, _) = VMultiDeviceDetector.DetectPlayerVMultiDevices(PlayerIndex);
+                     VMultiDeviceDetector.PlayerDevices devices = VMultiDeviceDetector.DetectPlayerVMultiDevices(PlayerIndex);
+                     string mouseId = devices.MouseId;
                      if (!string.IsNullOrEmpty(mouseId))
                      {
                          deviceReady = true;
-                         SimpleLogger.Instance.Info($"VMulti P{PlayerIndex} ready after {(i + 1) * 500}ms");
+                         SimpleLogger.Instance.Info(string.Format("VMulti P{0} ready after {1}ms", PlayerIndex, (i + 1) * 500));
                          break;
                      }
                  }
@@ -223,6 +235,13 @@ namespace WiimoteGun
                  {
                      SimpleLogger.Instance.Warning($"VMulti P{PlayerIndex} detection timed out. Retrying enable...");
                      ServiceClient.EnablePlayer(PlayerIndex);
+
+                     // Also retry gamepad removal if global mode is disabled
+                     if (!Options.Instance.EnableGamePadSwapMode)
+                     {
+                         ServiceClient.RemoveGamepad(PlayerIndex);
+                     }
+
                      System.Threading.Thread.Sleep(1500);
                      // VMulti uses HID directly, no context reload needed
                  }
@@ -235,12 +254,13 @@ namespace WiimoteGun
                      // Only auto-assign if no preference set or if current preference seems invalid
                      if (string.IsNullOrEmpty(currentPreferredMouse) || currentPreferredMouse.Contains("vmulti"))
                      {
-                         var (mouseId, _) = VMultiDeviceDetector.DetectPlayerVMultiDevices(PlayerIndex);
+                         VMultiDeviceDetector.PlayerDevices devices = VMultiDeviceDetector.DetectPlayerVMultiDevices(PlayerIndex);
+                         string mouseId = devices.MouseId;
                          if (!string.IsNullOrEmpty(mouseId))
                          {
                              Options.Instance.SetPreferredMouseId(PlayerIndex, mouseId);
                              Options.Instance.Save();
-                             SimpleLogger.Instance.Info($"[VMulti Post-Activation] Auto-saved P{PlayerIndex} Mouse: {mouseId}");
+                             SimpleLogger.Instance.Info(string.Format("[VMulti Post-Activation] Auto-saved P{0} Mouse: {1}", PlayerIndex, mouseId));
                          }
                      }
                  }
@@ -422,6 +442,11 @@ namespace WiimoteGun
                                 {
                                     Wiimote.GetStatus();
                                     statusCompleted = true;
+
+                                    // Log battery level after status is fetched (EN/FR: Logger le niveau de batterie après récupération du statut)
+                                    _lastBatteryLevel = Wiimote.WiimoteState.Status.Battery;
+                                    _lastBatteryLogTime = DateTime.Now;
+                                    SimpleLogger.Instance.Info($"[P{PlayerIndex}] Battery status fetched: {_lastBatteryLevel:F1}% " + (Wiimote.WiimoteState.Status.BatteryLow ? "(LOW!)" : ""));
                                 }
                             }
                             catch (ObjectDisposedException)
@@ -495,8 +520,8 @@ namespace WiimoteGun
             string mouseMode = Options.Instance.DefaultMouseMode == MouseMode.SendInput ? "SendInput (Legacy)" : "VMulti (Multi-Player)";
             string connType = Wiimote.Device.IsBluetooth ? "Bluetooth" : "DolphinBar";
             
-            Program.Notify($"Wiimote P{PlayerIndex} connected ({connType}) - {mouseMode}");
-            SimpleLogger.Instance.Info($"Wiimote P{PlayerIndex} connected via {connType}. HID path: {Wiimote.DevicePath}");
+            Program.Notify(string.Format("Wiimote P{0} connected ({1}) - {2}", PlayerIndex, connType, mouseMode));
+            SimpleLogger.Instance.Info(string.Format("Wiimote P{0} connected via {1}. HID path: {2}", PlayerIndex, connType, Wiimote.DevicePath));
 
             if (_hiddenWnd == null && Options.Instance.DefaultMouseMode == MouseMode.SendInput)
             {
@@ -536,6 +561,21 @@ namespace WiimoteGun
             {
                 _virtualMouse.Dispose();
                 _virtualMouse = null;
+            }
+
+            if (_virtualGamepad != null)
+            {
+                _virtualGamepad.ResetAll();
+                _virtualGamepad.Disconnect();
+                _virtualGamepad.Dispose();
+                _virtualGamepad = null;
+
+                // Explicitly remove gamepad on disconnect if not persistent or if global mode is disabled
+                // (EN/FR: Supprimer explicitement le gamepad à la déconnexion si non persistant ou si mode global désactivé)
+                if (!Options.Instance.PersistentGamePads || !Options.Instance.EnableGamePadSwapMode)
+                {
+                    WiimoteGun.ServiceClient.RemoveGamepad(PlayerIndex);
+                }
             }
 
             // Dispose sleep timer (EN/FR: Disposer le timer de veille)
@@ -783,6 +823,19 @@ namespace WiimoteGun
                 if (hasActivity)
                     ResetSleepTimer();
 
+                // Battery monitoring (EN/FR: Suivi batterie)
+                // Log if significant change (> 5%) or every 5 minutes (EN/FR: Logger si changement significatif (> 5%) ou toutes les 5 min)
+                float currentBattery = e.WiimoteState.Status.Battery;
+                bool batteryChanged = Math.Abs(currentBattery - _lastBatteryLevel) > 5f;
+                bool timeoutLog = (DateTime.Now - _lastBatteryLogTime).TotalMinutes >= 5;
+
+                if (batteryChanged || timeoutLog)
+                {
+                    _lastBatteryLevel = currentBattery;
+                    _lastBatteryLogTime = DateTime.Now;
+                    SimpleLogger.Instance.Info(string.Format("[P{0}] Battery: {1:F1}%{2}", PlayerIndex, currentBattery, (e.WiimoteState.Status.BatteryLow ? " (LOW!)" : "")));
+                }
+
                 // Check if inputs are locked for button assignment (EN/FR: Vérifier si inputs verrouillés pour assignation)
                 if (_inputsLocked)
                 {
@@ -793,7 +846,7 @@ namespace WiimoteGun
 
                 if (_runningProcess != null && _runningProcess.HasExited)
                 {
-                    if (_processLocking && _mode == WiiMoteMode.Mouse)
+                    if (_processLocking && (_mode == WiiMoteMode.Mouse || _mode == WiiMoteMode.Mouse43))
                     {
                         ThreadPool.QueueUserWorkItem(o =>
                         {
@@ -818,16 +871,18 @@ namespace WiimoteGun
                 NunchukState nunchuk = e.WiimoteState.Nunchuk;
                 bool hasNunchuk = e.WiimoteState.ExtensionType == ExtensionType.Nunchuk;
 
-                if (_mode == WiiMoteMode.Mouse)
-                {
-                    // ... (Keeping hybrid tracking logic as is, it's too big to include in replace block if not needed)
-                    // I will target the SendInput block specifically in next step or use bigger context if I can.
-                    // Actually, replace_file_content works best with contiguous blocks.
-                    // Since DetectHotkeyButtonChanges was at the end, I'll remove it from there in valid step.
-                    // This step inserts it at the top.
+                // This enables "Autocalibration" (Gun4IR/RetroShooter layouts) for GamePad mode.
+                var scaledPos = _calculator.GetScaledPosition(ir, buttons, _lastState);
 
+                // Apply Aspect Ratio Correction (EN/FR: Appliquer correction de format d'image)
+                if (scaledPos.HasValue)
+                {
+                    scaledPos = ApplyAspectRatioCorrection(scaledPos.Value, _mode);
+                }
+
+                if (_mode == WiiMoteMode.Mouse || _mode == WiiMoteMode.Mouse43)
+                {
                     bool wasCalibrating = _calculator.IsCalibrating;
-                    var scaledPos = _calculator.GetScaledPosition(ir, buttons, _lastState);
 
                     int x = _lastX;
                     int y = _lastY;
@@ -1045,7 +1100,7 @@ namespace WiimoteGun
                     }
                 }
 
-                if ((_mode == WiiMoteMode.Mouse || _mode == WiiMoteMode.Keyboardpad) && _joy != null && _joy.IsEnabled && !_calculator.IsCalibrating)
+                if ((_mode == WiiMoteMode.Mouse || _mode == WiiMoteMode.Mouse43 || _mode == WiiMoteMode.Keyboardpad) && _joy != null && _joy.IsEnabled && !_calculator.IsCalibrating)
                 {
                     // Mask inputs if specific button is consumed by hotkey (EN/FR: Masquer inputs si bouton consommé par hotkey)
                     SendKeyEvent(_playerMappings.WiiA, buttons.A && !HotkeyManager.IsButtonConsumed(PlayerIndex, "A"), _lastState.A);
@@ -1073,9 +1128,9 @@ namespace WiimoteGun
                 }
 
 
-                if (_mode == WiiMoteMode.GamePad)
+                if (_mode == WiiMoteMode.GamePad || _mode == WiiMoteMode.GamePad43)
                 {
-                    UpdateGamePadState(e.WiimoteState);
+                    UpdateGamePadState(e.WiimoteState, scaledPos);
                 }
 
                 _lastState = e.WiimoteState.Buttons;
@@ -1171,7 +1226,7 @@ namespace WiimoteGun
             {
                 _lastGrenadeTime = DateTime.Now;
                 _accelZHistory.Clear(); // Clear history to prevent re-triggering (EN/FR: Vider l'historique pour éviter re-déclenchement)
-                SimpleLogger.Instance.Info($"Grenade gesture detected! DeltaY: {max-min:F2}");
+                SimpleLogger.Instance.Info(string.Format("Grenade gesture detected! DeltaY: {0:F2}", max - min));
                 return true;
             }
 
@@ -1187,25 +1242,25 @@ namespace WiimoteGun
                 if (_playerMappings == null) return false;
             }
 
-            if (_playerMappings.WiiA?.Special == action && buttons.A) return true;
-            if (_playerMappings.WiiB?.Special == action && buttons.B) return true;
-            if (_playerMappings.WiiUp?.Special == action && buttons.Up) return true;
-            if (_playerMappings.WiiDown?.Special == action && buttons.Down) return true;
-            if (_playerMappings.WiiLeft?.Special == action && buttons.Left) return true;
-            if (_playerMappings.WiiRight?.Special == action && buttons.Right) return true;
-            if (_playerMappings.WiiOne?.Special == action && buttons.One) return true;
-            if (_playerMappings.WiiTwo?.Special == action && buttons.Two) return true;
-            if (_playerMappings.WiiPlus?.Special == action && buttons.Plus) return true;
-            if (_playerMappings.WiiMinus?.Special == action && buttons.Minus) return true;
+            if (_playerMappings.WiiA != null && _playerMappings.WiiA.Special == action && buttons.A) return true;
+            if (_playerMappings.WiiB != null && _playerMappings.WiiB.Special == action && buttons.B) return true;
+            if (_playerMappings.WiiUp != null && _playerMappings.WiiUp.Special == action && buttons.Up) return true;
+            if (_playerMappings.WiiDown != null && _playerMappings.WiiDown.Special == action && buttons.Down) return true;
+            if (_playerMappings.WiiLeft != null && _playerMappings.WiiLeft.Special == action && buttons.Left) return true;
+            if (_playerMappings.WiiRight != null && _playerMappings.WiiRight.Special == action && buttons.Right) return true;
+            if (_playerMappings.WiiOne != null && _playerMappings.WiiOne.Special == action && buttons.One) return true;
+            if (_playerMappings.WiiTwo != null && _playerMappings.WiiTwo.Special == action && buttons.Two) return true;
+            if (_playerMappings.WiiPlus != null && _playerMappings.WiiPlus.Special == action && buttons.Plus) return true;
+            if (_playerMappings.WiiMinus != null && _playerMappings.WiiMinus.Special == action && buttons.Minus) return true;
 
             if (hasNunchuk)
             {
-                if (_playerMappings.NunC?.Special == action && nunchuk.C) return true;
-                if (_playerMappings.NunZ?.Special == action && nunchuk.Z) return true;
-                if (_playerMappings.NunUp?.Special == action && nunchuk.Joystick.Y > 0.3f) return true;
-                if (_playerMappings.NunDown?.Special == action && nunchuk.Joystick.Y < -0.3f) return true;
-                if (_playerMappings.NunLeft?.Special == action && nunchuk.Joystick.X < -0.3f) return true;
-                if (_playerMappings.NunRight?.Special == action && nunchuk.Joystick.X > 0.3f) return true;
+                if (_playerMappings.NunC != null && _playerMappings.NunC.Special == action && nunchuk.C) return true;
+                if (_playerMappings.NunZ != null && _playerMappings.NunZ.Special == action && nunchuk.Z) return true;
+                if (_playerMappings.NunUp != null && _playerMappings.NunUp.Special == action && nunchuk.Joystick.Y > 0.3f) return true;
+                if (_playerMappings.NunDown != null && _playerMappings.NunDown.Special == action && nunchuk.Joystick.Y < -0.3f) return true;
+                if (_playerMappings.NunLeft != null && _playerMappings.NunLeft.Special == action && nunchuk.Joystick.X < -0.3f) return true;
+                if (_playerMappings.NunRight != null && _playerMappings.NunRight.Special == action && nunchuk.Joystick.X > 0.3f) return true;
             }
 
             return false;
@@ -1220,12 +1275,10 @@ namespace WiimoteGun
             if (mode > (int)WiiMoteMode.Disabled)
                 mode = 0;
 
-            // Skip GamePad mode if option is not enabled (EN/FR: Passer le mode GamePad si option non activée)
-            if (mode == (int)WiiMoteMode.GamePad && !Options.Instance.EnableGamePadSwapMode)
+            // Skip GamePad modes if option is not enabled (EN/FR: Passer les modes GamePad si option non activée)
+            if ((mode == (int)WiiMoteMode.GamePad || mode == (int)WiiMoteMode.GamePad43) && !Options.Instance.EnableGamePadSwapMode)
             {
-                mode++; // Skip to Disabled
-                if (mode > (int)WiiMoteMode.Disabled)
-                    mode = 0;
+                mode = (int)WiiMoteMode.Keyboardpad; // Jump to Keyboard mode
             }
 
             // Handle leaving previous mode (EN/FR: Gérer la sortie du mode précédent)
@@ -1234,7 +1287,8 @@ namespace WiimoteGun
 
             // Handle Col06 gamepad enable/disable via service
             // (EN/FR: Gérer activation/désactivation Col06 gamepad via service)
-            if (previousMode == WiiMoteMode.GamePad && _mode != WiiMoteMode.GamePad)
+            if ((previousMode == WiiMoteMode.GamePad || previousMode == WiiMoteMode.GamePad43) && 
+                (_mode != WiiMoteMode.GamePad && _mode != WiiMoteMode.GamePad43))
             {
                 // Leaving GamePad mode - disconnect and request Col06 removal
                 // (EN/FR: Quitter mode GamePad - déconnecter et demander suppression Col06)
@@ -1245,20 +1299,33 @@ namespace WiimoteGun
                         _virtualGamepad.ResetAll();
                         _virtualGamepad.Disconnect();
                     }
-                    WiimoteGun.ServiceClient.RemoveGamepad(PlayerIndex);
+
+                    if (!Options.Instance.PersistentGamePads || !Options.Instance.EnableGamePadSwapMode)
+                    {
+                        WiimoteGun.ServiceClient.RemoveGamepad(PlayerIndex);
+                    }
+                    else
+                    {
+                        SimpleLogger.Instance.Info(string.Format("[GamePad P{0}] Keeping Col06 persistent.", PlayerIndex));
+                    }
                 }
                 catch (Exception ex)
                 {
-                    SimpleLogger.Instance.Warning($"[GamePad] Error removing Col06 for P{PlayerIndex}: {ex.Message}");
+                    SimpleLogger.Instance.Warning(string.Format("[GamePad] Error removing Col06 for P{0}: {1}", PlayerIndex, ex.Message));
                 }
             }
 
-            if (_mode == WiiMoteMode.GamePad)
+            if (_mode == WiiMoteMode.GamePad || _mode == WiiMoteMode.GamePad43)
             {
                 // Entering GamePad mode - enable Col06 and connect
                 // (EN/FR: Entrer mode GamePad - activer Col06 et connecter)
                 try
                 {
+                    // EN: Disable Mouse (COL03) in GamePad mode to avoid interference
+                    // FR: Désactiver la souris (COL03) en mode GamePad pour éviter les interférences
+                    WiimoteGun.ServiceClient.RemoveMouseForPlayer(PlayerIndex);
+
+                    SimpleLogger.Instance.Info(string.Format("[P{0}] Switching to GamePad mode - Requesting Col06 enable...", PlayerIndex));
                     WiimoteGun.ServiceClient.EnableGamepad(PlayerIndex);
 
                     // Initialize VMultiGamepad if needed (EN/FR: Initialiser VMultiGamepad si nécessaire)
@@ -1278,37 +1345,95 @@ namespace WiimoteGun
                             {
                                 _virtualGamepad.Connect();
                             }
+
+                            // EN/FR: Ensure IR mode is active even in GamePad mode for lightgun tracking
+                            wiimote.SetReportType(ReportType.ButtonsAccelIR10Ext6, IRSensitivity.Maximum, true);
                         }
                         catch (Exception ex)
                         {
-                            SimpleLogger.Instance.Error($"[GamePad] Connect error for P{PlayerIndex}: {ex.Message}");
+                            SimpleLogger.Instance.Error(string.Format("[GamePad] Connect error for P{0}: {1}", PlayerIndex, ex.Message));
                         }
                     });
                 }
                 catch (Exception ex)
                 {
-                    SimpleLogger.Instance.Error($"[GamePad] Error enabling Col06 for P{PlayerIndex}: {ex.Message}");
+                    SimpleLogger.Instance.Error(string.Format("[GamePad] Error enabling Col06 for P{0}: {1}", PlayerIndex, ex.Message));
                 }
             }
 
             if (_hiddenWnd != null)
-                _hiddenWnd.SetMode(((int)_mode) + 1);
-
-            if (_mode == WiiMoteMode.Mouse)
             {
+                // Map complex modes to 1-4 for legacy display if needed, but better to use notifications
+                int displayMode = (int)_mode;
+                if (displayMode > 3) displayMode = 3; // Cap for legacy UI if it only expects 1-4
+                _hiddenWnd.SetMode(displayMode + 1);
+            }
+
+            if (_mode == WiiMoteMode.Mouse || _mode == WiiMoteMode.Mouse43)
+            {
+                // EN: Enable Mouse (COL03) when in Mouse mode
+                // FR: Activer la souris (COL03) quand on est en mode Mouse
+                WiimoteGun.ServiceClient.EnablePlayer(PlayerIndex);
+
                 ThreadPool.QueueUserWorkItem(o =>
                 {
-                    try { wiimote.SetReportType(ReportType.ButtonsAccelIR10Ext6, IRSensitivity.Maximum, true); }
+                    try
+                    {
+                        wiimote.SetReportType(ReportType.ButtonsAccelIR10Ext6, IRSensitivity.Maximum, true);
+                    }
+                    catch { }
+                });
+
+                // Log initial battery level (EN/FR: Logger le niveau de batterie initial)
+                _lastBatteryLevel = wiimote.WiimoteState.Status.Battery;
+                _lastBatteryLogTime = DateTime.Now;
+                SimpleLogger.Instance.Info(string.Format("[P{0}] Battery connected: {1:F1}% {2}", PlayerIndex, _lastBatteryLevel, (wiimote.WiimoteState.Status.BatteryLow ? "(LOW!)" : "")));
+            }
+
+            if (_mode == WiiMoteMode.Keyboardpad)
+            {
+                // EN: Disable Mouse (COL03) in Keyboardpad mode
+                // FR: Désactiver la souris (COL03) en mode Keyboardpad
+                WiimoteGun.ServiceClient.RemoveMouseForPlayer(PlayerIndex);
+
+                // EN/FR: Ensure IR mode is active even in Keyboardpad mode for lightgun tracking
+                ThreadPool.QueueUserWorkItem(o =>
+                {
+                    try
+                    {
+                        wiimote.SetReportType(ReportType.ButtonsAccelIR10Ext6, IRSensitivity.Maximum, true);
+                    }
                     catch { }
                 });
             }
 
-            SimpleLogger.Instance.Info($"Wiimote P{PlayerIndex} set to mode : {_mode}");
+            if (_mode == WiiMoteMode.Disabled)
+            {
+                // EN: Disable Mouse (COL03) when Wiimote is disabled
+                // FR: Désactiver la souris (COL03) quand la Wiimote est désactivée
+                WiimoteGun.ServiceClient.RemoveMouseForPlayer(PlayerIndex);
+            }
+
+            string modeName = _mode.ToString();
+            // User friendly names (EN)
+            switch(_mode)
+            {
+                case WiiMoteMode.Mouse: modeName = "Mouse"; break;
+                case WiiMoteMode.Mouse43: modeName = "Mouse (4:3)"; break;
+                case WiiMoteMode.GamePad: modeName = "GamePad"; break;
+                case WiiMoteMode.GamePad43: modeName = "GamePad (4:3)"; break;
+                case WiiMoteMode.Keyboardpad: modeName = "Keyboardpad"; break;
+                case WiiMoteMode.Disabled: modeName = "Disabled"; break;
+            }
 
             if (_mode == WiiMoteMode.Disabled)
-                Program.Notify($"WiimoteGun P{PlayerIndex} disabled");
+            {
+                Program.Notify(string.Format("WiimoteGun P{0} : {1}", PlayerIndex, modeName));
+            }
             else
-                Program.Notify($"WiimoteGun P{PlayerIndex} {_mode} activated");
+            {
+                Program.Notify(string.Format("WiimoteGun P{0} : {1} activated", PlayerIndex, modeName));
+            }
         }
 
         public static event EventHandler OverlayRequested;
@@ -1334,7 +1459,7 @@ namespace WiimoteGun
                 if (!_isOffsetAdjustmentActive)
                 {
                     _isOffsetAdjustmentActive = true;
-                    SimpleLogger.Instance.Info($"[P{PlayerIndex}] Offset adjustment mode activated");
+                    SimpleLogger.Instance.Info(string.Format("[P{0}] Offset adjustment mode activated", PlayerIndex));
                 }
                 
                 // Apply offset changes with repeat rate limiting (EN/FR: Appliquer changements offset avec limitation de répétition)
@@ -1506,10 +1631,13 @@ namespace WiimoteGun
                         Wiimote.SetRumble(true);
                         
                         // Schedule rumble stop (EN/FR: Programmer arrêt vibration)
-                        System.Threading.Tasks.Task.Delay(durationMs).ContinueWith(_ =>
+                        System.Threading.Timer stopTimer = null;
+                        stopTimer = new System.Threading.Timer(new System.Threading.TimerCallback(s =>
                         {
                             StopRumble();
-                        });
+                            if (s != null) ((System.Threading.Timer)s).Dispose();
+                        }), null, durationMs, System.Threading.Timeout.Infinite);
+                        // Store timer if needed but here we just need it to run once
                         
                         _lastRumbleTime = DateTime.Now;
                     }
@@ -1684,7 +1812,7 @@ namespace WiimoteGun
         
         private void FireButtonEvent(string buttonName)
         {
-            SimpleLogger.Instance.Info($"P{PlayerIndex}: Button {buttonName} pressed in assignment mode");
+            SimpleLogger.Instance.Info(string.Format("P{0}: Button {1} pressed in assignment mode", PlayerIndex, buttonName));
             ButtonPressed?.Invoke(this, new ButtonPressedEventArgs(PlayerIndex, buttonName));
         }
         
@@ -1694,131 +1822,154 @@ namespace WiimoteGun
         public static void SetInputLock(bool locked)
         {
             _inputsLocked = locked;
-            SimpleLogger.Instance.Info($"Wiimote inputs {(locked ? "LOCKED" : "UNLOCKED")} for button assignment");
+            SimpleLogger.Instance.Info(string.Format("Wiimote inputs {0} for button assignment", (locked ? "LOCKED" : "UNLOCKED")));
         }
-        private void UpdateGamePadState(WiimoteState state)
+        private void UpdateGamePadState(WiimoteState state, Point2F? scaledPos)
         {
-            if (_virtualGamepad == null || !_virtualGamepad.IsConnected)
-                return;
-
-            GamePadMappings mappings = Options.Instance.GetGamePadMappingsForPlayer(PlayerIndex);
-            if (mappings == null) return;
-
-            VMultiGamepadReport report = VMultiGamepadReport.Create();
-
-            // --- Buttons ---
-            report.SetButton(mappings.WiiA, state.Buttons.A);
-            report.SetButton(mappings.WiiB, state.Buttons.B);
-            report.SetButton(mappings.Wii1, state.Buttons.One);
-            report.SetButton(mappings.Wii2, state.Buttons.Two);
-            report.SetButton(mappings.WiiPlus, state.Buttons.Plus);
-            report.SetButton(mappings.WiiMinus, state.Buttons.Minus);
-            report.SetButton(mappings.WiiUp, state.Buttons.Up);
-            report.SetButton(mappings.WiiDown, state.Buttons.Down);
-            report.SetButton(mappings.WiiLeft, state.Buttons.Left);
-            report.SetButton(mappings.WiiRight, state.Buttons.Right);
-            report.SetButton(mappings.WiiHome, state.Buttons.Home);
-
-            if (state.ExtensionType == ExtensionType.Nunchuk)
+            try
             {
-                report.SetButton(mappings.NunchukC, state.Nunchuk.C);
-                report.SetButton(mappings.NunchukZ, state.Nunchuk.Z);
+                if (_virtualGamepad == null || !_virtualGamepad.IsConnected)
+                    return;
 
-                // --- Nunchuk Joystick ---
-                // WiimoteLib returns -0.5 to 0.5. We map to -1.0 to 1.0.
-                // (Outer declarations removed to avoid scope conflict and redundancy)
+                GamePadMappings mappings = Options.Instance.GetGamePadMappingsForPlayer(PlayerIndex);
+                if (mappings == null) return;
 
-                // Logging (Debug) - Log RAW values before clamping/mapping
-                // (EN/FR: Log valeurs RAW avant limitation/mapping)
-                // if (DateTime.Now.Second % 2 == 0 && DateTime.Now.Millisecond < 50)
-                //    SimpleLogger.Instance.Info(string.Format("[NunchukRaw] P{0} Raw=({1:F3}, {2:F3})", PlayerIndex, joyX, joyY));
+                VMultiGamepadReport report = VMultiGamepadReport.Create();
 
-                // Apply Deadzone (15%) (EN/FR: Appliquer zone morte 15%)
-                if (mappings.NunchukJoystickAxis != GamePadAxis.None)
+                // --- Buttons ---
+                report.SetButton(mappings.WiiA, state.Buttons.A);
+                report.SetButton(mappings.WiiB, state.Buttons.B);
+                report.SetButton(mappings.Wii1, state.Buttons.One);
+                report.SetButton(mappings.Wii2, state.Buttons.Two);
+                report.SetButton(mappings.WiiPlus, state.Buttons.Plus);
+                report.SetButton(mappings.WiiMinus, state.Buttons.Minus);
+                report.SetButton(mappings.WiiUp, state.Buttons.Up);
+                report.SetButton(mappings.WiiDown, state.Buttons.Down);
+                report.SetButton(mappings.WiiLeft, state.Buttons.Left);
+                report.SetButton(mappings.WiiRight, state.Buttons.Right);
+                report.SetButton(mappings.WiiHome, state.Buttons.Home);
+
+                // Check for Nunchuk (Stand-alone OR via MotionPlus)
+                // (EN/FR: Vérifier Nunchuk (Seul OU via MotionPlus))
+                bool hasNunchuk = state.ExtensionType == ExtensionType.Nunchuk || state.ExtensionType == ExtensionType.MotionPlusNunchuk;
+
+                if (hasNunchuk)
                 {
-                    float joyX = state.Nunchuk.Joystick.X * 2.0f;
-                    float joyY = state.Nunchuk.Joystick.Y * 2.0f; // Y is diff in reading, corrected in SetAxis if needed
+                    report.SetButton(mappings.NunchukC, state.Nunchuk.C);
+                    report.SetButton(mappings.NunchukZ, state.Nunchuk.Z);
 
-                    // Safety check for invalid calibration (Div/0)
-                    if (float.IsNaN(joyX) || float.IsInfinity(joyX)) joyX = 0f;
-                    if (float.IsNaN(joyY) || float.IsInfinity(joyY)) joyY = 0f;
+                    // --- Nunchuk Joystick ---
+                    // WiimoteLib returns -0.5 to 0.5. We map to -1.0 to 1.0.
+                    // (Outer declarations removed to avoid scope conflict and redundancy)
 
-                    // Apply Deadzone (25%) (EN/FR: Appliquer zone morte 25% pour corriger le décalage amplifié)
-                    if (Math.Abs(joyX) < 0.25f) joyX = 0f;
-                    if (Math.Abs(joyY) < 0.25f) joyY = 0f;
+                    // Logging (Debug) - Log RAW values before clamping/mapping
+                    // (EN/FR: Log valeurs RAW avant limitation/mapping)
+                    // if (DateTime.Now.Second % 2 == 0 && DateTime.Now.Millisecond < 50)
+                    //    SimpleLogger.Instance.Info(string.Format("[NunchukRaw] P{0} Raw=({1:F3}, {2:F3})", PlayerIndex, state.Nunchuk.Joystick.X, state.Nunchuk.Joystick.Y));
 
-                    // Clamp to -1.0..1.0
-                    // Math.Clamp available in .NET Core / newer C# only. Using Max/Min for C# 5.0 compat.
-                    joyX = Math.Max(-1.0f, Math.Min(1.0f, joyX));
-                    joyY = Math.Max(-1.0f, Math.Min(1.0f, joyY));
-
-                    if (mappings.NunchukJoystickAxis == GamePadAxis.Dpad)
+                    // Apply Deadzone (15%) (EN/FR: Appliquer zone morte 15%)
+                    if (mappings.NunchukJoystickAxis != GamePadAxis.None)
                     {
-                        // Digital D-Pad Mode (Values > 0.5 trigger button)
-                        bool dUp = joyY > 0.5f;
-                        bool dDown = joyY < -0.5f;
-                        bool dRight = joyX > 0.5f;
-                        bool dLeft = joyX < -0.5f;
+                        float joyX = state.Nunchuk.Joystick.X * 2.0f;
+                        float joyY = state.Nunchuk.Joystick.Y * 2.0f; // Y is diff in reading, corrected in SetAxis if needed
 
-                        if (dUp) report.SetButton(GamePadButton.DPadUp, true);
-                        if (dDown) report.SetButton(GamePadButton.DPadDown, true);
-                        if (dLeft) report.SetButton(GamePadButton.DPadLeft, true);
-                        if (dRight) report.SetButton(GamePadButton.DPadRight, true);
-                    }
-                    else
-                    {
-                        // Analog Axis Mode
-                        // Send to Report (Invert Y for standard gamepad: Up=Negative, but wait.. SetAxis usually expects standard logic)
-                        // Nunchuk Y: Up is Positive (~1.0), Down is Negative (~-1.0)
-                        // GamePad Y: Up is Negative (-1.0), Down is Positive (1.0)
-                        report.SetAxis(mappings.NunchukJoystickAxis, joyX, -joyY);
+                        // Safety check for invalid calibration (Div/0)
+                        if (float.IsNaN(joyX) || float.IsInfinity(joyX)) joyX = 0f;
+                        if (float.IsNaN(joyY) || float.IsInfinity(joyY)) joyY = 0f;
+
+                        // Apply Deadzone (25%) (EN/FR: Appliquer zone morte 25% pour corriger le décalage amplifié)
+                        if (Math.Abs(joyX) < 0.25f) joyX = 0f;
+                        if (Math.Abs(joyY) < 0.25f) joyY = 0f;
+
+                        // Clamp to -1.0..1.0
+                        // Math.Clamp available in .NET Core / newer C# only. Using Max/Min for C# 5.0 compat.
+                        joyX = Math.Max(-1.0f, Math.Min(1.0f, joyX));
+                        joyY = Math.Max(-1.0f, Math.Min(1.0f, joyY));
+
+                        if (mappings.NunchukJoystickAxis == GamePadAxis.Dpad)
+                        {
+                            // Digital D-Pad Mode (Values > 0.5 trigger button)
+                            bool dUp = joyY > 0.5f;
+                            bool dDown = joyY < -0.5f;
+                            bool dRight = joyX > 0.5f;
+                            bool dLeft = joyX < -0.5f;
+
+                            if (dUp) report.SetButton(GamePadButton.DPadUp, true);
+                            if (dDown) report.SetButton(GamePadButton.DPadDown, true);
+                            if (dLeft) report.SetButton(GamePadButton.DPadLeft, true);
+                            if (dRight) report.SetButton(GamePadButton.DPadRight, true);
+                        }
+                        else
+                        {
+                            // Analog Axis Mode
+                            // Send to Report (Invert Y for standard gamepad: Up=Negative, but wait.. SetAxis usually expects standard logic)
+                            // Nunchuk Y: Up is Positive (~1.0), Down is Negative (~-1.0)
+                            // GamePad Y: Up is Negative (-1.0), Down is Positive (1.0)
+                            report.SetAxis(mappings.NunchukJoystickAxis, joyX, -joyY);
+                        }
                     }
                 }
-            }
 
-            // --- IR Sensor Axis ---
-            bool irFound = state.IRState.IRSensor0.Found || state.IRState.IRSensor1.Found;
-            if (irFound)
+                // --- IR Sensor Axis ---
+                bool irFound = scaledPos.HasValue;
+                if (irFound)
+                {
+                    // Use autocalibrated position (Gun4IR/RetroShooter layouts) if available
+                    // (EN/FR: Utiliser position autocalibrée si disponible)
+                    // Convert back from 0..65535 to 0..1
+                    _lastValidIRX = scaledPos.Value.X / 65535.0f;
+                    _lastValidIRY = scaledPos.Value.Y / 65535.0f;
+                }
+
+                // Always use last valid position (Sticky IR)
+                // (EN/FR: Toujours utiliser la dernière position valide)
+                // IR Midpoint is 0..1. 0,0 is Top Left. (EN/FR: 0,0 est en haut à gauche)
+                
+                // Apply Overscan/Overdrive Margin (User Configurable)
+                // (EN/FR: Appliquer marge de dépassement configurable)
+                float margin = mappings.IROverscan;
+                float scale = 1.0f / (1.0f - 2.0f * margin);
+                
+                float xOverscan = (_lastValidIRX - margin) * scale;
+                float yOverscan = (_lastValidIRY - margin) * scale;
+
+                // Clamp (EN/FR: Limiter)
+                xOverscan = Math.Max(0f, Math.Min(1f, xOverscan));
+                yOverscan = Math.Max(0f, Math.Min(1f, yOverscan));
+
+                // Map to -1.0..1.0
+                float normX = (xOverscan * 2.0f) - 1.0f;
+                float normY = (yOverscan * 2.0f) - 1.0f;
+
+                // Apply Linearity Correction (S-Curve) to fix "cursor advance" at edges
+                // (EN/FR: Appliquer correction de linéarité (courbe en S) pour corriger l'avance du curseur sur les bords)
+                if (mappings.IRLinearity > 0 && Math.Abs(mappings.IRLinearity - 1.0f) > 0.001f)
+                {
+                    normX = (float)(Math.Sign(normX) * Math.Pow(Math.Abs(normX), mappings.IRLinearity));
+                    normY = (float)(Math.Sign(normY) * Math.Pow(Math.Abs(normY), mappings.IRLinearity));
+                }
+
+                ApplyAxis(ref report, mappings.IRSensorAxis, normX, normY);
+
+                // Send report
+                _virtualGamepad.SendReport(report);
+                
+                // Increment debug counter
+                _debugCounter++;
+                
+                // Debug Log every ~60 frames (approx 1 sec)
+                // if (_debugCounter % 60 == 0)
+                // {
+                //    SimpleLogger.Instance.Info(string.Format("[GamePad] Hat={0} (Neu={1}) Nunchuk={2} RawJoystick=({3:F2}, {4:F2}) DPad=({5},{6},{7},{8})", report.Hat, VMultiGamepadReport.HatNeutral, state.ExtensionType, state.Nunchuk.Joystick.X, state.Nunchuk.Joystick.Y, state.Buttons.Up, state.Buttons.Down, state.Buttons.Left, state.Buttons.Right));
+                // }
+            }
+            catch (Exception ex)
             {
-                _lastValidIRX = state.IRState.Midpoint.X;
-                _lastValidIRY = state.IRState.Midpoint.Y;
+                if (_debugCounter % 300 == 0) // Log once every ~5s to avoid spam
+                {
+                     SimpleLogger.Instance.Error(string.Format("[GamePad Update Error] P{0}: {1}", PlayerIndex, ex.Message));
+                }
             }
-
-            // Always use last valid position (Sticky IR)
-            // (EN/FR: Toujours utiliser la dernière position valide)
-            // IR Midpoint is 0..1. 0,0 is Top Left. (EN/FR: 0,0 est en haut à gauche)
-            
-            // Apply Overscan/Overdrive Margin (10%)
-            // (EN/FR: Appliquer marge de dépassement 10%)
-            // Reduced from 25% to improve line-of-sight linearity (visée à l'oeil).
-            // Maps [0.10 .. 0.90] -> [0 .. 1]
-            float margin = 0.10f;
-            float scale = 1.0f / (1.0f - 2.0f * margin);
-            
-            float xOverscan = (_lastValidIRX - margin) * scale;
-            float yOverscan = (_lastValidIRY - margin) * scale;
-
-            // Clamp (EN/FR: Limiter)
-            xOverscan = Math.Max(0f, Math.Min(1f, xOverscan));
-            yOverscan = Math.Max(0f, Math.Min(1f, yOverscan));
-
-            // Map to -1.0..1.0
-            float normX = (xOverscan * 2.0f) - 1.0f;
-            float normY = (yOverscan * 2.0f) - 1.0f;
-
-            ApplyAxis(ref report, mappings.IRSensorAxis, normX, normY);
-
-            // Send report
-            _virtualGamepad.SendReport(report);
-            
-            // Increment debug counter
-            _debugCounter++;
-            
-            // Debug Log every ~60 frames (approx 1 sec)
-            // if (_debugCounter % 60 == 0)
-            // {
-            //    SimpleLogger.Instance.Info(string.Format("[GamePad] Hat={0} (Neu={1}) Nunchuk={2} RawJoystick=({3:F2}, {4:F2}) DPad=({5},{6},{7},{8})", report.Hat, VMultiGamepadReport.HatNeutral, state.ExtensionType, state.Nunchuk.Joystick.X, state.Nunchuk.Joystick.Y, state.Buttons.Up, state.Buttons.Down, state.Buttons.Left, state.Buttons.Right));
-            // }
         }
 
         private void ApplyAxis(ref VMultiGamepadReport report, GamePadAxis axis, float x, float y)
@@ -1830,7 +1981,45 @@ namespace WiimoteGun
             // In standard HID: Y - is Up.
             report.SetAxis(axis, x, y);
         }
+
+
+        /// <summary>
+        /// Applies 4:3 aspect ratio stretching if the current mode is a 4:3 mode and the screen is wide.
+        /// (EN/FR: Applique l'étirement du format 4:3 si le mode actuel est en 4:3 et que l'écran est large.)
+        /// </summary>
+        private Point2F ApplyAspectRatioCorrection(Point2F pos, WiiMoteMode mode)
+        {
+            if (mode != WiiMoteMode.Mouse43 && mode != WiiMoteMode.GamePad43)
+                return pos;
+
+            var screen = System.Windows.Forms.Screen.AllScreens[ScreenIndex];
+            double screenRatio = (double)screen.Bounds.Width / screen.Bounds.Height;
+            double targetRatio = 4.0 / 3.0;
+
+            // Only apply if screen is significantly wider than 4:3 (e.g. 16:9, 21:9, etc.)
+            if (screenRatio > targetRatio + 0.01)
+            {
+                // factor = 1.77 / 1.33 = 1.333
+                double factor = screenRatio / targetRatio;
+                // offset = (1 - 1/factor) / 2
+                // For Widescreen on 4:3, offset is calculated based on ratio
+                double offset = (1.0 - (1.0 / factor)) / 2.0;
+
+                // input pos.X is 0..65535 (scaled from 0..1)
+                float normX = pos.X / 65535.0f;
+                
+                // transform: normX' = (normX - offset) / (1 - 2*offset)
+                float normXCorrected = (float)((normX - offset) / (1.0 - 2.0 * offset));
+
+                // Clamp to valid range (0..1)
+                normXCorrected = Math.Max(0f, Math.Min(1f, normXCorrected));
+                
+                return new Point2F(normXCorrected * 65535.0f, pos.Y);
+            }
+
+            return pos;
     }
+}
 
     /// <summary>
     /// Event args for button press detection (EN/FR: Arguments événement pour détection pression bouton)
@@ -1849,8 +2038,10 @@ namespace WiimoteGun
     enum WiiMoteMode
     {
         Mouse = 0,
-        Keyboardpad = 1,
+        Mouse43 = 1,
         GamePad = 2,
-        Disabled = 3
+        GamePad43 = 3,
+        Keyboardpad = 4,
+        Disabled = 5
     }
 }

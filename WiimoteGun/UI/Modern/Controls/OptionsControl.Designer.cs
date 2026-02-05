@@ -29,6 +29,7 @@ namespace WiimoteGun.Controls
             this.tabGeneral = new System.Windows.Forms.TabPage();
             this.optShowNotifications = new System.Windows.Forms.CheckBox();
             this.optEnableGamePadSwap = new System.Windows.Forms.CheckBox();
+            this.optPersistentGamePads = new System.Windows.Forms.CheckBox();
             this.btnConfigureGamePad = new System.Windows.Forms.Button();
             this.optIRSensitivity = new System.Windows.Forms.NumericUpDown();
             this.lblIRSensitivity = new System.Windows.Forms.Label();
@@ -182,6 +183,7 @@ namespace WiimoteGun.Controls
             // 
             this.tabGeneral.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(20)))), ((int)(((byte)(20)))));
             this.tabGeneral.Controls.Add(this.btnConfigureGamePad);
+            this.tabGeneral.Controls.Add(this.optPersistentGamePads);
             this.tabGeneral.Controls.Add(this.optEnableGamePadSwap);
             this.tabGeneral.Controls.Add(this.optShowNotifications);
             this.tabGeneral.Controls.Add(this.optIRSensitivity);
@@ -221,6 +223,17 @@ namespace WiimoteGun.Controls
             this.optEnableGamePadSwap.TabIndex = 2;
             this.optEnableGamePadSwap.Text = "Enable GamePad Swap Mode (Col06)";
             this.optEnableGamePadSwap.UseVisualStyleBackColor = true;
+            // 
+            // optPersistentGamePads
+            // 
+            this.optPersistentGamePads.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.optPersistentGamePads.ForeColor = System.Drawing.Color.White;
+            this.optPersistentGamePads.Location = new System.Drawing.Point(20, 300);
+            this.optPersistentGamePads.Name = "optPersistentGamePads";
+            this.optPersistentGamePads.Size = new System.Drawing.Size(220, 25);
+            this.optPersistentGamePads.TabIndex = 4;
+            this.optPersistentGamePads.Text = "Stabilize GamePad Indices";
+            this.optPersistentGamePads.UseVisualStyleBackColor = true;
             // 
             // btnConfigureGamePad
             // 
@@ -605,6 +618,7 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.NumericUpDown optIRSensitivity;
         private System.Windows.Forms.CheckBox optShowNotifications;
         private System.Windows.Forms.CheckBox optEnableGamePadSwap;
+        private System.Windows.Forms.CheckBox optPersistentGamePads;
 
 
 

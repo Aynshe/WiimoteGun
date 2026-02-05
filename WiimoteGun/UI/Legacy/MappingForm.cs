@@ -210,7 +210,7 @@ namespace WiimoteGun
                             
                             LoadProfileUI();
                             comboBoxSubfolders.SelectedItem = folderName;
-                            MessageBox.Show($"Folder '{folderName}' created!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            MessageBox.Show(string.Format("Folder '{0}' created!", folderName), "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }
                         catch (Exception ex)
                         {
@@ -259,7 +259,7 @@ namespace WiimoteGun
             if (success)
             {
                 RefreshProfileList();
-                MessageBox.Show($"Profile '{profileName}' saved successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(string.Format("Profile '{0}' saved successfully!", profileName), "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             else
             {
@@ -310,7 +310,7 @@ namespace WiimoteGun
                     : selectedProfile;
                 txtProfileName.Text = profileNameWithoutExt;
                 
-                MessageBox.Show($"Profile '{profile.ProfileName}' loaded successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(string.Format("Profile '{0}' loaded successfully!", profile.ProfileName), "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             else
             {
@@ -327,7 +327,7 @@ namespace WiimoteGun
                 return;
             }
             
-            var result = MessageBox.Show($"Are you sure you want to delete '{selectedProfile}'?", 
+            var result = MessageBox.Show(string.Format("Are you sure you want to delete '{0}'?", selectedProfile), 
                 "Confirm Deletion", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             
             if (result == DialogResult.Yes)
@@ -349,7 +349,7 @@ namespace WiimoteGun
                     {
                         System.IO.File.Delete(fullPath);
                         RefreshProfileList();
-                        MessageBox.Show($"Profile '{selectedProfile}' deleted successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show(string.Format("Profile '{0}' deleted successfully!", selectedProfile), "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     else
                     {
@@ -358,7 +358,7 @@ namespace WiimoteGun
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Failed to delete profile: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(string.Format("Failed to delete profile: {0}", ex.Message), "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }

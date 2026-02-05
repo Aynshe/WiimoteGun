@@ -41,13 +41,13 @@ namespace WiimoteGun
         {
             if (Options.Instance.UseSharedHotkeys && _playerIndex != 1)
             {
-                 this.Text = $"Hotkeys - Player {_playerIndex} (Using Shared P1)";
-                 _lblTitle.Text = $"⚡ Hotkeys - Player {_playerIndex} (Shared P1)";
+                 this.Text = string.Format("Hotkeys - Player {0} (Using Shared P1)", _playerIndex);
+                 _lblTitle.Text = string.Format("⚡ Hotkeys - Player {0} (Shared P1)", _playerIndex);
             }
             else
             {
-                this.Text = $"Hotkeys - Player {_playerIndex}";
-                _lblTitle.Text = $"⚡ Hotkeys Configuration - Player {_playerIndex}";
+                this.Text = string.Format("Hotkeys - Player {0}", _playerIndex);
+                _lblTitle.Text = string.Format("⚡ Hotkeys Configuration - Player {0}", _playerIndex);
             }
         }
 
@@ -101,7 +101,7 @@ namespace WiimoteGun
             {
                 var item = new ListViewItem(new[]
                 {
-                    $"{hotkey.ModifierButton} + {hotkey.TriggerButton}",
+                    string.Format("{0} + {1}", hotkey.ModifierButton, hotkey.TriggerButton),
                     hotkey.PressType == HotkeyPressType.Short ? "Short" : "Long",
                     string.Join(" + ", hotkey.KeyCombination),
                     hotkey.Description
@@ -178,7 +178,7 @@ namespace WiimoteGun
 
             var selectedHotkey = _listViewHotkeys.SelectedItems[0].Tag as Hotkey;
             var result = MessageBox.Show(
-                $"Delete hotkey: {selectedHotkey.GetDisplayName()}?",
+                string.Format("Delete hotkey: {0}?", selectedHotkey.GetDisplayName()),
                 "Confirm Delete",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);
@@ -193,7 +193,7 @@ namespace WiimoteGun
         /// <summary>
         /// Get the updated hotkey profile
         /// </summary>
-        public HotkeyProfile HotkeyProfile => _hotkeyProfile;
+        public HotkeyProfile HotkeyProfile { get { return _hotkeyProfile; } }
     }
 
 

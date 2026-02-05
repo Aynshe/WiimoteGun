@@ -138,9 +138,9 @@ namespace WiimoteGun.UI.Modern.Forms
             float displayRoll = smoothRoll - _rollOffset;
             float displayYaw = smoothYaw - _yawOffset;
 
-            lblGyroYaw.Text = $"Yaw:   {displayYaw,7:F2}";
-            lblGyroPitch.Text = $"Pitch: {displayPitch,7:F2}°";
-            lblGyroRoll.Text = $"Roll:  {displayRoll,7:F2}°";
+            lblGyroYaw.Text = string.Format("Yaw:   {0,7:F2}", displayYaw);
+            lblGyroPitch.Text = string.Format("Pitch: {0,7:F2}°", displayPitch);
+            lblGyroRoll.Text = string.Format("Roll:  {0,7:F2}°", displayRoll);
         }
 
         private float SmoothValue(System.Collections.Generic.Queue<float> history, float newValue)
@@ -302,7 +302,7 @@ namespace WiimoteGun.UI.Modern.Forms
                     _pitchOffset = calib.PitchOffset;
                     _rollOffset = calib.RollOffset;
                     _yawOffset = calib.YawOffset;
-                    SimpleLogger.Instance.Info($"Loaded gyro calibration for P{_selectedPlayer} ({uniqueId}): P={_pitchOffset:F1}, R={_rollOffset:F1}");
+                    SimpleLogger.Instance.Info(string.Format("Loaded gyro calibration for P{0} ({1}): P={2:F1}, R={3:F1}", _selectedPlayer, uniqueId, _pitchOffset, _rollOffset));
                 }
             }
         }
@@ -314,7 +314,7 @@ namespace WiimoteGun.UI.Modern.Forms
             var controller = Program.WiiMoteManager.GetControllers().FirstOrDefault(c => c.PlayerIndex == _selectedPlayer);
             if (controller == null)
             {
-                MessageBox.Show($"Player {_selectedPlayer} is not connected.", "Calibration Error",
+                MessageBox.Show(string.Format("Player {0} is not connected.", _selectedPlayer), "Calibration Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -329,12 +329,12 @@ namespace WiimoteGun.UI.Modern.Forms
             {
                 string uniqueId = controller.Wiimote.UniqueId;
                 Options.Instance.SetCalibration(uniqueId, _pitchOffset, _rollOffset, _yawOffset);
-                SimpleLogger.Instance.Info($"Gyroscope calibration saved for P{_selectedPlayer} ({uniqueId}): P={_pitchOffset:F1}, R={_rollOffset:F1}");
+                SimpleLogger.Instance.Info(string.Format("Gyroscope calibration saved for P{0} ({1}): P={2:F1}, R={3:F1}", _selectedPlayer, uniqueId, _pitchOffset, _rollOffset));
             }
 
-            MessageBox.Show($"Gyroscope calibrated and saved!\n" +
-                          $"Offsets set to: Pitch {_pitchOffset:F1}°, Roll {_rollOffset:F1}°\n" +
-                          $"Saved for device ID: {controller.Wiimote?.UniqueId}", "Calibration Saved",
+            MessageBox.Show(string.Format("Gyroscope calibrated and saved!\n" +
+                          "Offsets set to: Pitch {0:F1}°, Roll {1:F1}°\n" +
+                          "Saved for device ID: {2}", _pitchOffset, _rollOffset, controller.Wiimote != null ? controller.Wiimote.UniqueId : "unknown"), "Calibration Saved",
                           MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }

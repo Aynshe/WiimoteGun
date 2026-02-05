@@ -36,7 +36,7 @@ namespace WiimoteGun
                         if (value != null)
                         {
                             string path = value.ToString();
-                            SimpleLogger.Instance.Info($"RetroBat path found in registry: {path}");
+                            SimpleLogger.Instance.Info(string.Format("RetroBat path found in registry: {0}", path));
                             return path;
                         }
                     }
@@ -44,7 +44,7 @@ namespace WiimoteGun
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Warning($"Failed to read RetroBat registry: {ex.Message}");
+                SimpleLogger.Instance.Warning(string.Format("Failed to read RetroBat registry: {0}", ex.Message));
             }
 
             return null;
@@ -65,7 +65,7 @@ namespace WiimoteGun
             if (!string.IsNullOrEmpty(retroBatPath) && Directory.Exists(retroBatPath))
             {
                 remapDir = Path.Combine(retroBatPath, REMAP_SUBFOLDER);
-                SimpleLogger.Instance.Info($"Using RetroBat remap directory: {remapDir}");
+                SimpleLogger.Instance.Info(string.Format("Using RetroBat remap directory: {0}", remapDir));
             }
             else
             {
@@ -73,7 +73,7 @@ namespace WiimoteGun
                 // (EN/FR: Repli : utiliser dossier local si RetroBat introuvable)
                 string exeDir = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
                 remapDir = Path.Combine(exeDir, "RemapProfiles");
-                SimpleLogger.Instance.Warning($"RetroBat not found, using fallback directory: {remapDir}");
+                SimpleLogger.Instance.Warning(string.Format("RetroBat not found, using fallback directory: {0}", remapDir));
             }
 
             // Create directory if it doesn't exist (EN/FR: Créer le dossier s'il n'existe pas)
@@ -82,7 +82,7 @@ namespace WiimoteGun
                 if (!Directory.Exists(remapDir))
                 {
                     Directory.CreateDirectory(remapDir);
-                    SimpleLogger.Instance.Info($"Created remap directory: {remapDir}");
+                    SimpleLogger.Instance.Info(string.Format("Created remap directory: {0}", remapDir));
                 }
 
                 _cachedRemapDirectory = remapDir;
@@ -90,7 +90,7 @@ namespace WiimoteGun
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"Failed to create remap directory: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("Failed to create remap directory: {0}", ex.Message));
                 return null;
             }
         }
@@ -114,7 +114,7 @@ namespace WiimoteGun
 
             if (!File.Exists(fullPath))
             {
-                SimpleLogger.Instance.Error($"Remap profile not found: {fullPath}");
+                SimpleLogger.Instance.Error(string.Format("Remap profile not found: {0}", fullPath));
                 return null;
             }
 
@@ -124,13 +124,13 @@ namespace WiimoteGun
                 using (FileStream stream = File.OpenRead(fullPath))
                 {
                     RemapProfile profile = serializer.Deserialize(stream) as RemapProfile;
-                    SimpleLogger.Instance.Info($"Loaded remap profile: {fullPath}");
+                    SimpleLogger.Instance.Info(string.Format("Loaded remap profile: {0}", fullPath));
                     return profile;
                 }
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"Failed to load remap profile {fullPath}: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("Failed to load remap profile {0}: {1}", fullPath, ex.Message));
                 return null;
             }
         }
@@ -152,7 +152,7 @@ namespace WiimoteGun
                 return null;
             }
 
-            SimpleLogger.Instance.Info($"Loading default.remap from: {defaultPath}");
+            SimpleLogger.Instance.Info(string.Format("Loading default.remap from: {0}", defaultPath));
             return LoadProfile(DEFAULT_PROFILE_NAME);
         }
         
@@ -200,11 +200,11 @@ namespace WiimoteGun
                         serializer.Serialize(stream, defaultProfile);
                     }
                     
-                    SimpleLogger.Instance.Info($"Auto-created default.remap from current settings.cfg mapping: {defaultPath}");
+                    SimpleLogger.Instance.Info(string.Format("Auto-created default.remap from current settings.cfg mapping: {0}", defaultPath));
                 }
                 catch (Exception ex)
                 {
-                    SimpleLogger.Instance.Warning($"Failed to auto-create default.remap: {ex.Message}");
+                    SimpleLogger.Instance.Warning(string.Format("Failed to auto-create default.remap: {0}", ex.Message));
                     // Don't return false - this is not critical, continue with profile save
                 }
             }
@@ -218,7 +218,7 @@ namespace WiimoteGun
                     
                 if (!normalizedName.Equals("default.remap", StringComparison.OrdinalIgnoreCase))
                 {
-                    SimpleLogger.Instance.Error($"Cannot save '{profileName}' in Root folder. Only 'default.remap' is allowed in Root. Please select a subfolder.");
+                    SimpleLogger.Instance.Error(string.Format("Cannot save '{0}' in Root folder. Only 'default.remap' is allowed in Root. Please select a subfolder.", profileName));
                     System.Windows.Forms.MessageBox.Show(
                         "Cannot save profile in Root folder.\n\n" +
                         "Only 'default.remap' is allowed in the Root directory.\n" +
@@ -241,12 +241,12 @@ namespace WiimoteGun
                 if (!Directory.Exists(targetDir))
                 {
                     Directory.CreateDirectory(targetDir);
-                    SimpleLogger.Instance.Info($"Created subfolder: {targetDir}");
+                    SimpleLogger.Instance.Info(string.Format("Created subfolder: {0}", targetDir));
                 }
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"Failed to create subfolder: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("Failed to create subfolder: {0}", ex.Message));
                 return false;
             }
 
@@ -264,12 +264,12 @@ namespace WiimoteGun
                     serializer.Serialize(stream, profile);
                 }
 
-                SimpleLogger.Instance.Info($"Saved remap profile: {fullPath}");
+                SimpleLogger.Instance.Info(string.Format("Saved remap profile: {0}", fullPath));
                 return true;
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"Failed to save remap profile {fullPath}: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("Failed to save remap profile {0}: {1}", fullPath, ex.Message));
                 return false;
             }
         }
@@ -294,7 +294,7 @@ namespace WiimoteGun
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"Failed to get subfolders: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("Failed to get subfolders: {0}", ex.Message));
                 return new List<string>();
             }
         }
@@ -326,7 +326,7 @@ namespace WiimoteGun
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"Failed to get profiles in folder {subfolder}: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("Failed to get profiles in folder {0}: {1}", subfolder, ex.Message));
                 return new List<string>();
             }
         }

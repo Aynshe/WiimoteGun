@@ -140,15 +140,20 @@ namespace WiimoteGun
         private bool _isConnected;
         private VMultiGamepadReport _currentReport;
         private static readonly object _globalLock = new object();
-        private static Dictionary<int, VMultiGamepad> _activeClients = new Dictionary<int, VMultiGamepad>();
+        private static Dictionary<int, VMultiGamepad> _activeClients;
+
+        static VMultiGamepad()
+        {
+            _activeClients = new Dictionary<int, VMultiGamepad>();
+        }
 
         #endregion
 
         #region Properties
 
-        public int PlayerIndex => _playerIndex;
-        public bool IsConnected => _isConnected && _deviceHandle != null && !_deviceHandle.IsClosed;
-        public string DevicePath => _devicePath;
+        public int PlayerIndex { get { return _playerIndex; } }
+        public bool IsConnected { get { return _isConnected && _deviceHandle != null && !_deviceHandle.IsClosed; } }
+        public string DevicePath { get { return _devicePath; } }
 
         #endregion
 
@@ -161,7 +166,7 @@ namespace WiimoteGun
         public VMultiGamepad(int playerIndex)
         {
             if (playerIndex < 1 || playerIndex > 4)
-                throw new ArgumentOutOfRangeException(nameof(playerIndex), "Player index must be between 1 and 4");
+                throw new ArgumentOutOfRangeException("playerIndex", "Player index must be between 1 and 4");
 
             _playerIndex = playerIndex;
             _isConnected = false;
@@ -171,7 +176,7 @@ namespace WiimoteGun
             {
                 if (_activeClients.ContainsKey(playerIndex))
                 {
-                    SimpleLogger.Instance.Warning($"[VMultiGamepad] Client for P{playerIndex} already exists. Disposing old instance.");
+                    SimpleLogger.Instance.Warning(string.Format("[VMultiGamepad] Client for P{0} already exists. Disposing old instance.", playerIndex));
                     _activeClients[playerIndex].Dispose();
                 }
                 _activeClients[playerIndex] = this;
@@ -206,17 +211,17 @@ namespace WiimoteGun
 
             try
             {
-                SimpleLogger.Instance.Info($"[VMultiGamepad] Connecting to VMulti Control Interface for Player {_playerIndex}...");
+                SimpleLogger.Instance.Info(string.Format("[VMultiGamepad] Connecting to VMulti Control Interface for Player {0}...", _playerIndex));
 
                 _devicePath = FindGamepadDevice(_playerIndex);
 
                 if (string.IsNullOrEmpty(_devicePath))
                 {
-                    SimpleLogger.Instance.Error($"[VMultiGamepad] Could not find gamepad device for Player {_playerIndex}");
+                    SimpleLogger.Instance.Error(string.Format("[VMultiGamepad] Could not find gamepad device for Player {0}", _playerIndex));
                     return false;
                 }
 
-                SimpleLogger.Instance.Info($"[VMultiGamepad] Found device: {_devicePath}");
+                SimpleLogger.Instance.Info(string.Format("[VMultiGamepad] Found device: {0}", _devicePath));
 
                 _deviceHandle = CreateFile(
                     _devicePath,
@@ -230,7 +235,7 @@ namespace WiimoteGun
                 if (_deviceHandle.IsInvalid)
                 {
                     int error = Marshal.GetLastWin32Error();
-                    SimpleLogger.Instance.Error($"[VMultiGamepad] Failed to open device. Error: {error}");
+                    SimpleLogger.Instance.Error(string.Format("[VMultiGamepad] Failed to open device. Error: {0}", error));
                     return false;
                 }
 
@@ -240,12 +245,12 @@ namespace WiimoteGun
                 _isConnected = true;
                 _currentReport = VMultiGamepadReport.Create();
 
-                SimpleLogger.Instance.Info($"[VMultiGamepad] Successfully connected to gamepad for Player {_playerIndex}");
+                SimpleLogger.Instance.Info(string.Format("[VMultiGamepad] Successfully connected to gamepad for Player {0}", _playerIndex));
                 return true;
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"[VMultiGamepad] Connection error for P{_playerIndex}: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("[VMultiGamepad] Connection error for P{0}: {1}", _playerIndex, ex.Message));
                 Disconnect();
                 return false;
             }
@@ -267,7 +272,7 @@ namespace WiimoteGun
                 _deviceHandle = null;
             }
 
-            SimpleLogger.Instance.Info($"[VMultiGamepad] Disconnected gamepad for Player {_playerIndex}");
+            SimpleLogger.Instance.Info(string.Format("[VMultiGamepad] Disconnected gamepad for Player {0}", _playerIndex));
         }
 
         #endregion
@@ -304,7 +309,7 @@ namespace WiimoteGun
                 string targetSuffix = GetVMultiSuffix(playerIndex);
                 ushort targetVid = VMultiDeviceIds.PlayerVids[playerIndex - 1];
 
-                SimpleLogger.Instance.Info($"[VMultiGamepad] Searching for vmulti control: suffix={targetSuffix}, VID=0x{targetVid:X4}");
+                SimpleLogger.Instance.Info(string.Format("[VMultiGamepad] Searching for vmulti control: suffix={0}, VID=0x{1:X4}", targetSuffix, targetVid));
 
                 while (SetupDiEnumDeviceInterfaces(deviceInfoSet, IntPtr.Zero, ref hidGuid, memberIndex++, ref deviceInterfaceData))
                 {
@@ -328,7 +333,7 @@ namespace WiimoteGun
                     }
                 }
 
-                SimpleLogger.Instance.Warning($"[VMultiGamepad] No gamepad device found for Player {playerIndex}");
+                SimpleLogger.Instance.Warning(string.Format("[VMultiGamepad] No gamepad device found for Player {0}", playerIndex));
                 return null;
             }
             finally
@@ -403,7 +408,7 @@ namespace WiimoteGun
                         return false;
 
                     // Debug Log Caps
-                    SimpleLogger.Instance.Info($"[VMultiGamepad] HID Caps for {devicePath}: Input={caps.InputReportByteLength}, Output={caps.OutputReportByteLength}, Feature={caps.FeatureReportByteLength}");
+                    SimpleLogger.Instance.Info(string.Format("[VMultiGamepad] HID Caps for {0}: Input={1}, Output={2}, Feature={3}", devicePath, caps.InputReportByteLength, caps.OutputReportByteLength, caps.FeatureReportByteLength));
 
                     // Check for VMulti Control Interface (UsagePage=0xFF00, Usage=0x01)
                     // Accessing this interface allows sending reports to any VMulti sub-device (Mouse, Keyboard, Gamepad)
@@ -486,7 +491,7 @@ namespace WiimoteGun
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"[VMultiGamepad] SendReport error P{_playerIndex}: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("[VMultiGamepad] SendReport error P{0}: {1}", _playerIndex, ex.Message));
                 return false;
             }
         }
@@ -565,12 +570,12 @@ namespace WiimoteGun
 
                 // All failed
                 int err = Marshal.GetLastWin32Error();
-                SimpleLogger.Instance.Error($"[VMultiGamepad] SendRawReport all methods failed. LastError: {err}");
+                SimpleLogger.Instance.Error(string.Format("[VMultiGamepad] SendRawReport all methods failed. LastError: {0}", err));
                 return false;
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"[VMultiGamepad] SendRawReport fatal error: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("[VMultiGamepad] SendRawReport fatal error: {0}", ex.Message));
                 _isConnected = false;
                 return false;
             }

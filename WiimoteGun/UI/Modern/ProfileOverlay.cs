@@ -40,7 +40,7 @@ namespace WiimoteGun.Forms
         private System.Windows.Forms.Timer _gameDetectTimer;
         private string _currentExecutable = "";
         
-        public bool IsWindowedMode => _windowedMode;
+        public bool IsWindowedMode { get { return _windowedMode; } }
 
         public ProfileOverlay(bool windowedMode)
         {
@@ -252,7 +252,7 @@ namespace WiimoteGun.Forms
             }
         }
 
-        protected override bool ShowWithoutActivation => !_windowedMode;
+        protected override bool ShowWithoutActivation { get { return !_windowedMode; } }
 
         private void DetectCurrentGame()
         {

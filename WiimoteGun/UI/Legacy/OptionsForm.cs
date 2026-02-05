@@ -22,6 +22,7 @@ namespace WiimoteGun
             cbStartWithWindows.DataBindings.Add("Checked", Options.Instance, "StartWithWindows");
             chkNotifications.DataBindings.Add("Checked", Options.Instance, "ShowNotifications");
             chkEnableGamePadSwap.DataBindings.Add("Checked", Options.Instance, "EnableGamePadSwapMode");
+            chkPersistentGamePads.DataBindings.Add("Checked", Options.Instance, "PersistentGamePads");
 
 
             
@@ -108,6 +109,7 @@ namespace WiimoteGun
             Options.Instance.StartWithWindows = cbStartWithWindows.Checked;
             Options.Instance.ShowNotifications = chkNotifications.Checked;
             Options.Instance.EnableGamePadSwapMode = chkEnableGamePadSwap.Checked;
+            Options.Instance.PersistentGamePads = chkPersistentGamePads.Checked;
             Options.Instance.MonitorId = (int) numericUpDown1.Value;
             Options.Instance.IRSensitivity = trackBar1.Value;
 
@@ -290,7 +292,7 @@ namespace WiimoteGun
             try
             {
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                string scriptPath = System.IO.Path.Combine(baseDir, "WiimoteGunDriver", "Scripts", $"Disable-{driverName}-Unused.ps1");
+                string scriptPath = System.IO.Path.Combine(baseDir, "WiimoteGunDriver", "Scripts", string.Format("Disable-{0}-Unused.ps1", driverName));
 
                 if (!System.IO.File.Exists(scriptPath))
                 {

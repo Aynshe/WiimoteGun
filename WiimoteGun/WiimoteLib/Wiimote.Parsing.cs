@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using WiimoteLib.DataTypes;
 using WiimoteLib.Events;
@@ -25,6 +26,85 @@ namespace WiimoteLib {
 				EnumInfo<InputReport>.TryGetAttribute<DataReportAttribute>(type);
 
 			if (dataReport != null) {
+				// EN: Watchdog - check if we got the expected report type. 
+				// SDL/external apps might change the mode, causing IR tracking to stop.
+				// FR: Watchdog - vérifier si nous avons reçu le type de rapport attendu.
+				// SDL/apps externes peuvent changer le mode, arrêtant le tracking IR.
+				if (type != (InputReport)wiimoteState.ReportType) {
+					if (wrongReportCount < 0) wrongReportCount = 0;
+					wrongReportCount++;
+					
+					// EN: If we receive 0x30 (Buttons only) while expecting IR, it's almost certainly SDL/external interference.
+					// FR: Si nous reçevons 0x30 (Boutons seuls) alors qu'on attend l'IR, c'est presque certainement SDL ou une interférence externe.
+					bool isExternalReset = (type == InputReport.Buttons && ((InputReport)wiimoteState.ReportType).ToString().Contains("IR"));
+
+					// EN: If we get even ONE wrong report, react immediately to eliminate stutter.
+					// FR: Si nous reçevons un SEUL mauvais rapport, réagir immédiatement pour éliminer les saccades.
+					if (!recovering) {
+						recovering = true;
+						recoveryCount++;
+
+						if (isExternalReset && recoveryCount % 10 == 0)
+							Log.Warning(string.Format("[Watchdog] External reset detected (Buttons 0x30 received instead of {1}). Re-asserting IR mode...", recoveryCount, wiimoteState.ReportType));
+
+						// EN: Perform light recovery synchronously to avoid task scheduling delay.
+						// Deep recovery (full IR init) is slow and causes lag, so we only do it every 100 conflicts.
+						// FR: Effectuer une récupération légère de manière synchrone pour éviter le délai de planification de tâche.
+						// La récupération profonde est lente et cause du lag, on ne la fait que tous les 100 conflits.
+						bool deep = (recoveryCount % 100 == 0);
+						
+						if (!deep) {
+							try {
+								// EN: Force IR init if it was an external reset to Buttons mode, to be sure hardware is still on.
+								// FR: Forcer l'init IR si c'était un reset externe vers Buttons, pour être sûr que le hardware est toujours actif.
+								SetReportType(wiimoteState.ReportType, wiimoteState.IRState.Sensitivity, wiimoteState.ContinuousReport, isExternalReset);
+								
+								// EN: Still use a background task for the cooldown to avoid blocking other reports.
+								Task.Factory.StartNew(() => {
+									System.Threading.Thread.Sleep(20);
+									wrongReportCount = 0;
+									recovering = false;
+								});
+							}
+							catch (Exception ex) {
+								Log.Error(string.Format("[Watchdog] Sync recovery failed: {0}", ex.Message));
+								recovering = false;
+							}
+						}
+						else {
+							Log.Warning(string.Format("[Watchdog] Persistent conflict detected ({0}). Performing deep recovery in background...", recoveryCount));
+							Task.Factory.StartNew(() => {
+								try {
+									SetReportType(wiimoteState.ReportType, wiimoteState.IRState.Sensitivity, wiimoteState.ContinuousReport, true);
+									System.Threading.Thread.Sleep(50);
+								}
+								catch (Exception ex) {
+									Log.Error(string.Format("[Watchdog] Deep recovery failed: {0}", ex.Message));
+								}
+								finally {
+									wrongReportCount = 0;
+									recovering = false;
+								}
+							});
+						}
+					}
+				}
+				else {
+					// EN: Correct report received - reset conflict counter.
+					// FR: Rapport correct reçu - réinitialiser le compteur de conflit.
+					if (wrongReportCount > 0) wrongReportCount = 0;
+
+					// EN: Stability detected - reset recovery cycle after 60 good reports (~1s).
+					// FR: Stabilité détectée - réinitialiser le cycle de récupération après 60 bons rapports (~1s).
+					if (recoveryCount > 0) {
+						wrongReportCount--; // Using negative values as stability counter
+						if (wrongReportCount < -60) {
+							recoveryCount = 0;
+							wrongReportCount = 0;
+						}
+					}
+				}
+
 				// Buttons are ALWAYS parsed
 				if (dataReport.HasButtons)
 					ParseButtons2(buff, dataReport.ButtonsOffset + 1);
@@ -70,7 +150,7 @@ namespace WiimoteLib {
 					using (AsyncReadState state = BeginAsyncRead()) {
 						byte extensionType = 0;
 						if (extensionNew)
-							ReadByte(Registers.ExtensionType2);
+							extensionType = ReadByte(Registers.ExtensionType2);
 
 							Log.Debug($"Extension byte={extensionType:X2}");
 
@@ -79,13 +159,13 @@ namespace WiimoteLib {
 
 						if (extensionNew != extensionLast || extensionType == 0x04 || extensionType == 0x5) {
 
-							if (wiimoteState.Extension) {
+							if (wiimoteState.Extension && (extensionNew != extensionLast || wiimoteState.ExtensionType == ExtensionType.None)) {
 								InitializeExtension(extensionType);
 								SetReportType(wiimoteState.ReportType,
 									wiimoteState.IRState.Sensitivity,
 									wiimoteState.ContinuousReport);
 							}
-							else {
+							else if (!extensionNew && extensionLast) {
 								wiimoteState.ExtensionType = ExtensionType.None;
 								wiimoteState.Nunchuk = new NunchukState();
 								wiimoteState.ClassicController = new ClassicControllerState();

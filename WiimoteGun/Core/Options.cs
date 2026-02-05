@@ -249,13 +249,68 @@ namespace WiimoteGun
                 
                 // Gesture defaults (EN/FR: Valeurs par défaut pour les gestes)
                 EnableOffScreenReload = false;
-            OffScreenReloadAuto = false;
-            EnableDevGestures = false; // Hidden: Must be manually enabled in XML (EN/FR: Caché : Doit être activé manuellement)
-            EnableShakeReload = false;
+                OffScreenReloadAuto = false;
+                EnableDevGestures = false; // Hidden: Must be manually enabled in XML (EN/FR: Caché : Doit être activé manuellement)
+                EnableShakeReload = false;
                 ShakeSensitivity = 1; // 0=Low, 1=Medium, 2=High
                 ShakeFromNunchuk = false; // false=Wiimote, true=Nunchuk
                 EnableGrenadeGesture = false;
                 GrenadeFromNunchuk = false;
+
+                PermissiveWiimoteBarCalibration = false;
+
+                UseDynamicPerspective_P1 = false;
+                UseDynamicPerspective_P2 = false;
+                UseDynamicPerspective_P3 = false;
+                UseDynamicPerspective_P4 = false;
+
+                DynamicPerspectiveOffsetY_P1 = 0;
+                DynamicPerspectiveOffsetY_P2 = 0;
+                DynamicPerspectiveOffsetY_P3 = 0;
+                DynamicPerspectiveOffsetY_P4 = 0;
+
+                DynamicPerspectiveOffsetX_P1 = 0;
+                DynamicPerspectiveOffsetX_P2 = 0;
+                DynamicPerspectiveOffsetX_P3 = 0;
+                DynamicPerspectiveOffsetX_P4 = 0;
+
+                EnableWeaponRumble_P1 = true;
+                EnableWeaponRumble_P2 = true;
+                EnableWeaponRumble_P3 = true;
+                EnableWeaponRumble_P4 = true;
+
+                AllowContinuousRumble_P1 = true;
+                AllowContinuousRumble_P2 = true;
+                AllowContinuousRumble_P3 = true;
+                AllowContinuousRumble_P4 = true;
+
+                RumbleIntensity_P1 = 50;
+                RumbleIntensity_P2 = 50;
+                RumbleIntensity_P3 = 50;
+                RumbleIntensity_P4 = 50;
+
+                RumbleDurationMs_P1 = 60;
+                RumbleDurationMs_P2 = 60;
+                RumbleDurationMs_P3 = 60;
+                RumbleDurationMs_P4 = 60;
+
+                RumbleRepetitionMs_P1 = 150;
+                RumbleRepetitionMs_P2 = 150;
+                RumbleRepetitionMs_P3 = 150;
+                RumbleRepetitionMs_P4 = 150;
+
+                DefaultMouseMode = MouseMode.RawInput;
+                GyroSensitivityX = 1.0f;
+                GyroSensitivityY = 1.0f;
+                GyroSmoothingFrames = 3;
+                AutoLockVMultiDevices = true;
+                PersistentGamePads = false;
+                EnableGamePadSwapMode = false;
+
+                GamePadMappingsP1 = new GamePadMappings();
+                GamePadMappingsP2 = new GamePadMappings();
+                GamePadMappingsP3 = new GamePadMappings();
+                GamePadMappingsP4 = new GamePadMappings();
             }
         }
 
@@ -383,7 +438,7 @@ namespace WiimoteGun
                 topRightY = topLeftY;
                 bottomRightX = centerX + deltaX;
                 bottomRightY = centerY + deltaY;
-                SimpleLogger.Instance.Info($"Migrated Player {playerIndex} from old 2-point to 3-point calibration format");
+                SimpleLogger.Instance.Info(string.Format("Migrated Player {0} from old 2-point to 3-point calibration format", playerIndex));
             }
 
             // AUTO-MIGRATION 2: 3-point → 4-point (extrapolate bottomLeft)
@@ -393,7 +448,7 @@ namespace WiimoteGun
                 // Extrapolate BL from TL (same X) and BR (same Y)
                 bottomLeftX = topLeftX;
                 bottomLeftY = bottomRightY;
-                SimpleLogger.Instance.Info($"Migrated Player {playerIndex} from 3-point to 4-point calibration (extrapolated BL)");
+                SimpleLogger.Instance.Info(string.Format("Migrated Player {0} from 3-point to 4-point calibration (extrapolated BL)", playerIndex));
             }
 
             // Return 8 values: TL.X, TL.Y, TR.X, TR.Y, BR.X, BR.Y, BL.X, BL.Y
@@ -732,7 +787,7 @@ namespace WiimoteGun
         // Allows 3-point calibration when 4th corner is unreachable (extrapolates missing point)
         // (EN/FR: Mode calibration permissif pour WiimoteBar sur très grands écrans - extrapole point manquant)
         [DefaultValue(false)]
-        public bool PermissiveWiimoteBarCalibration { get; set; } = false;
+        public bool PermissiveWiimoteBarCalibration { get; set; }
 
 
         [DefaultValue(true)]
@@ -855,59 +910,59 @@ namespace WiimoteGun
 
         // Dynamic Perspective Mode per player (EN/FR: Mode Perspective Dynamique par joueur)
         [DefaultValue(false)]
-        public bool UseDynamicPerspective_P1 { get; set; } = false;
+        public bool UseDynamicPerspective_P1 { get; set; }
         [DefaultValue(false)]
-        public bool UseDynamicPerspective_P2 { get; set; } = false;
+        public bool UseDynamicPerspective_P2 { get; set; }
         [DefaultValue(false)]
-        public bool UseDynamicPerspective_P3 { get; set; } = false;
+        public bool UseDynamicPerspective_P3 { get; set; }
         [DefaultValue(false)]
-        public bool UseDynamicPerspective_P4 { get; set; } = false;
+        public bool UseDynamicPerspective_P4 { get; set; }
 
         // Vertical offset for Dynamic Perspective center (EN/FR: Offset vertical pour le centre Dynamic Perspective)
-        public int DynamicPerspectiveOffsetY_P1 { get; set; } = 0;
-        public int DynamicPerspectiveOffsetY_P2 { get; set; } = 0;
-        public int DynamicPerspectiveOffsetY_P3 { get; set; } = 0;
-        public int DynamicPerspectiveOffsetY_P4 { get; set; } = 0;
+        public int DynamicPerspectiveOffsetY_P1 { get; set; }
+        public int DynamicPerspectiveOffsetY_P2 { get; set; }
+        public int DynamicPerspectiveOffsetY_P3 { get; set; }
+        public int DynamicPerspectiveOffsetY_P4 { get; set; }
 
         // Horizontal offset for Dynamic Perspective center (EN/FR: Offset horizontal pour le centre Dynamic Perspective)
-        public int DynamicPerspectiveOffsetX_P1 { get; set; } = 0;
-        public int DynamicPerspectiveOffsetX_P2 { get; set; } = 0;
-        public int DynamicPerspectiveOffsetX_P3 { get; set; } = 0;
-        public int DynamicPerspectiveOffsetX_P4 { get; set; } = 0;
+        public int DynamicPerspectiveOffsetX_P1 { get; set; }
+        public int DynamicPerspectiveOffsetX_P2 { get; set; }
+        public int DynamicPerspectiveOffsetX_P3 { get; set; }
+        public int DynamicPerspectiveOffsetX_P4 { get; set; }
 
         // Weapon Recoil Rumble Settings (EN/FR: Paramètres vibration recul arme)
-        public bool EnableWeaponRumble_P1 { get; set; } = true;
-        public bool EnableWeaponRumble_P2 { get; set; } = true;
-        public bool EnableWeaponRumble_P3 { get; set; } = true;
-        public bool EnableWeaponRumble_P4 { get; set; } = true;
+        public bool EnableWeaponRumble_P1 { get; set; }
+        public bool EnableWeaponRumble_P2 { get; set; }
+        public bool EnableWeaponRumble_P3 { get; set; }
+        public bool EnableWeaponRumble_P4 { get; set; }
 
         // Allow continuous rumble when trigger held (EN/FR: Autoriser vibration continue si gâchette maintenue)
-        public bool AllowContinuousRumble_P1 { get; set; } = true;
-        public bool AllowContinuousRumble_P2 { get; set; } = true;
-        public bool AllowContinuousRumble_P3 { get; set; } = true;
-        public bool AllowContinuousRumble_P4 { get; set; } = true;
+        public bool AllowContinuousRumble_P1 { get; set; }
+        public bool AllowContinuousRumble_P2 { get; set; }
+        public bool AllowContinuousRumble_P3 { get; set; }
+        public bool AllowContinuousRumble_P4 { get; set; }
 
         // Rumble intensity (0-100%) (EN/FR: Intensité vibration)
-        public int RumbleIntensity_P1 { get; set; } = 50;
-        public int RumbleIntensity_P2 { get; set; } = 50;
-        public int RumbleIntensity_P3 { get; set; } = 50;
-        public int RumbleIntensity_P4 { get; set; } = 50;
+        public int RumbleIntensity_P1 { get; set; }
+        public int RumbleIntensity_P2 { get; set; }
+        public int RumbleIntensity_P3 { get; set; }
+        public int RumbleIntensity_P4 { get; set; }
 
         // Rumble duration per shot in milliseconds (EN/FR: Durée vibration par tir)
-        public int RumbleDurationMs_P1 { get; set; } = 60;
-        public int RumbleDurationMs_P2 { get; set; } = 60;
-        public int RumbleDurationMs_P3 { get; set; } = 60;
-        public int RumbleDurationMs_P4 { get; set; } = 60;
+        public int RumbleDurationMs_P1 { get; set; }
+        public int RumbleDurationMs_P2 { get; set; }
+        public int RumbleDurationMs_P3 { get; set; }
+        public int RumbleDurationMs_P4 { get; set; }
 
         // Repetition interval for continuous fire (ms) (EN/FR: Intervalle répétition tir continu)
-        public int RumbleRepetitionMs_P1 { get; set; } = 150;
-        public int RumbleRepetitionMs_P2 { get; set; } = 150;
-        public int RumbleRepetitionMs_P3 { get; set; } = 150;
-        public int RumbleRepetitionMs_P4 { get; set; } = 150;
+        public int RumbleRepetitionMs_P1 { get; set; }
+        public int RumbleRepetitionMs_P2 { get; set; }
+        public int RumbleRepetitionMs_P3 { get; set; }
+        public int RumbleRepetitionMs_P4 { get; set; }
 
         // Gesture & Reload Settings (EN/FR: Paramètres Gestes & Rechargement)
         [DefaultValue(false)]
-        public bool EnableOffScreenReload { get; set; } = false;
+        public bool EnableOffScreenReload { get; set; }
 
         [DefaultValue(false)]
         public bool OffScreenReloadAuto { get; set; }
@@ -915,42 +970,49 @@ namespace WiimoteGun
         // DEV ONLY: Hidden setting to enable experimental gestures (EN/FR: Paramètre caché pour gestes expérimentaux)
         // Must be manually set to true in XML config file (EN/FR: Doit être activé manuellement dans le fichier XML)
         [DefaultValue(false)]
-        public bool EnableDevGestures { get; set; } = false;
+        public bool EnableDevGestures { get; set; }
 
         [DefaultValue(false)]
-        public bool EnableShakeReload { get; set; } = false;
+        public bool EnableShakeReload { get; set; }
 
         [DefaultValue(1)]
-        public int ShakeSensitivity { get; set; } = 1; // 0=Low, 1=Medium, 2=High
+        public int ShakeSensitivity { get; set; } // 0=Low, 1=Medium, 2=High
 
         [DefaultValue(false)]
-        public bool ShakeFromNunchuk { get; set; } = false; // false=Wiimote, true=Nunchuk
+        public bool ShakeFromNunchuk { get; set; } // false=Wiimote, true=Nunchuk
 
         [DefaultValue(false)]
-        public bool EnableGrenadeGesture { get; set; } = false;
+        public bool EnableGrenadeGesture { get; set; }
         
         [DefaultValue(false)]
-        public bool GrenadeFromNunchuk { get; set; } = false; // false=Wiimote Y-axis, true=Nunchuk Y-axis
+        public bool GrenadeFromNunchuk { get; set; } // false=Wiimote Y-axis, true=Nunchuk Y-axis
 
         // Mouse Mode (SendInput vs RawInput) (EN/FR: Mode Souris (SendInput vs RawInput))
         [DefaultValue(MouseMode.RawInput)]
-        public MouseMode DefaultMouseMode { get; set; } = MouseMode.RawInput;
+        public MouseMode DefaultMouseMode { get; set; }
         
         // Gyroscope Aiming Settings for FPS Mode (EN/FR: Paramètres visée gyroscopique pour mode FPS)
         [DefaultValue(1.0f)]
-        public float GyroSensitivityX { get; set; } = 1.0f; // Horizontal sensitivity (EN/FR: Sensibilité horizontale)
+        public float GyroSensitivityX { get; set; }
         
         [DefaultValue(1.0f)]
-        public float GyroSensitivityY { get; set; } = 1.0f; // Vertical sensitivity (EN/FR: Sensibilité verticale)
+        public float GyroSensitivityY { get; set; }
         
         [DefaultValue(3)]
-        public int GyroSmoothingFrames { get; set; } = 3; // Frame averaging for smoothing (EN/FR: Moyenne de frames pour lissage)
+        public int GyroSmoothingFrames { get; set; }
 
         // Auto-lock VMulti devices to Player 1 and 2 (EN/FR: Verrouiller auto périphériques VMulti aux Player 1 et 2)
         // When enabled, VMulti2 (VID_002F) is locked to P1 and VMulti1 (VID_00FF) is locked to P2
         // (EN/FR: Si activé, VMulti2 (VID_002F) verrouillé au P1 et VMulti1 (VID_00FF) verrouillé au P2)
         [DefaultValue(true)]
-        public bool AutoLockVMultiDevices { get; set; } = true;
+        public bool AutoLockVMultiDevices { get; set; }
+
+        /// <summary>
+        /// EN: Keep GamePad devices enabled even when Wiimotes are not connected.
+        /// FR: Garder les périphériques GamePad activés même quand les Wiimotes ne sont pas connectées.
+        /// Helps guarantee consistent DInput indexing at startup.
+        /// </summary>
+        public bool PersistentGamePads { get; set; }
 
         // ========== GamePad Mode Settings (EN/FR: Paramètres Mode GamePad) ==========
         
@@ -960,16 +1022,16 @@ namespace WiimoteGun
         /// Default: false (disabled, user must enable in options).
         /// </summary>
         [DefaultValue(false)]
-        public bool EnableGamePadSwapMode { get; set; } = false;
+        public bool EnableGamePadSwapMode { get; set; }
 
         /// <summary>
         /// EN: GamePad button and axis mappings per player.
         /// FR: Mappings boutons et axes GamePad par joueur.
         /// </summary>
-        public GamePadMappings GamePadMappingsP1 { get; set; } = new GamePadMappings();
-        public GamePadMappings GamePadMappingsP2 { get; set; } = new GamePadMappings();
-        public GamePadMappings GamePadMappingsP3 { get; set; } = new GamePadMappings();
-        public GamePadMappings GamePadMappingsP4 { get; set; } = new GamePadMappings();
+        public GamePadMappings GamePadMappingsP1 { get; set; }
+        public GamePadMappings GamePadMappingsP2 { get; set; }
+        public GamePadMappings GamePadMappingsP3 { get; set; }
+        public GamePadMappings GamePadMappingsP4 { get; set; }
 
         /// <summary>
         /// EN: Get GamePad mappings for a specific player (1-4).

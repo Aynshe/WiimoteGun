@@ -20,8 +20,8 @@ namespace WiimoteGun.UI.Calibrate
             InitializeComponent();
             
             // Set dynamic text
-            _lblTitle.Text = $"CHOOSE {modeName.ToUpper()} TRACKING MODE";
-            this.Text = $"{modeName} - Calibration Mode Selection";
+            _lblTitle.Text = string.Format("CHOOSE {0} TRACKING MODE", modeName.ToUpper());
+            this.Text = string.Format("{0} - Calibration Mode Selection", modeName);
             
             // Set FlatAppearance border sizes (Designer doesn't support this)
             _btnDynamic.FlatAppearance.BorderSize = 3;

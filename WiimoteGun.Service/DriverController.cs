@@ -22,6 +22,10 @@ namespace WiimoteGun.Service
         // EN: Track which players have been enabled (to clean up after rescan)
         // FR: Suivre quels joueurs ont été activés (pour nettoyer après rescan)
         private static HashSet<int> _enabledPlayers = new HashSet<int>();
+        
+        // EN: Track which players have gamepads explicitly enabled
+        // FR: Suivre quels joueurs ont les gamepads explicitement activés
+        private static HashSet<int> _gamepadActivePlayers = new HashSet<int>();
 
         public static void Log(string message)
         {
@@ -38,8 +42,9 @@ namespace WiimoteGun.Service
         /// </summary>
         public static void ResetEnabledPlayers()
         {
+            Log("ResetEnabledPlayers: Clearing enabled players and gamepad lists (new client registration or fresh session)");
             _enabledPlayers.Clear();
-            Log("ResetEnabledPlayers: Cleared enabled players list for new session");
+            _gamepadActivePlayers.Clear();
         }
 
         public static void EnablePlayer(int playerIndex)
@@ -70,15 +75,28 @@ namespace WiimoteGun.Service
                 InstallDriver(playerIndex);
             }
             
-            // EN: Rescan for hardware changes to re-enumerate removed devices (like COL03 after REMOVE_MOUSE_ALL)
-            // FR: Rechercher les modifications matérielles pour ré-énumérer les périphériques supprimés
-            // WARNING: This is a GLOBAL rescan - it will re-enable ALL removed COL03 devices!
+            // EN: Optimization - Only rescan if the mouse device (COL03) is missing.
+            // FR: Optimisation - Ne rescanner que si le périphérique souris (COL03) est manquant.
+            // Full rescan is heavy and can disconnect Bluetooth.
             char playerChar = (char)('A' + playerIndex - 1);
-            Log($"Rescanning hardware to re-enumerate removed devices for P{playerIndex}...");
-            RunDevCon("rescan");
+            string mousePattern = $"*VMULTI{playerChar}*COL03*";
             
-            // Small delay to allow Windows to re-enumerate the device
-            System.Threading.Thread.Sleep(500);
+            if (!IsDevicePresent(mousePattern))
+            {
+                // EN: Targeted optimization - Restart the specific Root device instead of a global rescan.
+                // FR: Optimisation ciblée - Redémarrer le Root device spécifique plutôt qu'un rescan global.
+                // This re-enumerates removed collections (like COL03) without disrupting the entire Bluetooth stack.
+                char charLower = char.ToLower(playerChar);
+                string rootHwId = $"ecologylab\\vmulti{charLower}";
+                Log($"COL03 for P{playerIndex} not found. Restarting root device {rootHwId} to re-enumerate...");
+                RunDevCon($"restart \"{rootHwId}\"");
+                // Small delay to allow Windows to re-enumerate the device
+                System.Threading.Thread.Sleep(500);
+            }
+            else
+            {
+                Log($"COL03 for P{playerIndex} already present. Skipping rescan.");
+            }
             
             // Enable specific interfaces: Mouse (Col03), Control (Col08) and Keyboard (Col07/Col08)
             RunDevCon($"enable \"*VMULTI{playerChar}*COL03*\""); // Mouse
@@ -98,8 +116,8 @@ namespace WiimoteGun.Service
                     string pattern = $"*vmulti{otherPlayerChar}*COL03*";
                     if (IsDeviceEnabled(pattern))
                     {
-                        Log($"Removing COL03 for non-enabled P{i}");
-                        RunDevCon($"remove \"{pattern}\"");
+                        Log($"Disabling COL03 for non-enabled P{i}");
+                        RunDevCon($"disable \"{pattern}\"");
                     }
                 }
             }
@@ -196,9 +214,9 @@ namespace WiimoteGun.Service
                     RunDevCon($"disable \"{colPattern}\"");
                 }
 
-                // Explicitly REMOVE Gamepad (06) to hide it by default
+                // Explicitly DISABLE Gamepad (06) to hide it by default
                 string gamepadPattern = $"*vmulti{charLower}*COL06*";
-                RunDevCon($"remove \"{gamepadPattern}\"");
+                RunDevCon($"disable \"{gamepadPattern}\"");
 
                 Log($"Driver P{playerIndex} installation and cleanup finished.");
             }
@@ -310,14 +328,17 @@ namespace WiimoteGun.Service
                 bool isEnabled = _enabledPlayers.Contains(i);
 
                 // Gamepad (COL06) Logic:
-                // Keep if enabled (even in mouse mode), Remove if disabled/disconnected
+                // Keep if explicitly enabled (via ENABLE_GAMEPAD_PX), Remove if disabled/disconnected
+                // (EN/FR: Garder si explicitement activé, Supprimer sinon)
                 string gamepadPattern = $"*vmulti{playerChar}*COL06*";
-                if (!isEnabled)
+                bool isGamepadDesired = _gamepadActivePlayers.Contains(i);
+
+                if (!isEnabled || !isGamepadDesired)
                 {
                     if (IsDeviceEnabled(gamepadPattern))
                     {
-                        Log($"Cleanup: Removing COL06 for inactive P{i}");
-                        RunDevCon($"remove \"{gamepadPattern}\"");
+                        Log($"Cleanup: Disabling COL06 for inactive/undesired P{i}");
+                        RunDevCon($"disable \"{gamepadPattern}\"");
                     }
                 }
                 
@@ -329,8 +350,8 @@ namespace WiimoteGun.Service
                 {
                      if (IsDeviceEnabled(mousePattern))
                      {
-                         Log($"Cleanup: Removing COL03 for inactive P{i}");
-                         RunDevCon($"remove \"{mousePattern}\"");
+                         Log($"Cleanup: Disabling COL03 for inactive P{i}");
+                         RunDevCon($"disable \"{mousePattern}\"");
                      }
                 }
             }
@@ -354,8 +375,8 @@ namespace WiimoteGun.Service
             string pattern = $"*vmulti{playerChar}*COL03*";
             if (IsDeviceEnabled(pattern))
             {
-                Log($"Removing Mouse (COL03) for P{playerIndex}");
-                RunDevCon($"remove \"{pattern}\"");
+                Log($"Disabling Mouse (COL03) for P{playerIndex}");
+                RunDevCon($"disable \"{pattern}\"");
             }
         }
 
@@ -393,8 +414,9 @@ namespace WiimoteGun.Service
         public static void EnableGamepadForPlayer(int playerIndex)
         {
             CheckDevCon();
-            // Ensure player is marked as enabled
+            // Ensure player and gamepad are marked as enabled
             _enabledPlayers.Add(playerIndex);
+            _gamepadActivePlayers.Add(playerIndex);
 
             char playerChar = GetPlayerChar(playerIndex);
             string pattern = $"*vmulti{playerChar}*COL06*";
@@ -455,17 +477,20 @@ namespace WiimoteGun.Service
             CheckDevCon();
             Log($"RemoveGamepadForPlayer P{playerIndex}: Marking as disabled.");
             
+            // Remove from gamepad active list
+            _gamepadActivePlayers.Remove(playerIndex);
+            
             // CRITICAL: Do NOT remove from enabled list, as this would also kill the Mouse (COL03) during Cleanup!
             // _enabledPlayers.Remove(playerIndex);
 
             char playerChar = GetPlayerChar(playerIndex);
             string pattern = $"*vmulti{playerChar}*COL06*";
 
-            // Also explicitly remove right now
+            // Also explicitly disable right now
             if (IsDeviceEnabled(pattern))
             {
-                Log($"RemoveGamepadForPlayer P{playerIndex}: REMOVING {pattern}");
-                RunDevCon($"remove \"{pattern}\"");
+                Log($"RemoveGamepadForPlayer P{playerIndex}: DISABLING {pattern}");
+                RunDevCon($"disable \"{pattern}\"");
             }
             
             // Also run cleanup to catch COL03 if it was left over
@@ -482,6 +507,14 @@ namespace WiimoteGun.Service
         {
             string output = RunDevConWithOutput($"status \"{pattern}\"");
             return output.IndexOf("Driver is running", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool IsDevicePresent(string pattern)
+        {
+            // EN: Find if device exists at all (even if disabled)
+            // FR: Vérifier si le périphérique existe (même s'il est désactivé)
+            string output = RunDevConWithOutput($"find \"{pattern}\"");
+            return output.IndexOf("matching device(s) found", StringComparison.OrdinalIgnoreCase) >= 0;
         }
     }
 }

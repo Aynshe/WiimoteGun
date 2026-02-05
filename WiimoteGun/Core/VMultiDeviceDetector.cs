@@ -10,6 +10,12 @@ namespace WiimoteGun
     /// </summary>
     public static class VMultiDeviceDetector
     {
+        public struct PlayerDevices
+        {
+            public string MouseId;
+            public string KeyboardId;
+        }
+
         // Support for 4 players via vmultia, vmultib, vmultic, vmultid
         private static readonly string[] VMultiSuffixes = { "vmultia", "vmultib", "vmultic", "vmultid" };
 
@@ -18,12 +24,13 @@ namespace WiimoteGun
         /// Now uses VMultiClient for detection instead of Interception
         /// (EN/FR: Détecter périphériques VMulti pour un joueur spécifique)
         /// </summary>
-        public static (string mouseId, string keyboardId) DetectPlayerVMultiDevices(int playerIndex)
+        public static PlayerDevices DetectPlayerVMultiDevices(int playerIndex)
         {
-            string mouseId = null;
-            string keyboardId = null;
+            PlayerDevices devices = new PlayerDevices();
+            devices.MouseId = null;
+            devices.KeyboardId = null;
             
-            if (playerIndex < 1 || playerIndex > 4) return (null, null);
+            if (playerIndex < 1 || playerIndex > 4) return devices;
 
             string targetSuffix = VMultiSuffixes[playerIndex - 1];
             string vid = GetVidFromSuffix(targetSuffix);
@@ -36,10 +43,10 @@ namespace WiimoteGun
                 {
                     // Device is available - construct the expected hardware ID format
                     // (EN/FR: Périphérique disponible - construire le format hardware ID attendu)
-                    mouseId = $"HID\\{targetSuffix}&Col03HID\\VID_{vid}&UP:0001_U:0002HID_DEVICE";
-                    keyboardId = $"HID\\{targetSuffix}&Col07HID\\VID_{vid}&UP:0001_U:0006HID_DEVICE";
+                    devices.MouseId = string.Format("HID\\{0}&Col03HID\\VID_{1}&UP:0001_U:0002HID_DEVICE", targetSuffix, vid);
+                    devices.KeyboardId = string.Format("HID\\{0}&Col07HID\\VID_{1}&UP:0001_U:0006HID_DEVICE", targetSuffix, vid);
                     
-                    SimpleLogger.Instance.Info($"[VMulti Detector] Found {targetSuffix} devices (P{playerIndex}): Mouse & Keyboard available");
+                    SimpleLogger.Instance.Info(string.Format("[VMulti Detector] Found {0} devices (P{1}): Mouse & Keyboard available", targetSuffix, playerIndex));
                 }
                 else
                 {
@@ -47,22 +54,22 @@ namespace WiimoteGun
                     string uniqueId = DeviceHelper.FindVMultiMouseUniqueId(targetSuffix);
                     if (!string.IsNullOrEmpty(uniqueId) && uniqueId != "Unknown")
                     {
-                        mouseId = $"HID\\{targetSuffix}&Col03HID\\VID_{vid}&UP:0001_U:0002HID_DEVICE";
-                        keyboardId = $"HID\\{targetSuffix}&Col07HID\\VID_{vid}&UP:0001_U:0006HID_DEVICE";
-                        SimpleLogger.Instance.Info($"[VMulti Detector] Found {targetSuffix} (P{playerIndex}) via DeviceHelper fallback");
+                        devices.MouseId = string.Format("HID\\{0}&Col03HID\\VID_{1}&UP:0001_U:0002HID_DEVICE", targetSuffix, vid);
+                        devices.KeyboardId = string.Format("HID\\{0}&Col07HID\\VID_{1}&UP:0001_U:0006HID_DEVICE", targetSuffix, vid);
+                        SimpleLogger.Instance.Info(string.Format("[VMulti Detector] Found {0} (P{1}) via DeviceHelper fallback", targetSuffix, playerIndex));
                     }
                     else
                     {
-                        SimpleLogger.Instance.Debug($"[VMulti Detector] No {targetSuffix} device found for P{playerIndex}");
+                        SimpleLogger.Instance.Debug(string.Format("[VMulti Detector] No {0} device found for P{1}", targetSuffix, playerIndex));
                     }
                 }
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"[VMulti Detector] Error detecting P{playerIndex} devices: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("[VMulti Detector] Error detecting P{0} devices: {1}", playerIndex, ex.Message));
             }
 
-            return (mouseId, keyboardId);
+            return devices;
         }
 
         /// <summary>
@@ -78,23 +85,23 @@ namespace WiimoteGun
 
             for (int p = 1; p <= 4; p++)
             {
-                var (mouseId, keyboardId) = DetectPlayerVMultiDevices(p);
+                PlayerDevices devices = DetectPlayerVMultiDevices(p);
 
-                if (mouseId != null)
+                if (devices.MouseId != null)
                 {
-                    Options.Instance.SetPreferredMouseId(p, mouseId);
-                    SimpleLogger.Instance.Info($"[VMulti Auto-Assign] Locked P{p} Mouse: {mouseId}");
+                    Options.Instance.SetPreferredMouseId(p, devices.MouseId);
+                    SimpleLogger.Instance.Info(string.Format("[VMulti Auto-Assign] Locked P{0} Mouse: {1}", p, devices.MouseId));
                 }
                 
-                if (keyboardId != null)
+                if (devices.KeyboardId != null)
                 {
-                    Options.Instance.SetPreferredKeyboardId(p, keyboardId);
-                    SimpleLogger.Instance.Info($"[VMulti Auto-Assign] Locked P{p} Keyboard: {keyboardId}");
+                    Options.Instance.SetPreferredKeyboardId(p, devices.KeyboardId);
+                    SimpleLogger.Instance.Info(string.Format("[VMulti Auto-Assign] Locked P{0} Keyboard: {1}", p, devices.KeyboardId));
                 }
                 
-                if (mouseId == null && keyboardId == null)
+                if (devices.MouseId == null && devices.KeyboardId == null)
                 {
-                    SimpleLogger.Instance.Info($"[VMulti Auto-Assign] P{p} devices not found.");
+                    SimpleLogger.Instance.Info(string.Format("[VMulti Auto-Assign] P{0} devices not found.", p));
                 }
             }
             

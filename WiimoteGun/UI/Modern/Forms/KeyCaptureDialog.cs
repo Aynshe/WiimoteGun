@@ -22,7 +22,7 @@ namespace WiimoteGun
         private static readonly Color ColorBackground = Color.FromArgb(26, 26, 26);
         private static readonly Color ColorText = Color.FromArgb(224, 224, 224);
 
-        public List<Keys> CapturedKeys => _capturedKeys;
+        public List<Keys> CapturedKeys { get { return _capturedKeys; } }
 
         public KeyCaptureDialog()
         {

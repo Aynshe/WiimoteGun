@@ -79,7 +79,7 @@ namespace WiimoteGun
             // Handle -remap argument: Try to send to running instance first (EN/FR: Gérer argument -remap : essayer d'envoyer à instance en cours d'abord)
             if (!string.IsNullOrEmpty(_activeRemapProfile))
             {
-                SimpleLogger.Instance.Info($"-remap argument detected with profile: {_activeRemapProfile}, attempting to send to running instance");
+                SimpleLogger.Instance.Info(string.Format("-remap argument detected with profile: {0}, attempting to send to running instance", _activeRemapProfile));
                 bool success = MessageWindow.SendRemapToRunningInstance(_activeRemapProfile);
                 
                 if (success)
@@ -221,6 +221,12 @@ namespace WiimoteGun
             SimpleLogger.Instance.Info("---------------------------------------------------------------");
             SimpleLogger.Instance.Info("WiimoteGun startup");
 
+            // EN: Register this process with the service for crash/exit monitoring EARLY
+            // FR: Enregistrer ce processus auprès du service pour la surveillance crash/sortie PRÉCOCEMENT
+            // Doing this early prevents race conditions during Hot Restart where Wiimotes connect
+            // and enable themselves BEFORE the registration wipes the service state.
+            ServiceClient.RegisterClient();
+
             // Update PATH environment variable if needed (EN/FR: Mettre à jour variable PATH si nécessaire)
             UpdatePathEnvironmentVariable();
 
@@ -319,16 +325,35 @@ namespace WiimoteGun
 
             // Auto-assign VMulti devices to Player 1 and 2 if option is enabled (EN/FR: Auto-assigner VMulti aux joueurs 1 et 2 si option activée)
             VMultiDeviceDetector.AutoAssignVMultiDevices();
+            
+            // Enable persistent gamepads if option is enabled to stabilize DInput indices
+            // (EN/FR: Activer les gamepads persistants si l'option est activée pour stabiliser les indices DInput)
+            if (Options.Instance.PersistentGamePads && Options.Instance.EnableGamePadSwapMode)
+            {
+                SimpleLogger.Instance.Info("[Startup] Persistent GamePads enabled. Pre-enabling 4 gamepads...");
+                for (int i = 1; i <= 4; i++)
+                {
+                    ServiceClient.EnableGamepad(i);
+                }
+            }
+            else
+            {
+                // If persistent gamepads are disabled, ensure they are removed from the system at startup
+                // (EN/FR: Si les gamepads persistants sont désactivés, s'assurer qu'ils sont retirés du système au démarrage)
+                SimpleLogger.Instance.Info("[Startup] Persistent GamePads disabled or Global GamePad mode off. Cleaning up virtual gamepads...");
+                for (int i = 1; i <= 4; i++)
+                {
+                    ServiceClient.RemoveGamepad(i);
+                }
+            }
 
             // Clean up unwanted VMulti collections to prevent them from appearing in emulators
             // (EN/FR: Nettoyer les collections VMulti non désirées pour éviter qu'elles n'apparaissent dans les émulateurs)
             // Cleanup logic moved to before WiimoteManager initialization (line 240 approx)
             // (EN/FR: Logique de nettoyage déplacée avant l'initialisation de WiimoteManager)
 
-            // Register this process with the service for crash/exit monitoring
-            // (EN/FR: Enregistrer ce processus auprès du service pour la surveillance crash/sortie)
-            // If WiimoteGun closes or crashes, the service will cleanup COL03 mice automatically
-            ServiceClient.RegisterClient();
+            // Client registration moved to early startup (line ~225)
+            // (EN/FR: Enregistrement client déplacé au démarrage précoce)
             
             // Deferred fallback cleanup: If no Wiimotes connect within 5 seconds, clean up all COL03 devices
             // (EN/FR: Nettoyage différé de secours : Si aucune Wiimote ne se connecte dans les 5 secondes, nettoyer tous les COL03)
@@ -342,7 +367,9 @@ namespace WiimoteGun
                 }
                 else
                 {
-                    SimpleLogger.Instance.Info($"[Startup Fallback] {_wiiMoteManager?.ConnectedWiimotesCount ?? 0} Wiimotes connected. Skipping full cleanup.");
+                    int count = 0;
+                    if (_wiiMoteManager != null) count = _wiiMoteManager.ConnectedWiimotesCount;
+                    SimpleLogger.Instance.Info(string.Format("[Startup Fallback] {0} Wiimotes connected. Skipping full cleanup.", count));
                 }
             });
 
@@ -557,8 +584,8 @@ namespace WiimoteGun
             foreach (var (deviceId, hardwareId) in detectedMice)
             {
                 var vidPidResult = DeviceHelper.ExtractVidPid(hardwareId);
-                string vid = vidPidResult.vid;
-                string pid = vidPidResult.pid;
+                string vid = vidPidResult.Vid;
+                string pid = vidPidResult.Pid;
                 if (vid != null)
                 {
                     string vidPidKey = pid != null ? $"VID_{vid}&PID_{pid}" : $"VID_{vid}";
@@ -574,8 +601,8 @@ namespace WiimoteGun
                 SimpleLogger.Instance.Info($"[MOUSE DETECTION] Device {deviceId} - Hardware ID: {hardwareId}");
                 
                 var vidPidResult = DeviceHelper.ExtractVidPid(hardwareId);
-                string vid = vidPidResult.vid;
-                string pid = vidPidResult.pid;
+                string vid = vidPidResult.Vid;
+                string pid = vidPidResult.Pid;
                 
                 SimpleLogger.Instance.Info($"[MOUSE DETECTION] Device {deviceId} - Extracted VID: {vid}, PID: {pid}");
                 

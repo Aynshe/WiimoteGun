@@ -53,7 +53,7 @@ namespace WiimoteGun
             }
 
             Hotkeys.Add(hotkey);
-            SimpleLogger.Instance.Info($"[Hotkey] Added/Updated: {hotkey.GetDisplayName()} for Player {PlayerIndex}");
+            SimpleLogger.Instance.Info(string.Format("[Hotkey] Added/Updated: {0} for Player {1}", hotkey.GetDisplayName(), PlayerIndex));
         }
 
         /// <summary>
@@ -69,7 +69,7 @@ namespace WiimoteGun
             if (hotkey != null)
             {
                 Hotkeys.Remove(hotkey);
-                SimpleLogger.Instance.Info($"[Hotkey] Removed: {modifier} + {triggerButton} ({pressType}) for Player {PlayerIndex}");
+                SimpleLogger.Instance.Info(string.Format("[Hotkey] Removed: {0} + {1} ({2}) for Player {3}", modifier, triggerButton, pressType, PlayerIndex));
             }
         }
 
@@ -98,12 +98,12 @@ namespace WiimoteGun
         public void ClearAll()
         {
             Hotkeys.Clear();
-            SimpleLogger.Instance.Info($"[Hotkey] Cleared all hotkeys for Player {PlayerIndex}");
+            SimpleLogger.Instance.Info(string.Format("[Hotkey] Cleared all hotkeys for Player {0}", PlayerIndex));
         }
 
         /// <summary>
         /// Get count of hotkeys (EN/FR: Nombre de hotkeys)
         /// </summary>
-        public int Count => Hotkeys.Count;
+        public int Count { get { return Hotkeys.Count; } }
     }
 }

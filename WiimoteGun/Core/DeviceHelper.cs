@@ -80,16 +80,30 @@ namespace WiimoteGun
         // DEVPKEY_Device_BusReportedDeviceDesc {540b947e-8b40-45bc-a8a2-6a0b894cbda2}, 4
         private static DEVPROPKEY DEVPKEY_Device_BusReportedDeviceDesc = new DEVPROPKEY { fmtid = new Guid("540b947e-8b40-45bc-a8a2-6a0b894cbda2"), pid = 4 };
 
+        public struct VMultiMappingInfo
+        {
+            public string UniqueId;
+            public int PlayerNumber;
+            public VMultiMappingInfo(string id, int num) { UniqueId = id; PlayerNumber = num; }
+        }
+
+        public struct VidPidInfo
+        {
+            public string Vid;
+            public string Pid;
+            public VidPidInfo(string v, string p) { Vid = v; Pid = p; }
+        }
+
         /// <summary>
         /// VMulti 4-Player Device Mapping (EN/FR: Mapping dispositifs VMulti 4-joueurs)
         /// Maps VID to (UniqueID, PlayerNumber) for proper device identification
         /// </summary>
-        private static readonly System.Collections.Generic.Dictionary<string, (string UniqueId, int PlayerNumber)> VMultiPlayerMapping = new System.Collections.Generic.Dictionary<string, (string, int)>(StringComparer.OrdinalIgnoreCase)
+        private static readonly System.Collections.Generic.Dictionary<string, VMultiMappingInfo> VMultiPlayerMapping = new System.Collections.Generic.Dictionary<string, VMultiMappingInfo>(StringComparer.OrdinalIgnoreCase)
         {
-            { "001F", ("2D595CA7", 1) },  // vmultia - Player 1
-            { "002F", ("4784345", 2) },   // vmultib - Player 2
-            { "003F", ("1731F3EA", 3) },  // vmultic - Player 3
-            { "004F", ("29EBA48F", 4) }   // vmultid - Player 4
+            { "001F", new VMultiMappingInfo("2D595CA7", 1) },  // vmultia - Player 1
+            { "002F", new VMultiMappingInfo("4784345", 2) },   // vmultib - Player 2
+            { "003F", new VMultiMappingInfo("1731F3EA", 3) },  // vmultic - Player 3
+            { "004F", new VMultiMappingInfo("29EBA48F", 4) }   // vmultid - Player 4
         };
 
         /// <summary>
@@ -188,8 +202,8 @@ namespace WiimoteGun
                 if (string.IsNullOrEmpty(vMultiId)) vMultiId = "Unknown";
 
                 // Extract VID for display
-                var vidRes = ExtractVidPid(vidPid);
-                string displayVid = vidRes.vid ?? "XXXX";
+                VidPidInfo vidRes = ExtractVidPid(vidPid);
+                string displayVid = vidRes.Vid ?? "XXXX";
 
                 if (devicePath.IndexOf("vmultia", StringComparison.OrdinalIgnoreCase) >= 0) return $"DJP Inc. ({vMultiId}) {deviceType} ({displayVid}:N/A) [Player 1]";
                 if (devicePath.IndexOf("vmultib", StringComparison.OrdinalIgnoreCase) >= 0) return $"DJP Inc. ({vMultiId}) {deviceType} ({displayVid}:N/A) [Player 2]";
@@ -200,9 +214,9 @@ namespace WiimoteGun
                 return null;
 
             // Extract VID/PID if in format VID_XXXX&PID_YYYY
-            var vidPidResult = ExtractVidPid(vidPid);
-            string vid = vidPidResult.vid;
-            string pid = vidPidResult.pid;
+            VidPidInfo vidPidResult = ExtractVidPid(vidPid);
+            string vid = vidPidResult.Vid;
+            string pid = vidPidResult.Pid;
             
             SimpleLogger.Instance.Info($"[DEVICE HELPER] Get{deviceType}FriendlyName input: '{vidPid}' -> VID: '{vid}', PID: '{pid}'");
             
@@ -414,15 +428,16 @@ namespace WiimoteGun
         /// <summary>
         /// Extract VID/PID from hardware ID string (EN/FR: Extraire VID/PID depuis chaîne Hardware ID)
         /// </summary>
-        public static (string vid, string pid) ExtractVidPid(string hardwareId)
+        public static VidPidInfo ExtractVidPid(string hardwareId)
         {
             if (string.IsNullOrEmpty(hardwareId))
-                return (null, null);
+                return new VidPidInfo(null, null);
 
             var vidMatch = System.Text.RegularExpressions.Regex.Match(hardwareId, @"VID_([0-9A-F]{4})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             var pidMatch = System.Text.RegularExpressions.Regex.Match(hardwareId, @"PID_([0-9A-F]{4})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
-            return (vidMatch.Success ? vidMatch.Groups[1].Value : null, 
+            return new VidPidInfo(
+                    vidMatch.Success ? vidMatch.Groups[1].Value : null, 
                     pidMatch.Success ? pidMatch.Groups[1].Value : null);
         }
 
@@ -482,8 +497,13 @@ namespace WiimoteGun
             }
 
             // Extract VID/PID if present (EN/FR: Extraire VID/PID si présent)
-            var (preferredVid, preferredPid) = ExtractVidPid(preferred);
-            var (currentVid, currentPid) = ExtractVidPid(current);
+            VidPidInfo prefInfo = ExtractVidPid(preferred);
+            string preferredVid = prefInfo.Vid;
+            string preferredPid = prefInfo.Pid;
+
+            VidPidInfo currInfo = ExtractVidPid(current);
+            string currentVid = currInfo.Vid;
+            string currentPid = currInfo.Pid;
 
             // VID/PID match is good enough (EN/FR: Correspondance VID/PID suffit)
             if (!string.IsNullOrEmpty(preferredVid) && preferredVid == currentVid)

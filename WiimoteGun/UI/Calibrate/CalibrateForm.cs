@@ -398,7 +398,7 @@ namespace WiimoteGun.UI.Calibrate
                 case LEDLayoutType.Gun4IRDiamond:
                     string[] diamondSteps = { "CENTER", "TOP EDGE", "RIGHT EDGE", "BOTTOM EDGE", "LEFT EDGE" };
                     if (_currentCalibrationStep < diamondSteps.Length)
-                        return $"Calibrating Gun4IR ({_currentCalibrationStep + 1}/{_totalCalibrationSteps})\r\n\r\nAim at {diamondSteps[_currentCalibrationStep]} and press A or B";
+                        return string.Format("Calibrating Gun4IR ({0}/{1})\r\n\r\nAim at {2} and press A or B", _currentCalibrationStep + 1, _totalCalibrationSteps, diamondSteps[_currentCalibrationStep]);
                     break;
 
                 case LEDLayoutType.TwoWiimoteBar:
@@ -410,7 +410,7 @@ namespace WiimoteGun.UI.Calibrate
                         if (_currentCalibrationStep == 0) // Center has no dual language label in array
                              return "Calibrating 2 Wiimote Bars (1/5)\r\n\r\nAim at CENTER and press A or B";
                         else
-                             return $"Calibrating 2 Wiimote Bars ({_currentCalibrationStep + 1}/5)\\r\\n\\r\\nAim at {twoBarSteps[_currentCalibrationStep].Split('/')[0].Trim()}\\r\\nVisez {twoBarSteps[_currentCalibrationStep].Split('/')[1].Trim()} et appuyez sur A ou B";
+                             return string.Format("Calibrating 2 Wiimote Bars ({0}/5)\r\n\r\nAim at {1}\r\nVisez {2} et appuyez sur A ou B", _currentCalibrationStep + 1, twoBarSteps[_currentCalibrationStep].Split('/')[0].Trim(), twoBarSteps[_currentCalibrationStep].Split('/')[1].Trim());
                     }
                     break;
 
@@ -418,7 +418,7 @@ namespace WiimoteGun.UI.Calibrate
                     string[] fcSteps = { "CENTER", "TOP-LEFT", "TOP-RIGHT", "BOTTOM-RIGHT", "BOTTOM-LEFT" };
                     if (_currentCalibrationStep < fcSteps.Length)
                     {
-                        return $"Calibrating 4-Corners ({_currentCalibrationStep + 1}/{_totalCalibrationSteps})\r\n\r\nAim at {fcSteps[_currentCalibrationStep]} and press A or B";
+                        return string.Format("Calibrating 4-Corners ({0}/{1})\r\n\r\nAim at {2} and press A or B", _currentCalibrationStep + 1, _totalCalibrationSteps, fcSteps[_currentCalibrationStep]);
                     }
                     break;
 
@@ -490,7 +490,7 @@ namespace WiimoteGun.UI.Calibrate
                 string debugFolder = System.IO.Path.Combine(
                     System.IO.Path.GetDirectoryName(typeof(Program).Assembly.Location),
                     "Debug",
-                    $"Capture_Calib_{timestamp}");
+                    string.Format("Capture_Calib_{0}", timestamp));
                 System.IO.Directory.CreateDirectory(debugFolder);
 
                 // 1. Capture screenshot (EN/FR: Capturer capture d'écran)
@@ -503,9 +503,9 @@ namespace WiimoteGun.UI.Calibrate
                 // 2. Generate detailed log (EN/FR: Générer log détaillé)
                 var log = new System.Text.StringBuilder();
                 log.AppendLine("=== WiimoteGun Calibration Debug Snapshot ===");
-                log.AppendLine($"Timestamp: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-                log.AppendLine($"LED Layout: {_ledLayout}");
-                log.AppendLine($"Step: {_currentCalibrationStep + 1}/{_totalCalibrationSteps}");
+                log.AppendLine(string.Format("Timestamp: {0:yyyy-MM-dd HH:mm:ss}", DateTime.Now));
+                log.AppendLine(string.Format("LED Layout: {0}", _ledLayout));
+                log.AppendLine(string.Format("Step: {0}/{1}", _currentCalibrationStep + 1, _totalCalibrationSteps));
                 log.AppendLine();
 
                 // Log Wiimote States
@@ -513,13 +513,13 @@ namespace WiimoteGun.UI.Calibrate
                 for (int i = 0; i < wiimotes.Length; i++)
                 {
                     var wm = wiimotes[i];
-                    log.AppendLine($"--- Wiimote {i + 1} ({wm.DevicePath}) ---");
+                    log.AppendLine(string.Format("--- Wiimote {0} ({1}) ---", i + 1, wm.DevicePath));
                     var ir = wm.WiimoteState.IRState;
-                    log.AppendLine($"IR Mode: {ir.Mode}, Sensitivity: {ir.Sensitivity}");
+                    log.AppendLine(string.Format("IR Mode: {0}, Sensitivity: {1}", ir.Mode, ir.Sensitivity));
                     for (int p = 0; p < 4; p++)
                     {
                         if (ir[p].Found)
-                            log.AppendLine($"  Point {p}: ({ir[p].Position.X}, {ir[p].Position.Y}) Size: {ir[p].Size}");
+                            log.AppendLine(string.Format("  Point {0}: ({1}, {2}) Size: {3}", p, ir[p].Position.X, ir[p].Position.Y, ir[p].Size));
                     }
                 }
 

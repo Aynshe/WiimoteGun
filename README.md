@@ -15,6 +15,7 @@ Fork of [WiimoteGun](https://github.com/fcaruso/WiimoteGun) with extensive enhan
 - **Nunchuk Support**: Full Nunchuk detection (hotplug and coldplug)
 - **IR Visualizer**: Real-time IR camera visualization tool
 - **GamePad Mode**: Emulate a DirectInput gamepad per player (e.g. for PCSX2 dual lightgun support)
+- **4:3 Aspect Ratio Support**: Dedicated modes for 4:3 games centered on widescreen monitors (Mouse 4:3 / GamePad 4:3)
 
 
 > [!NOTE]
@@ -134,6 +135,14 @@ Mode for emulators like **PCSX2** or games requiring separate controllers for ea
 - **Analog Mapping**: Map IR tracking to Left or Right stick.
 - **Nunchuk Integration**: Use Nunchuk joystick for movement or as a Digital D-Pad.
 - **Configuration**: Right-click tray → **Open Mappings** → **GamePad Mapping** tab.
+
+### 🖼️ 4:3 Aspect Ratio Mode
+Designed for retrogaming in 4:3 (centered) on widescreen (16:9, 21:9) monitors.
+- **Automatic Scaling**: Stretches the IR tracking area to match the 4:3 game box only.
+- **Accurate Edges**: The Wiimote "off-screen" detection and edge tracking will perfectly match the 4:3 game borders.
+- **Modes**: Cycle through Mouse → **Mouse 4:3** → GamePad → **GamePad 4:3** using the HOME button.
+
+*FR: Le mode 4:3 adapte le tracking IR pour les jeux centrés sur écrans larges. La zone de visée est automatiquement limitée aux bordures de la "box" 4:3 du jeu.*
 
 *FR: Mode GamePad pour PCSX2 (Dual Lightgun) : Chaque Wiimote est émulée comme une manette DirectInput indépendante avec axes analogiques pour la visée.*
 

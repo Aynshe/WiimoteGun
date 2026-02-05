@@ -26,10 +26,11 @@ namespace WiimoteGun
         public ButtonAction NunRight { get; set; }
         
         // FPS Gyro Aiming Mode (EN/FR: Mode visée gyroscopique pour FPS)
-        public bool EnableGyroAiming { get; set; } = false;
+        public bool EnableGyroAiming { get; set; }
 
         public PlayerMappings()
         {
+            EnableGyroAiming = false;
             // Default mappings (EN/FR: Mappings par défaut)
             WiiA = new ButtonAction(SpecialAction.RightMouse);
             WiiB = new ButtonAction(SpecialAction.LeftMouse);

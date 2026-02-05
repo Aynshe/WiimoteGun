@@ -36,21 +36,21 @@ namespace WiimoteGun
             this.cbStartWithWindows = new System.Windows.Forms.CheckBox();
             this.rbBoth = new System.Windows.Forms.RadioButton();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
-
-
-            this.chkNotifications = new System.Windows.Forms.CheckBox();
-            this.chkEnableGamePadSwap = new System.Windows.Forms.CheckBox();
             this.btnConfigureGamePad = new System.Windows.Forms.Button();
+            this.chkEnableGamePadSwap = new System.Windows.Forms.CheckBox();
+            this.chkPersistentGamePads = new System.Windows.Forms.CheckBox();
+            this.chkNotifications = new System.Windows.Forms.CheckBox();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.rbBlueTooth = new System.Windows.Forms.RadioButton();
             this.rbDolphinbar = new System.Windows.Forms.RadioButton();
             this.groupBox3 = new System.Windows.Forms.GroupBox();
             this.cboLEDLayout = new System.Windows.Forms.ComboBox();
             this.lblLEDLayout = new System.Windows.Forms.Label();
-            this.label2 = new System.Windows.Forms.Label();
             this.trackBar1 = new System.Windows.Forms.TrackBar();
+            this.label2 = new System.Windows.Forms.Label();
+            this.chkPermissiveCalibration = new System.Windows.Forms.CheckBox();
             this.groupBox4 = new System.Windows.Forms.GroupBox();
-
+            this.chkAutoLockVMulti = new System.Windows.Forms.CheckBox();
             this.btnInstallPlayer1 = new System.Windows.Forms.Button();
             this.btnUninstallPlayer1 = new System.Windows.Forms.Button();
             this.btnInstallPlayer2 = new System.Windows.Forms.Button();
@@ -58,13 +58,12 @@ namespace WiimoteGun
             this.btnInstallPlayer3 = new System.Windows.Forms.Button();
             this.btnUninstallPlayer3 = new System.Windows.Forms.Button();
             this.btnInstallPlayer4 = new System.Windows.Forms.Button();
-            this.btnUninstallPlayer4= new System.Windows.Forms.Button();
-            this.chkAutoLockVMulti = new System.Windows.Forms.CheckBox();
-            this.chkPermissiveCalibration = new System.Windows.Forms.CheckBox();
-            
-            // Gesture Controls Init
+            this.btnUninstallPlayer4 = new System.Windows.Forms.Button();
             this.grpGestures = new System.Windows.Forms.GroupBox();
+            this.cboOffScreenMode = new System.Windows.Forms.ComboBox();
             this.chkOffScreenReload = new System.Windows.Forms.CheckBox();
+            this.rbGrenadeNunchuk = new System.Windows.Forms.RadioButton();
+            this.rbGrenadeWiimote = new System.Windows.Forms.RadioButton();
             this.chkGrenadeGesture = new System.Windows.Forms.CheckBox();
             this.grpShakeReload = new System.Windows.Forms.GroupBox();
             this.chkEnableShake = new System.Windows.Forms.CheckBox();
@@ -72,24 +71,19 @@ namespace WiimoteGun
             this.rbShakeNunchuk = new System.Windows.Forms.RadioButton();
             this.lblShakeSensitivity = new System.Windows.Forms.Label();
             this.cboShakeSensitivity = new System.Windows.Forms.ComboBox();
-            this.cboOffScreenMode = new System.Windows.Forms.ComboBox();
-            this.rbGrenadeWiimote = new System.Windows.Forms.RadioButton();
-            this.rbGrenadeNunchuk = new System.Windows.Forms.RadioButton();
-            
-            // Mouse Mode Init
             this.grpMouseMode = new System.Windows.Forms.GroupBox();
-            this.rbMouseSendInput = new System.Windows.Forms.RadioButton();
-            this.rbMouseRawInput = new System.Windows.Forms.RadioButton();
             this.lblMouseModeWarning = new System.Windows.Forms.Label();
-
+            this.rbMouseRawInput = new System.Windows.Forms.RadioButton();
+            this.rbMouseSendInput = new System.Windows.Forms.RadioButton();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown1)).BeginInit();
             this.groupBox1.SuspendLayout();
             this.groupBox2.SuspendLayout();
             this.groupBox3.SuspendLayout();
-            this.grpGestures.SuspendLayout();
-            this.grpShakeReload.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.trackBar1)).BeginInit();
             this.groupBox4.SuspendLayout();
+            this.grpGestures.SuspendLayout();
+            this.grpShakeReload.SuspendLayout();
+            this.grpMouseMode.SuspendLayout();
             this.SuspendLayout();
             // 
             // btnCancel
@@ -155,15 +149,13 @@ namespace WiimoteGun
             this.rbBoth.Text = "Dolphinbar and Bluetooth";
             this.rbBoth.UseVisualStyleBackColor = true;
             // 
-            // 
             // groupBox1
             // 
             this.groupBox1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-
-
             this.groupBox1.Controls.Add(this.btnConfigureGamePad);
             this.groupBox1.Controls.Add(this.chkEnableGamePadSwap);
+            this.groupBox1.Controls.Add(this.chkPersistentGamePads);
             this.groupBox1.Controls.Add(this.chkNotifications);
             this.groupBox1.Controls.Add(this.cbStartWithWindows);
             this.groupBox1.Location = new System.Drawing.Point(410, 153);
@@ -173,7 +165,35 @@ namespace WiimoteGun
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Misc options";
             // 
+            // btnConfigureGamePad
             // 
+            this.btnConfigureGamePad.Location = new System.Drawing.Point(233, 72);
+            this.btnConfigureGamePad.Name = "btnConfigureGamePad";
+            this.btnConfigureGamePad.Size = new System.Drawing.Size(100, 23);
+            this.btnConfigureGamePad.TabIndex = 7;
+            this.btnConfigureGamePad.Text = "Configure...";
+            this.btnConfigureGamePad.UseVisualStyleBackColor = true;
+            this.btnConfigureGamePad.Click += new System.EventHandler(this.btnConfigureGamePad_Click);
+            // 
+            // chkEnableGamePadSwap
+            // 
+            this.chkEnableGamePadSwap.AutoSize = true;
+            this.chkEnableGamePadSwap.Location = new System.Drawing.Point(13, 76);
+            this.chkEnableGamePadSwap.Name = "chkEnableGamePadSwap";
+            this.chkEnableGamePadSwap.Size = new System.Drawing.Size(205, 17);
+            this.chkEnableGamePadSwap.TabIndex = 6;
+            this.chkEnableGamePadSwap.Text = "Enable GamePad Swap Mode (Col06)";
+            this.chkEnableGamePadSwap.UseVisualStyleBackColor = true;
+            // 
+            // chkPersistentGamePads
+            // 
+            this.chkPersistentGamePads.AutoSize = true;
+            this.chkPersistentGamePads.Location = new System.Drawing.Point(13, 100);
+            this.chkPersistentGamePads.Name = "chkPersistentGamePads";
+            this.chkPersistentGamePads.Size = new System.Drawing.Size(152, 17);
+            this.chkPersistentGamePads.TabIndex = 8;
+            this.chkPersistentGamePads.Text = "Stabilize GamePad Indices";
+            this.chkPersistentGamePads.UseVisualStyleBackColor = true;
             // 
             // chkNotifications
             // 
@@ -184,26 +204,6 @@ namespace WiimoteGun
             this.chkNotifications.TabIndex = 5;
             this.chkNotifications.Text = "Show notifications";
             this.chkNotifications.UseVisualStyleBackColor = true;
-            // 
-            // chkEnableGamePadSwap
-            // 
-            this.chkEnableGamePadSwap.AutoSize = true;
-            this.chkEnableGamePadSwap.Location = new System.Drawing.Point(13, 76);
-            this.chkEnableGamePadSwap.Name = "chkEnableGamePadSwap";
-            this.chkEnableGamePadSwap.Size = new System.Drawing.Size(200, 17);
-            this.chkEnableGamePadSwap.TabIndex = 6;
-            this.chkEnableGamePadSwap.Text = "Enable GamePad Swap Mode (Col06)";
-            this.chkEnableGamePadSwap.UseVisualStyleBackColor = true;
-            // 
-            // btnConfigureGamePad
-            // 
-            this.btnConfigureGamePad.Location = new System.Drawing.Point(220, 72);
-            this.btnConfigureGamePad.Name = "btnConfigureGamePad";
-            this.btnConfigureGamePad.Size = new System.Drawing.Size(100, 23);
-            this.btnConfigureGamePad.TabIndex = 7;
-            this.btnConfigureGamePad.Text = "Configure...";
-            this.btnConfigureGamePad.UseVisualStyleBackColor = true;
-            this.btnConfigureGamePad.Click += new System.EventHandler(this.btnConfigureGamePad_Click);
             // 
             // groupBox2
             // 
@@ -218,54 +218,6 @@ namespace WiimoteGun
             this.groupBox2.TabIndex = 7;
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "Wiimote detection";
-            // 
-            // grpMouseMode
-            // 
-            this.grpMouseMode.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.grpMouseMode.Controls.Add(this.lblMouseModeWarning);
-            this.grpMouseMode.Controls.Add(this.rbMouseRawInput);
-            this.grpMouseMode.Controls.Add(this.rbMouseSendInput);
-            this.grpMouseMode.Location = new System.Drawing.Point(12, 126);
-            this.grpMouseMode.Name = "grpMouseMode";
-            this.grpMouseMode.Size = new System.Drawing.Size(384, 95);
-            this.grpMouseMode.TabIndex = 8;
-            this.grpMouseMode.TabStop = false;
-            this.grpMouseMode.Text = "Mouse Activation Mode";
-            // 
-            // rbMouseSendInput
-            // 
-            this.rbMouseSendInput.AutoSize = true;
-            this.rbMouseSendInput.Location = new System.Drawing.Point(13, 25);
-            this.rbMouseSendInput.Name = "rbMouseSendInput";
-            this.rbMouseSendInput.Size = new System.Drawing.Size(190, 17);
-            this.rbMouseSendInput.TabIndex = 0;
-            this.rbMouseSendInput.Text = "SendInput (Single Player - Legacy)";
-            this.rbMouseSendInput.UseVisualStyleBackColor = true;
-            this.rbMouseSendInput.CheckedChanged += new System.EventHandler(this.rbMouseSendInput_CheckedChanged);
-            // 
-            // rbMouseRawInput
-            // 
-            this.rbMouseRawInput.AutoSize = true;
-            this.rbMouseRawInput.Checked = true;
-            this.rbMouseRawInput.Location = new System.Drawing.Point(13, 48);
-            this.rbMouseRawInput.Name = "rbMouseRawInput";
-            this.rbMouseRawInput.Size = new System.Drawing.Size(220, 17);
-            this.rbMouseRawInput.TabIndex = 1;
-            this.rbMouseRawInput.TabStop = true;
-            this.rbMouseRawInput.Text = "VMulti (Multi-Player)";
-            this.rbMouseRawInput.UseVisualStyleBackColor = true;
-            // 
-            // lblMouseModeWarning
-            // 
-            this.lblMouseModeWarning.AutoSize = true;
-            this.lblMouseModeWarning.ForeColor = System.Drawing.Color.OrangeRed;
-            this.lblMouseModeWarning.Location = new System.Drawing.Point(30, 70);
-            this.lblMouseModeWarning.Name = "lblMouseModeWarning";
-            this.lblMouseModeWarning.Size = new System.Drawing.Size(180, 13);
-            this.lblMouseModeWarning.TabIndex = 2;
-            this.lblMouseModeWarning.Text = "⚠ Only Player 1 active in this mode";
-            this.lblMouseModeWarning.Visible = false;
             // 
             // rbBlueTooth
             // 
@@ -286,8 +238,6 @@ namespace WiimoteGun
             this.rbDolphinbar.TabIndex = 6;
             this.rbDolphinbar.Text = "Dolphinbar";
             this.rbDolphinbar.UseVisualStyleBackColor = true;
-
-
             // 
             // groupBox3
             // 
@@ -307,32 +257,6 @@ namespace WiimoteGun
             this.groupBox3.TabStop = false;
             this.groupBox3.Text = "Mouse emulation ( Restart required )";
             // 
-            // label2
-            // 
-            this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(10, 65);
-            this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(68, 13);
-            this.label2.TabIndex = 4;
-            this.label2.Text = "IR Sensitivity";
-            // 
-            // trackBar1
-            // 
-            this.trackBar1.AutoSize = false;
-            this.trackBar1.Location = new System.Drawing.Point(257, 59);
-            this.trackBar1.Name = "trackBar1";
-            this.trackBar1.Size = new System.Drawing.Size(119, 30);
-            this.trackBar1.TabIndex = 5;
-            // 
-            // lblLEDLayout
-            // 
-            this.lblLEDLayout.AutoSize = true;
-            this.lblLEDLayout.Location = new System.Drawing.Point(10, 97);
-            this.lblLEDLayout.Name = "lblLEDLayout";
-            this.lblLEDLayout.Size = new System.Drawing.Size(65, 13);
-            this.lblLEDLayout.TabIndex = 6;
-            this.lblLEDLayout.Text = "LED Layout";
-            // 
             // cboLEDLayout
             // 
             this.cboLEDLayout.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
@@ -348,151 +272,41 @@ namespace WiimoteGun
             this.cboLEDLayout.Size = new System.Drawing.Size(226, 21);
             this.cboLEDLayout.TabIndex = 7;
             // 
+            // lblLEDLayout
+            // 
+            this.lblLEDLayout.AutoSize = true;
+            this.lblLEDLayout.Location = new System.Drawing.Point(10, 97);
+            this.lblLEDLayout.Name = "lblLEDLayout";
+            this.lblLEDLayout.Size = new System.Drawing.Size(63, 13);
+            this.lblLEDLayout.TabIndex = 6;
+            this.lblLEDLayout.Text = "LED Layout";
+            // 
+            // trackBar1
+            // 
+            this.trackBar1.AutoSize = false;
+            this.trackBar1.Location = new System.Drawing.Point(257, 59);
+            this.trackBar1.Name = "trackBar1";
+            this.trackBar1.Size = new System.Drawing.Size(119, 30);
+            this.trackBar1.TabIndex = 5;
+            // 
+            // label2
+            // 
+            this.label2.AutoSize = true;
+            this.label2.Location = new System.Drawing.Point(10, 65);
+            this.label2.Name = "label2";
+            this.label2.Size = new System.Drawing.Size(68, 13);
+            this.label2.TabIndex = 4;
+            this.label2.Text = "IR Sensitivity";
+            // 
             // chkPermissiveCalibration
             // 
             this.chkPermissiveCalibration.AutoSize = true;
             this.chkPermissiveCalibration.Location = new System.Drawing.Point(150, 121);
             this.chkPermissiveCalibration.Name = "chkPermissiveCalibration";
-            this.chkPermissiveCalibration.Size = new System.Drawing.Size(220, 17);
+            this.chkPermissiveCalibration.Size = new System.Drawing.Size(206, 17);
             this.chkPermissiveCalibration.TabIndex = 8;
             this.chkPermissiveCalibration.Text = "Permissive Calibration (Large Screens)";
             this.chkPermissiveCalibration.UseVisualStyleBackColor = true;
-            // 
-            // grpGestures
-            // 
-            this.grpGestures.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.grpGestures.Controls.Add(this.cboOffScreenMode);
-            this.grpGestures.Controls.Add(this.chkOffScreenReload);
-            this.grpGestures.Controls.Add(this.rbGrenadeNunchuk);
-            this.grpGestures.Controls.Add(this.rbGrenadeWiimote);
-            this.grpGestures.Controls.Add(this.chkGrenadeGesture);
-            this.grpGestures.Controls.Add(this.grpShakeReload);
-            this.grpGestures.Location = new System.Drawing.Point(410, 12);
-            this.grpGestures.Name = "grpGestures";
-            this.grpGestures.Size = new System.Drawing.Size(384, 135);
-            this.grpGestures.TabIndex = 9;
-            this.grpGestures.TabStop = false;
-            this.grpGestures.Text = "Gestures & Reload";
-            // 
-            // chkOffScreenReload
-            // 
-            this.chkOffScreenReload.AutoSize = true;
-            this.chkOffScreenReload.Location = new System.Drawing.Point(13, 20);
-            this.chkOffScreenReload.Name = "chkOffScreenReload";
-            this.chkOffScreenReload.Size = new System.Drawing.Size(200, 17);
-            this.chkOffScreenReload.TabIndex = 0;
-            this.chkOffScreenReload.Text = "Off-screen Reload (Right Click)";
-            this.chkOffScreenReload.UseVisualStyleBackColor = true;
-            // 
-            // cboOffScreenMode
-            // 
-            this.cboOffScreenMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.cboOffScreenMode.FormattingEnabled = true;
-            this.cboOffScreenMode.Items.AddRange(new object[] {
-            "On Click",
-            "Automatic"});
-            this.cboOffScreenMode.Location = new System.Drawing.Point(220, 18);
-            this.cboOffScreenMode.Name = "cboOffScreenMode";
-            this.cboOffScreenMode.Size = new System.Drawing.Size(100, 21);
-            this.cboOffScreenMode.TabIndex = 3;
-            // 
-            // chkGrenadeGesture
-            // 
-            this.chkGrenadeGesture.AutoSize = true;
-            this.chkGrenadeGesture.Location = new System.Drawing.Point(13, 43);
-            this.chkGrenadeGesture.Name = "chkGrenadeGesture";
-            this.chkGrenadeGesture.Size = new System.Drawing.Size(70, 17);
-            this.chkGrenadeGesture.TabIndex = 1;
-            this.chkGrenadeGesture.Text = "Grenade:";
-            this.chkGrenadeGesture.UseVisualStyleBackColor = true;
-            // 
-            // rbGrenadeWiimote
-            // 
-            this.rbGrenadeWiimote.AutoSize = true;
-            this.rbGrenadeWiimote.Checked = true;
-            this.rbGrenadeWiimote.Location = new System.Drawing.Point(90, 42);
-            this.rbGrenadeWiimote.Name = "rbGrenadeWiimote";
-            this.rbGrenadeWiimote.Size = new System.Drawing.Size(80, 17);
-            this.rbGrenadeWiimote.TabIndex = 4;
-            this.rbGrenadeWiimote.TabStop = true;
-            this.rbGrenadeWiimote.Text = "Wiimote";
-            this.rbGrenadeWiimote.UseVisualStyleBackColor = true;
-            // 
-            // rbGrenadeNunchuk
-            // 
-            this.rbGrenadeNunchuk.AutoSize = true;
-            this.rbGrenadeNunchuk.Location = new System.Drawing.Point(180, 42);
-            this.rbGrenadeNunchuk.Name = "rbGrenadeNunchuk";
-            this.rbGrenadeNunchuk.Size = new System.Drawing.Size(80, 17);
-            this.rbGrenadeNunchuk.TabIndex = 5;
-            this.rbGrenadeNunchuk.Text = "Nunchuk";
-            this.rbGrenadeNunchuk.UseVisualStyleBackColor = true;
-            // 
-            // grpShakeReload
-            // 
-            this.grpShakeReload.Controls.Add(this.chkEnableShake);
-            this.grpShakeReload.Controls.Add(this.rbShakeWiimote);
-            this.grpShakeReload.Controls.Add(this.rbShakeNunchuk);
-            this.grpShakeReload.Controls.Add(this.lblShakeSensitivity);
-            this.grpShakeReload.Controls.Add(this.cboShakeSensitivity);
-            this.grpShakeReload.Location = new System.Drawing.Point(10, 66);
-            this.grpShakeReload.Name = "grpShakeReload";
-            this.grpShakeReload.Size = new System.Drawing.Size(365, 60);
-            this.grpShakeReload.TabIndex = 2;
-            this.grpShakeReload.TabStop = false;
-            this.grpShakeReload.Text = "Shake Reload (Right Click)";
-            // 
-            // chkEnableShake
-            // 
-            this.chkEnableShake.AutoSize = true;
-            this.chkEnableShake.Location = new System.Drawing.Point(6, 20);
-            this.chkEnableShake.Name = "chkEnableShake";
-            this.chkEnableShake.Size = new System.Drawing.Size(65, 17);
-            this.chkEnableShake.TabIndex = 0;
-            this.chkEnableShake.Text = "Enable";
-            this.chkEnableShake.UseVisualStyleBackColor = true;
-            // 
-            // rbShakeWiimote
-            // 
-            this.rbShakeWiimote.AutoSize = true;
-            this.rbShakeWiimote.Checked = true;
-            this.rbShakeWiimote.Location = new System.Drawing.Point(70, 19);
-            this.rbShakeWiimote.Name = "rbShakeWiimote";
-            this.rbShakeWiimote.Size = new System.Drawing.Size(80, 17);
-            this.rbShakeWiimote.TabIndex = 1;
-            this.rbShakeWiimote.TabStop = true;
-            this.rbShakeWiimote.Text = "Wiimote";
-            this.rbShakeWiimote.UseVisualStyleBackColor = true;
-            // 
-            // rbShakeNunchuk
-            // 
-            this.rbShakeNunchuk.AutoSize = true;
-            this.rbShakeNunchuk.Location = new System.Drawing.Point(150, 19);
-            this.rbShakeNunchuk.Name = "rbShakeNunchuk";
-            this.rbShakeNunchuk.Size = new System.Drawing.Size(80, 17);
-            this.rbShakeNunchuk.TabIndex = 2;
-            this.rbShakeNunchuk.Text = "Nunchuk";
-            this.rbShakeNunchuk.UseVisualStyleBackColor = true;
-            // 
-            // lblShakeSensitivity
-            // 
-            this.lblShakeSensitivity.AutoSize = true;
-            this.lblShakeSensitivity.Location = new System.Drawing.Point(230, 21);
-            this.lblShakeSensitivity.Name = "lblShakeSensitivity";
-            this.lblShakeSensitivity.Size = new System.Drawing.Size(57, 13);
-            this.lblShakeSensitivity.TabIndex = 3;
-            this.lblShakeSensitivity.Text = "Sensitivity:";
-            // 
-            // cboShakeSensitivity
-            // 
-            this.cboShakeSensitivity.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.cboShakeSensitivity.FormattingEnabled = true;
-            this.cboShakeSensitivity.Items.AddRange(new object[] { "Low", "Medium", "High" });
-            this.cboShakeSensitivity.Location = new System.Drawing.Point(290, 18);
-            this.cboShakeSensitivity.Name = "cboShakeSensitivity";
-            this.cboShakeSensitivity.Size = new System.Drawing.Size(65, 21);
-            this.cboShakeSensitivity.TabIndex = 4;
             // 
             // groupBox4
             // 
@@ -505,15 +319,12 @@ namespace WiimoteGun
             this.groupBox4.Controls.Add(this.btnUninstallPlayer3);
             this.groupBox4.Controls.Add(this.btnInstallPlayer4);
             this.groupBox4.Controls.Add(this.btnUninstallPlayer4);
-
             this.groupBox4.Location = new System.Drawing.Point(410, 289);
             this.groupBox4.Name = "groupBox4";
             this.groupBox4.Size = new System.Drawing.Size(384, 210);
             this.groupBox4.TabIndex = 10;
             this.groupBox4.TabStop = false;
             this.groupBox4.Text = "Virtual HID Driver";
-            // 
-
             // 
             // chkAutoLockVMulti
             // 
@@ -522,12 +333,10 @@ namespace WiimoteGun
             this.chkAutoLockVMulti.CheckState = System.Windows.Forms.CheckState.Checked;
             this.chkAutoLockVMulti.Location = new System.Drawing.Point(13, 180);
             this.chkAutoLockVMulti.Name = "chkAutoLockVMulti";
-            this.chkAutoLockVMulti.Size = new System.Drawing.Size(270, 17);
+            this.chkAutoLockVMulti.Size = new System.Drawing.Size(196, 17);
             this.chkAutoLockVMulti.TabIndex = 10;
-            this.chkAutoLockVMulti.Text = "Auto-Lock VMulti to Player 1 \u0026 2 \u0026 3 \u0026 4";
+            this.chkAutoLockVMulti.Text = "Auto-Lock VMulti to Player 1 & 2 & 3 & 4";
             this.chkAutoLockVMulti.UseVisualStyleBackColor = true;
-            // 
-
             // 
             // btnInstallPlayer1
             // 
@@ -609,14 +418,200 @@ namespace WiimoteGun
             this.btnUninstallPlayer4.UseVisualStyleBackColor = true;
             this.btnUninstallPlayer4.Click += new System.EventHandler(this.btnUninstallPlayer4_Click);
             // 
+            // grpGestures
+            // 
+            this.grpGestures.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.grpGestures.Controls.Add(this.cboOffScreenMode);
+            this.grpGestures.Controls.Add(this.chkOffScreenReload);
+            this.grpGestures.Controls.Add(this.rbGrenadeNunchuk);
+            this.grpGestures.Controls.Add(this.rbGrenadeWiimote);
+            this.grpGestures.Controls.Add(this.chkGrenadeGesture);
+            this.grpGestures.Controls.Add(this.grpShakeReload);
+            this.grpGestures.Location = new System.Drawing.Point(410, 12);
+            this.grpGestures.Name = "grpGestures";
+            this.grpGestures.Size = new System.Drawing.Size(384, 135);
+            this.grpGestures.TabIndex = 9;
+            this.grpGestures.TabStop = false;
+            this.grpGestures.Text = "Gestures & Reload";
+            // 
+            // cboOffScreenMode
+            // 
+            this.cboOffScreenMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboOffScreenMode.FormattingEnabled = true;
+            this.cboOffScreenMode.Items.AddRange(new object[] {
+            "On Click",
+            "Automatic"});
+            this.cboOffScreenMode.Location = new System.Drawing.Point(220, 18);
+            this.cboOffScreenMode.Name = "cboOffScreenMode";
+            this.cboOffScreenMode.Size = new System.Drawing.Size(100, 21);
+            this.cboOffScreenMode.TabIndex = 3;
+            // 
+            // chkOffScreenReload
+            // 
+            this.chkOffScreenReload.AutoSize = true;
+            this.chkOffScreenReload.Location = new System.Drawing.Point(13, 20);
+            this.chkOffScreenReload.Name = "chkOffScreenReload";
+            this.chkOffScreenReload.Size = new System.Drawing.Size(200, 17);
+            this.chkOffScreenReload.TabIndex = 0;
+            this.chkOffScreenReload.Text = "Off-screen Reload (Right Click)";
+            this.chkOffScreenReload.UseVisualStyleBackColor = true;
+            // 
+            // rbGrenadeNunchuk
+            // 
+            this.rbGrenadeNunchuk.AutoSize = true;
+            this.rbGrenadeNunchuk.Location = new System.Drawing.Point(180, 42);
+            this.rbGrenadeNunchuk.Name = "rbGrenadeNunchuk";
+            this.rbGrenadeNunchuk.Size = new System.Drawing.Size(80, 17);
+            this.rbGrenadeNunchuk.TabIndex = 5;
+            this.rbGrenadeNunchuk.Text = "Nunchuk";
+            this.rbGrenadeNunchuk.UseVisualStyleBackColor = true;
+            // 
+            // rbGrenadeWiimote
+            // 
+            this.rbGrenadeWiimote.AutoSize = true;
+            this.rbGrenadeWiimote.Checked = true;
+            this.rbGrenadeWiimote.Location = new System.Drawing.Point(90, 42);
+            this.rbGrenadeWiimote.Name = "rbGrenadeWiimote";
+            this.rbGrenadeWiimote.Size = new System.Drawing.Size(80, 17);
+            this.rbGrenadeWiimote.TabIndex = 4;
+            this.rbGrenadeWiimote.TabStop = true;
+            this.rbGrenadeWiimote.Text = "Wiimote";
+            this.rbGrenadeWiimote.UseVisualStyleBackColor = true;
+            // 
+            // chkGrenadeGesture
+            // 
+            this.chkGrenadeGesture.AutoSize = true;
+            this.chkGrenadeGesture.Location = new System.Drawing.Point(13, 43);
+            this.chkGrenadeGesture.Name = "chkGrenadeGesture";
+            this.chkGrenadeGesture.Size = new System.Drawing.Size(70, 17);
+            this.chkGrenadeGesture.TabIndex = 1;
+            this.chkGrenadeGesture.Text = "Grenade:";
+            this.chkGrenadeGesture.UseVisualStyleBackColor = true;
+            // 
+            // grpShakeReload
+            // 
+            this.grpShakeReload.Controls.Add(this.chkEnableShake);
+            this.grpShakeReload.Controls.Add(this.rbShakeWiimote);
+            this.grpShakeReload.Controls.Add(this.rbShakeNunchuk);
+            this.grpShakeReload.Controls.Add(this.lblShakeSensitivity);
+            this.grpShakeReload.Controls.Add(this.cboShakeSensitivity);
+            this.grpShakeReload.Location = new System.Drawing.Point(10, 66);
+            this.grpShakeReload.Name = "grpShakeReload";
+            this.grpShakeReload.Size = new System.Drawing.Size(365, 60);
+            this.grpShakeReload.TabIndex = 2;
+            this.grpShakeReload.TabStop = false;
+            this.grpShakeReload.Text = "Shake Reload (Right Click)";
+            // 
+            // chkEnableShake
+            // 
+            this.chkEnableShake.AutoSize = true;
+            this.chkEnableShake.Location = new System.Drawing.Point(6, 20);
+            this.chkEnableShake.Name = "chkEnableShake";
+            this.chkEnableShake.Size = new System.Drawing.Size(65, 17);
+            this.chkEnableShake.TabIndex = 0;
+            this.chkEnableShake.Text = "Enable";
+            this.chkEnableShake.UseVisualStyleBackColor = true;
+            // 
+            // rbShakeWiimote
+            // 
+            this.rbShakeWiimote.AutoSize = true;
+            this.rbShakeWiimote.Checked = true;
+            this.rbShakeWiimote.Location = new System.Drawing.Point(70, 19);
+            this.rbShakeWiimote.Name = "rbShakeWiimote";
+            this.rbShakeWiimote.Size = new System.Drawing.Size(80, 17);
+            this.rbShakeWiimote.TabIndex = 1;
+            this.rbShakeWiimote.TabStop = true;
+            this.rbShakeWiimote.Text = "Wiimote";
+            this.rbShakeWiimote.UseVisualStyleBackColor = true;
+            // 
+            // rbShakeNunchuk
+            // 
+            this.rbShakeNunchuk.AutoSize = true;
+            this.rbShakeNunchuk.Location = new System.Drawing.Point(150, 19);
+            this.rbShakeNunchuk.Name = "rbShakeNunchuk";
+            this.rbShakeNunchuk.Size = new System.Drawing.Size(80, 17);
+            this.rbShakeNunchuk.TabIndex = 2;
+            this.rbShakeNunchuk.Text = "Nunchuk";
+            this.rbShakeNunchuk.UseVisualStyleBackColor = true;
+            // 
+            // lblShakeSensitivity
+            // 
+            this.lblShakeSensitivity.AutoSize = true;
+            this.lblShakeSensitivity.Location = new System.Drawing.Point(230, 21);
+            this.lblShakeSensitivity.Name = "lblShakeSensitivity";
+            this.lblShakeSensitivity.Size = new System.Drawing.Size(57, 13);
+            this.lblShakeSensitivity.TabIndex = 3;
+            this.lblShakeSensitivity.Text = "Sensitivity:";
+            // 
+            // cboShakeSensitivity
+            // 
+            this.cboShakeSensitivity.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboShakeSensitivity.FormattingEnabled = true;
+            this.cboShakeSensitivity.Items.AddRange(new object[] {
+            "Low",
+            "Medium",
+            "High"});
+            this.cboShakeSensitivity.Location = new System.Drawing.Point(290, 18);
+            this.cboShakeSensitivity.Name = "cboShakeSensitivity";
+            this.cboShakeSensitivity.Size = new System.Drawing.Size(65, 21);
+            this.cboShakeSensitivity.TabIndex = 4;
+            // 
+            // grpMouseMode
+            // 
+            this.grpMouseMode.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.grpMouseMode.Controls.Add(this.lblMouseModeWarning);
+            this.grpMouseMode.Controls.Add(this.rbMouseRawInput);
+            this.grpMouseMode.Controls.Add(this.rbMouseSendInput);
+            this.grpMouseMode.Location = new System.Drawing.Point(12, 126);
+            this.grpMouseMode.Name = "grpMouseMode";
+            this.grpMouseMode.Size = new System.Drawing.Size(384, 95);
+            this.grpMouseMode.TabIndex = 8;
+            this.grpMouseMode.TabStop = false;
+            this.grpMouseMode.Text = "Mouse Activation Mode";
+            // 
+            // lblMouseModeWarning
+            // 
+            this.lblMouseModeWarning.AutoSize = true;
+            this.lblMouseModeWarning.ForeColor = System.Drawing.Color.OrangeRed;
+            this.lblMouseModeWarning.Location = new System.Drawing.Point(30, 70);
+            this.lblMouseModeWarning.Name = "lblMouseModeWarning";
+            this.lblMouseModeWarning.Size = new System.Drawing.Size(175, 13);
+            this.lblMouseModeWarning.TabIndex = 2;
+            this.lblMouseModeWarning.Text = "⚠ Only Player 1 active in this mode";
+            this.lblMouseModeWarning.Visible = false;
+            // 
+            // rbMouseRawInput
+            // 
+            this.rbMouseRawInput.AutoSize = true;
+            this.rbMouseRawInput.Checked = true;
+            this.rbMouseRawInput.Location = new System.Drawing.Point(13, 48);
+            this.rbMouseRawInput.Name = "rbMouseRawInput";
+            this.rbMouseRawInput.Size = new System.Drawing.Size(117, 17);
+            this.rbMouseRawInput.TabIndex = 1;
+            this.rbMouseRawInput.TabStop = true;
+            this.rbMouseRawInput.Text = "VMulti (Multi-Player)";
+            this.rbMouseRawInput.UseVisualStyleBackColor = true;
+            // 
+            // rbMouseSendInput
+            // 
+            this.rbMouseSendInput.AutoSize = true;
+            this.rbMouseSendInput.Location = new System.Drawing.Point(13, 25);
+            this.rbMouseSendInput.Name = "rbMouseSendInput";
+            this.rbMouseSendInput.Size = new System.Drawing.Size(188, 17);
+            this.rbMouseSendInput.TabIndex = 0;
+            this.rbMouseSendInput.Text = "SendInput (Single Player - Legacy)";
+            this.rbMouseSendInput.UseVisualStyleBackColor = true;
+            this.rbMouseSendInput.CheckedChanged += new System.EventHandler(this.rbMouseSendInput_CheckedChanged);
+            // 
             // OptionsForm
             // 
             this.AcceptButton = this.btnOk;
             this.AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
             this.CancelButton = this.btnCancel;
-            this.ClientSize = new System.Drawing.Size(806, 550); // Resized for 720p (2 columns)
-            this.Controls.Add(this.grpGestures);
+            this.ClientSize = new System.Drawing.Size(806, 550);
             this.Controls.Add(this.groupBox4);
             this.Controls.Add(this.groupBox1);
             this.Controls.Add(this.grpGestures);
@@ -642,6 +637,13 @@ namespace WiimoteGun
             this.groupBox3.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.trackBar1)).EndInit();
             this.groupBox4.ResumeLayout(false);
+            this.groupBox4.PerformLayout();
+            this.grpGestures.ResumeLayout(false);
+            this.grpGestures.PerformLayout();
+            this.grpShakeReload.ResumeLayout(false);
+            this.grpShakeReload.PerformLayout();
+            this.grpMouseMode.ResumeLayout(false);
+            this.grpMouseMode.PerformLayout();
             this.ResumeLayout(false);
 
         }
@@ -697,6 +699,7 @@ namespace WiimoteGun
         private System.Windows.Forms.CheckBox chkAutoLockVMulti;
         private System.Windows.Forms.CheckBox chkPermissiveCalibration;
         private System.Windows.Forms.CheckBox chkEnableGamePadSwap;
+        private System.Windows.Forms.CheckBox chkPersistentGamePads;
         private System.Windows.Forms.Button btnConfigureGamePad;
     }
 }

@@ -101,6 +101,10 @@ namespace WiimoteGun.Controls
             SetAxisSelection(cboIRAxis, mappings.IRSensorAxis);
             SetAxisSelection(cboNunchukAxis, mappings.NunchukJoystickAxis);
 
+            // Load IR Calibration (EN/FR: Charger calibrage IR)
+            numLinearity.Value = (decimal)Math.Max(0.5, Math.Min(4.0, mappings.IRLinearity));
+            numOverscan.Value = (decimal)Math.Max(0.0, Math.Min(0.45, mappings.IROverscan));
+
             // Load Buttons (Re-create controls to ensure fresh state)
             flowLayoutPanelButtons.Controls.Clear();
             flowLayoutPanelButtons.SuspendLayout();
@@ -226,6 +230,10 @@ namespace WiimoteGun.Controls
                 
                 if (cboNunchukAxis.SelectedItem is GamePadAxisItem nunItem)
                     mappings.NunchukJoystickAxis = nunItem.Value;
+
+                // IR Calibration update (EN/FR: Mise à jour calibrage IR)
+                mappings.IRLinearity = (float)numLinearity.Value;
+                mappings.IROverscan = (float)numOverscan.Value;
             }
 
             // Buttons are updated in real-time via setter delegates in AddMappingRow

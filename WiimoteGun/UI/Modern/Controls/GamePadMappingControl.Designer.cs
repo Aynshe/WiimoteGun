@@ -23,6 +23,8 @@ namespace WiimoteGun.Controls
             this.tabPage2 = new System.Windows.Forms.TabPage();
             this.tabPage3 = new System.Windows.Forms.TabPage();
             this.tabPage4 = new System.Windows.Forms.TabPage();
+            this.tabControlSettings = new System.Windows.Forms.TabControl();
+            this.tabPageMappings = new System.Windows.Forms.TabPage();
             this.grpAxes = new System.Windows.Forms.GroupBox();
             this.cboNunchukAxis = new System.Windows.Forms.ComboBox();
             this.lblNunchukAxis = new System.Windows.Forms.Label();
@@ -30,10 +32,24 @@ namespace WiimoteGun.Controls
             this.lblIRAxis = new System.Windows.Forms.Label();
             this.grpButtons = new System.Windows.Forms.GroupBox();
             this.flowLayoutPanelButtons = new System.Windows.Forms.FlowLayoutPanel();
+            this.tabPageCalibration = new System.Windows.Forms.TabPage();
+            this.grpCalibration = new System.Windows.Forms.GroupBox();
+            this.lblLinearityTitle = new System.Windows.Forms.Label();
+            this.numLinearity = new System.Windows.Forms.NumericUpDown();
+            this.lblLinearityDesc = new System.Windows.Forms.Label();
+            this.lblOverscanTitle = new System.Windows.Forms.Label();
+            this.numOverscan = new System.Windows.Forms.NumericUpDown();
+            this.lblOverscanDesc = new System.Windows.Forms.Label();
             this.btnApply = new System.Windows.Forms.Button();
             this.tabControlPlayers.SuspendLayout();
+            this.tabControlSettings.SuspendLayout();
+            this.tabPageMappings.SuspendLayout();
             this.grpAxes.SuspendLayout();
             this.grpButtons.SuspendLayout();
+            this.tabPageCalibration.SuspendLayout();
+            this.grpCalibration.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.numLinearity)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numOverscan)).BeginInit();
             this.SuspendLayout();
             // 
             // btnBack
@@ -103,6 +119,28 @@ namespace WiimoteGun.Controls
             this.tabPage4.TabIndex = 3;
             this.tabPage4.Text = "Player 4";
             // 
+            // tabControlSettings
+            // 
+            this.tabControlSettings.Controls.Add(this.tabPageMappings);
+            this.tabControlSettings.Controls.Add(this.tabPageCalibration);
+            this.tabControlSettings.Location = new System.Drawing.Point(10, 50);
+            this.tabControlSettings.Name = "tabControlSettings";
+            this.tabControlSettings.SelectedIndex = 0;
+            this.tabControlSettings.Size = new System.Drawing.Size(540, 660);
+            this.tabControlSettings.TabIndex = 2;
+            // 
+            // tabPageMappings
+            // 
+            this.tabPageMappings.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
+            this.tabPageMappings.Controls.Add(this.grpAxes);
+            this.tabPageMappings.Controls.Add(this.grpButtons);
+            this.tabPageMappings.Location = new System.Drawing.Point(4, 24);
+            this.tabPageMappings.Name = "tabPageMappings";
+            this.tabPageMappings.Padding = new System.Windows.Forms.Padding(3);
+            this.tabPageMappings.Size = new System.Drawing.Size(532, 632);
+            this.tabPageMappings.TabIndex = 0;
+            this.tabPageMappings.Text = "Mappings";
+            // 
             // grpAxes
             // 
             this.grpAxes.Controls.Add(this.cboNunchukAxis);
@@ -111,10 +149,10 @@ namespace WiimoteGun.Controls
             this.grpAxes.Controls.Add(this.lblIRAxis);
             this.grpAxes.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
             this.grpAxes.ForeColor = System.Drawing.Color.White;
-            this.grpAxes.Location = new System.Drawing.Point(10, 50);
+            this.grpAxes.Location = new System.Drawing.Point(6, 6);
             this.grpAxes.Name = "grpAxes";
-            this.grpAxes.Size = new System.Drawing.Size(540, 100);
-            this.grpAxes.TabIndex = 2;
+            this.grpAxes.Size = new System.Drawing.Size(520, 100);
+            this.grpAxes.TabIndex = 0;
             this.grpAxes.TabStop = false;
             this.grpAxes.Text = "Analog Sticks Mapping";
             // 
@@ -169,10 +207,10 @@ namespace WiimoteGun.Controls
             this.grpButtons.Controls.Add(this.flowLayoutPanelButtons);
             this.grpButtons.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
             this.grpButtons.ForeColor = System.Drawing.Color.White;
-            this.grpButtons.Location = new System.Drawing.Point(10, 160);
+            this.grpButtons.Location = new System.Drawing.Point(6, 112);
             this.grpButtons.Name = "grpButtons";
-            this.grpButtons.Size = new System.Drawing.Size(540, 520);
-            this.grpButtons.TabIndex = 3;
+            this.grpButtons.Size = new System.Drawing.Size(520, 514);
+            this.grpButtons.TabIndex = 1;
             this.grpButtons.TabStop = false;
             this.grpButtons.Text = "Buttons Mapping";
             // 
@@ -182,8 +220,105 @@ namespace WiimoteGun.Controls
             this.flowLayoutPanelButtons.Dock = System.Windows.Forms.DockStyle.Fill;
             this.flowLayoutPanelButtons.Location = new System.Drawing.Point(3, 19);
             this.flowLayoutPanelButtons.Name = "flowLayoutPanelButtons";
-            this.flowLayoutPanelButtons.Size = new System.Drawing.Size(534, 498);
+            this.flowLayoutPanelButtons.Size = new System.Drawing.Size(514, 492);
             this.flowLayoutPanelButtons.TabIndex = 0;
+            // 
+            // tabPageCalibration
+            // 
+            this.tabPageCalibration.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
+            this.tabPageCalibration.Controls.Add(this.grpCalibration);
+            this.tabPageCalibration.Location = new System.Drawing.Point(4, 24);
+            this.tabPageCalibration.Name = "tabPageCalibration";
+            this.tabPageCalibration.Padding = new System.Windows.Forms.Padding(10);
+            this.tabPageCalibration.Size = new System.Drawing.Size(532, 632);
+            this.tabPageCalibration.TabIndex = 1;
+            this.tabPageCalibration.Text = "IR Calibration";
+            // 
+            // grpCalibration
+            // 
+            this.grpCalibration.Controls.Add(this.lblLinearityTitle);
+            this.grpCalibration.Controls.Add(this.numLinearity);
+            this.grpCalibration.Controls.Add(this.lblLinearityDesc);
+            this.grpCalibration.Controls.Add(this.lblOverscanTitle);
+            this.grpCalibration.Controls.Add(this.numOverscan);
+            this.grpCalibration.Controls.Add(this.lblOverscanDesc);
+            this.grpCalibration.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
+            this.grpCalibration.ForeColor = System.Drawing.Color.White;
+            this.grpCalibration.Location = new System.Drawing.Point(10, 10);
+            this.grpCalibration.Name = "grpCalibration";
+            this.grpCalibration.Size = new System.Drawing.Size(512, 250);
+            this.grpCalibration.TabIndex = 0;
+            this.grpCalibration.TabStop = false;
+            this.grpCalibration.Text = "IR Sensor Optimization";
+            // 
+            // lblLinearityTitle
+            // 
+            this.lblLinearityTitle.AutoSize = true;
+            this.lblLinearityTitle.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.lblLinearityTitle.Location = new System.Drawing.Point(20, 40);
+            this.lblLinearityTitle.Name = "lblLinearityTitle";
+            this.lblLinearityTitle.Size = new System.Drawing.Size(121, 15);
+            this.lblLinearityTitle.TabIndex = 0;
+            this.lblLinearityTitle.Text = "IR Linearity (S-Curve):";
+            // 
+            // numLinearity
+            // 
+            this.numLinearity.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.numLinearity.DecimalPlaces = 2;
+            this.numLinearity.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.numLinearity.ForeColor = System.Drawing.Color.White;
+            this.numLinearity.Increment = new decimal(new int[] { 5, 0, 0, 131072 });
+            this.numLinearity.Location = new System.Drawing.Point(200, 38);
+            this.numLinearity.Maximum = new decimal(new int[] { 40, 0, 0, 65536 });
+            this.numLinearity.Minimum = new decimal(new int[] { 5, 0, 0, 65536 });
+            this.numLinearity.Name = "numLinearity";
+            this.numLinearity.Size = new System.Drawing.Size(80, 23);
+            this.numLinearity.TabIndex = 1;
+            this.numLinearity.Value = new decimal(new int[] { 13, 0, 0, 65536 });
+            // 
+            // lblLinearityDesc
+            // 
+            this.lblLinearityDesc.Font = new System.Drawing.Font("Segoe UI", 8.25F);
+            this.lblLinearityDesc.ForeColor = System.Drawing.Color.Silver;
+            this.lblLinearityDesc.Location = new System.Drawing.Point(20, 70);
+            this.lblLinearityDesc.Name = "lblLinearityDesc";
+            this.lblLinearityDesc.Size = new System.Drawing.Size(470, 45);
+            this.lblLinearityDesc.TabIndex = 2;
+            this.lblLinearityDesc.Text = "Adjusts cursor acceleration towards edges. Higher values (1.3+) fix cursor advancing faster than aimed.\r\n(EN/FR: Ajuste l\'accélération vers les bords. > 1.3 corrige l\'avance du curseur.)";
+            // 
+            // lblOverscanTitle
+            // 
+            this.lblOverscanTitle.AutoSize = true;
+            this.lblOverscanTitle.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.lblOverscanTitle.Location = new System.Drawing.Point(20, 130);
+            this.lblOverscanTitle.Name = "lblOverscanTitle";
+            this.lblOverscanTitle.Size = new System.Drawing.Size(117, 15);
+            this.lblOverscanTitle.TabIndex = 3;
+            this.lblOverscanTitle.Text = "IR Overscan (Margin):";
+            // 
+            // numOverscan
+            // 
+            this.numOverscan.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.numOverscan.DecimalPlaces = 2;
+            this.numOverscan.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.numOverscan.ForeColor = System.Drawing.Color.White;
+            this.numOverscan.Increment = new decimal(new int[] { 1, 0, 0, 131072 });
+            this.numOverscan.Location = new System.Drawing.Point(200, 128);
+            this.numOverscan.Maximum = new decimal(new int[] { 45, 0, 0, 131072 });
+            this.numOverscan.Name = "numOverscan";
+            this.numOverscan.Size = new System.Drawing.Size(80, 23);
+            this.numOverscan.TabIndex = 4;
+            this.numOverscan.Value = new decimal(new int[] { 10, 0, 0, 131072 });
+            // 
+            // lblOverscanDesc
+            // 
+            this.lblOverscanDesc.Font = new System.Drawing.Font("Segoe UI", 8.25F);
+            this.lblOverscanDesc.ForeColor = System.Drawing.Color.Silver;
+            this.lblOverscanDesc.Location = new System.Drawing.Point(20, 160);
+            this.lblOverscanDesc.Name = "lblOverscanDesc";
+            this.lblOverscanDesc.Size = new System.Drawing.Size(470, 45);
+            this.lblOverscanDesc.TabIndex = 5;
+            this.lblOverscanDesc.Text = "Margin before reaching 100% axis value. 0.10 (10%) is standard. Max 0.45.\r\n(EN/FR: Marge avant d\'atteindre 100% de l\'axe. 0.10 conseillé. Max 0.45.)";
             // 
             // btnApply
             // 
@@ -204,16 +339,22 @@ namespace WiimoteGun.Controls
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Transparent;
             this.Controls.Add(this.btnApply);
-            this.Controls.Add(this.grpButtons);
-            this.Controls.Add(this.grpAxes);
+            this.Controls.Add(this.tabControlSettings);
             this.Controls.Add(this.tabControlPlayers);
             this.Controls.Add(this.btnBack);
             this.Name = "GamePadMappingControl";
             this.Size = new System.Drawing.Size(560, 780);
             this.tabControlPlayers.ResumeLayout(false);
+            this.tabControlSettings.ResumeLayout(false);
+            this.tabPageMappings.ResumeLayout(false);
             this.grpAxes.ResumeLayout(false);
             this.grpAxes.PerformLayout();
             this.grpButtons.ResumeLayout(false);
+            this.tabPageCalibration.ResumeLayout(false);
+            this.grpCalibration.ResumeLayout(false);
+            this.grpCalibration.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.numLinearity)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numOverscan)).EndInit();
             this.ResumeLayout(false);
 
         }
@@ -226,6 +367,16 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.TabPage tabPage2;
         private System.Windows.Forms.TabPage tabPage3;
         private System.Windows.Forms.TabPage tabPage4;
+        private System.Windows.Forms.TabControl tabControlSettings;
+        private System.Windows.Forms.TabPage tabPageMappings;
+        private System.Windows.Forms.TabPage tabPageCalibration;
+        private System.Windows.Forms.GroupBox grpCalibration;
+        private System.Windows.Forms.Label lblLinearityTitle;
+        private System.Windows.Forms.NumericUpDown numLinearity;
+        private System.Windows.Forms.Label lblLinearityDesc;
+        private System.Windows.Forms.Label lblOverscanTitle;
+        private System.Windows.Forms.NumericUpDown numOverscan;
+        private System.Windows.Forms.Label lblOverscanDesc;
         private System.Windows.Forms.GroupBox grpAxes;
         private System.Windows.Forms.Label lblIRAxis;
         private System.Windows.Forms.ComboBox cboIRAxis;

@@ -105,6 +105,7 @@ namespace WiimoteGun.Controls
             optIRSensitivity.Value = Math.Min(Math.Max(Options.Instance.IRSensitivity, optIRSensitivity.Minimum), optIRSensitivity.Maximum);
             optShowNotifications.Checked = Options.Instance.ShowNotifications;
             optEnableGamePadSwap.Checked = Options.Instance.EnableGamePadSwapMode;
+            optPersistentGamePads.Checked = Options.Instance.PersistentGamePads;
 
 
 
@@ -143,6 +144,7 @@ namespace WiimoteGun.Controls
                 Options.Instance.IRSensitivity = (int)optIRSensitivity.Value;
                 Options.Instance.ShowNotifications = optShowNotifications.Checked;
                 Options.Instance.EnableGamePadSwapMode = optEnableGamePadSwap.Checked;
+                Options.Instance.PersistentGamePads = optPersistentGamePads.Checked;
 
 
 

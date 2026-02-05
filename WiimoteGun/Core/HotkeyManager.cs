@@ -75,30 +75,30 @@ namespace WiimoteGun
                 {
                     _playerHotkeys[1] = options.HotkeyProfileP1;
                     _playerHotkeys[1].PlayerIndex = 1;
-                    SimpleLogger.Instance.Info($"[HotkeyManager] Loaded {options.HotkeyProfileP1.Count} hotkeys for P1");
+                    SimpleLogger.Instance.Info(string.Format("[HotkeyManager] Loaded {0} hotkeys for P1", options.HotkeyProfileP1.Count));
                 }
                 if (options.HotkeyProfileP2 != null && options.HotkeyProfileP2.Hotkeys != null)
                 {
                     _playerHotkeys[2] = options.HotkeyProfileP2;
                     _playerHotkeys[2].PlayerIndex = 2;
-                    SimpleLogger.Instance.Info($"[HotkeyManager] Loaded {options.HotkeyProfileP2.Count} hotkeys for P2");
+                    SimpleLogger.Instance.Info(string.Format("[HotkeyManager] Loaded {0} hotkeys for P2", options.HotkeyProfileP2.Count));
                 }
                 if (options.HotkeyProfileP3 != null && options.HotkeyProfileP3.Hotkeys != null)
                 {
                     _playerHotkeys[3] = options.HotkeyProfileP3;
                     _playerHotkeys[3].PlayerIndex = 3;
-                    SimpleLogger.Instance.Info($"[HotkeyManager] Loaded {options.HotkeyProfileP3.Count} hotkeys for P3");
+                    SimpleLogger.Instance.Info(string.Format("[HotkeyManager] Loaded {0} hotkeys for P3", options.HotkeyProfileP3.Count));
                 }
                 if (options.HotkeyProfileP4 != null && options.HotkeyProfileP4.Hotkeys != null)
                 {
                     _playerHotkeys[4] = options.HotkeyProfileP4;
                     _playerHotkeys[4].PlayerIndex = 4;
-                    SimpleLogger.Instance.Info($"[HotkeyManager] Loaded {options.HotkeyProfileP4.Count} hotkeys for P4");
+                    SimpleLogger.Instance.Info(string.Format("[HotkeyManager] Loaded {0} hotkeys for P4", options.HotkeyProfileP4.Count));
                 }
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Warning($"[HotkeyManager] Failed to load hotkeys from Options: {ex.Message}");
+                SimpleLogger.Instance.Warning(string.Format("[HotkeyManager] Failed to load hotkeys from Options: {0}", ex.Message));
             }
         }
 
@@ -124,7 +124,7 @@ namespace WiimoteGun
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"[HotkeyManager] Failed to save hotkeys: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("[HotkeyManager] Failed to save hotkeys: {0}", ex.Message));
             }
         }
 
@@ -198,7 +198,7 @@ namespace WiimoteGun
                 if (!_activeModifiers[playerIndex].ContainsKey(button))
                 {
                     _activeModifiers[playerIndex][button] = false; // Not yet consumed
-                    SimpleLogger.Instance.Debug($"[Hotkey] P{playerIndex} Modifier {button} down");
+                    SimpleLogger.Instance.Debug(string.Format("[Hotkey] P{0} Modifier {1} down", playerIndex, button));
                 }
             }
 
@@ -228,7 +228,7 @@ namespace WiimoteGun
                         _lastButtonPressed[playerIndex] = button;
                         _lastButtonPressTime[playerIndex] = DateTime.Now;
 
-                        SimpleLogger.Instance.Debug($"[Hotkey] P{playerIndex} {modifier}+{button} combo started (Consumed)");
+                        SimpleLogger.Instance.Debug(string.Format("[Hotkey] P{0} {1}+{2} combo started (Consumed)", playerIndex, modifier, button));
                         break; // Only trigger one combo at a time per button press
                     }
                 }
@@ -280,7 +280,7 @@ namespace WiimoteGun
 
                             if (hotkey != null)
                             {
-                                SimpleLogger.Instance.Info($"[Hotkey] P{playerIndex} Executing {hotkey.GetDisplayName()}");
+                                SimpleLogger.Instance.Info(string.Format("[Hotkey] P{0} Executing {1}", playerIndex, hotkey.GetDisplayName()));
                                 ExecuteHotkey(hotkey);
                                 break; 
                             }
@@ -296,7 +296,7 @@ namespace WiimoteGun
                 bool wasConsumed = _activeModifiers[playerIndex][button];
                 _activeModifiers[playerIndex].Remove(button);
                 
-                SimpleLogger.Instance.Debug($"[Hotkey] P{playerIndex} Modifier {button} released (Consumed: {wasConsumed})");
+                SimpleLogger.Instance.Debug(string.Format("[Hotkey] P{0} Modifier {1} released (Consumed: {2})", playerIndex, button, wasConsumed));
             }
         }
 
@@ -377,7 +377,7 @@ namespace WiimoteGun
                     System.Threading.Thread.Sleep(10);
                 }
 
-                SimpleLogger.Instance.Info($"[Hotkey] Sent keys: {string.Join("+", hotkey.KeyCombination)}");
+                SimpleLogger.Instance.Info(string.Format("[Hotkey] Sent keys: {0}", string.Join("+", hotkey.KeyCombination.Select(k => k.ToString()).ToArray())));
             }
             catch (Exception ex)
             {

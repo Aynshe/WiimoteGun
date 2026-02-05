@@ -17,10 +17,10 @@ namespace WiimoteGun.Forms
         }
 
         // EN/FR: Event Handlers for Designer compatibility (Gestionnaires d'événements pour compatibilité Designer)
-        private void btnInstallService_Click(object sender, EventArgs e) => ManageService(install: true);
-        private void btnUninstallService_Click(object sender, EventArgs e) => ManageService(install: false);
-        private void btnInstallVMulti_Click(object sender, EventArgs e) => ManageVMulti(install: true);
-        private void btnUninstallVMulti_Click(object sender, EventArgs e) => ManageVMulti(install: false);
+        private void btnInstallService_Click(object sender, EventArgs e) { ManageService(install: true); }
+        private void btnUninstallService_Click(object sender, EventArgs e) { ManageService(install: false); }
+        private void btnInstallVMulti_Click(object sender, EventArgs e) { ManageVMulti(install: true); }
+        private void btnUninstallVMulti_Click(object sender, EventArgs e) { ManageVMulti(install: false); }
         private void btnContinue_Click(object sender, EventArgs e) { this.DialogResult = DialogResult.OK; this.Close(); }
         private void btnSkip_Click(object sender, EventArgs e) { this.DialogResult = DialogResult.Ignore; this.Close(); }
         private void chkDontShowAgain_CheckedChanged(object sender, EventArgs e)
@@ -28,7 +28,7 @@ namespace WiimoteGun.Forms
             WiimoteGun.Options.Instance.ShowSetupWizard = !chkDontShowAgain.Checked;
             WiimoteGun.Options.Instance.Save();
         }
-        private void btnReCheck_Click(object sender, EventArgs e) => CheckComponents();
+        private void btnReCheck_Click(object sender, EventArgs e) { CheckComponents(); }
 
 
         private void CheckComponents()
@@ -116,7 +116,7 @@ namespace WiimoteGun.Forms
 
                 if (!File.Exists(servicePath))
                 {
-                    MessageBox.Show($"Service executable not found at:\n{servicePath}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(string.Format("Service executable not found at:\n{0}", servicePath), "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
@@ -148,7 +148,7 @@ namespace WiimoteGun.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Operation failed: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(string.Format("Operation failed: {0}", ex.Message), "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

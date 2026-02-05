@@ -19,11 +19,21 @@ namespace WiimoteGun.Core
             {
                 SimpleLogger.Instance.Info("[VMultiCleanup] Requesting service to cleanup unwanted VMulti collections...");
                 ServiceClient.CleanupVMulti();
+                
+                // Explicitly remove gamepads for all players if global GamePad mode is disabled
+                // (EN/FR: Supprimer explicitement les gamepads pour tous les joueurs si le mode GamePad global est désactivé)
+                if (!Options.Instance.EnableGamePadSwapMode)
+                {
+                    for (int i = 1; i <= 4; i++)
+                    {
+                        ServiceClient.RemoveGamepad(i);
+                    }
+                }
                 SimpleLogger.Instance.Info("[VMultiCleanup] Cleanup request sent to service.");
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"[VMultiCleanup] Error sending cleanup request: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("[VMultiCleanup] Error sending cleanup request: {0}", ex.Message));
             }
         }
 
@@ -36,20 +46,30 @@ namespace WiimoteGun.Core
         {
             // EN: Run cleanup asynchronously with a delay to allow device enumeration
             // FR: Exécuter le nettoyage de manière asynchrone avec délai pour énumération
-            System.Threading.Tasks.Task.Run(async () =>
+            System.Threading.Tasks.Task.Factory.StartNew(delegate()
             {
                 try
                 {
                     // EN: Wait for Windows to enumerate VMulti devices after Wiimote connect
                     // FR: Attendre que Windows énumère les périphériques VMulti après connexion Wiimote
-                    await System.Threading.Tasks.Task.Delay(3000).ConfigureAwait(false);
+                    System.Threading.Thread.Sleep(3000);
                     
                     SimpleLogger.Instance.Info("[VMultiCleanup] Scheduled cleanup triggered after Wiimote connect.");
                     ServiceClient.CleanupVMulti();
+
+                    // Explicitly remove gamepads for all players if global GamePad mode is disabled
+                    // (EN/FR: Supprimer explicitement les gamepads pour tous les joueurs si le mode GamePad global est désactivé)
+                    if (!Options.Instance.EnableGamePadSwapMode)
+                    {
+                        for (int i = 1; i <= 4; i++)
+                        {
+                            ServiceClient.RemoveGamepad(i);
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
-                    SimpleLogger.Instance.Error($"[VMultiCleanup] Error in ScheduleCleanupAfterWiimoteConnect: {ex.Message}");
+                    SimpleLogger.Instance.Error(string.Format("[VMultiCleanup] Error in ScheduleCleanupAfterWiimoteConnect: {0}", ex.Message));
                 }
             });
         }
@@ -68,7 +88,7 @@ namespace WiimoteGun.Core
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"[VMultiCleanup] Error removing mice at startup: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("[VMultiCleanup] Error removing mice at startup: {0}", ex.Message));
             }
         }
 
@@ -80,12 +100,12 @@ namespace WiimoteGun.Core
         {
             try
             {
-                SimpleLogger.Instance.Info($"[VMultiCleanup] Removing COL03 mouse for disconnected P{playerIndex}...");
+                SimpleLogger.Instance.Info(string.Format("[VMultiCleanup] Removing COL03 mouse for disconnected P{0}...", playerIndex));
                 ServiceClient.RemoveMouseForPlayer(playerIndex);
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"[VMultiCleanup] Error removing mouse for P{playerIndex}: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("[VMultiCleanup] Error removing mouse for P{0}: {1}", playerIndex, ex.Message));
             }
         }
 
@@ -101,12 +121,12 @@ namespace WiimoteGun.Core
                 string connected = connectedPlayerIndexes.Length > 0 
                     ? string.Join(",", connectedPlayerIndexes) 
                     : "none";
-                SimpleLogger.Instance.Info($"[VMultiCleanup] Removing COL03 mice except connected players: {connected}");
+                SimpleLogger.Instance.Info(string.Format("[VMultiCleanup] Removing COL03 mice except connected players: {0}", connected));
                 ServiceClient.RemoveMouseExceptPlayers(connectedPlayerIndexes);
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"[VMultiCleanup] Error removing mice for unconnected players: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("[VMultiCleanup] Error removing mice for unconnected players: {0}", ex.Message));
             }
         }
     }

@@ -23,8 +23,8 @@ namespace WiimoteGun
             InitializeComponent();
             
             // Set dynamic text that depends on _playerIndex
-            this.Text = $"Device Selection - Player {_playerIndex}";
-            this.lblTitle.Text = $"🎮 Player {_playerIndex} Device Configuration";
+            this.Text = string.Format("Device Selection - Player {0}", _playerIndex);
+            this.lblTitle.Text = string.Format("🎮 Player {0} Device Configuration", _playerIndex);
             
             // Set FlatAppearance border sizes (Designer doesn't support this)
             btnApply.FlatAppearance.BorderSize = 0;
@@ -116,14 +116,14 @@ namespace WiimoteGun
 
                                 // Extract VID/PID for friendly name and unique identification (EN/FR: Extraire VID/PID pour nom et identification)
                                 var vidPidResult = DeviceHelper.ExtractVidPid(hardwareId);
-                                string vid = vidPidResult.vid;
-                                string pid = vidPidResult.pid;
+                                string vid = vidPidResult.Vid;
+                                string pid = vidPidResult.Pid;
                                     
                                 string displayName;
                                     
                                 if (vid != null)
                                 {
-                                    string vidPidKey = pid != null ? $"VID_{vid}&PID_{pid}" : $"VID_{vid}";
+                                    string vidPidKey = pid != null ? string.Format("VID_{0}&PID_{1}", vid, pid) : string.Format("VID_{0}", vid);
                                         
                                     // Get friendly name (EN/FR: Récupérer nom commercial)
                                     // Pass hardwareId for robust VMulti detection
@@ -131,16 +131,16 @@ namespace WiimoteGun
                                         
                                     if (!string.IsNullOrEmpty(friendlyName))
                                     {
-                                        displayName = $"{friendlyName} (Device {i})";
+                                        displayName = string.Format("{0} (Device {1})", friendlyName, i);
                                     }
                                     else
                                     {
-                                        displayName = $"Mouse {i} ({vidPidKey})";
+                                        displayName = string.Format("Mouse {0} ({1})", i, vidPidKey);
                                     }
                                 }
                                 else
                                 {
-                                    displayName = $"Mouse {i} (Unknown)";
+                                    displayName = string.Format("Mouse {0} (Unknown)", i);
                                 }
                                     
                                 _mouseDevices[displayName] = hardwareId;
@@ -170,20 +170,20 @@ namespace WiimoteGun
                     string vid = (_playerIndex == 1) ? "001F" : (_playerIndex == 2) ? "002F" : (_playerIndex == 3) ? "003F" : "004F";
                     
                     // Keyboard hardware ID format (Col07 for keyboard)
-                    string vmultiKeyboardId = $"HID\\{suffix}&Col07HID\\VID_{vid}&UP:0001_U:0006HID_DEVICE";
-                    string displayName = $"VMulti Keyboard [Player {_playerIndex}] (Virtual)";
+                    string vmultiKeyboardId = string.Format("HID\\{0}&Col07HID\\VID_{1}&UP:0001_U:0006HID_DEVICE", suffix, vid);
+                    string displayName = string.Format("VMulti Keyboard [Player {0}] (Virtual)", _playerIndex);
                     
                     if (!_keyboardDevices.ContainsKey(displayName))
                     {
                         _keyboardDevices[displayName] = vmultiKeyboardId;
                         cmbKeyboard.Items.Add(displayName);
-                        SimpleLogger.Instance.Info($"[DIALOG] Added VMulti Keyboard option for P{_playerIndex}");
+                        SimpleLogger.Instance.Info(string.Format("[DIALOG] Added VMulti Keyboard option for P{0}", _playerIndex));
                     }
                 }
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"Failed to add VMulti keyboard: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("Failed to add VMulti keyboard: {0}", ex.Message));
             }
 
             
@@ -207,7 +207,7 @@ namespace WiimoteGun
                 else
                 {
                     // Device not found, add it anyway
-                    string displayName = $"Unknown Device ({currentMouseId})";
+                    string displayName = string.Format("Unknown Device ({0})", currentMouseId);
                     _mouseDevices[displayName] = currentMouseId;
                     cmbMouse.Items.Add(displayName);
                     cmbMouse.SelectedItem = displayName;
@@ -231,7 +231,7 @@ namespace WiimoteGun
                 else
                 {
                     // Device not found, add it anyway
-                    string displayName = $"Unknown Device ({currentKeyboardId})";
+                    string displayName = string.Format("Unknown Device ({0})", currentKeyboardId);
                     _keyboardDevices[displayName] = currentKeyboardId;
                     cmbKeyboard.Items.Add(displayName);
                     cmbKeyboard.SelectedItem = displayName;
@@ -251,7 +251,7 @@ namespace WiimoteGun
                 // Add info label to show why controls are locked (EN/FR: Ajouter label info pour expliquer verrouillage)
                 Label lblLockInfo = new Label
                 {
-                    Text = $"🔒 Auto-locked to VMulti Player {_playerIndex}",
+                    Text = string.Format("🔒 Auto-locked to VMulti Player {0}", _playerIndex),
                     ForeColor = Color.Orange,
                     AutoSize = true,
                     Location = new Point(10, cmbKeyboard.Bottom + 10),
@@ -342,7 +342,7 @@ namespace WiimoteGun
             // Save to file (EN/FR: Sauvegarder dans le fichier)
             Options.Instance.Save();
             
-            SimpleLogger.Instance.Info($"Device preferences saved for Player {_playerIndex}");
+            SimpleLogger.Instance.Info(string.Format("Device preferences saved for Player {0}", _playerIndex));
             
             this.DialogResult = DialogResult.OK;
         }

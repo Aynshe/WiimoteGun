@@ -193,7 +193,7 @@ namespace WiimoteGun.UI.Modern.Forms
         }
 
         // Designer Events
-        private void BtnClose_Click(object sender, EventArgs e) => CloseKeyboard();
+        private void BtnClose_Click(object sender, EventArgs e) { CloseKeyboard(); }
         
         // ... (Other standard Key events)
 

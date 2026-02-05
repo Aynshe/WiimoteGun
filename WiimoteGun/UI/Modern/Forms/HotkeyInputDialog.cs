@@ -23,7 +23,7 @@ namespace WiimoteGun
         // Colors are now handled in Designer, or can be kept here if dynamic
         private static readonly Color ColorAccent = Color.FromArgb(0, 122, 204);
 
-        public Hotkey Hotkey => _hotkey;
+        public Hotkey Hotkey { get { return _hotkey; } }
 
         private System.Windows.Forms.Label _lblModifier;
         private System.Windows.Forms.ComboBox _cmbModifier;

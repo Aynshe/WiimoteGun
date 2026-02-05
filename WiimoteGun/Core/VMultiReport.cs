@@ -232,7 +232,7 @@ namespace WiimoteGun.VMulti
 
         public static VMultiGamepadReport Create()
         {
-            return new VMultiGamepadReport
+            var report = new VMultiGamepadReport
             {
                 ReportID = VMultiReportIds.Joystick,
                 Throttle = 0,
@@ -241,14 +241,15 @@ namespace WiimoteGun.VMulti
                 Hat = HatNeutral,
                 RXValue = 128, // Center for Unsigned Byte (0-255)
                 RYValue = 128, // Center for Unsigned Byte (0-255)
-                Buttons = 0,
-                _dpadUp = false,
-                _dpadDown = false,
-                _dpadLeft = false,
-                _dpadRight = false
+                Buttons = 0
             };
+            report._dpadUp = false;
+            report._dpadDown = false;
+            report._dpadLeft = false;
+            report._dpadRight = false;
+            return report;
         }
-
+    
         // ... SetButton ...
 
         public void SetAxis(GamePadAxis axis, float x, float y)

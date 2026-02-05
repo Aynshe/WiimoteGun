@@ -154,22 +154,20 @@ namespace WiimoteLib {
 		/// <param name="buff">Data buffer</param>
 		private void ParseReadData(byte[] buff) {
 			if ((buff[3] & 0x08) != 0) {
-				Exception ex = new WiimoteException(this, "Error reading data from Wiimote: Bytes do not exist.");
-				RaiseWiimoteException(ex);
+				Log.Warning("Error reading data from Wiimote: Bytes do not exist.");
+				readDone.Set(); // EN: Signal even on error to avoid timeout / FR: Signaler même sur erreur pour éviter le timeout
 				return;
 			}
 
 			if ((buff[3] & 0x07) != 0) {
 				Log.Debug("*** read from write-only: " + readAddress.ToString("X8"));
-				//LastReadStatus = LastReadStatus.ReadFromWriteOnlyMemory;
-				//mReadDone.Set();
-				//Respond(OutputReport.ReadMemory, null);
+				readDone.Set(); // EN: Signal even on error to avoid timeout / FR: Signaler même sur erreur pour éviter le timeout
 				return;
 			}
 			else if ((buff[3] & 0x0F) != 0) {
 				int error = buff[3] & 0x0F;
-				Exception ex = new WiimoteException(this, $"{this} Read Error: {error:X1}");
-				RaiseWiimoteException(ex);
+				Log.Warning(string.Format("{0} Read Error: {1:X1}", this, error));
+				readDone.Set(); // EN: Signal even on error to avoid timeout / FR: Signaler même sur erreur pour éviter le timeout
 				return;
 			}
 
@@ -177,15 +175,13 @@ namespace WiimoteLib {
 			int size = (buff[3] >> 4) + 1;
 			int offset = (buff[4] << 8 | buff[5]);
 
-			/*int readAddress = request.ReadAddress;
-			int readSize = request.ReadSize;
-			byte[] readBuffer = request.ReadBuffer;*/
-
-			if (readAddress > offset) {
-				Exception ex = new WiimoteException(this, $"Out of range address or offset: {readAddress:X4} {offset:X4}");
-				RaiseWiimoteException(ex);
+			// EN: Check if the reported offset and size are within the bounds of our active read request.
+			// FR: Vérifier si l'offset et la taille rapportés sont dans les limites de notre requête de lecture active.
+			if (readBuff == null || offset < readAddress || (offset - readAddress + size) > readBuff.Length) {
+				Log.Debug(string.Format("[ParseReadData] Ignoring unexpected or out-of-bounds read report: Offset={0:X4}, Size={1}, ReadAddress={2:X4}, ExpectedSize={3}", offset, size, readAddress, readSize));
 				return;
 			}
+
 			// add it to the buffer
 			Array.Copy(buff, 6, readBuff, offset - readAddress, size);
 

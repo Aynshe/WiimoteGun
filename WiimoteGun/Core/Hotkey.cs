@@ -25,7 +25,7 @@ namespace WiimoteGun
         /// Modifier button (e.g., "Home", "Minus", "Plus", "One", "Two", "A", "B")
         /// Default: "Home"
         /// </summary>
-        public string ModifierButton { get; set; } = "Home";
+        public string ModifierButton { get; set; }
 
         /// <summary>
         /// Press type: Short or Long (EN/FR: Type de pression)
@@ -73,8 +73,8 @@ namespace WiimoteGun
         public string GetDisplayName()
         {
             string pressTypeStr = PressType == HotkeyPressType.Short ? "Short" : "Long";
-            string keysStr = string.Join("+", KeyCombination);
-            return $"{ModifierButton} + {TriggerButton} ({pressTypeStr}) → {keysStr}";
+            string keysStr = string.Join("+", KeyCombination.ToArray());
+            return string.Format("{0} + {1} ({2}) → {3}", ModifierButton, TriggerButton, pressTypeStr, keysStr);
         }
 
         /// <summary>
@@ -97,7 +97,8 @@ namespace WiimoteGun
             string[] parts = keysString.Split(',');
             foreach (string part in parts)
             {
-                if (Enum.TryParse<Keys>(part.Trim(), out Keys key))
+                Keys key;
+                if (Enum.TryParse<Keys>(part.Trim(), out key))
                 {
                     keys.Add(key);
                 }

@@ -12,10 +12,11 @@ namespace WiimoteGun
     /// </summary>
     public partial class KeySelectorDialog : Form
     {
-        public Keys SelectedKey { get; private set; } = Keys.None;
+        public Keys SelectedKey { get; private set; }
         
         public KeySelectorDialog()
         {
+            SelectedKey = Keys.None;
             InitializeComponent();
             
             // Set FlatAppearance border sizes (Designer doesn't support this)
@@ -30,8 +31,9 @@ namespace WiimoteGun
         // Event handlers
         private void listBoxKeys_DoubleClick(object sender, EventArgs e)
         {
-            if (listBoxKeys.SelectedItem is KeyDisplayItem item)
+            if (listBoxKeys.SelectedItem != null && listBoxKeys.SelectedItem is KeyDisplayItem)
             {
+                KeyDisplayItem item = (KeyDisplayItem)listBoxKeys.SelectedItem;
                 SelectedKey = item.Key;
                 this.DialogResult = DialogResult.OK;
                 this.Close();
@@ -90,8 +92,9 @@ namespace WiimoteGun
         
         private void BtnOK_Click(object sender, EventArgs e)
         {
-            if (listBoxKeys.SelectedItem is KeyDisplayItem item)
+            if (listBoxKeys.SelectedItem != null && listBoxKeys.SelectedItem is KeyDisplayItem)
             {
+                KeyDisplayItem item = (KeyDisplayItem)listBoxKeys.SelectedItem;
                 SelectedKey = item.Key;
                 this.DialogResult = DialogResult.OK;
             }

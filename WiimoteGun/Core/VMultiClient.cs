@@ -147,7 +147,12 @@ namespace WiimoteGun
         private static readonly object _globalLock = new object();
 
         // Static device cache for all players (EN/FR: Cache statique des périphériques pour tous les joueurs)
-        private static Dictionary<int, VMultiClient> _activeClients = new Dictionary<int, VMultiClient>();
+        private static Dictionary<int, VMultiClient> _activeClients;
+
+        static VMultiClient()
+        {
+            _activeClients = new Dictionary<int, VMultiClient>();
+        }
 
         #endregion
 
@@ -156,17 +161,17 @@ namespace WiimoteGun
         /// <summary>
         /// Player index (1-4) (EN/FR: Index du joueur)
         /// </summary>
-        public int PlayerIndex => _playerIndex;
+        public int PlayerIndex { get { return _playerIndex; } }
 
         /// <summary>
         /// Connection status (EN/FR: Statut de connexion)
         /// </summary>
-        public bool IsConnected => _isConnected && _controlHandle != null && !_controlHandle.IsClosed;
+        public bool IsConnected { get { return _isConnected && _controlHandle != null && !_controlHandle.IsClosed; } }
 
         /// <summary>
         /// Device path (EN/FR: Chemin du périphérique)
         /// </summary>
-        public string DevicePath => _devicePath;
+        public string DevicePath { get { return _devicePath; } }
 
         #endregion
 
@@ -180,7 +185,7 @@ namespace WiimoteGun
         public VMultiClient(int playerIndex)
         {
             if (playerIndex < 1 || playerIndex > 4)
-                throw new ArgumentOutOfRangeException(nameof(playerIndex), "Player index must be between 1 and 4");
+                throw new ArgumentOutOfRangeException("playerIndex", "Player index must be between 1 and 4");
 
             _playerIndex = playerIndex;
             _isConnected = false;
@@ -190,7 +195,7 @@ namespace WiimoteGun
                 // Check if a client already exists for this player
                 if (_activeClients.ContainsKey(playerIndex))
                 {
-                    SimpleLogger.Instance.Warning($"[VMultiClient] Client for P{playerIndex} already exists. Disposing old instance.");
+                    SimpleLogger.Instance.Warning(string.Format("[VMultiClient] Client for P{0} already exists. Disposing old instance.", playerIndex));
                     _activeClients[playerIndex].Dispose();
                 }
                 _activeClients[playerIndex] = this;
@@ -225,18 +230,18 @@ namespace WiimoteGun
 
             try
             {
-                SimpleLogger.Instance.Info($"[VMultiClient] Connecting to vmulti device for Player {_playerIndex}...");
+                SimpleLogger.Instance.Info(string.Format("[VMultiClient] Connecting to vmulti device for Player {0}...", _playerIndex));
 
                 // Find the VMulti device for this player
                 _devicePath = FindVMultiDevice(_playerIndex);
 
                 if (string.IsNullOrEmpty(_devicePath))
                 {
-                    SimpleLogger.Instance.Error($"[VMultiClient] Could not find vmulti device for Player {_playerIndex}");
+                    SimpleLogger.Instance.Error(string.Format("[VMultiClient] Could not find vmulti device for Player {0}", _playerIndex));
                     return false;
                 }
 
-                SimpleLogger.Instance.Info($"[VMultiClient] Found device: {_devicePath}");
+                SimpleLogger.Instance.Info(string.Format("[VMultiClient] Found device: {0}", _devicePath));
 
                 // Open the device for writing (EN/FR: Ouvrir le périphérique en écriture)
                 _controlHandle = CreateFile(
@@ -251,7 +256,7 @@ namespace WiimoteGun
                 if (_controlHandle.IsInvalid)
                 {
                     int error = Marshal.GetLastWin32Error();
-                    SimpleLogger.Instance.Error($"[VMultiClient] Failed to open device. Error: {error}");
+                    SimpleLogger.Instance.Error(string.Format("[VMultiClient] Failed to open device. Error: {0}", error));
                     return false;
                 }
 
@@ -262,13 +267,13 @@ namespace WiimoteGun
                 _controlStream = new FileStream(_controlHandle, FileAccess.ReadWrite, VMultiControlReport.Size, false);
 
                 _isConnected = true;
-                SimpleLogger.Instance.Info($"[VMultiClient] Successfully connected to vmulti for Player {_playerIndex}");
+                SimpleLogger.Instance.Info(string.Format("[VMultiClient] Successfully connected to vmulti for Player {0}", _playerIndex));
 
                 return true;
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"[VMultiClient] Connection error for P{_playerIndex}: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("[VMultiClient] Connection error for P{0}: {1}", _playerIndex, ex.Message));
                 Disconnect();
                 return false;
             }
@@ -294,7 +299,7 @@ namespace WiimoteGun
                 _controlHandle = null;
             }
 
-            SimpleLogger.Instance.Info($"[VMultiClient] Disconnected from vmulti for Player {_playerIndex}");
+            SimpleLogger.Instance.Info(string.Format("[VMultiClient] Disconnected from vmulti for Player {0}", _playerIndex));
         }
 
         #endregion
@@ -331,7 +336,7 @@ namespace WiimoteGun
                 string targetSuffix = GetVMultiSuffix(playerIndex);
                 ushort targetVid = VMultiDeviceIds.PlayerVids[playerIndex - 1];
 
-                SimpleLogger.Instance.Info($"[VMultiClient] Searching for vmulti device: suffix={targetSuffix}, VID=0x{targetVid:X4}");
+                SimpleLogger.Instance.Info(string.Format("[VMultiClient] Searching for vmulti device: suffix={0}, VID=0x{1:X4}", targetSuffix, targetVid));
 
                 while (SetupDiEnumDeviceInterfaces(deviceInfoSet, IntPtr.Zero, ref hidGuid, memberIndex++, ref deviceInterfaceData))
                 {
@@ -360,7 +365,7 @@ namespace WiimoteGun
                     }
                 }
 
-                SimpleLogger.Instance.Warning($"[VMultiClient] No device found for Player {playerIndex}");
+                SimpleLogger.Instance.Warning(string.Format("[VMultiClient] No device found for Player {0}", playerIndex));
                 return null;
             }
             finally
@@ -474,8 +479,8 @@ namespace WiimoteGun
         {
             // Quick path-based check (EN/FR: Vérification rapide par chemin)
             string lowerPath = devicePath.ToLowerInvariant();
-            string vidStr = $"vid_{vid:x4}";
-            string pidStr = $"pid_{pid:x4}";
+            string vidStr = string.Format("vid_{0:x4}", vid);
+            string pidStr = string.Format("pid_{0:x4}", pid);
 
             return lowerPath.Contains(vidStr) && lowerPath.Contains(pidStr);
         }
@@ -537,7 +542,7 @@ namespace WiimoteGun
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"[VMultiClient] UpdateMouse error P{_playerIndex}: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("[VMultiClient] UpdateMouse error P{0}: {1}", _playerIndex, ex.Message));
                 return false;
             }
         }
@@ -593,7 +598,7 @@ namespace WiimoteGun
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"[VMultiClient] UpdateKeyboard error P{_playerIndex}: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("[VMultiClient] UpdateKeyboard error P{0}: {1}", _playerIndex, ex.Message));
                 return false;
             }
         }
@@ -643,7 +648,7 @@ namespace WiimoteGun
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error($"[VMultiClient] SendReport error: {ex.Message}");
+                SimpleLogger.Instance.Error(string.Format("[VMultiClient] SendReport error: {0}", ex.Message));
                 
                 // Try to reconnect on write error (EN/FR: Essayer de reconnecter sur erreur d'écriture)
                 _isConnected = false;

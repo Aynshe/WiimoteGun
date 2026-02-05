@@ -4,10 +4,17 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.2.1] - 2026-02-05
+
+### Added
+- **4:3 Aspect Ratio Correction** - New "Mouse 4:3" and "GamePad 4:3" modes to support games running in 4:3 centered on widescreen monitors.
+- **GamePad Default Optimization** - Updated default GamePad IR settings to `Linearity: 1.3` and `Overscan: 0.05` for improved out-of-the-box accuracy.
+
 ## [2.2.0] - 2026-02-03
 
 ### Added
 - **Native Virtual GamePad Support (DirectInput)** - Fully integrated 4-player virtual gamepads for emulator compatibility (e.g. PCSX2 Dual Lightgun).
+- **DInput Index Stabilization** - Added "Stabilize GamePad Indices" option to keep virtual gamepads enabled even when Wiimotes are disconnected, preventing index shifting in emulators.
 - **Interception Driver Removal** - Removed dependency on the Interception driver; all keyboard and gamepad reports are now handled natively via VMulti.
 - **Analog IR Stick Mapping** - Ability to map IR tracking directly to Left or Right analog sticks for better controller-ready game support.
 - **GamePad Mapping UI** - New modern UI tab for configuring per-player analog mappings and digital buttons.

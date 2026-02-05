@@ -42,31 +42,36 @@ namespace WiimoteLib {
 		/// <param name="reportType">Report type</param>
 		/// <param name="irSensitivity">IR sensitivity</param>
 		/// <param name="continuous">Continuous data</param>
-		public void SetReportType(ReportType reportType, IRSensitivity irSensitivity, bool continuous) {
+		/// <param name="forceIRInit">EN: Force full IR sensor initialization / FR: Forcer l'initialisation complète du capteur IR</param>
+		public void SetReportType(ReportType reportType, IRSensitivity irSensitivity, bool continuous, bool forceIRInit = true) {
+			Log.Info(string.Format("[Wiimote] SetReportType: {0} (Force IR: {1})", reportType, forceIRInit));
+			Log.Debug(new StackTrace().ToString());
 			InputReport type = (InputReport) reportType;
 			DataReportAttribute dataReport =
 				EnumInfo<InputReport>.TryGetAttribute<DataReportAttribute>(type);
 
 			if (dataReport == null)
-				throw new WiimoteException(this, $"{type} is not a valid report type!");
+				throw new WiimoteException(this, string.Format("{0} is not a valid report type!", type));
 
-			int irSize = dataReport.IRSize;
-			if (dataReport.IsInterleaved)
-				irSize *= 2;
+			if (forceIRInit) {
+				int irSize = dataReport.IRSize;
+				if (dataReport.IsInterleaved)
+					irSize *= 2;
 
-			switch (dataReport.IRSize) {
-			case 10:
-				EnableIR(IRMode.Basic, irSensitivity);
-				break;
-			case 12:
-				EnableIR(IRMode.Extended, irSensitivity);
-				break;
-			case 36:
-				EnableIR(IRMode.Full, irSensitivity);
-				break;
-			default:
-				DisableIR();
-				break;
+				switch (dataReport.IRSize) {
+				case 10:
+					EnableIR(IRMode.Basic, irSensitivity);
+					break;
+				case 12:
+					EnableIR(IRMode.Extended, irSensitivity);
+					break;
+				case 36:
+					EnableIR(IRMode.Full, irSensitivity);
+					break;
+				default:
+					DisableIR();
+					break;
+				}
 			}
 			
 			byte[] buff = CreateReport(OutputReport.InputReportType);

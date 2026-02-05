@@ -186,7 +186,7 @@ namespace WiimoteGun
             }
         }
 
-        public bool UseDynamicPerspective { get; set; } = false;
+        public bool UseDynamicPerspective { get; set; }
 
         public void Calibrate()
         {
@@ -219,7 +219,7 @@ namespace WiimoteGun
                             // Dynamic Mode
                             UseDynamicPerspective = true;
                             Options.Instance.SetUseDynamicPerspective(_playerIndex, true);
-                            Program.Notify($"{modeName} Dynamic Mode Enabled (P{_playerIndex})");
+                            Program.Notify(string.Format("{0} Dynamic Mode Enabled (P{1})", modeName, _playerIndex));
                             // No need to show calibration form
                         }
                         else
@@ -260,7 +260,7 @@ namespace WiimoteGun
             // Handle ESC key cancellation (EN/FR: Gérer l'annulation avec touche ESC)
             _calibrateForm.CalibrationCancelled += (s, e) =>
             {
-                SimpleLogger.Instance.Info($"Calibration cancelled by user for Player {_playerIndex}");
+                SimpleLogger.Instance.Info(string.Format("Calibration cancelled by user for Player {0}", _playerIndex));
                 ResetCalibration(); // Reset points like HOME button does (EN/FR: Réinitialiser points comme bouton HOME)
                 EndCalibrate();     // Properly close and dispose (EN/FR: Fermer et disposer proprement)
             };
@@ -283,7 +283,7 @@ namespace WiimoteGun
                 // Extrapolate BL from TL.X and BR.Y (rectangular assumption)
                 // (EN/FR: Extrapoler BL depuis TL.X et BR.Y - hypothèse rectangulaire)
                 _bottomLeftPt = new Point2F(_topLeftPt.Value.X, _bottomRightPt.Value.Y);
-                SimpleLogger.Instance.Info($"Permissive mode: Extrapolated Bottom-Left point from TL.X + BR.Y for Player {_playerIndex}");
+                SimpleLogger.Instance.Info(string.Format("Permissive mode: Extrapolated Bottom-Left point from TL.X + BR.Y for Player {0}", _playerIndex));
             }
 
             // Save player-specific calibration - 4-POINT FORMAT (EN/FR: Sauvegarder calibration spécifique au joueur - FORMAT 4-POINTS)
@@ -884,7 +884,7 @@ namespace WiimoteGun
                     _idBottomRight = bottomPts[0].Key; // Low X
                     _idBottomLeft = bottomPts[1].Key;  // High X
 
-                    SimpleLogger.Instance.Info($"[P{_playerIndex}] Learned IDs: TL={_idTopLeft} TR={_idTopRight} BL={_idBottomLeft} BR={_idBottomRight} Dims:{_observedWidth:F3}x{_observedHeight:F3}");
+                    SimpleLogger.Instance.Info(string.Format("[P{0}] Learned IDs: TL={1} TR={2} BL={3} BR={4} Dims:{5:F3}x{6:F3}", _playerIndex, _idTopLeft, _idTopRight, _idBottomLeft, _idBottomRight, _observedWidth, _observedHeight));
 
                     // Sort by X to separate Left/Right (for width calculation)
                     var sortedByX = currentPoints.Values.OrderBy(p => p.X).ToList();
@@ -1084,15 +1084,18 @@ namespace WiimoteGun
                 // SimpleLogger.Instance.Info($"[4pt] Centroid: ({cx:F3}, {cy:F3}). Layout: {_ledLayout}");
 
                 // CRITICAL: Different tracking for Diamond vs Rectangle layouts
-                if (_ledLayout == LEDLayoutType.Gun4IRDiamond)
+                // IMPROVED (EN/FR): All multi-LED configurations now use diagonal intersection 
+                // for better stability against perspective distortion.
+                if (_ledLayout == LEDLayoutType.Gun4IRDiamond || _ledLayout == LEDLayoutType.TwoWiimoteBar || _ledLayout == LEDLayoutType.FourCorners)
                 {
-                    // Gun4IR (Diamond): Use Intersection of Diagonals (Projective Center)
-                    // This is the only point invariant under perspective distortion for a diamond.
+                    // Gun4IR (Diamond) and Rectangular Layouts: Use Intersection of Diagonals (Projective Center)
+                    // This is the only point invariant under perspective distortion.
                     
                     // Sort points to identify opposing pairs
                     var sortedPts = pts.OrderBy(p => Math.Atan2(p.Y - cy, p.X - cx)).ToList();
                     
-                    // Diamond: 0=Top, 1=Right, 2=Bottom, 3=Left -> Intersect (0,2) and (1,3)
+                    // Identify opposing pairs for intersection
+                    // (EN/FR: Identifier paires opposées pour intersection)
                     Point2F p1 = sortedPts[0];
                     Point2F p2 = sortedPts[2];
                     Point2F p3 = sortedPts[1];
@@ -1113,14 +1116,6 @@ namespace WiimoteGun
                         absoluteCenter.Y = cy;
                         useAbsolute = true;
                     }
-                }
-                else if (_ledLayout == LEDLayoutType.TwoWiimoteBar || _ledLayout == LEDLayoutType.FourCorners)
-                {
-                    // 2-Bar / Rectangle: Use Centroid (Average)
-                    // For rectangular layouts, centroid is stable and geometrically valid.
-                    absoluteCenter.X = cx;
-                    absoluteCenter.Y = cy;
-                    useAbsolute = true;
                 }
                 else
                 {
@@ -1330,7 +1325,7 @@ namespace WiimoteGun
                         {
                             // Fallback Heuristic: If Y > 0.5 (Bottom of image), we are pointing UP -> Top Bar is visible
                             isTopBar = mid.Y > 0.5f;
-                            SimpleLogger.Instance.Info($"[P{_playerIndex}] 2-Point Fallback: TopBar={isTopBar} (MidY={mid.Y:F2}) IDs:({id1},{id2}) KnownTL:{_idTopLeft}");
+                            SimpleLogger.Instance.Info(string.Format("[P{0}] 2-Point Fallback: TopBar={1} (MidY={2:F2}) IDs:({3},{4}) KnownTL:{5}", _playerIndex, isTopBar, mid.Y, id1, id2, _idTopLeft));
                         }
                         
                         if (_observedHeight > 0)
@@ -1575,14 +1570,14 @@ namespace WiimoteGun
 
                             if (handled)
                             {
-                                SimpleLogger.Instance.Info($"[Calib-1Pt] ID:{id} Raw:({p.X:F3},{p.Y:F3}) Dims:({_observedWidth:F3}x{_observedHeight:F3}) -> Center:({absoluteCenter.X:F3},{absoluteCenter.Y:F3})");
+                                SimpleLogger.Instance.Info(string.Format("[Calib-1Pt] ID:{0} Raw:({1:F3},{2:F3}) Dims:({3:F3}x{4:F3}) -> Center:({5:F3},{6:F3})", id, p.X, p.Y, _observedWidth, _observedHeight, absoluteCenter.X, absoluteCenter.Y));
                                 useAbsolute = true;
                                 hasSensor = true;
                             }
                             else
                             {
                                 // Fallback to centroid if ID unknown
-                                SimpleLogger.Instance.Info($"[Calib-1Pt] ID:{id} Unknown! Fallback to Raw. Dims:({_observedWidth:F3}x{_observedHeight:F3})");
+                                SimpleLogger.Instance.Info(string.Format("[Calib-1Pt] ID:{0} Unknown! Fallback to Raw. Dims:({1:F3}x{2:F3})", id, _observedWidth, _observedHeight));
                                 
                                 // Visual Snap: If we don't know dimensions/ID, snap cursor to target corner
                                 // so user can click. Data saved will be RAW (_lastRawPoint).

@@ -51,32 +51,44 @@ namespace WiimoteGun
         /// EN: Axis controlled by Wiimote IR sensor (default: Right Stick).
         /// FR: Axe contrôlé par le capteur IR de la Wiimote (défaut: Stick droit).
         /// </summary>
-        public GamePadAxis IRSensorAxis { get; set; } = GamePadAxis.RightStick;
+        public GamePadAxis IRSensorAxis { get; set; }
 
         /// <summary>
         /// EN: Axis controlled by Nunchuk joystick (default: Left Stick).
         /// FR: Axe contrôlé par le joystick du Nunchuk (défaut: Stick gauche).
         /// </summary>
-        public GamePadAxis NunchukJoystickAxis { get; set; } = GamePadAxis.LeftStick;
+        public GamePadAxis NunchukJoystickAxis { get; set; }
+
+        /// <summary>
+        /// EN: IR tracking linearity (S-Curve). Values > 1.0 reduce "advance" effect at edges.
+        /// FR: Linéarité du tracking IR (courbe en S). Les valeurs > 1.0 réduisent l'effet d'avance sur les bords.
+        /// </summary>
+        public float IRLinearity { get; set; }
+
+        /// <summary>
+        /// EN: IR tracking overscan margin (0.0 to 0.4). Maps [margin..1-margin] to [0..1].
+        /// FR: Marge d'overscan du tracking IR (0.0 à 0.4). Mappe [marge..1-marge] vers [0..1].
+        /// </summary>
+        public float IROverscan { get; set; }
 
         // ========== Wiimote Button Mappings (EN/FR: Mappings boutons Wiimote) ==========
         
-        public GamePadButton WiiA { get; set; } = GamePadButton.Button1;      // A
-        public GamePadButton WiiB { get; set; } = GamePadButton.Button2;      // B
-        public GamePadButton Wii1 { get; set; } = GamePadButton.Button3;      // X
-        public GamePadButton Wii2 { get; set; } = GamePadButton.Button4;      // Y
-        public GamePadButton WiiPlus { get; set; } = GamePadButton.Button10;  // Start
-        public GamePadButton WiiMinus { get; set; } = GamePadButton.Button9;  // Back
-        public GamePadButton WiiUp { get; set; } = GamePadButton.DPadUp;
-        public GamePadButton WiiDown { get; set; } = GamePadButton.DPadDown;
-        public GamePadButton WiiLeft { get; set; } = GamePadButton.DPadLeft;
-        public GamePadButton WiiRight { get; set; } = GamePadButton.DPadRight;
-        public GamePadButton WiiHome { get; set; } = GamePadButton.None;
+        public GamePadButton WiiA { get; set; }
+        public GamePadButton WiiB { get; set; }
+        public GamePadButton Wii1 { get; set; }
+        public GamePadButton Wii2 { get; set; }
+        public GamePadButton WiiPlus { get; set; }
+        public GamePadButton WiiMinus { get; set; }
+        public GamePadButton WiiUp { get; set; }
+        public GamePadButton WiiDown { get; set; }
+        public GamePadButton WiiLeft { get; set; }
+        public GamePadButton WiiRight { get; set; }
+        public GamePadButton WiiHome { get; set; }
 
         // ========== Nunchuk Button Mappings (EN/FR: Mappings boutons Nunchuk) ==========
         
-        public GamePadButton NunchukC { get; set; } = GamePadButton.Button5;  // Left Bumper
-        public GamePadButton NunchukZ { get; set; } = GamePadButton.Button7;  // Left Trigger
+        public GamePadButton NunchukC { get; set; }
+        public GamePadButton NunchukZ { get; set; }
 
         /// <summary>
         /// EN: Default constructor with default mappings.
@@ -84,8 +96,23 @@ namespace WiimoteGun
         /// </summary>
         public GamePadMappings()
         {
-            // Defaults already set via property initializers
-            // (EN/FR: Les défauts sont déjà définis via les initialiseurs de propriétés)
+            IRSensorAxis = GamePadAxis.RightStick;
+            NunchukJoystickAxis = GamePadAxis.LeftStick;
+            IRLinearity = 1.3f;
+            IROverscan = 0.05f;
+            WiiA = GamePadButton.Button1;
+            WiiB = GamePadButton.Button2;
+            Wii1 = GamePadButton.Button3;
+            Wii2 = GamePadButton.Button4;
+            WiiPlus = GamePadButton.Button10;
+            WiiMinus = GamePadButton.Button9;
+            WiiUp = GamePadButton.DPadUp;
+            WiiDown = GamePadButton.DPadDown;
+            WiiLeft = GamePadButton.DPadLeft;
+            WiiRight = GamePadButton.DPadRight;
+            WiiHome = GamePadButton.None;
+            NunchukC = GamePadButton.Button5;
+            NunchukZ = GamePadButton.Button7;
         }
 
         /// <summary>
@@ -98,6 +125,8 @@ namespace WiimoteGun
             {
                 IRSensorAxis = this.IRSensorAxis,
                 NunchukJoystickAxis = this.NunchukJoystickAxis,
+                IRLinearity = this.IRLinearity,
+                IROverscan = this.IROverscan,
                 WiiA = this.WiiA,
                 WiiB = this.WiiB,
                 Wii1 = this.Wii1,

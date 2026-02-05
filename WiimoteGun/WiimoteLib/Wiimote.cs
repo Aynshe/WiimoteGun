@@ -46,6 +46,12 @@ namespace WiimoteLib {
 		// size of requested read
 		private short readSize;
 
+		// EN: Watchdog counter for unexpected report types (external changes)
+		// FR: Compteur de watchdog pour les types de rapports inattendus (changements externes)
+		private int wrongReportCount;
+		private bool recovering;
+		private int recoveryCount;
+
 		private SpeakerConfiguration speakerConfig;
 
 		internal Wiimote(WiimoteDeviceInfo device) {
