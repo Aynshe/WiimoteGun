@@ -94,7 +94,8 @@ namespace WiimoteGun
             // VMulti Auto-Lock binding (EN/FR: Liaison Auto-Lock VMulti)
             chkAutoLockVMulti.DataBindings.Add("Checked", Options.Instance, "AutoLockVMultiDevices");
             
-
+            // Set current Log Level (EN/FR: Définir le niveau de log actuel)
+            cboLogLevel.SelectedItem = Options.Instance.LoggingLevel.ToString();
         }
 
         private void btnCancel_Click(object sender, EventArgs e)
@@ -128,8 +129,12 @@ namespace WiimoteGun
             // Save Mouse Mode (EN/FR: Sauvegarder Mode Souris)
             Options.Instance.DefaultMouseMode = rbMouseSendInput.Checked ? MouseMode.SendInput : MouseMode.RawInput;
 
-
-            
+            // Save Log Level (EN/FR: Sauvegarder niveau de log)
+            if (cboLogLevel.SelectedItem != null)
+            {
+                Options.Instance.LoggingLevel = (LogLevel)Enum.Parse(typeof(LogLevel), cboLogLevel.SelectedItem.ToString());
+                SimpleLogger.Instance.Threshold = Options.Instance.LoggingLevel;
+            }
             Options.Instance.Save();
 
             WiimoteManager.DolphinBarMode = Options.Instance.DetectDolphinbar;

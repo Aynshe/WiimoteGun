@@ -112,7 +112,7 @@ namespace WiimoteLib {
 
 				// signal the status report finished
 				if (!statusDone.WaitOne(timeout, false)) {
-					Log.Warning("GetStatus Timeout");
+					Log.Warning(string.Format("GetStatus Timeout ({0}ms)", timeout));
 					throw new TimeoutException("Timed out waiting for status report");
 				}
 				Log.Debug("GetStatus End");

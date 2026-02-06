@@ -6,6 +6,18 @@ using System.IO;
 
 namespace WiimoteGun
 {
+    public enum LogLevel
+    {
+        ALL = 0,
+        TRACE = 1,
+        DEBUG = 2,
+        INFO = 3,
+        WARNING = 4,
+        ERROR = 5,
+        FATAL = 6,
+        NONE = 7
+    }
+
     public class SimpleLogger
     {        
         private static SimpleLogger _instance;
@@ -19,6 +31,43 @@ namespace WiimoteGun
 
                 return _instance;
             }
+        }
+
+        public LogLevel Threshold { get; set; } = LogLevel.INFO;
+
+        private void WriteFormattedLog(LogLevel level, string text)
+        {
+            if (Threshold == LogLevel.NONE) return;
+            // threshold filtering logic (EN/FR: Logique de filtrage par seuil)
+            if (level < Threshold && Threshold != LogLevel.ALL) return;
+
+            string pretext;
+            switch (level)
+            {
+                case LogLevel.TRACE:
+                    pretext = System.DateTime.Now.ToString(datetimeFormat) + " [TRACE]   ";
+                    break;
+                case LogLevel.INFO:
+                    pretext = System.DateTime.Now.ToString(datetimeFormat) + " [INFO]    ";
+                    break;
+                case LogLevel.DEBUG:
+                    pretext = System.DateTime.Now.ToString(datetimeFormat) + " [DEBUG]   ";
+                    break;
+                case LogLevel.WARNING:
+                    pretext = System.DateTime.Now.ToString(datetimeFormat) + " [WARNING] ";
+                    break;
+                case LogLevel.ERROR:
+                    pretext = System.DateTime.Now.ToString(datetimeFormat) + " [ERROR]   ";
+                    break;
+                case LogLevel.FATAL:
+                    pretext = System.DateTime.Now.ToString(datetimeFormat) + " [FATAL]   ";
+                    break;
+                default:
+                    pretext = "";
+                    break;
+            }
+
+            WriteLine(pretext + text);
         }
 
         private const string FILE_EXT = ".log";
@@ -43,7 +92,8 @@ namespace WiimoteGun
         /// <param name="text">Message</param>
         public void Debug(string text)
         {
-            WriteFormattedLog(LogLevel.DEBUG, text);
+            if (Threshold <= LogLevel.DEBUG)
+                WriteFormattedLog(LogLevel.DEBUG, text);
         }
 
         /// <summary>
@@ -52,7 +102,8 @@ namespace WiimoteGun
         /// <param name="text">Message</param>
         public void Error(string text)
         {
-            WriteFormattedLog(LogLevel.ERROR, text);
+            if (Threshold <= LogLevel.ERROR)
+                WriteFormattedLog(LogLevel.ERROR, text);
         }
 
         /// <summary>
@@ -61,7 +112,8 @@ namespace WiimoteGun
         /// <param name="text">Message</param>
         public void Fatal(string text)
         {
-            WriteFormattedLog(LogLevel.FATAL, text);
+            if (Threshold <= LogLevel.FATAL)
+                WriteFormattedLog(LogLevel.FATAL, text);
         }
 
         /// <summary>
@@ -70,7 +122,8 @@ namespace WiimoteGun
         /// <param name="text">Message</param>
         public void Info(string text)
         {
-            WriteFormattedLog(LogLevel.INFO, text);
+            if (Threshold <= LogLevel.INFO)
+                WriteFormattedLog(LogLevel.INFO, text);
         }
 
         /// <summary>
@@ -79,7 +132,8 @@ namespace WiimoteGun
         /// <param name="text">Message</param>
         public void Trace(string text)
         {
-            WriteFormattedLog(LogLevel.TRACE, text);
+            if (Threshold <= LogLevel.TRACE)
+                WriteFormattedLog(LogLevel.TRACE, text);
         }
 
         /// <summary>
@@ -88,7 +142,8 @@ namespace WiimoteGun
         /// <param name="text">Message</param>
         public void Warning(string text)
         {
-            WriteFormattedLog(LogLevel.WARNING, text);
+            if (Threshold <= LogLevel.WARNING)
+                WriteFormattedLog(LogLevel.WARNING, text);
         }
 
         private object _lock = new object();
@@ -99,7 +154,7 @@ namespace WiimoteGun
             {
                 if (File.Exists(logFilename))
                 {
-                    // EN: Rotate if log exceeds 1.5 MB (FR: Rotation si log dépasse 1.5 Mo)
+                    // Rotate if log exceeds 1.5 MB (EN/FR: Rotation si log dépasse 1.5 Mo)
                     if (new FileInfo(logFilename).Length > 1.5 * 1024 * 1024)
                     {
                         string prevLog = logFilename + ".old";
@@ -137,48 +192,6 @@ namespace WiimoteGun
                 }
                 catch { }
             }
-        }
-
-        private void WriteFormattedLog(LogLevel level, string text)
-        {
-            string pretext;
-            switch (level)
-            {
-                case LogLevel.TRACE:
-                    pretext = System.DateTime.Now.ToString(datetimeFormat) + " [TRACE]   ";
-                    break;
-                case LogLevel.INFO:
-                    pretext = System.DateTime.Now.ToString(datetimeFormat) + " [INFO]    ";
-                    break;
-                case LogLevel.DEBUG:
-                    pretext = System.DateTime.Now.ToString(datetimeFormat) + " [DEBUG]   ";
-                    break;
-                case LogLevel.WARNING:
-                    pretext = System.DateTime.Now.ToString(datetimeFormat) + " [WARNING] ";
-                    break;
-                case LogLevel.ERROR:
-                    pretext = System.DateTime.Now.ToString(datetimeFormat) + " [ERROR]   ";
-                    break;
-                case LogLevel.FATAL:
-                    pretext = System.DateTime.Now.ToString(datetimeFormat) + " [FATAL]   ";
-                    break;
-                default:
-                    pretext = "";
-                    break;
-            }
-
-            WriteLine(pretext + text);
-        }
-
-        [System.Flags]
-        private enum LogLevel
-        {
-            TRACE,
-            INFO,
-            DEBUG,
-            WARNING,
-            ERROR,
-            FATAL
         }
     }
 }

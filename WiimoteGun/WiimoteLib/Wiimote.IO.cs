@@ -205,7 +205,7 @@ namespace WiimoteLib {
 		/// <param name="address">Address to read</param>
 		/// <param name="size">Length to read</param>
 		/// <returns>Data buffer</returns>
-		public byte[] ReadData(int address, short size, int timeout = 1000) {
+		public byte[] ReadData(int address, short size, int timeout = 2000) {
 			Log.Debug($"Read Start: {address:X8}");
 			lock (readDone) {
 				Log.Debug($"Read Lock: {address:X8}");
@@ -247,7 +247,7 @@ namespace WiimoteLib {
 		/// <param name="address">Address to write</param>
 		/// <param name="size">Length of buffer</param>
 		/// <param name="data">Data buffer</param>
-		public bool WriteData(int address, byte size, byte[] data, int timeout = 1000) {
+		public bool WriteData(int address, byte size, byte[] data, int timeout = 2000) {
 			Log.Debug($"Write Start: {address:X8}");
 			lock (writeDone) {
 				Log.Debug($"Write Lock: {address:X8}");

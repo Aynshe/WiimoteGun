@@ -173,8 +173,15 @@ namespace WiimoteLib {
 		public override string ToString() => $"{Wiimote} Write: {Type}";
 
 		public bool Send() {
+			if (Wiimote == null || Wiimote.Device == null)
+				return false;
+
 			if (Wiimote.AltWriteMethod) {
-				if (!NativeMethods.HidD_SetOutputReport(Handle, Buffer, Length)) {
+				IntPtr handle = Handle;
+				if (handle == IntPtr.Zero)
+					return false;
+
+				if (!NativeMethods.HidD_SetOutputReport(handle, Buffer, Length)) {
 					Log.Error($"Failed to send: {this} HIdD");
 					return false;
 				}
@@ -182,8 +189,16 @@ namespace WiimoteLib {
 			}
 			else {
 				try {
-					Stream.Write(Buffer, 0, Length);
+					FileStream stream = Stream;
+					if (stream == null)
+						return false;
+
+					stream.Write(Buffer, 0, Length);
 					return true;
+				}
+				catch (ObjectDisposedException) {
+					// Stream closed during write (EN/FR: Flux fermé pendant l'écriture)
+					return false;
 				}
 				catch (Exception ex) {
 					Log.Error($"Failed to send: {this} FileWrite: {ex}");

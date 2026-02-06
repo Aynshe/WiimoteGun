@@ -107,6 +107,9 @@ namespace WiimoteGun.Controls
             optEnableGamePadSwap.Checked = Options.Instance.EnableGamePadSwapMode;
             optPersistentGamePads.Checked = Options.Instance.PersistentGamePads;
 
+            // Log Level
+            optLogLevel.SelectedItem = Options.Instance.LoggingLevel.ToString();
+
 
 
             // Detection
@@ -145,6 +148,13 @@ namespace WiimoteGun.Controls
                 Options.Instance.ShowNotifications = optShowNotifications.Checked;
                 Options.Instance.EnableGamePadSwapMode = optEnableGamePadSwap.Checked;
                 Options.Instance.PersistentGamePads = optPersistentGamePads.Checked;
+
+                // Save Log Level (EN/FR: Sauvegarder niveau de log)
+                if (optLogLevel.SelectedItem != null)
+                {
+                    Options.Instance.LoggingLevel = (LogLevel)Enum.Parse(typeof(LogLevel), optLogLevel.SelectedItem.ToString());
+                    SimpleLogger.Instance.Threshold = Options.Instance.LoggingLevel;
+                }
 
 
 

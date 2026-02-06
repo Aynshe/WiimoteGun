@@ -311,6 +311,8 @@ namespace WiimoteGun
                 GamePadMappingsP2 = new GamePadMappings();
                 GamePadMappingsP3 = new GamePadMappings();
                 GamePadMappingsP4 = new GamePadMappings();
+
+                LoggingLevel = LogLevel.INFO;
             }
         }
 
@@ -337,6 +339,9 @@ namespace WiimoteGun
                     {
                         var options = serializer.Deserialize(stream) as Options;
                         
+                        // Apply log level immediately (EN/FR: Appliquer niveau de log immédiatement)
+                        SimpleLogger.Instance.Threshold = options.LoggingLevel;
+
                         // Migrate legacy calibration to per-player if needed (EN/FR: Migrer calibration héritée vers par-joueur si besoin)
                         if (options.CalibrationTop != -1 && options.CalibrationTopP1 == -1)
                         {
@@ -576,6 +581,9 @@ namespace WiimoteGun
                     if (_instance.P2Mappings == null) _instance.P2Mappings = new PlayerMappings();
                     if (_instance.P3Mappings == null) _instance.P3Mappings = new PlayerMappings();
                     if (_instance.P4Mappings == null) _instance.P4Mappings = new PlayerMappings();
+
+                    // Apply log level immediately (EN/FR: Appliquer niveau de log immédiatement)
+                    SimpleLogger.Instance.Threshold = _instance.LoggingLevel;
                 }
 
                 return _instance;
@@ -640,6 +648,9 @@ namespace WiimoteGun
         {
             return Path.Combine(Path.GetDirectoryName(typeof(VirtualSendKey).Assembly.Location), "settings.cfg");
         }
+
+        [DefaultValue(LogLevel.INFO)]
+        public LogLevel LoggingLevel { get; set; }
 
         [DefaultValue(0)]
         public int MonitorId { get; set; }

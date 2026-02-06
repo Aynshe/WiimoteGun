@@ -368,7 +368,7 @@ namespace WiimoteGun
                 {
                     try
                     {
-                        Wiimote.GetStatus(500); // 500ms timeout for faster detection
+                        Wiimote.GetStatus(1500); // EN: Increased from 500ms for stability / FR: Augmenté de 500ms pour la stabilité
                     }
                     catch (TimeoutException)
                     {

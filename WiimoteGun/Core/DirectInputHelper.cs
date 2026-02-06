@@ -240,17 +240,42 @@ namespace WiimoteGun.Core
                                                 int status = HidP_GetCaps(preparsedData, ref caps);
                                                 if (status == HIDP_STATUS_SUCCESS) 
                                                 {
-                                                    // Usage Page 1 (Generic Desktop), Usage 4 (Joystick) or 5 (GamePad)
-                                                    if (caps.UsagePage == 1 && (caps.Usage == 4 || caps.Usage == 5))
+                                                    HIDD_ATTRIBUTES attr = new HIDD_ATTRIBUTES();
+                                                    attr.Size = Marshal.SizeOf(attr);
+                                                    if (HidD_GetAttributes(handle, ref attr))
                                                     {
-                                                        HIDD_ATTRIBUTES attr = new HIDD_ATTRIBUTES();
-                                                        attr.Size = Marshal.SizeOf(attr);
-                                                        if (HidD_GetAttributes(handle, ref attr))
+                                                        string name = GetOemName(attr.VendorID, attr.ProductID);
+                                                        bool isJoystickUsage = (caps.UsagePage == 1 && (caps.Usage == 4 || caps.Usage == 5));
+                                                        bool hasInputs = (caps.NumberInputButtonCaps > 0 || caps.NumberInputValueCaps > 0);
+
+                                                        // EN: Log every HID device that looks like a joystick for diagnostics
+                                                        // FR: Logger tout périphérique HID qui ressemble à un joystick pour le diagnostic
+                                                        if (isJoystickUsage)
                                                         {
+                                                            SimpleLogger.Instance.Debug(string.Format("[DInput] Found HID Joystick: {0} (VID=0x{1:X4}, PID=0x{2:X4}) - Buttons={3}, Axes={4}", 
+                                                                name, attr.VendorID, attr.ProductID, caps.NumberInputButtonCaps, caps.NumberInputValueCaps));
+                                                        }
+
+                                                        if (isJoystickUsage && hasInputs)
+                                                        {
+                                                            // EN: Filter out host Wiimotes (Nintendo VID=0x057E) or DolphinBar (Mayflash VID=0x0079) 
+                                                            // which are seen as HID GamePads but are NOT exposed via DirectInput or ignored by emulators.
+                                                            // FR: Ignorer les Wiimotes (Nintendo VID=0x057E) ou DolphinBar (Mayflash VID=0x0079)
+                                                            // qui sont vues comme HID GamePads mais ne sont PAS exposées via DirectInput ou ignorées par les émulateurs.
+                                                            bool isFiltered = (attr.VendorID == 0x057E || attr.VendorID == 0x0079);
+
+                                                            // VMulti devices must NEVER be filtered
+                                                            bool isVMulti = (attr.VendorID >= 0x001F && attr.VendorID <= 0x004F && attr.ProductID >= 0xBA1C);
+
+                                                            if (isFiltered && !isVMulti)
+                                                            {
+                                                                SimpleLogger.Instance.Debug(string.Format("[DInput] Filtering out device: {0} (VID=0x{1:X4})", name, attr.VendorID));
+                                                                continue;
+                                                            }
+
                                                             if (controllers.Any(x => x.DevicePath.Equals(devicePath, StringComparison.OrdinalIgnoreCase)))
                                                                 continue;
 
-                                                            string name = GetOemName(attr.VendorID, attr.ProductID);
                                                             controllers.Add(new DetectedJoystick
                                                             {
                                                                 Vid = attr.VendorID,
@@ -259,12 +284,12 @@ namespace WiimoteGun.Core
                                                                 Name = name
                                                             });
                                                         }
-                                                    }
-                                                    else if (devicePath.Contains("vmulti"))
-                                                    {
-                                                        // Log why a vmulti device was skipped
-                                                        SimpleLogger.Instance.Debug(string.Format("[DInput] Skipping vmulti interface: {0} (UsagePage=0x{1:X4}, Usage=0x{2:X4})", 
-                                                            devicePath.Split('#')[1], caps.UsagePage, caps.Usage));
+                                                        else if (devicePath.Contains("vmulti"))
+                                                        {
+                                                            // Log why a vmulti interface was skipped (e.g. keyboard interface)
+                                                            SimpleLogger.Instance.Debug(string.Format("[DInput] Skipping vmulti interface: {0} (UsagePage=0x{1:X4}, Usage=0x{2:X4})", 
+                                                                name, caps.UsagePage, caps.Usage));
+                                                        }
                                                     }
                                                 }
                                                 else
@@ -294,17 +319,25 @@ namespace WiimoteGun.Core
 
                 if (controllers.Count > 0)
                 {
+                    // EN: REMOVED alphabetical sorting by DevicePath. 
+                    // Windows' DirectInput enumeration typically follows the order of discovery/hardware tree, 
+                    // which matches the order returned by SetupAPI without sorting.
+                    // FR: SUPPRESSION du tri alphabétique par DevicePath. 
+                    // L'énumération DirectInput de Windows suit typiquement l'ordre de découverte,
+                    // qui correspond à l'ordre retourné par SetupAPI sans tri.
+
+                    SimpleLogger.Instance.Info(string.Format("[DInput] Attempt {0}: Detected {1} gamepads/joysticks:", attempt, controllers.Count));
                     for (int i = 0; i < controllers.Count; i++)
                     {
                         var c = controllers[i];
-                        SimpleLogger.Instance.Info(string.Format("[DInput] Attempt {0}, List[{1}]: {2} (VID=0x{3:X4}, PID=0x{4:X4})", attempt, i, c.Name, c.Vid, c.Pid));
+                        SimpleLogger.Instance.Info(string.Format("  [{0}] Joy{1}: {2} (VID=0x{3:X4}, PID=0x{4:X4})", i, i + 1, c.Name, c.Vid, c.Pid));
                     }
 
                     for (int i = 0; i < controllers.Count; i++)
                     {
                         if (controllers[i].Vid == targetVid)
                         {
-                            SimpleLogger.Instance.Info(string.Format("[DInput] SUCCESS: P{0} (VID=0x{1:X4}) found at DInput Index {2}", playerIndex, targetVid, i + 1));
+                            SimpleLogger.Instance.Info(string.Format("[DInput] SUCCESS: P{0} (VID=0x{1:X4}) identified as DInput Index Joy{2}", playerIndex, targetVid, i + 1));
                             return i + 1;
                         }
                     }
@@ -312,7 +345,7 @@ namespace WiimoteGun.Core
 
                 if (attempt < 3)
                 {
-                    SimpleLogger.Instance.Debug(string.Format("[DInput] P{0} not found, retrying in 500ms...", playerIndex));
+                    SimpleLogger.Instance.Debug(string.Format("[DInput] P{0} not found among {1} devices, retrying in 500ms...", playerIndex, controllers.Count));
                     Thread.Sleep(500);
                 }
             }

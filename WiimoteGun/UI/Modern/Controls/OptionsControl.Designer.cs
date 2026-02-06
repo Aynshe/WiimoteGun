@@ -19,18 +19,18 @@ namespace WiimoteGun.Controls
         {
             this.panelOptionsSidebar = new System.Windows.Forms.Panel();
             this.btnTabGeneral = new System.Windows.Forms.Button();
-
             this.btnTabDetection = new System.Windows.Forms.Button();
             this.btnTabGestures = new System.Windows.Forms.Button();
             this.btnTabEmulators = new System.Windows.Forms.Button();
-
             this.btnBack = new System.Windows.Forms.Button();
             this.tabsOptions = new System.Windows.Forms.TabControl();
             this.tabGeneral = new System.Windows.Forms.TabPage();
-            this.optShowNotifications = new System.Windows.Forms.CheckBox();
-            this.optEnableGamePadSwap = new System.Windows.Forms.CheckBox();
-            this.optPersistentGamePads = new System.Windows.Forms.CheckBox();
+            this.optLogLevel = new System.Windows.Forms.ComboBox();
+            this.lblLogLevelModern = new System.Windows.Forms.Label();
             this.btnConfigureGamePad = new System.Windows.Forms.Button();
+            this.optPersistentGamePads = new System.Windows.Forms.CheckBox();
+            this.optEnableGamePadSwap = new System.Windows.Forms.CheckBox();
+            this.optShowNotifications = new System.Windows.Forms.CheckBox();
             this.optIRSensitivity = new System.Windows.Forms.NumericUpDown();
             this.lblIRSensitivity = new System.Windows.Forms.Label();
             this.optLEDLayout = new System.Windows.Forms.ComboBox();
@@ -39,12 +39,12 @@ namespace WiimoteGun.Controls
             this.lblMonitorId = new System.Windows.Forms.Label();
             this.optMouseMode = new System.Windows.Forms.ComboBox();
             this.lblMouseMode = new System.Windows.Forms.Label();
-
             this.tabDetection = new System.Windows.Forms.TabPage();
             this.lblDetectionInfo = new System.Windows.Forms.Label();
             this.optDetectBluetooth = new System.Windows.Forms.CheckBox();
             this.optDetectDolphin = new System.Windows.Forms.CheckBox();
             this.tabGestures = new System.Windows.Forms.TabPage();
+            this.lblGesturesDevSeparator = new System.Windows.Forms.Label();
             this.optShakeSensitivity = new System.Windows.Forms.TrackBar();
             this.lblShakeSensitivity = new System.Windows.Forms.Label();
             this.optEnableGrenadeGesture = new System.Windows.Forms.CheckBox();
@@ -55,7 +55,6 @@ namespace WiimoteGun.Controls
             this.tabEmulators = new System.Windows.Forms.TabPage();
             this.optRestartOnCemu = new System.Windows.Forms.CheckBox();
             this.optRestartOnDolphin = new System.Windows.Forms.CheckBox();
-
             this.btnApply = new System.Windows.Forms.Button();
             this.btnReset = new System.Windows.Forms.Button();
             this.panelOptionsSidebar.SuspendLayout();
@@ -63,23 +62,19 @@ namespace WiimoteGun.Controls
             this.tabGeneral.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.optIRSensitivity)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.optMonitorId)).BeginInit();
-
             this.tabDetection.SuspendLayout();
             this.tabGestures.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.optShakeSensitivity)).BeginInit();
             this.tabEmulators.SuspendLayout();
-
             this.SuspendLayout();
             // 
             // panelOptionsSidebar
             // 
             this.panelOptionsSidebar.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
             this.panelOptionsSidebar.Controls.Add(this.btnTabGeneral);
-
             this.panelOptionsSidebar.Controls.Add(this.btnTabDetection);
             this.panelOptionsSidebar.Controls.Add(this.btnTabGestures);
             this.panelOptionsSidebar.Controls.Add(this.btnTabEmulators);
-
             this.panelOptionsSidebar.Controls.Add(this.btnBack);
             this.panelOptionsSidebar.Dock = System.Windows.Forms.DockStyle.Left;
             this.panelOptionsSidebar.Location = new System.Drawing.Point(0, 0);
@@ -101,7 +96,6 @@ namespace WiimoteGun.Controls
             this.btnTabGeneral.Text = "⚙️ General";
             this.btnTabGeneral.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             this.btnTabGeneral.UseVisualStyleBackColor = false;
-
             // 
             // btnTabDetection
             // 
@@ -125,7 +119,6 @@ namespace WiimoteGun.Controls
             this.btnTabGestures.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnTabGestures.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.btnTabGestures.ForeColor = System.Drawing.Color.White;
-            this.lblGesturesDevSeparator = new System.Windows.Forms.Label();
             this.btnTabGestures.Location = new System.Drawing.Point(2, 110);
             this.btnTabGestures.Name = "btnTabGestures";
             this.btnTabGestures.Size = new System.Drawing.Size(145, 45);
@@ -148,7 +141,6 @@ namespace WiimoteGun.Controls
             this.btnTabEmulators.Text = "🎮 Emulators";
             this.btnTabEmulators.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             this.btnTabEmulators.UseVisualStyleBackColor = false;
-
             // 
             // btnBack
             // 
@@ -167,11 +159,9 @@ namespace WiimoteGun.Controls
             // tabsOptions
             // 
             this.tabsOptions.Controls.Add(this.tabGeneral);
-
             this.tabsOptions.Controls.Add(this.tabDetection);
             this.tabsOptions.Controls.Add(this.tabGestures);
             this.tabsOptions.Controls.Add(this.tabEmulators);
-
             this.tabsOptions.Location = new System.Drawing.Point(155, 10);
             this.tabsOptions.Name = "tabsOptions";
             this.tabsOptions.SelectedIndex = 0;
@@ -182,6 +172,8 @@ namespace WiimoteGun.Controls
             // tabGeneral
             // 
             this.tabGeneral.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(20)))), ((int)(((byte)(20)))));
+            this.tabGeneral.Controls.Add(this.optLogLevel);
+            this.tabGeneral.Controls.Add(this.lblLogLevelModern);
             this.tabGeneral.Controls.Add(this.btnConfigureGamePad);
             this.tabGeneral.Controls.Add(this.optPersistentGamePads);
             this.tabGeneral.Controls.Add(this.optEnableGamePadSwap);
@@ -201,39 +193,38 @@ namespace WiimoteGun.Controls
             this.tabGeneral.TabIndex = 0;
             this.tabGeneral.Text = "General";
             // 
-            // optShowNotifications
+            // optLogLevel
             // 
-            this.optShowNotifications.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.optShowNotifications.ForeColor = System.Drawing.Color.White;
-            this.optShowNotifications.Location = new System.Drawing.Point(20, 220);
-            this.optShowNotifications.Name = "optShowNotifications";
-            this.optShowNotifications.Size = new System.Drawing.Size(200, 25);
-            this.optShowNotifications.TabIndex = 1;
-            this.optShowNotifications.Text = "Show Notifications";
-            this.optShowNotifications.UseVisualStyleBackColor = true;
+            this.optLogLevel.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.optLogLevel.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.optLogLevel.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.optLogLevel.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.optLogLevel.ForeColor = System.Drawing.Color.White;
+            this.optLogLevel.FormattingEnabled = true;
+            this.optLogLevel.Items.AddRange(new object[] {
+            "ALL",
+            "TRACE",
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "FATAL",
+            "NONE"});
+            this.optLogLevel.Location = new System.Drawing.Point(140, 340);
+            this.optLogLevel.Name = "optLogLevel";
+            this.optLogLevel.Size = new System.Drawing.Size(200, 25);
+            this.optLogLevel.TabIndex = 5;
             // 
+            // lblLogLevelModern
             // 
-            // optEnableGamePadSwap
-            // 
-            this.optEnableGamePadSwap.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.optEnableGamePadSwap.ForeColor = System.Drawing.Color.White;
-            this.optEnableGamePadSwap.Location = new System.Drawing.Point(20, 260);
-            this.optEnableGamePadSwap.Name = "optEnableGamePadSwap";
-            this.optEnableGamePadSwap.Size = new System.Drawing.Size(220, 25);
-            this.optEnableGamePadSwap.TabIndex = 2;
-            this.optEnableGamePadSwap.Text = "Enable GamePad Swap Mode (Col06)";
-            this.optEnableGamePadSwap.UseVisualStyleBackColor = true;
-            // 
-            // optPersistentGamePads
-            // 
-            this.optPersistentGamePads.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.optPersistentGamePads.ForeColor = System.Drawing.Color.White;
-            this.optPersistentGamePads.Location = new System.Drawing.Point(20, 300);
-            this.optPersistentGamePads.Name = "optPersistentGamePads";
-            this.optPersistentGamePads.Size = new System.Drawing.Size(220, 25);
-            this.optPersistentGamePads.TabIndex = 4;
-            this.optPersistentGamePads.Text = "Stabilize GamePad Indices";
-            this.optPersistentGamePads.UseVisualStyleBackColor = true;
+            this.lblLogLevelModern.Font = new System.Drawing.Font("Segoe UI", 9.5F);
+            this.lblLogLevelModern.ForeColor = System.Drawing.Color.White;
+            this.lblLogLevelModern.Location = new System.Drawing.Point(10, 340);
+            this.lblLogLevelModern.Name = "lblLogLevelModern";
+            this.lblLogLevelModern.Size = new System.Drawing.Size(120, 25);
+            this.lblLogLevelModern.TabIndex = 0;
+            this.lblLogLevelModern.Text = "Logging Level:";
+            this.lblLogLevelModern.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // btnConfigureGamePad
             // 
@@ -248,6 +239,39 @@ namespace WiimoteGun.Controls
             this.btnConfigureGamePad.Text = "Configure...";
             this.btnConfigureGamePad.UseVisualStyleBackColor = false;
             this.btnConfigureGamePad.Click += new System.EventHandler(this.BtnConfigureGamePad_Click);
+            // 
+            // optPersistentGamePads
+            // 
+            this.optPersistentGamePads.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.optPersistentGamePads.ForeColor = System.Drawing.Color.White;
+            this.optPersistentGamePads.Location = new System.Drawing.Point(20, 300);
+            this.optPersistentGamePads.Name = "optPersistentGamePads";
+            this.optPersistentGamePads.Size = new System.Drawing.Size(220, 25);
+            this.optPersistentGamePads.TabIndex = 4;
+            this.optPersistentGamePads.Text = "Stabilize GamePad Indices";
+            this.optPersistentGamePads.UseVisualStyleBackColor = true;
+            // 
+            // optEnableGamePadSwap
+            // 
+            this.optEnableGamePadSwap.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.optEnableGamePadSwap.ForeColor = System.Drawing.Color.White;
+            this.optEnableGamePadSwap.Location = new System.Drawing.Point(20, 260);
+            this.optEnableGamePadSwap.Name = "optEnableGamePadSwap";
+            this.optEnableGamePadSwap.Size = new System.Drawing.Size(220, 25);
+            this.optEnableGamePadSwap.TabIndex = 2;
+            this.optEnableGamePadSwap.Text = "Enable GamePad Swap Mode (Col06)";
+            this.optEnableGamePadSwap.UseVisualStyleBackColor = true;
+            // 
+            // optShowNotifications
+            // 
+            this.optShowNotifications.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.optShowNotifications.ForeColor = System.Drawing.Color.White;
+            this.optShowNotifications.Location = new System.Drawing.Point(20, 220);
+            this.optShowNotifications.Name = "optShowNotifications";
+            this.optShowNotifications.Size = new System.Drawing.Size(200, 25);
+            this.optShowNotifications.TabIndex = 1;
+            this.optShowNotifications.Text = "Show Notifications";
+            this.optShowNotifications.UseVisualStyleBackColor = true;
             // 
             // optIRSensitivity
             // 
@@ -348,7 +372,6 @@ namespace WiimoteGun.Controls
             this.lblMouseMode.TabIndex = 0;
             this.lblMouseMode.Text = "Mouse Mode:";
             this.lblMouseMode.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-
             // 
             // tabDetection
             // 
@@ -392,8 +415,6 @@ namespace WiimoteGun.Controls
             this.optDetectDolphin.TabIndex = 1;
             this.optDetectDolphin.Text = "Detect DolphinBar";
             this.optDetectDolphin.UseVisualStyleBackColor = true;
-
-            this.optDetectDolphin.UseVisualStyleBackColor = true;
             // 
             // tabGestures
             // 
@@ -411,6 +432,17 @@ namespace WiimoteGun.Controls
             this.tabGestures.Size = new System.Drawing.Size(392, 591);
             this.tabGestures.TabIndex = 3;
             this.tabGestures.Text = "Gestures";
+            // 
+            // lblGesturesDevSeparator
+            // 
+            this.lblGesturesDevSeparator.AutoSize = true;
+            this.lblGesturesDevSeparator.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Italic);
+            this.lblGesturesDevSeparator.ForeColor = System.Drawing.Color.Goldenrod;
+            this.lblGesturesDevSeparator.Location = new System.Drawing.Point(20, 95);
+            this.lblGesturesDevSeparator.Name = "lblGesturesDevSeparator";
+            this.lblGesturesDevSeparator.Size = new System.Drawing.Size(200, 15);
+            this.lblGesturesDevSeparator.TabIndex = 0;
+            this.lblGesturesDevSeparator.Text = "—— In Development (For Test) ——";
             // 
             // optShakeSensitivity
             // 
@@ -484,17 +516,6 @@ namespace WiimoteGun.Controls
             this.optEnableOffScreenReload.Text = "Off-Screen Reload";
             this.optEnableOffScreenReload.UseVisualStyleBackColor = true;
             // 
-            // lblGesturesDevSeparator
-            // 
-            this.lblGesturesDevSeparator.AutoSize = true;
-            this.lblGesturesDevSeparator.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Italic);
-            this.lblGesturesDevSeparator.ForeColor = System.Drawing.Color.Goldenrod;
-            this.lblGesturesDevSeparator.Location = new System.Drawing.Point(20, 95);
-            this.lblGesturesDevSeparator.Name = "lblGesturesDevSeparator";
-            this.lblGesturesDevSeparator.Size = new System.Drawing.Size(200, 15);
-            this.lblGesturesDevSeparator.TabIndex = 0;
-            this.lblGesturesDevSeparator.Text = "—— In Development (For Test) ——";
-            // 
             // tabEmulators
             // 
             this.tabEmulators.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(20)))), ((int)(((byte)(20)))));
@@ -527,7 +548,6 @@ namespace WiimoteGun.Controls
             this.optRestartOnDolphin.TabIndex = 1;
             this.optRestartOnDolphin.Text = "Restart on Dolphin";
             this.optRestartOnDolphin.UseVisualStyleBackColor = true;
-
             // 
             // btnApply
             // 
@@ -573,7 +593,6 @@ namespace WiimoteGun.Controls
             this.tabGeneral.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.optIRSensitivity)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.optMonitorId)).EndInit();
-
             this.tabDetection.ResumeLayout(false);
             this.tabDetection.PerformLayout();
             this.tabGestures.ResumeLayout(false);
@@ -581,7 +600,6 @@ namespace WiimoteGun.Controls
             ((System.ComponentModel.ISupportInitialize)(this.optShakeSensitivity)).EndInit();
             this.tabEmulators.ResumeLayout(false);
             this.tabEmulators.PerformLayout();
-
             this.ResumeLayout(false);
 
         }
@@ -590,24 +608,16 @@ namespace WiimoteGun.Controls
 
         private System.Windows.Forms.Panel panelOptionsSidebar;
         private System.Windows.Forms.Button btnTabGeneral;
-
         private System.Windows.Forms.Button btnTabDetection;
         private System.Windows.Forms.Button btnTabGestures;
         private System.Windows.Forms.Button btnTabEmulators;
-
-
         private System.Windows.Forms.TabControl tabsOptions;
         private System.Windows.Forms.TabPage tabGeneral;
-
         private System.Windows.Forms.TabPage tabDetection;
         private System.Windows.Forms.TabPage tabGestures;
         private System.Windows.Forms.TabPage tabEmulators;
-
-        
         private System.Windows.Forms.Button btnApply;
         private System.Windows.Forms.Button btnReset;
-        
-        // General
         private System.Windows.Forms.Label lblMouseMode;
         private System.Windows.Forms.ComboBox optMouseMode;
         private System.Windows.Forms.Label lblMonitorId;
@@ -619,15 +629,9 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.CheckBox optShowNotifications;
         private System.Windows.Forms.CheckBox optEnableGamePadSwap;
         private System.Windows.Forms.CheckBox optPersistentGamePads;
-
-
-
-        // Detection
         private System.Windows.Forms.CheckBox optDetectDolphin;
         private System.Windows.Forms.CheckBox optDetectBluetooth;
         private System.Windows.Forms.Label lblDetectionInfo;
-
-        // Gestures
         private System.Windows.Forms.CheckBox optEnableOffScreenReload;
         private System.Windows.Forms.CheckBox optOffScreenReloadAuto;
         private System.Windows.Forms.CheckBox optEnableShakeReload;
@@ -637,13 +641,10 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.Label lblShakeSensitivity;
         private System.Windows.Forms.TrackBar optShakeSensitivity;
         private System.Windows.Forms.Button btnConfigureGamePad;
-
-        // Emulators
         private System.Windows.Forms.CheckBox optRestartOnDolphin;
         private System.Windows.Forms.CheckBox optRestartOnCemu;
-
-
-        
         public System.Windows.Forms.Button btnBack;
+        private System.Windows.Forms.ComboBox optLogLevel;
+        private System.Windows.Forms.Label lblLogLevelModern;
     }
 }

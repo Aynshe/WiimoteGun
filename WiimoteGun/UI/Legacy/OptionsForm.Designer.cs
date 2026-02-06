@@ -40,6 +40,8 @@ namespace WiimoteGun
             this.chkEnableGamePadSwap = new System.Windows.Forms.CheckBox();
             this.chkPersistentGamePads = new System.Windows.Forms.CheckBox();
             this.chkNotifications = new System.Windows.Forms.CheckBox();
+            this.lblLogLevel = new System.Windows.Forms.Label();
+            this.cboLogLevel = new System.Windows.Forms.ComboBox();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.rbBlueTooth = new System.Windows.Forms.RadioButton();
             this.rbDolphinbar = new System.Windows.Forms.RadioButton();
@@ -153,6 +155,8 @@ namespace WiimoteGun
             // 
             this.groupBox1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
+            this.groupBox1.Controls.Add(this.cboLogLevel);
+            this.groupBox1.Controls.Add(this.lblLogLevel);
             this.groupBox1.Controls.Add(this.btnConfigureGamePad);
             this.groupBox1.Controls.Add(this.chkEnableGamePadSwap);
             this.groupBox1.Controls.Add(this.chkPersistentGamePads);
@@ -160,7 +164,7 @@ namespace WiimoteGun
             this.groupBox1.Controls.Add(this.cbStartWithWindows);
             this.groupBox1.Location = new System.Drawing.Point(410, 153);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(384, 130);
+            this.groupBox1.Size = new System.Drawing.Size(384, 155);
             this.groupBox1.TabIndex = 6;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Misc options";
@@ -204,6 +208,33 @@ namespace WiimoteGun
             this.chkNotifications.TabIndex = 5;
             this.chkNotifications.Text = "Show notifications";
             this.chkNotifications.UseVisualStyleBackColor = true;
+            // 
+            // lblLogLevel
+            // 
+            this.lblLogLevel.AutoSize = true;
+            this.lblLogLevel.Location = new System.Drawing.Point(13, 127);
+            this.lblLogLevel.Name = "lblLogLevel";
+            this.lblLogLevel.Size = new System.Drawing.Size(74, 13);
+            this.lblLogLevel.TabIndex = 9;
+            this.lblLogLevel.Text = "Logging Level";
+            // 
+            // cboLogLevel
+            // 
+            this.cboLogLevel.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboLogLevel.FormattingEnabled = true;
+            this.cboLogLevel.Items.AddRange(new object[] {
+            "ALL",
+            "TRACE",
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "FATAL",
+            "NONE"});
+            this.cboLogLevel.Location = new System.Drawing.Point(233, 124);
+            this.cboLogLevel.Name = "cboLogLevel";
+            this.cboLogLevel.Size = new System.Drawing.Size(121, 21);
+            this.cboLogLevel.TabIndex = 10;
             // 
             // groupBox2
             // 
@@ -319,9 +350,9 @@ namespace WiimoteGun
             this.groupBox4.Controls.Add(this.btnUninstallPlayer3);
             this.groupBox4.Controls.Add(this.btnInstallPlayer4);
             this.groupBox4.Controls.Add(this.btnUninstallPlayer4);
-            this.groupBox4.Location = new System.Drawing.Point(410, 289);
+            this.groupBox4.Location = new System.Drawing.Point(410, 312);
             this.groupBox4.Name = "groupBox4";
-            this.groupBox4.Size = new System.Drawing.Size(384, 210);
+            this.groupBox4.Size = new System.Drawing.Size(384, 198);
             this.groupBox4.TabIndex = 10;
             this.groupBox4.TabStop = false;
             this.groupBox4.Text = "Virtual HID Driver";
@@ -331,7 +362,7 @@ namespace WiimoteGun
             this.chkAutoLockVMulti.AutoSize = true;
             this.chkAutoLockVMulti.Checked = true;
             this.chkAutoLockVMulti.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.chkAutoLockVMulti.Location = new System.Drawing.Point(13, 180);
+            this.chkAutoLockVMulti.Location = new System.Drawing.Point(13, 175);
             this.chkAutoLockVMulti.Name = "chkAutoLockVMulti";
             this.chkAutoLockVMulti.Size = new System.Drawing.Size(196, 17);
             this.chkAutoLockVMulti.TabIndex = 10;
@@ -340,7 +371,7 @@ namespace WiimoteGun
             // 
             // btnInstallPlayer1
             // 
-            this.btnInstallPlayer1.Location = new System.Drawing.Point(13, 55);
+            this.btnInstallPlayer1.Location = new System.Drawing.Point(13, 50);
             this.btnInstallPlayer1.Name = "btnInstallPlayer1";
             this.btnInstallPlayer1.Size = new System.Drawing.Size(120, 25);
             this.btnInstallPlayer1.TabIndex = 2;
@@ -350,7 +381,7 @@ namespace WiimoteGun
             // 
             // btnUninstallPlayer1
             // 
-            this.btnUninstallPlayer1.Location = new System.Drawing.Point(138, 55);
+            this.btnUninstallPlayer1.Location = new System.Drawing.Point(138, 50);
             this.btnUninstallPlayer1.Name = "btnUninstallPlayer1";
             this.btnUninstallPlayer1.Size = new System.Drawing.Size(55, 25);
             this.btnUninstallPlayer1.TabIndex = 3;
@@ -360,7 +391,7 @@ namespace WiimoteGun
             // 
             // btnInstallPlayer2
             // 
-            this.btnInstallPlayer2.Location = new System.Drawing.Point(199, 55);
+            this.btnInstallPlayer2.Location = new System.Drawing.Point(199, 50);
             this.btnInstallPlayer2.Name = "btnInstallPlayer2";
             this.btnInstallPlayer2.Size = new System.Drawing.Size(120, 25);
             this.btnInstallPlayer2.TabIndex = 4;
@@ -370,7 +401,7 @@ namespace WiimoteGun
             // 
             // btnUninstallPlayer2
             // 
-            this.btnUninstallPlayer2.Location = new System.Drawing.Point(324, 55);
+            this.btnUninstallPlayer2.Location = new System.Drawing.Point(324, 50);
             this.btnUninstallPlayer2.Name = "btnUninstallPlayer2";
             this.btnUninstallPlayer2.Size = new System.Drawing.Size(45, 25);
             this.btnUninstallPlayer2.TabIndex = 5;
@@ -380,7 +411,7 @@ namespace WiimoteGun
             // 
             // btnInstallPlayer3
             // 
-            this.btnInstallPlayer3.Location = new System.Drawing.Point(13, 86);
+            this.btnInstallPlayer3.Location = new System.Drawing.Point(13, 81);
             this.btnInstallPlayer3.Name = "btnInstallPlayer3";
             this.btnInstallPlayer3.Size = new System.Drawing.Size(120, 25);
             this.btnInstallPlayer3.TabIndex = 6;
@@ -390,7 +421,7 @@ namespace WiimoteGun
             // 
             // btnUninstallPlayer3
             // 
-            this.btnUninstallPlayer3.Location = new System.Drawing.Point(138, 86);
+            this.btnUninstallPlayer3.Location = new System.Drawing.Point(138, 81);
             this.btnUninstallPlayer3.Name = "btnUninstallPlayer3";
             this.btnUninstallPlayer3.Size = new System.Drawing.Size(55, 25);
             this.btnUninstallPlayer3.TabIndex = 7;
@@ -400,7 +431,7 @@ namespace WiimoteGun
             // 
             // btnInstallPlayer4
             // 
-            this.btnInstallPlayer4.Location = new System.Drawing.Point(199, 86);
+            this.btnInstallPlayer4.Location = new System.Drawing.Point(199, 81);
             this.btnInstallPlayer4.Name = "btnInstallPlayer4";
             this.btnInstallPlayer4.Size = new System.Drawing.Size(120, 25);
             this.btnInstallPlayer4.TabIndex = 8;
@@ -410,7 +441,7 @@ namespace WiimoteGun
             // 
             // btnUninstallPlayer4
             // 
-            this.btnUninstallPlayer4.Location = new System.Drawing.Point(324, 86);
+            this.btnUninstallPlayer4.Location = new System.Drawing.Point(324, 81);
             this.btnUninstallPlayer4.Name = "btnUninstallPlayer4";
             this.btnUninstallPlayer4.Size = new System.Drawing.Size(45, 25);
             this.btnUninstallPlayer4.TabIndex = 9;
@@ -701,5 +732,7 @@ namespace WiimoteGun
         private System.Windows.Forms.CheckBox chkEnableGamePadSwap;
         private System.Windows.Forms.CheckBox chkPersistentGamePads;
         private System.Windows.Forms.Button btnConfigureGamePad;
+        private System.Windows.Forms.Label lblLogLevel;
+        private System.Windows.Forms.ComboBox cboLogLevel;
     }
 }
