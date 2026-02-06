@@ -263,6 +263,7 @@ namespace WiimoteGun
             _messageWindow.RefreshRequested += OnRefreshRequested;
             _messageWindow.RemapRequested += OnRemapRequested;
             _messageWindow.MenuRequested += OnMenuRequested;
+            _messageWindow.DeviceChanged += (s, e) => _wiiMoteManager?.RefreshAllDInputIndices();
             
             // Initialize Overlay (EN/FR: Initialiser Overlay)
             _profileOverlay = new ProfileOverlay(_menuMode);

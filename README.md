@@ -1,6 +1,6 @@
 # Wiimote4Guns 🎮
 
-Multi-player Wiimote to Virtual Mouse/Keyboard adapter with Interception driver support.
+Multi-player Wiimote to Virtual Mouse/Keyboard/GamePad adapter.
 
 Fork of [WiimoteGun](https://github.com/fcaruso/WiimoteGun) with extensive enhancements for multi-player support and LED layouts.
 
@@ -134,6 +134,10 @@ Mode for emulators like **PCSX2** or games requiring separate controllers for ea
 - **DInput Support**: Each Wiimote is seen as a unique Virtual GamePad.
 - **Analog Mapping**: Map IR tracking to Left or Right stick.
 - **Nunchuk Integration**: Use Nunchuk joystick for movement or as a Digital D-Pad.
+- **Automatic Profile Updates**: Automatically updates DirectInput indices in **PCSX2** and **DuckStation** input profiles.
+  - Profiles must have the **`-wiimotegun`** tag (e.g., `game-wiimotegun.ini`).
+  - A default **`gamepad-wiimotegun.ini`** is automatically generated if missing.
+  - Ensures accurate mapping even when Windows changes "Joy" numbers.
 - **Configuration**: Right-click tray → **Open Mappings** → **GamePad Mapping** tab.
 
 ### 🖼️ 4:3 Aspect Ratio Mode

@@ -39,54 +39,35 @@ namespace WiimoteLib {
 					bool isExternalReset = (type == InputReport.Buttons && ((InputReport)wiimoteState.ReportType).ToString().Contains("IR"));
 
 					// EN: If we get even ONE wrong report, react immediately to eliminate stutter.
-					// FR: Si nous reçevons un SEUL mauvais rapport, réagir immédiatement pour éliminer les saccades.
 					if (!recovering) {
 						recovering = true;
 						recoveryCount++;
 
-						if (isExternalReset && recoveryCount % 10 == 0)
-							Log.Warning(string.Format("[Watchdog] External reset detected (Buttons 0x30 received instead of {1}). Re-asserting IR mode...", recoveryCount, wiimoteState.ReportType));
-
-						// EN: Perform light recovery synchronously to avoid task scheduling delay.
-						// Deep recovery (full IR init) is slow and causes lag, so we only do it every 100 conflicts.
-						// FR: Effectuer une récupération légère de manière synchrone pour éviter le délai de planification de tâche.
-						// La récupération profonde est lente et cause du lag, on ne la fait que tous les 100 conflits.
-						bool deep = (recoveryCount % 100 == 0);
-						
-						if (!deep) {
+						// EN: Perform recovery in background to avoid blocking the read thread.
+						// Blocking here causes deadlocks because ACKs won't be processed.
+						// FR: Effectuer la récupération en arrière-plan pour éviter de bloquer le thread de lecture.
+						// Bloquer ici cause des impasses car les ACKs ne seront pas traités.
+						Task.Factory.StartNew(() => {
 							try {
+								bool deep = (recoveryCount % 100 == 0);
+								if (isExternalReset && (deep || recoveryCount % 10 == 0))
+									Log.Warning(string.Format("[Watchdog] Recovery #{0} (External reset={1}, Deep={2}). Re-asserting {3}...", recoveryCount, isExternalReset, deep, wiimoteState.ReportType));
+
 								// EN: Force IR init if it was an external reset to Buttons mode, to be sure hardware is still on.
 								// FR: Forcer l'init IR si c'était un reset externe vers Buttons, pour être sûr que le hardware est toujours actif.
-								SetReportType(wiimoteState.ReportType, wiimoteState.IRState.Sensitivity, wiimoteState.ContinuousReport, isExternalReset);
+								SetReportType(wiimoteState.ReportType, wiimoteState.IRState.Sensitivity, wiimoteState.ContinuousReport, isExternalReset || deep);
 								
-								// EN: Still use a background task for the cooldown to avoid blocking other reports.
-								Task.Factory.StartNew(() => {
-									System.Threading.Thread.Sleep(20);
-									wrongReportCount = 0;
-									recovering = false;
-								});
+								// EN: Cooldown to avoid report flood
+								System.Threading.Thread.Sleep(deep ? 50 : 20);
 							}
 							catch (Exception ex) {
-								Log.Error(string.Format("[Watchdog] Sync recovery failed: {0}", ex.Message));
+								Log.Error(string.Format("[Watchdog] Async recovery failed: {0}", ex.Message));
+							}
+							finally {
+								wrongReportCount = 0;
 								recovering = false;
 							}
-						}
-						else {
-							Log.Warning(string.Format("[Watchdog] Persistent conflict detected ({0}). Performing deep recovery in background...", recoveryCount));
-							Task.Factory.StartNew(() => {
-								try {
-									SetReportType(wiimoteState.ReportType, wiimoteState.IRState.Sensitivity, wiimoteState.ContinuousReport, true);
-									System.Threading.Thread.Sleep(50);
-								}
-								catch (Exception ex) {
-									Log.Error(string.Format("[Watchdog] Deep recovery failed: {0}", ex.Message));
-								}
-								finally {
-									wrongReportCount = 0;
-									recovering = false;
-								}
-							});
-						}
+						});
 					}
 				}
 				else {

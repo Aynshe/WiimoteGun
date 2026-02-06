@@ -8,7 +8,7 @@ using WiimoteGun.UI.Calibrate;
 
 namespace WiimoteGun
 {
-    class ScreenPositionCalculator
+    public class ScreenPositionCalculator
     {
         public ScreenPositionCalculator(int screenIndex, int playerIndex)
         {

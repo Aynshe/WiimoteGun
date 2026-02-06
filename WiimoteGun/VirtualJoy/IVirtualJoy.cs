@@ -2,7 +2,7 @@
 
 namespace WiimoteGun
 {
-    interface IVirtualJoy
+    public interface IVirtualJoy
     {
         bool IsEnabled { get; }
 

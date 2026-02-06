@@ -34,17 +34,7 @@ namespace WiimoteGun
             datetimeFormat = "yyyy-MM-dd HH:mm:ss.fff";
             logFilename = Path.ChangeExtension(System.Reflection.Assembly.GetEntryAssembly().Location, FILE_EXT);
 
-            if (File.Exists(logFilename))
-            {
-                if (new FileInfo(logFilename).Length > 1024 * 1024)
-                {
-                    string prevLog = logFilename + ".old";
-                    if (File.Exists(prevLog))
-                        File.Delete(prevLog);
-
-                    File.Move(logFilename, prevLog);
-                }
-            }
+            CheckRotation();
         }
 
         /// <summary>
@@ -103,6 +93,30 @@ namespace WiimoteGun
 
         private object _lock = new object();
 
+        private void CheckRotation()
+        {
+            try
+            {
+                if (File.Exists(logFilename))
+                {
+                    // EN: Rotate if log exceeds 1.5 MB (FR: Rotation si log dépasse 1.5 Mo)
+                    if (new FileInfo(logFilename).Length > 1.5 * 1024 * 1024)
+                    {
+                        string prevLog = logFilename + ".old";
+                        try
+                        {
+                            if (File.Exists(prevLog))
+                                File.Delete(prevLog);
+
+                            File.Move(logFilename, prevLog);
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch { }
+        }
+
         private void WriteLine(string text, bool append = true)
         {
             lock (_lock)
@@ -110,6 +124,8 @@ namespace WiimoteGun
                 try
                 {
                     System.Diagnostics.Debug.WriteLine(text);
+
+                    CheckRotation();
 
                     using (System.IO.StreamWriter writer = new System.IO.StreamWriter(logFilename, append, System.Text.Encoding.UTF8))
                     {

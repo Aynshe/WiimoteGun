@@ -12,7 +12,7 @@ using WiimoteGun.VMulti;
 
 namespace WiimoteGun
 {
-    class WiiMoteController : IDisposable
+    public class WiiMoteController : IDisposable
     {
         private WiiMoteMode _mode = WiiMoteMode.Mouse;
         private ScreenPositionCalculator _calculator;
@@ -37,6 +37,7 @@ namespace WiimoteGun
 
         // Weapon recoil rumble (EN/FR: Vibration recul arme)
         private System.Threading.Timer _rumbleTimer;
+        private System.Threading.Timer _rumbleStopTimer;
         private bool _isTriggerPressed = false;
         private bool _isRumbling = false;
         private DateTime _lastRumbleTime = DateTime.MinValue;
@@ -60,6 +61,10 @@ namespace WiimoteGun
         private int _gestureMiddleClickFrameCount = 0;
         private const int GESTURE_CLICK_DURATION_FRAMES = 6; // Reverted to ~100ms (6 frames) for reliability
 
+        // HID Watchdog (EN/FR: Watchdog HID)
+        private DateTime _lastReportTime = DateTime.Now;
+        private const int HID_TIMEOUT_MS = 2000; // 2 seconds threshold
+
         // Cooldowns (EN/FR: Délais de récupération)
         const int SHAKE_COOLDOWN_MS = 500;
         const int GRENADE_COOLDOWN_MS = 1000;
@@ -73,6 +78,10 @@ namespace WiimoteGun
         private DateTime _lastOffsetAdjustTime = DateTime.MinValue;
         private const int OFFSET_ADJUST_REPEAT_MS = 80; // Repeat rate for held DPad (EN/FR: Taux de répétition pour DPad maintenu)
         public static event Action<int, int, int, bool> OffsetAdjustmentChanged; // playerIndex, offsetX, offsetY, isActive
+        
+        // DInput detection (EN/FR: Détection DInput)
+        private int _lastDInputIndex = 0;
+        public int DInputIndex { get { return _lastDInputIndex; } }
 
         // ... existing code ...
 
@@ -336,13 +345,14 @@ namespace WiimoteGun
             _watchDolphinThread.Start();
 
             // Start auto-sleep/disconnect check timer (EN/FR: Démarrer le timer de vérification veille/déconnexion)
-            // DolphinBar: 5s interval for fast disconnect detection (EN/FR: Intervalle 5s pour détection rapide)
-            // Bluetooth: 60s interval for battery-friendly sleep check (EN/FR: Intervalle 60s pour économie batterie)
-            int checkInterval = Wiimote.Device.IsBluetooth ? 60000 : 5000;
+            // Faster interval (2s) to allow HID Watchdog to react quickly even on Bluetooth.
+            // (EN/FR: Intervalle plus rapide (2s) pour permettre au Watchdog HID de réagir vite, même en Bluetooth.)
+            int checkInterval = 2000; 
             _sleepCheckTimer = new System.Threading.Timer(_ => CheckSleep(), null, checkInterval, checkInterval);
             
-            // Initialize rumble timer (disabled by default) (EN/FR: Initialiser timer vibration (désactivé par défaut))
+            // Initialize rumble timers (disabled by default) (EN/FR: Initialiser timers vibration (désactivés par défaut))
             _rumbleTimer = new System.Threading.Timer(_ => RumbleRepetitionCallback(), null, Timeout.Infinite, Timeout.Infinite);
+            _rumbleStopTimer = new System.Threading.Timer(_ => StopRumble(), null, Timeout.Infinite, Timeout.Infinite);
         }
 
         private void CheckSleep()
@@ -366,6 +376,38 @@ namespace WiimoteGun
                         Wiimote.Disconnect();
                     }
                     return;
+                }
+
+                // Bluetooth/DolphinBar: HID Watchdog (EN/FR: Watchdog HID)
+                // If we haven't received a report in 2s while active, re-send the report mode command
+                // (EN/FR: Si aucun rapport reçu en 2s alors qu'actif, renvoyer la commande de mode)
+                if (_mode != WiiMoteMode.Disabled && (DateTime.Now - _lastReportTime).TotalMilliseconds > HID_TIMEOUT_MS)
+                {
+                    SimpleLogger.Instance.Warning(string.Format("[P{0}] HID communication timeout ({1}ms). Attempting report mode recovery...", PlayerIndex, HID_TIMEOUT_MS));
+                    
+                    // Update timer to avoid spamming recovery
+                    _lastReportTime = DateTime.Now;
+
+                    ThreadPool.QueueUserWorkItem(o =>
+                    {
+                        try
+                        {
+                            IRSensitivity sensitivity = (IRSensitivity)Options.Instance.IRSensitivity;
+                            Wiimote.SetReportType(ReportType.ButtonsAccelIR10Ext6, sensitivity, true);
+                            
+                            // Try to enable MotionPlus again as it might have been reset
+                            if (Wiimote.WiimoteState.ExtensionType == ExtensionType.Nunchuk)
+                                Wiimote.EnableMotionPlus(MotionPlusExtensionType.Nunchuk);
+                            else
+                                Wiimote.EnableMotionPlus(MotionPlusExtensionType.NoExtension);
+                                
+                            SimpleLogger.Instance.Info(string.Format("[P{0}] Report mode recovery command sent.", PlayerIndex));
+                        }
+                        catch (Exception ex)
+                        {
+                            SimpleLogger.Instance.Error(string.Format("[P{0}] Report mode recovery failed: {1}", PlayerIndex, ex.Message));
+                        }
+                    });
                 }
 
                 // Bluetooth: Auto-sleep after inactivity (EN/FR: Mise en veille auto après inactivité)
@@ -585,6 +627,18 @@ namespace WiimoteGun
                 _sleepCheckTimer = null;
             }
 
+            // Dispose rumble timers (EN/FR: Disposer les timers de vibration)
+            if (_rumbleTimer != null)
+            {
+                _rumbleTimer.Dispose();
+                _rumbleTimer = null;
+            }
+            if (_rumbleStopTimer != null)
+            {
+                _rumbleStopTimer.Dispose();
+                _rumbleStopTimer = null;
+            }
+
             if (_hiddenWnd != null)
             {
                 var wnd = _hiddenWnd;
@@ -777,6 +831,7 @@ namespace WiimoteGun
             if (e.WiimoteState == null)
                 return;
 
+            _lastReportTime = DateTime.Now; // Update HID Watchdog
             lock (_lock)
             {
                 ButtonState buttons = e.WiimoteState.Buttons;
@@ -1346,6 +1401,10 @@ namespace WiimoteGun
                                 _virtualGamepad.Connect();
                             }
 
+                            // EN/FR: Log DirectInput Index for the virtual gamepad
+                            // Identifier et logger l'index DirectInput pour le gamepad virtuel
+                            RefreshDInputIndex();
+
                             // EN/FR: Ensure IR mode is active even in GamePad mode for lightgun tracking
                             wiimote.SetReportType(ReportType.ButtonsAccelIR10Ext6, IRSensitivity.Maximum, true);
                         }
@@ -1631,13 +1690,9 @@ namespace WiimoteGun
                         Wiimote.SetRumble(true);
                         
                         // Schedule rumble stop (EN/FR: Programmer arrêt vibration)
-                        System.Threading.Timer stopTimer = null;
-                        stopTimer = new System.Threading.Timer(new System.Threading.TimerCallback(s =>
-                        {
-                            StopRumble();
-                            if (s != null) ((System.Threading.Timer)s).Dispose();
-                        }), null, durationMs, System.Threading.Timeout.Infinite);
-                        // Store timer if needed but here we just need it to run once
+                        // Reuse _rumbleStopTimer to prevent garbage collection of the callback
+                        // (EN/FR: Réutiliser _rumbleStopTimer pour éviter le ramasse-miettes)
+                        _rumbleStopTimer?.Change(durationMs, Timeout.Infinite);
                         
                         _lastRumbleTime = DateTime.Now;
                     }
@@ -1652,6 +1707,9 @@ namespace WiimoteGun
 
         private void StopRumble()
         {
+            // Disarm stop timer (EN/FR: Désactiver le timer d'arrêt)
+            _rumbleStopTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+
             if (_isRumbling)
             {
                 try
@@ -2018,8 +2076,46 @@ namespace WiimoteGun
             }
 
             return pos;
+        }
+
+        /// <summary>
+        /// EN: Refresh the predicted DirectInput index for the virtual gamepad.
+        /// FR: Rafraîchir l'index DirectInput prédit pour le gamepad virtuel.
+        /// </summary>
+        /// <param name="silent">If true, only log if the index actually changes. (EN/FR: Si vrai, logger uniquement si l'index change)</param>
+        public void RefreshDInputIndex(bool silent = false)
+        {
+            if (_mode != WiiMoteMode.GamePad && _mode != WiiMoteMode.GamePad43) return;
+
+            int dinputIndex = DirectInputHelper.FindVMultiGamepadIndex(PlayerIndex);
+            
+            if (dinputIndex != _lastDInputIndex)
+            {
+                if (dinputIndex > 0)
+                {
+                    SimpleLogger.Instance.Info(string.Format("[P{0}] Virtual GamePad DirectInput Index changed: Joy{1} (was Joy{2})", 
+                        PlayerIndex, dinputIndex, _lastDInputIndex > 0 ? _lastDInputIndex.ToString() : "None"));
+                }
+                else
+                {
+                    SimpleLogger.Instance.Warning(string.Format("[P{0}] Virtual GamePad DirectInput Index lost (was Joy{1})", 
+                        PlayerIndex, _lastDInputIndex));
+                }
+                _lastDInputIndex = dinputIndex;
+            }
+            else if (!silent)
+            {
+                if (dinputIndex > 0)
+                {
+                    SimpleLogger.Instance.Info(string.Format("[P{0}] Virtual GamePad detected at DirectInput Index: Joy{1}", PlayerIndex, dinputIndex));
+                }
+                else
+                {
+                    SimpleLogger.Instance.Warning(string.Format("[P{0}] Could not identify DirectInput index for Virtual GamePad.", PlayerIndex));
+                }
+            }
+        }
     }
-}
 
     /// <summary>
     /// Event args for button press detection (EN/FR: Arguments événement pour détection pression bouton)

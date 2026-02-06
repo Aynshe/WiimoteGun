@@ -4,6 +4,14 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.2.2] - 2026-02-06
+
+### Fixed
+- **Wiimote Rumble Regression** - Fixed an issue where the rumble would occasionally become continuous. The stop timer is now persistent to prevent premature garbage collection.
+- **Real-time Log Rotation** - Log files are now rotated mid-run when they exceed 1.5MB, preventing disk space issues during long sessions with high debug output.
+- **Emulator Profile Automation** - Added automatic creation and update of input profiles for DuckStation and PCSX2.
+- **RetroBat Discovery** - Robust detection of the `emulators` folder using the RetroBat registry path, with support for symbolic links and junctions.
+
 ## [2.2.1] - 2026-02-05
 
 ### Added

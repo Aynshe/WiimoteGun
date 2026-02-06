@@ -13,6 +13,10 @@ namespace WiimoteGun
         public const int WM_REFRESH_CONFIG = 0x8001; // WM_USER + 1
         public const int WM_REMAP = 0x8002;          // WM_USER + 2
         public const int WM_MENU = 0x8003;           // WM_USER + 3
+        
+        // System message IDs (EN/FR: IDs de messages système)
+        public const int WM_DEVICECHANGE = 0x0219;
+        public const int DBT_DEVNODES_CHANGED = 0x0007;
 
         // Window class name for finding the window (EN/FR: Nom de classe pour trouver la fenêtre)
         private const string WINDOW_CLASS_NAME = "WiimoteGunMessageWindow_{71916996-F0A0-434C-88CA-41A62B4F9E17}";
@@ -20,6 +24,7 @@ namespace WiimoteGun
         public event EventHandler RefreshRequested;
         public event EventHandler<RemapRequestedEventArgs> RemapRequested;
         public event EventHandler MenuRequested;
+        public event EventHandler DeviceChanged; // Triggered on hotplug (EN/FR: Déclenché au hotplug)
 
         public MessageWindow()
         {
@@ -82,6 +87,15 @@ namespace WiimoteGun
                 MenuRequested?.Invoke(this, EventArgs.Empty);
                 m.Result = (IntPtr)1; // Signal success
                 return;
+            }
+            else if (m.Msg == WM_DEVICECHANGE)
+            {
+                // DBT_DEVNODES_CHANGED is enough for general controller plug/unplug (EN/FR: DBT_DEVNODES_CHANGED suffit pour branchement/débranchement)
+                if ((int)m.WParam == DBT_DEVNODES_CHANGED)
+                {
+                    SimpleLogger.Instance.Debug("WM_DEVICECHANGE (DBT_DEVNODES_CHANGED) received, triggering device changed event");
+                    DeviceChanged?.Invoke(this, EventArgs.Empty);
+                }
             }
 
             base.WndProc(ref m);

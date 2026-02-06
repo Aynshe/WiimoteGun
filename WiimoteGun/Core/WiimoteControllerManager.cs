@@ -3,17 +3,19 @@ using System.Collections.Generic;
 using System.Linq;
 using WiimoteLib;
 using WiimoteLib.Events;
+using WiimoteGun.Core;
 
 namespace WiimoteGun
 {
-    class WiimoteControllerManager : IDisposable
+    public class WiimoteControllerManager : IDisposable
     {
         private List<WiiMoteController> _controllers;
-        private int MaxWiimotes => Options.Instance.Enable4Players ? 4 : 2;
+        private int MaxWiimotes { get { return Options.Instance.Enable4Players ? 4 : 2; } }
         private EmulatorProcessMonitor _emulatorMonitor;
+        private System.Threading.Timer _refreshTimer; // Debounce timer for DInput refresh (EN/FR: Timer d'anti-rebond)
 
-        public int ConnectedWiimotesCount => _controllers.Count;
-        public IEnumerable<WiiMoteController> Controllers => _controllers.AsReadOnly();
+        public int ConnectedWiimotesCount { get { return _controllers.Count; } }
+        public IEnumerable<WiiMoteController> Controllers { get { return _controllers.AsReadOnly(); } }
 
         public WiimoteControllerManager()
         {
@@ -345,6 +347,35 @@ namespace WiimoteGun
             {
                 SimpleLogger.Instance.Error($"Failed to send refresh command: {ex.Message}");
                 Program.Notify("Restart failed\nPlease restart manually");
+            }
+        }
+        /// <summary>
+        /// EN: Trigger a debounced refresh of all DirectInput indices for active GamePads.
+        /// FR: Déclencher un rafraîchissement (anti-rebond) de tous les indices DInput pour les GamePads actifs.
+        /// </summary>
+        public void RefreshAllDInputIndices()
+        {
+            // EN: Many hardware events can fire at once. Wait 1s after the last event before scanning.
+            // FR: Beaucoup d'événements matériels peuvent arriver d'un coup. Attendre 1s après le dernier avant de scanner.
+            if (_refreshTimer == null)
+            {
+                _refreshTimer = new System.Threading.Timer(_ => 
+                {
+                    SimpleLogger.Instance.Info("[DInput] Hardware change detected. Refreshing indices...");
+                    var controllers = _controllers.ToList(); // Snapshot of active controllers
+                    foreach (var controller in controllers)
+                    {
+                        controller.RefreshDInputIndex(silent: true);
+                    }
+
+                    // EN: Automatically update emulator profiles if indices changed
+                    // FR: Mettre à jour automatiquement les profils d'émulateur si les index ont changé
+                    Core.EmulatorProfileAutomator.UpdateProfiles(controllers);
+                }, null, 1000, System.Threading.Timeout.Infinite);
+            }
+            else
+            {
+                _refreshTimer.Change(1000, System.Threading.Timeout.Infinite);
             }
         }
     }
