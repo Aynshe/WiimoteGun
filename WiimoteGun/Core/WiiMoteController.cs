@@ -15,6 +15,7 @@ namespace WiimoteGun
     public class WiiMoteController : IDisposable
     {
         private WiiMoteMode _mode = WiiMoteMode.Mouse;
+        public WiiMoteMode Mode { get { return _mode; } }
         private ScreenPositionCalculator _calculator;
         private IVirtualMouse _virtualMouse;
         private VMultiGamepad _virtualGamepad; // GamePad mode using Col06 (EN/FR: Mode GamePad utilisant Col06)
@@ -1493,6 +1494,10 @@ namespace WiimoteGun
             {
                 Program.Notify(string.Format("WiimoteGun P{0} : {1} activated", PlayerIndex, modeName));
             }
+
+            // EN: Trigger profile updates when mode changes to ensure tags are updated in emulators
+            // FR: Déclencher la mise à jour des profils lors du changement de mode pour mettre à jour les tags
+            Program.WiiMoteManager?.RefreshAllDInputIndices();
         }
 
         public static event EventHandler OverlayRequested;
@@ -2131,7 +2136,7 @@ namespace WiimoteGun
         }
     }
 
-    enum WiiMoteMode
+    public enum WiiMoteMode
     {
         Mouse = 0,
         Mouse43 = 1,

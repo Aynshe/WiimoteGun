@@ -4,12 +4,16 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [2.2.2] - 2026-02-06
+## [2.2.2] - 2026-02-08
+
+### Added
+- **GamePad Mode Automation** - Complete automation for DuckStation and PCSX2. The system now dynamically updates emulator profiles to map the correct DirectInput indices as Wiimotes connect/disconnect or switch modes.
+- **Dynamic Profile Tagging** - Automatic inhibition of guns in emulator profiles (using `-wiimotegun` tags) when Wiimotes are in Mouse mode, ensuring they don't interfere with standard gamepad inputs.
+- **Real-time Sync** - Profile updates are now triggered instantly upon Wiimote mode switches (GamePad <-> Mouse).
 
 ### Fixed
 - **Wiimote Rumble Regression** - Fixed an issue where the rumble would occasionally become continuous. The stop timer is now persistent to prevent premature garbage collection.
 - **Real-time Log Rotation** - Log files are now rotated mid-run when they exceed 1.5MB, preventing disk space issues during long sessions with high debug output.
-- **Emulator Profile Automation** - Added automatic creation and update of input profiles for DuckStation and PCSX2.
 - **RetroBat Discovery** - Robust detection of the `emulators` folder using the RetroBat registry path, with support for symbolic links and junctions.
 
 ## [2.2.1] - 2026-02-05

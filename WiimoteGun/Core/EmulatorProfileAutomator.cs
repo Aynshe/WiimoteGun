@@ -22,20 +22,21 @@ namespace WiimoteGun.Core
             {
                 var controllerList = controllers.ToList();
                 var dinputIndices = new Dictionary<int, int>(); // playerIndex -> dinputIndex (1-based)
+                bool anyGamePadActive = false;
 
                 foreach (var c in controllerList)
                 {
-                    if (c.DInputIndex > 0)
+                    // Filter active gamepads: Only controllers in GamePad mode with a valid DInput index 
+                    // (EN/FR: Filtrer gamepads actifs : Uniquement contrôleurs en mode GamePad avec index DInput valide)
+                    if (c.DInputIndex > 0 && (c.Mode == WiiMoteMode.GamePad || c.Mode == WiiMoteMode.GamePad43))
                     {
                         dinputIndices[c.PlayerIndex] = c.DInputIndex;
+                        anyGamePadActive = true;
                     }
                 }
 
-                if (dinputIndices.Count == 0)
-                {
-                    SimpleLogger.Instance.Info("[ProfileAutomator] No virtual gamepads detected with DInput indices. Skipping profile updates.");
-                    return;
-                }
+                // Removed early return to allow "cleanup" (tagging) in Mouse mode
+                // (EN/FR: Suppression du retour anticipé pour permettre le nettoyage en mode Souris)
 
                 // EN: Get RetroBat registry path (preferred)
                 // FR: Obtenir le chemin RetroBat du registre (préféré)
@@ -64,16 +65,33 @@ namespace WiimoteGun.Core
                     }
                 }
 
-                if (emulatorRoots.Count == 0)
+                if (!emulatorRoots.Any())
                 {
-                    SimpleLogger.Instance.Warning("[ProfileAutomator] RetroBat 'emulators' folder not found via registry.");
+                    // Fallback to registry-fetched path
+                    if (!string.IsNullOrEmpty(retroBatPath))
+                        emulatorRoots.Add(Path.Combine(retroBatPath, "emulators"));
+                }
+
+                if (!emulatorRoots.Any())
+                {
+                    SimpleLogger.Instance.Warning("[ProfileAutomator] No emulator folders found. Skipping profile updates.");
                     return;
+                }
+
+                if (!anyGamePadActive)
+                {
+                    SimpleLogger.Instance.Info("[ProfileAutomator] No virtual gamepads detected (Mouse mode or no active GamePad). Proceeding with inhibition tags.");
                 }
 
                 foreach (var root in emulatorRoots)
                 {
+                    // Update input profiles (EN/FR: Mettre à jour les profils d'entrée)
                     UpdateDuckStationProfiles(root, dinputIndices);
                     UpdatePCSX2Profiles(root, dinputIndices);
+
+                    // Update game settings (EN/FR: Mettre à jour les paramètres de jeu)
+                    UpdateDuckStationGameSettings(root, anyGamePadActive);
+                    UpdatePCSX2GameSettings(root, anyGamePadActive);
                 }
             }
             catch (Exception ex)
@@ -369,44 +387,97 @@ EnableMouseMapping = false
             }
         }
 
+        private static void UpdateDuckStationGameSettings(string root, bool anyGamePadActive)
+        {
+            string settingsDir = Path.Combine(root, @"duckstation\gamesettings");
+            UpdateGameSettingsInternal(settingsDir, anyGamePadActive, "DuckStation");
+        }
+
+        private static void UpdatePCSX2GameSettings(string root, bool anyGamePadActive)
+        {
+            string settingsDir = Path.Combine(root, @"pcsx2\gamesettings");
+            UpdateGameSettingsInternal(settingsDir, anyGamePadActive, "PCSX2");
+        }
+
+        private static void UpdateGameSettingsInternal(string settingsDir, bool anyGamePadActive, string emuName)
+        {
+            if (!Directory.Exists(settingsDir)) return;
+
+            // Search for all relevant variants including corrupted ones (EN/FR: Chercher toutes les variantes incluant celles corrompues)
+            var files = Directory.GetFiles(settingsDir, "*.in*")
+                .Where(f => f.EndsWith(".ini") || f.EndsWith(".ini-wiimotegun") || f.EndsWith(".in") || f.EndsWith(".in-wiimotegun"));
+
+            foreach (var file in files)
+            {
+                try
+                {
+                    string content = File.ReadAllText(file);
+                    if (!content.Contains("InputProfileName") && !content.Contains("InputProfile")) continue;
+                    if (!content.Contains("-wiimotegun")) continue;
+
+                    // Identify the base name and extension (fix previous .in bug)
+                    string fileName = Path.GetFileName(file);
+                    string dir = Path.GetDirectoryName(file);
+                    string newPath = null;
+
+                    if (anyGamePadActive)
+                    {
+                        // Restore to .ini in GamePad mode (fixes .ini-wiimotegun and corrupted .in/-wiimotegun)
+                        if (fileName.EndsWith("-wiimotegun") || fileName.EndsWith(".in"))
+                        {
+                            string restoredName = fileName.Replace("-wiimotegun", "");
+                            if (restoredName.EndsWith(".in")) restoredName += "i"; // Fix corrupted .in -> .ini
+                            newPath = Path.Combine(dir, restoredName);
+                        }
+                    }
+                    else if (!anyGamePadActive && fileName.EndsWith(".ini"))
+                    {
+                        // Mask with -wiimotegun in Mouse mode
+                        newPath = file + "-wiimotegun";
+                    }
+
+                    if (newPath != null)
+                    {
+                        if (File.Exists(newPath)) File.Delete(newPath);
+                        File.Move(file, newPath);
+                        SimpleLogger.Instance.Info(string.Format("[ProfileAutomator] Renamed {0} game setting: {1} -> {2}", emuName, fileName, Path.GetFileName(newPath)));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.Instance.Error(string.Format("[ProfileAutomator] Error managing {0} game setting {1}: {2}", emuName, file, ex.Message));
+                }
+            }
+        }
+
         private static string UpdateIniContent(string content, string emulator, Dictionary<int, int> dinputIndices)
         {
             string[] lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-            StringBuilder sb = new StringBuilder();
             
+            // First pass: Analyze sections to identify gun types (EN/FR: Première passe : Analyser les sections)
+            var sectionTypes = new Dictionary<string, string>(); // Section -> Type value
             string currentSection = "";
-            bool inInputSources = false;
-            int currentPlayerIndex = 0;
-            bool sectionIsGunType = false;
-            List<string> sectionLines = new List<string>();
-
-            // EN: Helper to process and write the buffered section lines
-            // FR: Aide pour traiter et écrire les lignes de section bufférisées
-            Action flushSection = () =>
+            foreach (var line in lines)
             {
-                if (string.IsNullOrEmpty(currentSection)) return;
-
-                foreach (var line in sectionLines)
+                string trimmed = line.Trim();
+                if (trimmed.StartsWith("[") && trimmed.EndsWith("]"))
                 {
-                    if (sectionIsGunType && currentPlayerIndex > 0 && dinputIndices.ContainsKey(currentPlayerIndex))
-                    {
-                        int targetDInputIndex = dinputIndices[currentPlayerIndex];
-                        // EN: Both PCSX2 and DuckStation use 0-based indexing for DirectInput (Joy 1 = DInput-0)
-                        // FR: PCSX2 et DuckStation utilisent tous deux des index basés sur 0 (Joy 1 = DInput-0)
-                        int displayIndex = targetDInputIndex - 1;
-                        sb.AppendLine(DInputRegex.Replace(line, "DInput-" + displayIndex));
-                    }
-                    else if (inInputSources && line.Trim().StartsWith("DInput"))
-                    {
-                        sb.AppendLine("DInput = true");
-                    }
-                    else
-                    {
-                        sb.AppendLine(line);
-                    }
+                    currentSection = trimmed.Substring(1, trimmed.Length - 2);
                 }
-                sectionLines.Clear();
-            };
+                else if (!string.IsNullOrEmpty(currentSection) && trimmed.StartsWith("Type"))
+                {
+                    sectionTypes[currentSection] = trimmed.Split('=').Last().Trim();
+                }
+            }
+
+            // Identify active gamepad players (EN/FR: Identifier les joueurs gamepad actifs)
+            // We assume dinputIndices only contains active virtual gamepads
+            var gamepadPlayers = dinputIndices.Keys.OrderBy(k => k).ToList();
+
+            StringBuilder sb = new StringBuilder();
+            currentSection = "";
+            bool inInputSources = false;
+            int sectionPlayerIdx = 0;
 
             for (int i = 0; i < lines.Length; i++)
             {
@@ -415,43 +486,96 @@ EnableMouseMapping = false
 
                 if (trimmedLine.StartsWith("[") && trimmedLine.EndsWith("]"))
                 {
-                    flushSection();
-
                     currentSection = trimmedLine.Substring(1, trimmedLine.Length - 2);
                     inInputSources = (currentSection == "InputSources");
-                    currentPlayerIndex = 0;
-                    sectionIsGunType = false;
+                    sectionPlayerIdx = 0;
 
                     if (emulator == "DuckStation" && currentSection.StartsWith("Pad"))
-                    {
-                        int.TryParse(currentSection.Substring(3), out currentPlayerIndex);
-                    }
+                        int.TryParse(currentSection.Substring(3), out sectionPlayerIdx);
                     else if (emulator == "PCSX2" && currentSection.StartsWith("USB"))
-                    {
-                        int.TryParse(currentSection.Substring(3), out currentPlayerIndex);
-                    }
+                        int.TryParse(currentSection.Substring(3), out sectionPlayerIdx);
 
                     sb.AppendLine(originalLine);
                     continue;
                 }
 
-                // Identify if this section is for a lightgun/guncon
-                // (EN/FR: Identifier si cette section est pour un lightgun/guncon)
-                if (currentPlayerIndex > 0 && trimmedLine.StartsWith("Type"))
+                if (inInputSources && trimmedLine.StartsWith("DInput"))
                 {
-                    string typeValue = trimmedLine.Split('=').Last().Trim();
-                    if (typeValue.Equals("GunCon", StringComparison.OrdinalIgnoreCase) || 
-                        typeValue.Equals("Justifier", StringComparison.OrdinalIgnoreCase) ||
-                        typeValue.Equals("guncon2", StringComparison.OrdinalIgnoreCase))
+                    sb.AppendLine("DInput = true");
+                    continue;
+                }
+
+                if (sectionPlayerIdx > 0 && trimmedLine.StartsWith("Type"))
+                {
+                    string typeValue = sectionTypes.ContainsKey(currentSection) ? sectionTypes[currentSection] : "";
+                    string normalizedType = typeValue.Replace("-wiimotegun", "");
+                    bool isGun = normalizedType.Equals("GunCon", StringComparison.OrdinalIgnoreCase) || 
+                                 normalizedType.Equals("Justifier", StringComparison.OrdinalIgnoreCase) ||
+                                 normalizedType.Equals("guncon2", StringComparison.OrdinalIgnoreCase);
+
+                    if (isGun)
                     {
-                        sectionIsGunType = true;
+                        bool shouldBeActive = false;
+
+                        if (gamepadPlayers.Count == 1)
+                        {
+                            int activeP = gamepadPlayers[0];
+                            // Redirection logic (EN/FR: Logique de redirection)
+                            shouldBeActive = (sectionPlayerIdx == activeP);
+                            
+                            // Check for P1=none, P2=active redirection
+                            if (!shouldBeActive)
+                            {
+                                string p1Section = (emulator == "DuckStation") ? "Pad1" : "USB1";
+                                bool p1IsNone = !sectionTypes.ContainsKey(p1Section) || sectionTypes[p1Section].Equals("none", StringComparison.OrdinalIgnoreCase);
+                                if (p1IsNone && sectionPlayerIdx == 2) shouldBeActive = true;
+                            }
+                        }
+                        else if (gamepadPlayers.Count >= 2)
+                        {
+                            // Multiple players: active if port is in our active gamepad list
+                            shouldBeActive = gamepadPlayers.Contains(sectionPlayerIdx);
+                        }
+
+                        if (shouldBeActive)
+                            sb.AppendLine(trimmedLine.Replace("-wiimotegun", "")); // Active: Ensure no tag
+                        else
+                            sb.AppendLine(trimmedLine.EndsWith("-wiimotegun") ? originalLine : originalLine + "-wiimotegun"); // Inhibit: Add tag if missing
+                        
+                        continue;
                     }
                 }
 
-                sectionLines.Add(originalLine);
-            }
+                // Process DInput-X replacements
+                if (sectionPlayerIdx > 0 && DInputRegex.IsMatch(trimmedLine))
+                {
+                    string typeValue = sectionTypes.ContainsKey(currentSection) ? sectionTypes[currentSection] : "";
+                    string normalizedType = typeValue.Replace("-wiimotegun", "");
 
-            flushSection();
+                    bool isGun = normalizedType.Equals("GunCon", StringComparison.OrdinalIgnoreCase) || 
+                                 normalizedType.Equals("Justifier", StringComparison.OrdinalIgnoreCase) ||
+                                 normalizedType.Equals("guncon2", StringComparison.OrdinalIgnoreCase);
+
+                    if (isGun)
+                    {
+                        int targetPlayer = sectionPlayerIdx;
+                        if (gamepadPlayers.Count == 1)
+                        {
+                            // Redirection for single player (EN/FR: Redirection pour joueur unique)
+                            targetPlayer = gamepadPlayers[0];
+                        }
+
+                        if (dinputIndices.ContainsKey(targetPlayer))
+                        {
+                            int displayIndex = dinputIndices[targetPlayer] - 1;
+                            sb.AppendLine(DInputRegex.Replace(originalLine, "DInput-" + displayIndex));
+                            continue;
+                        }
+                    }
+                }
+
+                sb.AppendLine(originalLine);
+            }
 
             return sb.ToString().TrimEnd() + Environment.NewLine;
         }
