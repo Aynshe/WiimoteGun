@@ -1309,7 +1309,7 @@ namespace WiimoteGun
         public void SetDynamicPerspectiveOffsetY(int playerIndex, int offsetY)
         {
             // Clamp to reasonable range (EN/FR: Limiter à une plage raisonnable)
-            offsetY = Math.Max(-100, Math.Min(100, offsetY));
+            offsetY = Math.Max(-200, Math.Min(200, offsetY));
             
             switch (playerIndex)
             {
@@ -1336,7 +1336,7 @@ namespace WiimoteGun
         public void SetDynamicPerspectiveOffsetX(int playerIndex, int offsetX)
         {
             // Clamp to reasonable range (EN/FR: Limiter à une plage raisonnable)
-            offsetX = Math.Max(-100, Math.Min(100, offsetX));
+            offsetX = Math.Max(-200, Math.Min(200, offsetX));
             
             switch (playerIndex)
             {

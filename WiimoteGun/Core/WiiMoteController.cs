@@ -77,8 +77,10 @@ namespace WiimoteGun
         // In-Game Offset Adjustment (EN/FR: Ajustement offset en jeu)
         private bool _isOffsetAdjustmentActive = false;
         private DateTime _lastOffsetAdjustTime = DateTime.MinValue;
+        private DateTime _offsetAdjustmentEndTime = DateTime.MinValue;
         private const int OFFSET_ADJUST_REPEAT_MS = 80; // Repeat rate for held DPad (EN/FR: Taux de répétition pour DPad maintenu)
-        public static event Action<int, int, int, bool> OffsetAdjustmentChanged; // playerIndex, offsetX, offsetY, isActive
+        private const int OFFSET_OVERLAY_FADE_MS = 10000; // Match overlay fade duration (EN/FR: Correspond à la durée de fondu de l'overlay)
+        public static event Action<int, int, int, bool, System.Drawing.Point?> OffsetAdjustmentChanged; // playerIndex, offsetX, offsetY, isActive, irPosition (pixels)
         
         // DInput detection (EN/FR: Détection DInput)
         private int _lastDInputIndex = 0;
@@ -922,8 +924,6 @@ namespace WiimoteGun
                 // Hotkey detection: notify HotkeyManager FIRST (EN/FR: Détection hotkeys : notifier d'abord)
                 DetectHotkeyButtonChanges(buttons, _lastState);
 
-                ManageCalibration(e.Wiimote, buttons, _lastState);
-
                 NunchukState nunchuk = e.WiimoteState.Nunchuk;
                 bool hasNunchuk = e.WiimoteState.ExtensionType == ExtensionType.Nunchuk;
 
@@ -935,6 +935,8 @@ namespace WiimoteGun
                 {
                     scaledPos = ApplyAspectRatioCorrection(scaledPos.Value, _mode);
                 }
+
+                ManageCalibration(e.Wiimote, buttons, _lastState, scaledPos);
 
                 if (_mode == WiiMoteMode.Mouse || _mode == WiiMoteMode.Mouse43)
                 {
@@ -1503,80 +1505,114 @@ namespace WiimoteGun
         public static event EventHandler OverlayRequested;
         private bool _overlayTriggered = false;
 
-        private void ManageCalibration(Wiimote wiimote, ButtonState buttons, ButtonState lastState)
+        private void ManageCalibration(Wiimote wiimote, ButtonState buttons, ButtonState lastState, Point2F? scaledPos)
         {
             if (_calculator.IsCalibrating)
                 return;
 
             // Check for Home + D-pad or Minus + D-pad combo for IN-GAME offset adjustment 
-            // (EN/FR: Vérifier combo Home/Minus + D-pad pour ajustement offset EN JEU)
-            // This should be checked BEFORE Home + Plus to have priority
-            // Minus+DPad only works for DolphinBar mode (not Bluetooth) because Minus behavior differs
-            // (EN/FR: Minus+DPad seulement pour DolphinBar car comportement Minus diffère)
-            bool minusAllowed = !wiimote.Device.IsBluetooth && buttons.Minus;
-            bool isOffsetComboActive = (buttons.Home || minusAllowed) && (buttons.Up || buttons.Down || buttons.Left || buttons.Right);
-            bool wasOffsetComboActive = _isOffsetAdjustmentActive;
-            
-            if (isOffsetComboActive)
+    // (EN/FR: Vérifier combo Home/Minus + D-pad pour ajustement offset EN JEU)
+    bool modifierPressed = buttons.Home || (!wiimote.Device.IsBluetooth && buttons.Minus);
+    bool dpadPressed = buttons.Up || buttons.Down || buttons.Left || buttons.Right;
+    bool isOffsetComboActive = modifierPressed && dpadPressed;
+    bool wasOffsetAdjustmentActive = _isOffsetAdjustmentActive;
+    
+    // Check if we are in the grace period (fade-out phase)
+    // (EN/FR: Vérifier si nous sommes dans la période de grâce (phase de disparition))
+    bool isGracePeriodActive = (DateTime.Now - _offsetAdjustmentEndTime).TotalMilliseconds < OFFSET_OVERLAY_FADE_MS;
+
+    // Process if active OR in grace period (EN/FR: Traiter si actif OU en période de grâce)
+    if (isOffsetComboActive || (_isOffsetAdjustmentActive && modifierPressed) || isGracePeriodActive)
+    {
+        // Calculate pixel position for overlay anyway to have real-time tracking (EN/FR: Calculer position pixel pour suivi temps réel)
+        System.Drawing.Point? irPixelPos = null;
+        if (scaledPos.HasValue)
+        {
+            var screen = System.Windows.Forms.Screen.AllScreens[ScreenIndex];
+            int px = (int)((scaledPos.Value.X / 65535f) * screen.Bounds.Width) + screen.Bounds.Left;
+            int py = (int)((scaledPos.Value.Y / 65535f) * screen.Bounds.Height) + screen.Bounds.Top;
+            irPixelPos = new System.Drawing.Point(px, py);
+        }
+
+        int currentOffsetX = Options.Instance.GetDynamicPerspectiveOffsetX(PlayerIndex);
+        int currentOffsetY = Options.Instance.GetDynamicPerspectiveOffsetY(PlayerIndex);
+
+        if (isOffsetComboActive || (_isOffsetAdjustmentActive && modifierPressed))
+        {
+            // --- ACTIVE ADJUSTMENT MODE (EN/FR: MODE AJUSTEMENT ACTIF) ---
+            if (!_isOffsetAdjustmentActive)
             {
-                // Mark offset adjustment as active (EN/FR: Marquer ajustement offset comme actif)
-                if (!_isOffsetAdjustmentActive)
+                _isOffsetAdjustmentActive = true;
+                SimpleLogger.Instance.Info(string.Format("[P{0}] Offset adjustment mode activated", PlayerIndex));
+            }
+
+            // Apply offset changes ONLY IF D-pad is pressed (limit repeat rate)
+            // (EN/FR: Appliquer changements offset SEULEMENT SI D-pad pressé)
+            if (dpadPressed && (DateTime.Now - _lastOffsetAdjustTime).TotalMilliseconds >= OFFSET_ADJUST_REPEAT_MS)
+            {
+                bool changed = false;
+                
+                if (buttons.Left) { currentOffsetX--; changed = true; }
+                else if (buttons.Right) { currentOffsetX++; changed = true; }
+                
+                if (buttons.Up) { currentOffsetY--; changed = true; }
+                else if (buttons.Down) { currentOffsetY++; changed = true; }
+                
+                if (changed)
                 {
-                    _isOffsetAdjustmentActive = true;
-                    SimpleLogger.Instance.Info(string.Format("[P{0}] Offset adjustment mode activated", PlayerIndex));
+                    // Clamp values (-200 to +200) (EN/FR: Limiter valeurs)
+                    currentOffsetX = Math.Max(-200, Math.Min(200, currentOffsetX));
+                    currentOffsetY = Math.Max(-200, Math.Min(200, currentOffsetY));
+                    
+                    Options.Instance.SetDynamicPerspectiveOffsetX(PlayerIndex, currentOffsetX);
+                    Options.Instance.SetDynamicPerspectiveOffsetY(PlayerIndex, currentOffsetY);
+                    _lastOffsetAdjustTime = DateTime.Now;
                 }
-                
-                // Apply offset changes with repeat rate limiting (EN/FR: Appliquer changements offset avec limitation de répétition)
-                if ((DateTime.Now - _lastOffsetAdjustTime).TotalMilliseconds >= OFFSET_ADJUST_REPEAT_MS)
-                {
-                    int currentOffsetX = Options.Instance.GetDynamicPerspectiveOffsetX(PlayerIndex);
-                    int currentOffsetY = Options.Instance.GetDynamicPerspectiveOffsetY(PlayerIndex);
-                    bool changed = false;
-                    
-                    if (buttons.Left) { currentOffsetX--; changed = true; }
-                    else if (buttons.Right) { currentOffsetX++; changed = true; }
-                    
-                    if (buttons.Up) { currentOffsetY--; changed = true; }
-                    else if (buttons.Down) { currentOffsetY++; changed = true; }
-                    
-                    if (changed)
-                    {
-                        // Clamp values (-500 to +500) (EN/FR: Limiter valeurs)
-                        currentOffsetX = Math.Max(-500, Math.Min(500, currentOffsetX));
-                        currentOffsetY = Math.Max(-500, Math.Min(500, currentOffsetY));
-                        
-                        Options.Instance.SetDynamicPerspectiveOffsetX(PlayerIndex, currentOffsetX);
-                        Options.Instance.SetDynamicPerspectiveOffsetY(PlayerIndex, currentOffsetY);
-                        _lastOffsetAdjustTime = DateTime.Now;
-                        
-                        // Notify overlay of change (EN/FR: Notifier overlay du changement)
-                        OffsetAdjustmentChanged?.Invoke(PlayerIndex, currentOffsetX, currentOffsetY, true);
-                    }
-                }
-                
-                ticks = -1; // Cancel Home button standard action (EN/FR: Annuler action standard bouton Home)
-                return; // Don't process other Home combinations (EN/FR: Ne pas traiter autres combinaisons Home)
             }
+
+            // Notify overlay (isActive: true)
+            OffsetAdjustmentChanged?.Invoke(PlayerIndex, currentOffsetX, currentOffsetY, true, irPixelPos);
             
-            // Auto-save when offset adjustment ends (Home/Minus released) (EN/FR: Auto-save quand ajustement terminé)
-            if (wasOffsetComboActive && !isOffsetComboActive && _isOffsetAdjustmentActive)
-            {
-                _isOffsetAdjustmentActive = false;
-                int finalOffsetX = Options.Instance.GetDynamicPerspectiveOffsetX(PlayerIndex);
-                int finalOffsetY = Options.Instance.GetDynamicPerspectiveOffsetY(PlayerIndex);
-                Options.Instance.Save();
-                SimpleLogger.Instance.Info($"[P{PlayerIndex}] Offset adjustment saved: X={finalOffsetX}, Y={finalOffsetY}");
-                
-                // Notify overlay to hide (EN/FR: Notifier overlay de se cacher)
-                OffsetAdjustmentChanged?.Invoke(PlayerIndex, finalOffsetX, finalOffsetY, false);
-            }
-            
-            // Reset offset adjustment flag when neither Home nor Minus is pressed
-            // (EN/FR: Réinitialiser flag ajustement quand ni Home ni Minus pressé)
-            if (!buttons.Home && !buttons.Minus)
-            {
-                _isOffsetAdjustmentActive = false;
-            }
+            ticks = -1; // Cancel Home button standard action (EN/FR: Annuler action standard bouton Home)
+            return; // Don't process other Home combinations (EN/FR: Ne pas traiter autres combinaisons Home)
+        }
+        else
+        {
+            // --- GRACE PERIOD / FADE-OUT (EN/FR: PÉRIODE DE GRÂCE / DISPARITION) ---
+            // Continue sending tracking updates with isActive: false
+            OffsetAdjustmentChanged?.Invoke(PlayerIndex, currentOffsetX, currentOffsetY, false, irPixelPos);
+        }
+    }
+    
+    // Auto-save when modifier button is released (EN/FR: Auto-save quand bouton modificateur relâché)
+    if (wasOffsetAdjustmentActive && !modifierPressed)
+    {
+        _isOffsetAdjustmentActive = false;
+        _offsetAdjustmentEndTime = DateTime.Now; // Start grace period timer
+        
+        int finalOffsetX = Options.Instance.GetDynamicPerspectiveOffsetX(PlayerIndex);
+        int finalOffsetY = Options.Instance.GetDynamicPerspectiveOffsetY(PlayerIndex);
+        Options.Instance.Save();
+        SimpleLogger.Instance.Info($"[P{PlayerIndex}] Offset adjustment saved: X={finalOffsetX}, Y={finalOffsetY}");
+        
+        // Notify overlay to hide (start fade) but keep IR position for seamless tracking
+        // (EN/FR: Notifier début disparition mais garder position IR pour suivi fluide)
+        System.Drawing.Point? irPixelPos = null;
+        if (scaledPos.HasValue)
+        {
+            var screen = System.Windows.Forms.Screen.AllScreens[ScreenIndex];
+            int px = (int)((scaledPos.Value.X / 65535f) * screen.Bounds.Width) + screen.Bounds.Left;
+            int py = (int)((scaledPos.Value.Y / 65535f) * screen.Bounds.Height) + screen.Bounds.Top;
+            irPixelPos = new System.Drawing.Point(px, py);
+        }
+        OffsetAdjustmentChanged?.Invoke(PlayerIndex, finalOffsetX, finalOffsetY, false, irPixelPos);
+    }
+    
+    // Final safety reset when no modifier is pressed
+    if (!modifierPressed)
+    {
+        _isOffsetAdjustmentActive = false;
+    }        
 
             // Check for Home + Plus combo to trigger Overlay (EN/FR: Vérifier combo Home + Plus pour déclencher l'overlay)
             if (buttons.Home && buttons.Plus)
@@ -1625,7 +1661,7 @@ namespace WiimoteGun
                 if (!_overlayTriggered)
                 {
                     ticks = -1;
-
+ 
                     if (_mode == WiiMoteMode.Mouse)
                         _calculator.Calibrate();
                 }
@@ -1900,17 +1936,23 @@ namespace WiimoteGun
                 VMultiGamepadReport report = VMultiGamepadReport.Create();
 
                 // --- Buttons ---
+                // Suppress Home / Minus / DPAD if they are being used for offset adjustment
+                // (EN/FR: Supprimer Home / Minus / DPAD s'ils sont utilisés pour l'ajustement de l'offset)
+                bool homePressed = state.Buttons.Home && !_isOffsetAdjustmentActive;
+                bool minusPressed = state.Buttons.Minus && !_isOffsetAdjustmentActive;
+                bool dpadActive = !_isOffsetAdjustmentActive;
+
                 report.SetButton(mappings.WiiA, state.Buttons.A);
                 report.SetButton(mappings.WiiB, state.Buttons.B);
                 report.SetButton(mappings.Wii1, state.Buttons.One);
                 report.SetButton(mappings.Wii2, state.Buttons.Two);
                 report.SetButton(mappings.WiiPlus, state.Buttons.Plus);
-                report.SetButton(mappings.WiiMinus, state.Buttons.Minus);
-                report.SetButton(mappings.WiiUp, state.Buttons.Up);
-                report.SetButton(mappings.WiiDown, state.Buttons.Down);
-                report.SetButton(mappings.WiiLeft, state.Buttons.Left);
-                report.SetButton(mappings.WiiRight, state.Buttons.Right);
-                report.SetButton(mappings.WiiHome, state.Buttons.Home);
+                report.SetButton(mappings.WiiMinus, minusPressed);
+                report.SetButton(mappings.WiiUp, state.Buttons.Up && dpadActive);
+                report.SetButton(mappings.WiiDown, state.Buttons.Down && dpadActive);
+                report.SetButton(mappings.WiiLeft, state.Buttons.Left && dpadActive);
+                report.SetButton(mappings.WiiRight, state.Buttons.Right && dpadActive);
+                report.SetButton(mappings.WiiHome, homePressed);
 
                 // Check for Nunchuk (Stand-alone OR via MotionPlus)
                 // (EN/FR: Vérifier Nunchuk (Seul OU via MotionPlus))

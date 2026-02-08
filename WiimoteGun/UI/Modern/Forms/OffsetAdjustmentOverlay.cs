@@ -23,10 +23,11 @@ namespace WiimoteGun.UI.Modern.Forms
         private int _offsetY = 0;
         private volatile bool _isShowing = false;
         private volatile bool _isFadingOut = false;
+        private Point? _manualIrPosition = null;
         
         // Fade animation (EN/FR: Animation de fondu)
-        // Very slow fade: 0.007 opacity decrease per 30ms tick = ~4.0 seconds total fade
-        private const double FADE_STEP = 0.007;
+        // Normal fade: 0.003 opacity decrease per 30ms tick = ~10 seconds total fade
+        private const double FADE_STEP = 0.003;
         private System.Windows.Forms.Timer _fadeTimer;
         
         // Colors per player (EN/FR: Couleurs par joueur)
@@ -147,21 +148,32 @@ namespace WiimoteGun.UI.Modern.Forms
             }
         }
         
-        private void OnOffsetChanged(int playerIndex, int offsetX, int offsetY, bool isActive)
+        private void OnOffsetChanged(int playerIndex, int offsetX, int offsetY, bool isActive, Point? irPosition)
         {
-            // Store values thread-safely (EN/FR: Stocker valeurs thread-safe)
+            // Always update offsets and position if provided (EN/FR: Toujours mettre à jour les offsets et la position si fournie)
             _playerIndex = playerIndex;
             _offsetX = offsetX;
             _offsetY = offsetY;
             
+            if (irPosition.HasValue)
+            {
+                _manualIrPosition = irPosition;
+            }
+
             if (isActive)
             {
-                // Always reset opacity and show when active (EN/FR: Toujours reset opacité et afficher si actif)
-                // This handles both initial show and direction change during fade
-                SafeInvoke(() => ShowOverlay());
+                // Trigger show only if not already fully shown (EN/FR: Déclencher affichage seulement si pas déjà affiché)
+                // This prevents logging spam and redundant setup at 100Hz
+                if (!_isShowing || _isFadingOut)
+                {
+                    SafeInvoke(() => ShowOverlay());
+                }
             }
             else if (_isShowing && !_isFadingOut)
             {
+                // NOTE: DO NOT clear _manualIrPosition here, keep last known position for duration of fade 
+                // (EN/FR: Ne pas effacer la position ici, garder la dernière connue le temps du fondu)
+                
                 // Start smooth fade out (EN/FR: Démarrer fondu smooth)
                 _isFadingOut = true;
                 SafeInvoke(() => StartFadeOut());
@@ -254,6 +266,7 @@ namespace WiimoteGun.UI.Modern.Forms
                     _isShowing = false;
                     this.Visible = false;
                     _cursorDot.HideDot();
+                    _manualIrPosition = null; // Reset for next time (EN/FR: Reset pour la prochaine fois)
                     this.Opacity = 0.95; // Reset for next show (EN/FR: Réinitialiser pour prochain affichage)
                     _cursorDot.SetOpacity(1.0);
                     SimpleLogger.Instance.Info($"[OffsetOverlay] Hidden. Final: X={_offsetX}, Y={_offsetY}");
@@ -273,7 +286,7 @@ namespace WiimoteGun.UI.Modern.Forms
             if (_isShowing && this.Visible)
             {
                 UpdatePosition();
-                _cursorDot.UpdatePosition();
+                _cursorDot.UpdatePosition(_manualIrPosition);
                 this.Invalidate();
             }
         }
@@ -282,7 +295,7 @@ namespace WiimoteGun.UI.Modern.Forms
         {
             try
             {
-                Point cursor = Cursor.Position;
+                Point cursor = _manualIrPosition ?? Cursor.Position;
                 Screen screen = Screen.FromPoint(cursor);
                 Rectangle bounds = screen.Bounds;
                 
@@ -424,7 +437,7 @@ namespace WiimoteGun.UI.Modern.Forms
         
         public void ShowDot()
         {
-            UpdatePosition();
+            UpdatePosition(null); // Initial position
             this.Visible = true;
             this.BringToFront();
         }
@@ -434,11 +447,11 @@ namespace WiimoteGun.UI.Modern.Forms
             this.Visible = false;
         }
         
-        public void UpdatePosition()
+        public void UpdatePosition(Point? manualPos)
         {
             try
             {
-                Point cursor = Cursor.Position;
+                Point cursor = manualPos ?? Cursor.Position;
                 // Center dot on cursor (EN/FR: Centrer le point sur le curseur)
                 this.Location = new Point(cursor.X - DOT_SIZE / 2, cursor.Y - DOT_SIZE / 2);
             }
