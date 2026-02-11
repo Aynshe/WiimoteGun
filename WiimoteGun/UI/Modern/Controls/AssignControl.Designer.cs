@@ -37,7 +37,7 @@ namespace WiimoteGun.Controls
             this.btnDevices1 = new System.Windows.Forms.Button();
             this.btnIdentify1 = new System.Windows.Forms.Button();
             this.lblBattery1 = new System.Windows.Forms.Label();
-            this.lblMac1 = new System.Windows.Forms.Label();
+            this.lblDeviceInfo1 = new System.Windows.Forms.Label();
             this.lblStatus1 = new System.Windows.Forms.Label();
             this.lblPlayerName1 = new System.Windows.Forms.Label();
             this.panelPlayer2 = new System.Windows.Forms.Panel();
@@ -55,7 +55,7 @@ namespace WiimoteGun.Controls
             this.btnDevices2 = new System.Windows.Forms.Button();
             this.btnIdentify2 = new System.Windows.Forms.Button();
             this.lblBattery2 = new System.Windows.Forms.Label();
-            this.lblMac2 = new System.Windows.Forms.Label();
+            this.lblDeviceInfo2 = new System.Windows.Forms.Label();
             this.lblStatus2 = new System.Windows.Forms.Label();
             this.lblPlayerName2 = new System.Windows.Forms.Label();
             this.panelPlayer3 = new System.Windows.Forms.Panel();
@@ -73,7 +73,7 @@ namespace WiimoteGun.Controls
             this.btnDevices3 = new System.Windows.Forms.Button();
             this.btnIdentify3 = new System.Windows.Forms.Button();
             this.lblBattery3 = new System.Windows.Forms.Label();
-            this.lblMac3 = new System.Windows.Forms.Label();
+            this.lblDeviceInfo3 = new System.Windows.Forms.Label();
             this.lblStatus3 = new System.Windows.Forms.Label();
             this.lblPlayerName3 = new System.Windows.Forms.Label();
             this.panelPlayer4 = new System.Windows.Forms.Panel();
@@ -90,7 +90,7 @@ namespace WiimoteGun.Controls
             this.btnDevices4 = new System.Windows.Forms.Button();
             this.btnIdentify4 = new System.Windows.Forms.Button();
             this.lblBattery4 = new System.Windows.Forms.Label();
-            this.lblMac4 = new System.Windows.Forms.Label();
+            this.lblDeviceInfo4 = new System.Windows.Forms.Label();
             this.lblStatus4 = new System.Windows.Forms.Label();
             this.lblPlayerName4 = new System.Windows.Forms.Label();
             this.btnBack = new System.Windows.Forms.Button();
@@ -150,7 +150,7 @@ namespace WiimoteGun.Controls
             this.panelPlayer1.Controls.Add(this.btnDevices1);
             this.panelPlayer1.Controls.Add(this.btnIdentify1);
             this.panelPlayer1.Controls.Add(this.lblBattery1);
-            this.panelPlayer1.Controls.Add(this.lblMac1);
+            this.panelPlayer1.Controls.Add(this.lblDeviceInfo1);
             this.panelPlayer1.Controls.Add(this.lblStatus1);
             this.panelPlayer1.Controls.Add(this.lblPlayerName1);
             this.panelPlayer1.Location = new System.Drawing.Point(10, 5);
@@ -313,13 +313,13 @@ namespace WiimoteGun.Controls
             // 
             // lblMac1
             // 
-            this.lblMac1.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.lblMac1.ForeColor = System.Drawing.Color.Gray;
-            this.lblMac1.Location = new System.Drawing.Point(120, 40);
-            this.lblMac1.Name = "lblMac1";
-            this.lblMac1.Size = new System.Drawing.Size(200, 20);
-            this.lblMac1.TabIndex = 13;
-            this.lblMac1.Text = "MAC: --:--:--:--:--:--";
+            this.lblDeviceInfo1.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.lblDeviceInfo1.ForeColor = System.Drawing.Color.Gray;
+            this.lblDeviceInfo1.Location = new System.Drawing.Point(120, 40);
+            this.lblDeviceInfo1.Name = "lblDeviceInfo1";
+            this.lblDeviceInfo1.Size = new System.Drawing.Size(200, 20);
+            this.lblDeviceInfo1.TabIndex = 13;
+            this.lblDeviceInfo1.Text = "ID: --:--:--:--:--:--";
             // 
             // lblStatus1
             // 
@@ -359,7 +359,7 @@ namespace WiimoteGun.Controls
             this.panelPlayer2.Controls.Add(this.btnDevices2);
             this.panelPlayer2.Controls.Add(this.btnIdentify2);
             this.panelPlayer2.Controls.Add(this.lblBattery2);
-            this.panelPlayer2.Controls.Add(this.lblMac2);
+            this.panelPlayer2.Controls.Add(this.lblDeviceInfo2);
             this.panelPlayer2.Controls.Add(this.lblStatus2);
             this.panelPlayer2.Controls.Add(this.lblPlayerName2);
             this.panelPlayer2.Location = new System.Drawing.Point(10, 170);
@@ -537,13 +537,13 @@ namespace WiimoteGun.Controls
             // 
             // lblMac2
             // 
-            this.lblMac2.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.lblMac2.ForeColor = System.Drawing.Color.Gray;
-            this.lblMac2.Location = new System.Drawing.Point(120, 40);
-            this.lblMac2.Name = "lblMac2";
-            this.lblMac2.Size = new System.Drawing.Size(200, 20);
-            this.lblMac2.TabIndex = 14;
-            this.lblMac2.Text = "MAC: --:--:--:--:--:--";
+            this.lblDeviceInfo2.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.lblDeviceInfo2.ForeColor = System.Drawing.Color.Gray;
+            this.lblDeviceInfo2.Location = new System.Drawing.Point(120, 40);
+            this.lblDeviceInfo2.Name = "lblDeviceInfo2";
+            this.lblDeviceInfo2.Size = new System.Drawing.Size(200, 20);
+            this.lblDeviceInfo2.TabIndex = 14;
+            this.lblDeviceInfo2.Text = "ID: --:--:--:--:--:--";
             // 
             // lblStatus2
             // 
@@ -583,7 +583,7 @@ namespace WiimoteGun.Controls
             this.panelPlayer3.Controls.Add(this.btnDevices3);
             this.panelPlayer3.Controls.Add(this.btnIdentify3);
             this.panelPlayer3.Controls.Add(this.lblBattery3);
-            this.panelPlayer3.Controls.Add(this.lblMac3);
+            this.panelPlayer3.Controls.Add(this.lblDeviceInfo3);
             this.panelPlayer3.Controls.Add(this.lblStatus3);
             this.panelPlayer3.Controls.Add(this.lblPlayerName3);
             this.panelPlayer3.Location = new System.Drawing.Point(10, 335);
@@ -761,13 +761,13 @@ namespace WiimoteGun.Controls
             // 
             // lblMac3
             // 
-            this.lblMac3.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.lblMac3.ForeColor = System.Drawing.Color.Gray;
-            this.lblMac3.Location = new System.Drawing.Point(120, 40);
-            this.lblMac3.Name = "lblMac3";
-            this.lblMac3.Size = new System.Drawing.Size(200, 20);
-            this.lblMac3.TabIndex = 14;
-            this.lblMac3.Text = "MAC: --:--:--:--:--:--";
+            this.lblDeviceInfo3.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.lblDeviceInfo3.ForeColor = System.Drawing.Color.Gray;
+            this.lblDeviceInfo3.Location = new System.Drawing.Point(120, 40);
+            this.lblDeviceInfo3.Name = "lblDeviceInfo3";
+            this.lblDeviceInfo3.Size = new System.Drawing.Size(200, 20);
+            this.lblDeviceInfo3.TabIndex = 14;
+            this.lblDeviceInfo3.Text = "ID: --:--:--:--:--:--";
             // 
             // lblStatus3
             // 
@@ -806,7 +806,7 @@ namespace WiimoteGun.Controls
             this.panelPlayer4.Controls.Add(this.btnDevices4);
             this.panelPlayer4.Controls.Add(this.btnIdentify4);
             this.panelPlayer4.Controls.Add(this.lblBattery4);
-            this.panelPlayer4.Controls.Add(this.lblMac4);
+            this.panelPlayer4.Controls.Add(this.lblDeviceInfo4);
             this.panelPlayer4.Controls.Add(this.lblStatus4);
             this.panelPlayer4.Controls.Add(this.lblPlayerName4);
             this.panelPlayer4.Location = new System.Drawing.Point(10, 500);
@@ -969,13 +969,13 @@ namespace WiimoteGun.Controls
             // 
             // lblMac4
             // 
-            this.lblMac4.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.lblMac4.ForeColor = System.Drawing.Color.Gray;
-            this.lblMac4.Location = new System.Drawing.Point(120, 40);
-            this.lblMac4.Name = "lblMac4";
-            this.lblMac4.Size = new System.Drawing.Size(200, 20);
-            this.lblMac4.TabIndex = 13;
-            this.lblMac4.Text = "MAC: --:--:--:--:--:--";
+            this.lblDeviceInfo4.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.lblDeviceInfo4.ForeColor = System.Drawing.Color.Gray;
+            this.lblDeviceInfo4.Location = new System.Drawing.Point(120, 40);
+            this.lblDeviceInfo4.Name = "lblDeviceInfo4";
+            this.lblDeviceInfo4.Size = new System.Drawing.Size(200, 20);
+            this.lblDeviceInfo4.TabIndex = 13;
+            this.lblDeviceInfo4.Text = "ID: --:--:--:--:--:--";
             // 
             // lblStatus4
             // 
@@ -1055,7 +1055,7 @@ namespace WiimoteGun.Controls
         // Player 1 Controls
         private System.Windows.Forms.Label lblPlayerName1;
         private System.Windows.Forms.Label lblStatus1;
-        private System.Windows.Forms.Label lblMac1;
+        private System.Windows.Forms.Label lblDeviceInfo1;
         private System.Windows.Forms.Label lblBattery1;
         private System.Windows.Forms.Button btnIdentify1;
         private System.Windows.Forms.Button btnDevices1;
@@ -1072,7 +1072,7 @@ namespace WiimoteGun.Controls
         // Player 2 Controls
         private System.Windows.Forms.Label lblPlayerName2;
         private System.Windows.Forms.Label lblStatus2;
-        private System.Windows.Forms.Label lblMac2;
+        private System.Windows.Forms.Label lblDeviceInfo2;
         private System.Windows.Forms.Label lblBattery2;
         private System.Windows.Forms.Button btnIdentify2;
         private System.Windows.Forms.Button btnDevices2;
@@ -1089,7 +1089,7 @@ namespace WiimoteGun.Controls
         // Player 3 Controls
         private System.Windows.Forms.Label lblPlayerName3;
         private System.Windows.Forms.Label lblStatus3;
-        private System.Windows.Forms.Label lblMac3;
+        private System.Windows.Forms.Label lblDeviceInfo3;
         private System.Windows.Forms.Label lblBattery3;
         private System.Windows.Forms.Button btnIdentify3;
         private System.Windows.Forms.Button btnDevices3;
@@ -1106,7 +1106,7 @@ namespace WiimoteGun.Controls
         // Player 4 Controls
         private System.Windows.Forms.Label lblPlayerName4;
         private System.Windows.Forms.Label lblStatus4;
-        private System.Windows.Forms.Label lblMac4;
+        private System.Windows.Forms.Label lblDeviceInfo4;
         private System.Windows.Forms.Label lblBattery4;
         private System.Windows.Forms.Button btnIdentify4;
         private System.Windows.Forms.Button btnDevices4;

@@ -172,7 +172,7 @@ namespace WiimoteGun.Controls
                 }
 
                 Label lblStatus = GetCtrl("lblStatus") as Label;
-                Label lblMac = GetCtrl("lblMac") as Label;
+                Label lblDeviceInfo = GetCtrl("lblDeviceInfo") as Label;
                 Label lblBattery = GetCtrl("lblBattery") as Label;
                 Button btnIdentify = GetCtrl("btnIdentify") as Button;
                 
@@ -180,7 +180,43 @@ namespace WiimoteGun.Controls
                 {
                     lblStatus.Text = "Connected";
                     lblStatus.ForeColor = Color.LightGreen;
-                    lblMac.Text = "MAC: " + controller.Wiimote.Address.ToString();
+                    
+                    if (controller.Wiimote.Device.IsBluetooth)
+                    {
+                        lblDeviceInfo.Text = "MAC: " + controller.Wiimote.Address.ToString();
+                    }
+                    else
+                    {
+                        // DolphinBar / HID Mode (EN/FR: Mode DolphinBar / HID)
+                        // Display Instance ID or Path (EN/FR: Afficher ID Instance ou Chemin)
+                        string hidPath = controller.Wiimote.DevicePath;
+                        // Extract a shorter identifier if possible (e.g. VID/PID + Instance)
+                        // Path format: \\?\hid#vid_057e&pid_0306#...
+                        string shortId = "HID Device";
+                        try 
+                        {
+                           if (!string.IsNullOrEmpty(hidPath) && hidPath.Contains("#"))
+                           {
+                               string[] parts = hidPath.Split('#');
+                               if (parts.Length >= 3)
+                               {
+                                   // parts[1] is VID_...&PID_...
+                                   // parts[2] is Instance ID
+                                   shortId = $"HID: ...{parts[2].Substring(0, Math.Min(12, parts[2].Length))}...";
+                               }
+                           }
+                        }
+                        catch {}
+                        
+                        lblDeviceInfo.Text = shortId;
+                        // Add tooltip for full path (EN/FR: Ajouter info-bulle pour chemin complet)
+                        if (lblDeviceInfo.Tag == null)
+                        {
+                            System.Windows.Forms.ToolTip tt = new System.Windows.Forms.ToolTip();
+                            tt.SetToolTip(lblDeviceInfo, hidPath);
+                            lblDeviceInfo.Tag = tt; // Prevent re-creating tooltip
+                        }
+                    }
                     
                     float batteryLevel = controller.Wiimote.WiimoteState.Status.Battery;
                     lblBattery.Text = $"🔋 {batteryLevel:F1}%";
@@ -227,7 +263,7 @@ namespace WiimoteGun.Controls
                         lblStatus.ForeColor = Color.Gray;
                     }
                     
-                    if (lblMac != null) lblMac.Text = "MAC: --:--:--:--:--:--";
+                    if (lblDeviceInfo != null) lblDeviceInfo.Text = "ID: --:--:--:--:--:--";
                     
                     if (lblBattery != null)
                     {
