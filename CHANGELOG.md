@@ -4,14 +4,23 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [2.2.2] - 2026-02-08
+## [2.2.2] - 2026-02-11
 
 ### Added
+- **Bidirectional Player Swap** - New UI controls to hot-swap Wiimotes between player slots (e.g. Move P1 to P2) without disconnection. The system handles driver re-initialization seamlessly.
+- **Player Slot Locking** - Ability to lock specific player slots (e.g. P1) to reserve them for external devices like Gun4IR or Sinden. Wiimotes will automatically skip locked slots during connection.
+- **IR Tracking Optimizations** - Two optional performance enhancements: EMA Smoothing (configurable strength 1-10) to reduce cursor micro-jitter, and High Performance Timers (DateTime.UtcNow) to reduce internal latency. Both disabled by default, toggleable in Options > General.
+- **Homography Cache** - Optional optimization for static calibration modes (WiimoteBar, Gun4IR, FourCorners) that caches the projection matrix to avoid recalculating it every frame, saving significant CPU cycles.
+- **Smooth Overlay Tracking** - The calibration overlay now follows the IR pointer in real-time (100Hz) even after releasing the D-pad, providing continuous visual feedback.
+- **Extended Offset Range** - Increased the software offset adjustment range from +/- 100 to +/- 200 to accommodate more varied setups and screen sizes.
+- **Extended Feedback Phase** - The overlay now maintains IR tracking during the 10-second fade-out period after releasing the modifier button.
 - **GamePad Mode Automation** - Complete automation for DuckStation and PCSX2. The system now dynamically updates emulator profiles to map the correct DirectInput indices as Wiimotes connect/disconnect or switch modes.
 - **Dynamic Profile Tagging** - Automatic inhibition of guns in emulator profiles (using `-wiimotegun` tags) when Wiimotes are in Mouse mode, ensuring they don't interfere with standard gamepad inputs.
 - **Real-time Sync** - Profile updates are now triggered instantly upon Wiimote mode switches (GamePad <-> Mouse).
 
 ### Fixed
+- **Hotkey Logic Improvements** - Fixed modifier keys (Home/Minus) blocking native inputs. They are now only suppressed when part of an active combo, allowing normal usage otherwise.
+- **Emulator Process Access (Access Denied)** - Fixed a critical issue where WiimoteGun would disconnect if a monitored emulator (RetroArch, MAME, etc.) was launched with administrator privileges. The process status check is now safely handled.
 - **Wiimote Rumble Regression** - Fixed an issue where the rumble would occasionally become continuous. The stop timer is now persistent to prevent premature garbage collection.
 - **Real-time Log Rotation** - Log files are now rotated mid-run when they exceed 1.5MB, preventing disk space issues during long sessions with high debug output.
 - **RetroBat Discovery** - Robust detection of the `emulators` folder using the RetroBat registry path, with support for symbolic links and junctions.

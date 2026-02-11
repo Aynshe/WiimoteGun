@@ -61,16 +61,6 @@ namespace WiimoteGun
             this._cmbTriggerButton.Font = new System.Drawing.Font("Segoe UI", 10F);
             this._cmbTriggerButton.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(224)))), ((int)(((byte)(224)))), ((int)(((byte)(224)))));
             this._cmbTriggerButton.FormattingEnabled = true;
-            this._cmbTriggerButton.Items.AddRange(new object[] {
-            "A",
-            "B",
-            "One",
-            "Two",
-            "Minus",
-            "Up",
-            "Down",
-            "Left",
-            "Right"});
             this._cmbTriggerButton.Location = new System.Drawing.Point(150, 17);
             this._cmbTriggerButton.Name = "_cmbTriggerButton";
             this._cmbTriggerButton.Size = new System.Drawing.Size(250, 25);

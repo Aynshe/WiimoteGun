@@ -299,6 +299,18 @@ namespace WiimoteGun
                 RumbleRepetitionMs_P3 = 150;
                 RumbleRepetitionMs_P4 = 150;
 
+                // Locked player slots (EN/FR: Slots joueur verrouillés)
+                LockedSlot_P1 = false;
+                LockedSlot_P2 = false;
+                LockedSlot_P3 = false;
+                LockedSlot_P4 = false;
+
+                // IR Tracking Optimizations (EN/FR: Optimisations tracking IR)
+                EnableIRSmoothing = false;
+                IRSmoothingStrength = 5;
+                UseHighPerfTimers = false;
+                EnableHomographyCache = false;
+
                 DefaultMouseMode = MouseMode.RawInput;
                 GyroSensitivityX = 1.0f;
                 GyroSensitivityY = 1.0f;
@@ -971,6 +983,31 @@ namespace WiimoteGun
         public int RumbleRepetitionMs_P3 { get; set; }
         public int RumbleRepetitionMs_P4 { get; set; }
 
+        // Locked player slots — reserved for external devices like Gun4IR
+        // (EN/FR: Slots joueur verrouillés — réservés pour périphériques externes comme Gun4IR)
+        [DefaultValue(false)]
+        public bool LockedSlot_P1 { get; set; }
+        [DefaultValue(false)]
+        public bool LockedSlot_P2 { get; set; }
+        [DefaultValue(false)]
+        public bool LockedSlot_P3 { get; set; }
+        [DefaultValue(false)]
+        public bool LockedSlot_P4 { get; set; }
+
+        // IR Tracking Optimizations — optional, disabled by default
+        // (EN/FR: Optimisations tracking IR — optionnelles, désactivées par défaut)
+        [DefaultValue(false)]
+        public bool EnableIRSmoothing { get; set; }
+
+        [DefaultValue(5)]
+        public int IRSmoothingStrength { get; set; } // 1=minimal, 10=heavy (EN/FR: 1=minimal, 10=fort)
+
+        [DefaultValue(false)]
+        public bool UseHighPerfTimers { get; set; }
+
+        [DefaultValue(false)]
+        public bool EnableHomographyCache { get; set; } // Cache static homography matrix (EN/FR: Mise en cache matrice homographie statique)
+
         // Gesture & Reload Settings (EN/FR: Paramètres Gestes & Rechargement)
         [DefaultValue(false)]
         public bool EnableOffScreenReload { get; set; }
@@ -1438,6 +1475,37 @@ namespace WiimoteGun
                 case 2: RumbleDurationMs_P2 = durationMs; break;
                 case 3: RumbleDurationMs_P3 = durationMs; break;
                 case 4: RumbleDurationMs_P4 = durationMs; break;
+            }
+        }
+
+        /// <summary>
+        /// EN: Check if a player slot is locked (reserved for external device).
+        /// FR: Vérifier si un slot joueur est verrouillé (réservé pour périphérique externe).
+        /// </summary>
+        public bool GetLockedSlot(int playerIndex)
+        {
+            switch (playerIndex)
+            {
+                case 1: return LockedSlot_P1;
+                case 2: return LockedSlot_P2;
+                case 3: return LockedSlot_P3;
+                case 4: return LockedSlot_P4;
+                default: return false;
+            }
+        }
+
+        /// <summary>
+        /// EN: Lock or unlock a player slot.
+        /// FR: Verrouiller ou déverrouiller un slot joueur.
+        /// </summary>
+        public void SetLockedSlot(int playerIndex, bool locked)
+        {
+            switch (playerIndex)
+            {
+                case 1: LockedSlot_P1 = locked; break;
+                case 2: LockedSlot_P2 = locked; break;
+                case 3: LockedSlot_P3 = locked; break;
+                case 4: LockedSlot_P4 = locked; break;
             }
         }
 

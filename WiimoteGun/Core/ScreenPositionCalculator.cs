@@ -121,6 +121,11 @@ namespace WiimoteGun
         private bool _wasUsingRelativeTracking = false;
         private int _framesSinceTransition = 0;
 
+        // Cached static homography matrix — avoids recomputing Gaussian elimination every frame
+        // Invalidated on calibration change. Only used for static modes (not Dynamic).
+        // (EN/FR: Cache matrice homographie statique — évite recalcul élimination Gauss chaque frame)
+        private float[] _cachedStaticHomography = null;
+
         private CalibrateForm _calibrateForm;
         private WiimoteGun.UI.Legacy.IRVisualizerForm _irVisualizer; // (EN/FR: Fenêtre visualisation IR)
 
@@ -314,6 +319,7 @@ namespace WiimoteGun
             }
 
             Options.Instance.Save();
+            _cachedStaticHomography = null; // Invalidate cache after new calibration (EN/FR: Invalider cache après nouvelle calibration)
 
             var frm = _calibrateForm;
             _calibrateForm = null;
@@ -339,6 +345,7 @@ namespace WiimoteGun
             _bottomRightPt = null;
             _bottomLeftPt = null; // NEW: Reset 4th point (EN/FR: Réinitialiser 4e point)
             for(int i=0; i<5; i++) _gun4irPoints[i] = null; // Reset Gun4IR points
+            _cachedStaticHomography = null; // Invalidate homography cache (EN/FR: Invalider cache homographie)
         }
 
         public Point2F? GetScaledPosition(WiimoteLib.DataTypes.IRState ir, WiimoteLib.DataTypes.ButtonState buttons, WiimoteLib.DataTypes.ButtonState lastState)
@@ -454,8 +461,18 @@ namespace WiimoteGun
                         dst[2] = new Point2F(1.0f, 1.0f); // BR
                         dst[3] = new Point2F(0.0f, 1.0f); // BL
 
-                        // Compute Homography Matrix (EN/FR: Calculer matrice homographie)
-                        float[] H = ComputeHomography(src, dst);
+                        // Compute or use cached Homography Matrix (EN/FR: Calculer ou utiliser matrice homographie en cache)
+                        float[] H;
+                        if (Options.Instance.EnableHomographyCache && _cachedStaticHomography != null)
+                        {
+                            H = _cachedStaticHomography;
+                        }
+                        else
+                        {
+                            H = ComputeHomography(src, dst);
+                            if (Options.Instance.EnableHomographyCache)
+                                _cachedStaticHomography = H;
+                        }
 
                         // Apply Homography to Current Position (EN/FR: Appliquer homographie à position actuelle)
                         float x = relativePosition.X;
@@ -669,8 +686,18 @@ namespace WiimoteGun
                                 dst[2] = new Point2F(0.5f, 1.0f); // Bottom Center
                                 dst[3] = new Point2F(0.0f, 0.5f); // Left Center
 
-                                // Compute Homography Matrix
-                                float[] H = ComputeHomography(src, dst);
+                                // Compute or use cached Homography Matrix (EN/FR: Calculer ou utiliser cache)
+                                float[] H;
+                                if (Options.Instance.EnableHomographyCache && _cachedStaticHomography != null)
+                                {
+                                    H = _cachedStaticHomography;
+                                }
+                                else
+                                {
+                                    H = ComputeHomography(src, dst);
+                                    if (Options.Instance.EnableHomographyCache)
+                                        _cachedStaticHomography = H;
+                                }
 
                                 // Apply Homography to Current Position (Midpoint)
                                 float x = relativePosition.X;
@@ -704,8 +731,18 @@ namespace WiimoteGun
                                 dst[2] = new Point2F(1.0f, 1.0f); // BR
                                 dst[3] = new Point2F(0.0f, 1.0f); // BL
 
-                                // Compute Homography Matrix
-                                float[] H = ComputeHomography(src, dst);
+                                // Compute or use cached Homography Matrix (EN/FR: Calculer ou utiliser cache)
+                                float[] H;
+                                if (Options.Instance.EnableHomographyCache && _cachedStaticHomography != null)
+                                {
+                                    H = _cachedStaticHomography;
+                                }
+                                else
+                                {
+                                    H = ComputeHomography(src, dst);
+                                    if (Options.Instance.EnableHomographyCache)
+                                        _cachedStaticHomography = H;
+                                }
 
                                 // Apply Homography to Current Position (Midpoint)
                                 float x = relativePosition.X;

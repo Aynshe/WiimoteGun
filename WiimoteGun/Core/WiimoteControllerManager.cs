@@ -140,21 +140,30 @@ namespace WiimoteGun
                 else if (Options.Instance.PreferredMacP3 == mac) playerIndex = 3;
                 else if (Options.Instance.PreferredMacP4 == mac) playerIndex = 4;
 
-                // 2. If found, check if available
+                // 2. If found, check if available and not locked
+                // (EN/FR: Si trouvé, vérifier disponibilité et non verrouillé)
                 if (playerIndex != -1)
                 {
-                    if (_controllers.Any(c => c.PlayerIndex == playerIndex))
+                    if (Options.Instance.GetLockedSlot(playerIndex))
+                    {
+                        SimpleLogger.Instance.Warning($"Wiimote {mac} preferred for P{playerIndex} but slot is locked. Finding next available.");
+                        playerIndex = -1;
+                    }
+                    else if (_controllers.Any(c => c.PlayerIndex == playerIndex))
                     {
                         SimpleLogger.Instance.Warning($"Wiimote {mac} is preferred for P{playerIndex} but slot is busy. Finding next available.");
                         playerIndex = -1;
                     }
                 }
 
-                // 3. If not found or busy, find first available slot
+                // 3. If not found or busy, find first available unlocked slot
+                // (EN/FR: Si non trouvé, trouver le premier slot disponible et non verrouillé)
                 if (playerIndex == -1)
                 {
                     for (int i = 1; i <= MaxWiimotes; i++)
                     {
+                        // Skip locked slots (EN/FR: Ignorer slots verrouillés)
+                        if (Options.Instance.GetLockedSlot(i)) continue;
                         if (!_controllers.Any(c => c.PlayerIndex == i))
                         {
                             playerIndex = i;
@@ -377,6 +386,100 @@ namespace WiimoteGun
             {
                 _refreshTimer.Change(1000, System.Threading.Timeout.Infinite);
             }
+        }
+        /// <summary>
+        /// EN: Swap a connected Wiimote from one player slot to another.
+        /// FR: Déplacer une Wiimote connectée d'un slot joueur vers un autre.
+        /// If the target slot is occupied, the two Wiimotes are swapped.
+        /// Runs on a background thread due to blocking VMulti initialization.
+        /// </summary>
+        /// <param name="fromPlayer">Source player index (1-4)</param>
+        /// <param name="toPlayer">Target player index (1-4)</param>
+        /// <param name="onComplete">Callback on UI thread when swap is complete (true=success)</param>
+        public void SwapPlayerSlot(int fromPlayer, int toPlayer, Action<bool> onComplete = null)
+        {
+            if (fromPlayer == toPlayer)
+            {
+                onComplete?.Invoke(false);
+                return;
+            }
+
+            var fromCtrl = _controllers.FirstOrDefault(c => c.PlayerIndex == fromPlayer);
+            if (fromCtrl == null)
+            {
+                SimpleLogger.Instance.Warning($"[Swap] No controller at P{fromPlayer}, nothing to swap.");
+                onComplete?.Invoke(false);
+                return;
+            }
+
+            // Block swap if target slot is locked (EN/FR: Bloquer swap si slot cible verrouillé)
+            if (Options.Instance.GetLockedSlot(toPlayer))
+            {
+                SimpleLogger.Instance.Warning($"[Swap] Target slot P{toPlayer} is locked. Swap rejected.");
+                Program.PostToUIThread(() => onComplete?.Invoke(false));
+                return;
+            }
+
+            var toCtrl = _controllers.FirstOrDefault(c => c.PlayerIndex == toPlayer);
+
+            SimpleLogger.Instance.Info($"[Swap] Starting swap P{fromPlayer} → P{toPlayer}" + 
+                (toCtrl != null ? $" (P{toPlayer} occupied, will swap)" : ""));
+
+            // Save Wiimote references before dispose (EN/FR: Sauvegarder les références Wiimote avant dispose)
+            var fromWiimote = fromCtrl.Wiimote;
+            var toWiimote = toCtrl?.Wiimote;
+
+            // 1. Disable VMulti drivers for both slots (EN/FR: Désactiver pilotes VMulti pour les deux slots)
+            ServiceClient.DisablePlayer(fromPlayer);
+            if (toCtrl != null) ServiceClient.DisablePlayer(toPlayer);
+
+            // 2. Dispose old controllers — cleans up virtual devices but keeps Wiimote connected
+            // (EN/FR: Disposer les vieux contrôleurs — nettoie les périphériques virtuels mais garde la Wiimote connectée)
+            _controllers.Remove(fromCtrl);
+            fromCtrl.Dispose();
+            if (toCtrl != null)
+            {
+                _controllers.Remove(toCtrl);
+                toCtrl.Dispose();
+            }
+
+            // 3. Recreate on background thread (constructor blocks for VMulti init)
+            // (EN/FR: Recréer sur thread arrière-plan car le constructeur bloque pour l'init VMulti)
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    // Small delay to let Service process the DISABLE commands
+                    // (EN/FR: Petit délai pour laisser le Service traiter les commandes DISABLE)
+                    System.Threading.Thread.Sleep(500);
+
+                    // Create new controllers with swapped PlayerIndex
+                    // (EN/FR: Créer les nouveaux contrôleurs avec PlayerIndex inversés)
+                    var newFromCtrl = new WiiMoteController(fromWiimote, toPlayer);
+                    _controllers.Add(newFromCtrl);
+
+                    if (toWiimote != null)
+                    {
+                        var newToCtrl = new WiiMoteController(toWiimote, fromPlayer);
+                        _controllers.Add(newToCtrl);
+                    }
+
+                    // Cleanup ghost mice (EN/FR: Nettoyer les souris fantômes)
+                    ScheduleRemoveUnconnectedMice();
+
+                    SimpleLogger.Instance.Info($"[Swap] Swap complete: P{fromPlayer} ↔ P{toPlayer}");
+                    Program.Notify($"Wiimote swap: P{fromPlayer} ↔ P{toPlayer}");
+
+                    // Callback on UI thread (EN/FR: Callback sur thread UI)
+                    if (onComplete != null) Program.PostToUIThread(() => onComplete(true));
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.Instance.Error($"[Swap] Swap failed: {ex.Message}");
+                    Program.Notify($"Swap failed: {ex.Message}");
+                    if (onComplete != null) Program.PostToUIThread(() => onComplete(false));
+                }
+            });
         }
     }
 }

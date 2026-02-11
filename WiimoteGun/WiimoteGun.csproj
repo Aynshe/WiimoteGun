@@ -357,6 +357,9 @@
     <EmbeddedResource Include="UI\Legacy\AboutBox.resx">
       <DependentUpon>AboutBox.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="UI\Modern\Controls\AssignControl.resx">
+      <DependentUpon>AssignControl.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="UI\Modern\Forms\ModalInputDialog.resx">
       <DependentUpon>ModalInputDialog.cs</DependentUpon>
     </EmbeddedResource>

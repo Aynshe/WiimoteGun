@@ -86,6 +86,11 @@ namespace WiimoteGun
         private int _lastDInputIndex = 0;
         public int DInputIndex { get { return _lastDInputIndex; } }
 
+        // High Performance Timer (EN/FR: Timer haute performance)
+        // Replaces DateTime.Now calls in hot path when enabled
+        // (EN/FR: Remplace les appels DateTime.Now dans le chemin critique quand activé)
+        private Stopwatch _perfStopwatch = Stopwatch.StartNew();
+
         // ... existing code ...
 
         private bool CheckShake(WiimoteState state)
@@ -834,7 +839,9 @@ namespace WiimoteGun
             if (e.WiimoteState == null)
                 return;
 
-            _lastReportTime = DateTime.Now; // Update HID Watchdog
+            _lastReportTime = Options.Instance.UseHighPerfTimers 
+                ? DateTime.UtcNow   // UtcNow is faster than Now (~0.1µs vs ~1µs) (EN/FR: UtcNow plus rapide que Now)
+                : DateTime.Now;     // Standard fallback (EN/FR: Fallback standard)
             lock (_lock)
             {
                 ButtonState buttons = e.WiimoteState.Buttons;
@@ -902,7 +909,22 @@ namespace WiimoteGun
                     return; // Don't process normal input (EN/FR: Ne pas traiter input normal)
                 }
 
-                if (_runningProcess != null && _runningProcess.HasExited)
+                bool hasExited = false;
+                if (_runningProcess != null)
+                {
+                    try
+                    {
+                        hasExited = _runningProcess.HasExited;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Access Denied usually means the process is running but we lack permissions to check it
+                        // (EN/FR: Accès refusé signifie généralement que le processus tourne mais on manque de permissions)
+                        // SimpleLogger.Instance.Debug(string.Format("Could not check if process {0} exited: {1}", _runningProcess.ProcessName, ex.Message));
+                    }
+                }
+
+                if (hasExited)
                 {
                     if (_processLocking && (_mode == WiiMoteMode.Mouse || _mode == WiiMoteMode.Mouse43))
                     {
@@ -960,6 +982,16 @@ namespace WiimoteGun
                         x = (int)scaledPos.Value.X;
                         y = (int)scaledPos.Value.Y;
                         
+                        // EMA Smoothing: smoothed = alpha * raw + (1-alpha) * previous
+                        // (EN/FR: Lissage EMA : lissé = alpha * brut + (1-alpha) * précédent)
+                        if (Options.Instance.EnableIRSmoothing && _lastX != 0 && _lastY != 0)
+                        {
+                            float strength = Math.Max(1, Math.Min(10, Options.Instance.IRSmoothingStrength));
+                            float alpha = 1.0f / strength;
+                            x = (int)(alpha * x + (1.0f - alpha) * _lastX);
+                            y = (int)(alpha * y + (1.0f - alpha) * _lastY);
+                        }
+                        
                         // Check if cursor is at screen edge (EN/FR: Vérifier si curseur est au bord écran)
                         bool atLeftEdge = x <= EDGE_MARGIN;
                         bool atRightEdge = x >= (screenWidth - EDGE_MARGIN);
@@ -1010,7 +1042,7 @@ namespace WiimoteGun
                         
                         _lastX = x;
                         _lastY = y;
-                        _lastIRSeenTime = DateTime.Now;
+                        _lastIRSeenTime = Options.Instance.UseHighPerfTimers ? DateTime.UtcNow : DateTime.Now;
                     }
                     else if (_gyroAimingEnabled)
                     {

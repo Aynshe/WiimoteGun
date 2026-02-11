@@ -391,11 +391,14 @@ namespace WiimoteGun
         /// </summary>
         public static bool IsButtonConsumed(int playerIndex, string button)
         {
-            // 1. Check Modifiers (Always suppress active modifiers)
+            // 1. Check Modifiers (Only suppress if consumed by a combo)
+            // (EN/FR: 1. Vérifier Modificateurs — supprimer uniquement si consommé par un combo)
             if (_activeModifiers.ContainsKey(playerIndex) && 
                 _activeModifiers[playerIndex].ContainsKey(button))
             {
-                return true;
+                // Only consumed if a trigger was activated (true = combo active)
+                // (EN/FR: Consommé uniquement si un trigger a été activé)
+                return _activeModifiers[playerIndex][button];
             }
 
             // 2. Check Triggers (Suppress inputs that are part of a combo)

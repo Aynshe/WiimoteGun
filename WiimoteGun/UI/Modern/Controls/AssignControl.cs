@@ -57,6 +57,40 @@ namespace WiimoteGun.Controls
                 {
                     btnIdentify.Click += (s, e) => IdentifyWiimote(playerIndex);
                 }
+
+                // Bind Lock Button
+                if (GetCtrl("btnLock") is Button btnLock)
+                {
+                    btnLock.Click += (s, e) =>
+                    {
+                        bool isLocked = Options.Instance.GetLockedSlot(playerIndex);
+                        Options.Instance.SetLockedSlot(playerIndex, !isLocked);
+                        Options.Instance.Save();
+                        UpdateUI();
+                    };
+                }
+
+                // Swap Up button (only for P2, P3, P4)
+                // (EN/FR: Bouton swap vers le haut, uniquement pour P2, P3, P4)
+                if (playerIndex > 1)
+                {
+                    if (GetCtrl("btnSwapUp") is Button btnSwapUp)
+                    {
+                        int targetPlayer = playerIndex - 1;
+                        btnSwapUp.Click += (s, e) => PerformSwap(playerIndex, targetPlayer, btnSwapUp, "▲");
+                    }
+                }
+
+                // Swap Down button (only for P1, P2, P3)
+                // (EN/FR: Bouton swap vers le bas, uniquement pour P1, P2, P3)
+                if (playerIndex < 4)
+                {
+                    if (GetCtrl("btnSwapDown") is Button btnSwapDown)
+                    {
+                        int targetPlayer = playerIndex + 1;
+                        btnSwapDown.Click += (s, e) => PerformSwap(playerIndex, targetPlayer, btnSwapDown, "▼");
+                    }
+                }
                 
                 // Bind Rumble Settings
                 if (GetCtrl("chkRumble") is CheckBox chkRumble)
@@ -116,37 +150,78 @@ namespace WiimoteGun.Controls
             {
                 int playerIndex = i + 1;
                 Panel panel = _playerPanels[i];
-                var controller = controllers.FirstOrDefault(c => c.PlayerIndex == playerIndex);
-                
                 Control GetCtrl(string prefix) => panel.Controls[prefix + playerIndex];
                 
+                var controller = controllers.FirstOrDefault(c => c.PlayerIndex == playerIndex);
+                bool isConnected = controller != null && controller.Wiimote.IsConnected;
+                bool isLocked = Options.Instance.GetLockedSlot(playerIndex);
+
+                // Update Lock Button
+                if (GetCtrl("btnLock") is Button btnLock)
+                {
+                    if (isLocked)
+                    {
+                        btnLock.Text = "🔒 Locked";
+                        btnLock.BackColor = Color.FromArgb(180, 40, 40); // Red
+                    }
+                    else
+                    {
+                        btnLock.Text = "🔓 Unlock";
+                        btnLock.BackColor = Color.FromArgb(60, 60, 60); // Gray
+                    }
+                }
+
                 Label lblStatus = GetCtrl("lblStatus") as Label;
                 Label lblMac = GetCtrl("lblMac") as Label;
                 Label lblBattery = GetCtrl("lblBattery") as Label;
                 Button btnIdentify = GetCtrl("btnIdentify") as Button;
                 
-                if (controller != null)
+                if (isConnected)
                 {
-                    if (lblStatus != null)
-                    {
-                        lblStatus.Text = "✓ Connected";
-                        lblStatus.ForeColor = Color.LightGreen;
-                    }
+                    lblStatus.Text = "Connected";
+                    lblStatus.ForeColor = Color.LightGreen;
+                    lblMac.Text = "MAC: " + controller.Wiimote.Address.ToString();
                     
-                    if (lblMac != null) lblMac.Text = $"MAC: {controller.Wiimote.Address}";
+                    float batteryLevel = controller.Wiimote.WiimoteState.Status.Battery;
+                    lblBattery.Text = $"🔋 {batteryLevel:F1}%";
                     
-                    if (lblBattery != null)
-                    {
-                        float battery = controller.Wiimote.WiimoteState.Status.Battery;
-                        lblBattery.Text = $"🔋 {battery:F0}%";
-                        lblBattery.ForeColor = battery < 20 ? Color.Red : Color.White;
-                    }
+                    if (batteryLevel < 20) lblBattery.ForeColor = Color.Red;
+                    else if (batteryLevel < 50) lblBattery.ForeColor = Color.Orange;
+                    else lblBattery.ForeColor = Color.White;
+                    
+                    btnIdentify.Enabled = true;
 
-                    if (btnIdentify != null) btnIdentify.Enabled = true;
+                    // Update Swap Buttons State
+                    // (EN/FR: Mettre à jour l'état des boutons swap)
+                    if (playerIndex > 1)
+                    {
+                        if (GetCtrl("btnSwapUp") is Button btnSwapUp)
+                        {
+                            int targetP = playerIndex - 1;
+                            bool targetLocked = Options.Instance.GetLockedSlot(targetP);
+                            // Enable only if target not locked (EN/FR: Activer seulement si cible non verrouillée)
+                            btnSwapUp.Enabled = !targetLocked;
+                        }
+                    }
+                    if (playerIndex < 4)
+                    {
+                        if (GetCtrl("btnSwapDown") is Button btnSwapDown)
+                        {
+                            int targetP = playerIndex + 1;
+                            bool targetLocked = Options.Instance.GetLockedSlot(targetP);
+                            // Enable only if target not locked
+                            btnSwapDown.Enabled = !targetLocked;
+                        }
+                    }
                 }
                 else
                 {
-                    if (lblStatus != null)
+                    if (isLocked)
+                    {
+                        lblStatus.Text = "🔒 LOCKED (Reserved)";
+                        lblStatus.ForeColor = Color.FromArgb(255, 100, 100);
+                    }
+                    else
                     {
                         lblStatus.Text = "Waiting for connection...";
                         lblStatus.ForeColor = Color.Gray;
@@ -161,6 +236,19 @@ namespace WiimoteGun.Controls
                     }
                     
                     if (btnIdentify != null) btnIdentify.Enabled = false;
+
+                    // Disable swap buttons if not connected
+                    // (EN/FR: Désactiver boutons swap si non connecté)
+                    if (playerIndex > 1)
+                    {
+                        Button btnSwapUp = GetCtrl("btnSwapUp") as Button;
+                        if (btnSwapUp != null) btnSwapUp.Enabled = false;
+                    }
+                    if (playerIndex < 4)
+                    {
+                        Button btnSwapDown = GetCtrl("btnSwapDown") as Button;
+                        if (btnSwapDown != null) btnSwapDown.Enabled = false;
+                    }
                 }
             }
         }
@@ -196,6 +284,43 @@ namespace WiimoteGun.Controls
             {
                 SimpleLogger.Instance.Error($"Failed to open device selection dialog: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// EN: Swap a Wiimote between two player slots, with visual feedback on the button.
+        /// FR: Échanger une Wiimote entre deux slots joueur, avec retour visuel sur le bouton.
+        /// </summary>
+        /// <param name="fromPlayer">Source player index</param>
+        /// <param name="toPlayer">Target player index</param>
+        /// <param name="swapButton">The button that triggered the swap</param>
+        /// <param name="arrow">Arrow symbol for button text restoration (▲ or ▼)</param>
+        private void PerformSwap(int fromPlayer, int toPlayer, System.Windows.Forms.Button swapButton, string arrow)
+        {
+            if (Program.WiiMoteManager == null) return;
+
+            // Disable button during swap to prevent double-click
+            // (EN/FR: Désactiver le bouton pendant le swap pour éviter double-clic)
+            swapButton.Enabled = false;
+            swapButton.Text = "⏳ Swapping...";
+
+            SimpleLogger.Instance.Info($"[UI] Swap requested: P{fromPlayer} → P{toPlayer}");
+
+            Program.WiiMoteManager.SwapPlayerSlot(fromPlayer, toPlayer, success =>
+            {
+                // Callback runs on UI thread (EN/FR: Callback exécuté sur thread UI)
+                if (success)
+                {
+                    SimpleLogger.Instance.Info($"[UI] Swap P{fromPlayer} → P{toPlayer} completed successfully");
+                }
+                else
+                {
+                    SimpleLogger.Instance.Warning($"[UI] Swap P{fromPlayer} → P{toPlayer} failed");
+                }
+
+                // Restore button text (EN/FR: Restaurer le texte du bouton)
+                swapButton.Text = $"{arrow} P{toPlayer}";
+                UpdateUI();
+            });
         }
     }
 }

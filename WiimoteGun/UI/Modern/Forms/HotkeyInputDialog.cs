@@ -20,6 +20,13 @@ namespace WiimoteGun
         private Hotkey _hotkey;
         private List<Keys> _capturedKeys = new List<Keys>();
 
+        // All available modifier buttons (EN/FR: Tous les boutons modifier disponibles)
+        private static readonly string[] AllModifierButtons = new[] { "A", "B", "One", "Two", "Plus", "Minus", "Home", "Up", "Down", "Left", "Right" };
+
+        // Trigger buttons exclude Home — reserved as base modifier, hardware function on Bluetooth
+        // (EN/FR: Les triggers excluent Home — réservé comme modifier de base, fonction matérielle en Bluetooth)
+        private static readonly string[] AllTriggerButtons = new[] { "A", "B", "One", "Two", "Plus", "Minus", "Up", "Down", "Left", "Right" };
+
         // Colors are now handled in Designer, or can be kept here if dynamic
         private static readonly Color ColorAccent = Color.FromArgb(0, 122, 204);
 
@@ -81,11 +88,75 @@ namespace WiimoteGun
             _cmbModifier.Font = new System.Drawing.Font("Segoe UI", 10F);
             _cmbModifier.Location = new Point(150, 17);
             _cmbModifier.Size = new Size(250, 25);
-            // Populate from HotkeyManager.AllowedModifiers or manual list
-            // (EN/FR: Remplir depuis HotkeyManager ou liste manuelle)
-            string[] modifiers = new[] { "Home", "Minus", "Plus", "One", "Two", "A", "B", "Up", "Down", "Left", "Right" };
-            _cmbModifier.Items.AddRange(modifiers);
+            // Populate modifier list — filter Home if DolphinBar mode
+            // (EN/FR: Remplir la liste modifier — masquer Home si mode DolphinBar)
+            foreach (string btn in AllModifierButtons)
+            {
+                // DolphinBar: Home is a hardware button (changes connection mode with D-pad)
+                // (EN/FR: DolphinBar : Home est un bouton matériel, change le mode de connexion avec D-pad)
+                if (string.Equals(btn, "Home", StringComparison.OrdinalIgnoreCase) && Options.Instance.DetectDolphinbar)
+                    continue;
+
+                _cmbModifier.Items.Add(btn);
+            }
+            _cmbModifier.SelectedIndexChanged += CmbModifier_SelectedIndexChanged;
             this.Controls.Add(_cmbModifier);
+        }
+
+        /// <summary>
+        /// Update trigger list when modifier changes, excluding the selected modifier
+        /// (EN/FR: Mettre à jour la liste trigger quand le modifier change, en excluant le modifier sélectionné)
+        /// </summary>
+        private void CmbModifier_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            UpdateTriggerList();
+        }
+
+        // D-pad buttons reserved for offset adjustment with Home (BT) or Minus (DolphinBar)
+        // (EN/FR: Boutons D-pad réservés pour l'ajustement d'offset avec Home (BT) ou Minus (DolphinBar))
+        private static readonly HashSet<string> DpadButtons = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Up", "Down", "Left", "Right" };
+
+        /// <summary>
+        /// Populate trigger ComboBox with contextual filtering based on modifier and connection type
+        /// (EN/FR: Remplir le ComboBox trigger avec filtrage contextuel basé sur le modifier et le type de connexion)
+        /// </summary>
+        private void UpdateTriggerList()
+        {
+            string currentTrigger = _cmbTriggerButton.SelectedItem as string;
+            string selectedModifier = _cmbModifier.SelectedItem as string;
+
+            _cmbTriggerButton.Items.Clear();
+
+            foreach (string btn in AllTriggerButtons)
+            {
+                // Exclude the selected modifier from trigger list
+                // (EN/FR: Exclure le modifier sélectionné de la liste trigger)
+                if (string.Equals(btn, selectedModifier, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // Home + D-pad = offset adjustment on Bluetooth → hide D-pad triggers
+                // Minus + D-pad = offset adjustment on DolphinBar → hide D-pad triggers
+                // (EN/FR: Home/Minus + D-pad = ajustement offset → masquer D-pad des triggers)
+                if (DpadButtons.Contains(btn) &&
+                    (string.Equals(selectedModifier, "Home", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(selectedModifier, "Minus", StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                // Home + Plus = Overlay command → hide Plus when Home is modifier
+                // (EN/FR: Home + Plus = commande Overlay → masquer Plus quand Home est modifier)
+                if (string.Equals(btn, "Plus", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(selectedModifier, "Home", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                _cmbTriggerButton.Items.Add(btn);
+            }
+
+            // Restore previous selection if still valid
+            // (EN/FR: Restaurer la sélection précédente si encore valide)
+            if (currentTrigger != null && _cmbTriggerButton.Items.Contains(currentTrigger))
+            {
+                _cmbTriggerButton.SelectedItem = currentTrigger;
+            }
         }
 
         private void InitializeCustomSettings()

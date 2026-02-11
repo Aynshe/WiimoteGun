@@ -39,6 +39,11 @@ namespace WiimoteGun.Controls
             this.lblMonitorId = new System.Windows.Forms.Label();
             this.optMouseMode = new System.Windows.Forms.ComboBox();
             this.lblMouseMode = new System.Windows.Forms.Label();
+            this.optEnableIRSmoothing = new System.Windows.Forms.CheckBox();
+            this.lblIRSmoothingStrength = new System.Windows.Forms.Label();
+            this.optIRSmoothingStrength = new System.Windows.Forms.NumericUpDown();
+            this.optUseHighPerfTimers = new System.Windows.Forms.CheckBox();
+            this.optEnableHomographyCache = new System.Windows.Forms.CheckBox();
             this.tabDetection = new System.Windows.Forms.TabPage();
             this.lblDetectionInfo = new System.Windows.Forms.Label();
             this.optDetectBluetooth = new System.Windows.Forms.CheckBox();
@@ -62,6 +67,7 @@ namespace WiimoteGun.Controls
             this.tabGeneral.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.optIRSensitivity)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.optMonitorId)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.optIRSmoothingStrength)).BeginInit();
             this.tabDetection.SuspendLayout();
             this.tabGestures.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.optShakeSensitivity)).BeginInit();
@@ -172,6 +178,11 @@ namespace WiimoteGun.Controls
             // tabGeneral
             // 
             this.tabGeneral.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(20)))), ((int)(((byte)(20)))));
+            this.tabGeneral.Controls.Add(this.optUseHighPerfTimers);
+            this.tabGeneral.Controls.Add(this.optEnableHomographyCache);
+            this.tabGeneral.Controls.Add(this.optIRSmoothingStrength);
+            this.tabGeneral.Controls.Add(this.lblIRSmoothingStrength);
+            this.tabGeneral.Controls.Add(this.optEnableIRSmoothing);
             this.tabGeneral.Controls.Add(this.optLogLevel);
             this.tabGeneral.Controls.Add(this.lblLogLevelModern);
             this.tabGeneral.Controls.Add(this.btnConfigureGamePad);
@@ -225,6 +236,62 @@ namespace WiimoteGun.Controls
             this.lblLogLevelModern.TabIndex = 0;
             this.lblLogLevelModern.Text = "Logging Level:";
             this.lblLogLevelModern.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            //
+            // optEnableIRSmoothing
+            //
+            this.optEnableIRSmoothing.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.optEnableIRSmoothing.ForeColor = System.Drawing.Color.White;
+            this.optEnableIRSmoothing.Location = new System.Drawing.Point(20, 385);
+            this.optEnableIRSmoothing.Name = "optEnableIRSmoothing";
+            this.optEnableIRSmoothing.Size = new System.Drawing.Size(220, 25);
+            this.optEnableIRSmoothing.TabIndex = 6;
+            this.optEnableIRSmoothing.Text = "Enable IR Smoothing (EMA)";
+            this.optEnableIRSmoothing.UseVisualStyleBackColor = true;
+            // 
+            // lblIRSmoothingStrength
+            // 
+            this.lblIRSmoothingStrength.Font = new System.Drawing.Font("Segoe UI", 9.5F);
+            this.lblIRSmoothingStrength.ForeColor = System.Drawing.Color.White;
+            this.lblIRSmoothingStrength.Location = new System.Drawing.Point(40, 415);
+            this.lblIRSmoothingStrength.Name = "lblIRSmoothingStrength";
+            this.lblIRSmoothingStrength.Size = new System.Drawing.Size(120, 25);
+            this.lblIRSmoothingStrength.TabIndex = 0;
+            this.lblIRSmoothingStrength.Text = "Strength (1-10):";
+            this.lblIRSmoothingStrength.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // optIRSmoothingStrength
+            // 
+            this.optIRSmoothingStrength.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.optIRSmoothingStrength.ForeColor = System.Drawing.Color.White;
+            this.optIRSmoothingStrength.Location = new System.Drawing.Point(170, 415);
+            this.optIRSmoothingStrength.Maximum = new decimal(new int[] { 10, 0, 0, 0 });
+            this.optIRSmoothingStrength.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
+            this.optIRSmoothingStrength.Name = "optIRSmoothingStrength";
+            this.optIRSmoothingStrength.Size = new System.Drawing.Size(70, 25);
+            this.optIRSmoothingStrength.TabIndex = 7;
+            this.optIRSmoothingStrength.Value = new decimal(new int[] { 5, 0, 0, 0 });
+            // 
+            // optUseHighPerfTimers
+            // 
+            this.optUseHighPerfTimers.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.optUseHighPerfTimers.ForeColor = System.Drawing.Color.White;
+            this.optUseHighPerfTimers.Location = new System.Drawing.Point(20, 450);
+            this.optUseHighPerfTimers.Name = "optUseHighPerfTimers";
+            this.optUseHighPerfTimers.Size = new System.Drawing.Size(250, 25);
+            this.optUseHighPerfTimers.TabIndex = 8;
+            this.optUseHighPerfTimers.Text = "High Performance Timers";
+            this.optUseHighPerfTimers.UseVisualStyleBackColor = true;
+            // 
+            // optEnableHomographyCache
+            // 
+            this.optEnableHomographyCache.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.optEnableHomographyCache.ForeColor = System.Drawing.Color.White;
+            this.optEnableHomographyCache.Location = new System.Drawing.Point(20, 485);
+            this.optEnableHomographyCache.Name = "optEnableHomographyCache";
+            this.optEnableHomographyCache.Size = new System.Drawing.Size(250, 25);
+            this.optEnableHomographyCache.TabIndex = 9;
+            this.optEnableHomographyCache.Text = "Enable Homography Cache (Static Mode)";
+            this.optEnableHomographyCache.UseVisualStyleBackColor = true;
             // 
             // btnConfigureGamePad
             // 
@@ -592,6 +659,7 @@ namespace WiimoteGun.Controls
             this.tabGeneral.ResumeLayout(false);
             this.tabGeneral.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.optIRSensitivity)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.optIRSmoothingStrength)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.optMonitorId)).EndInit();
             this.tabDetection.ResumeLayout(false);
             this.tabDetection.PerformLayout();
@@ -646,5 +714,10 @@ namespace WiimoteGun.Controls
         public System.Windows.Forms.Button btnBack;
         private System.Windows.Forms.ComboBox optLogLevel;
         private System.Windows.Forms.Label lblLogLevelModern;
+        private System.Windows.Forms.CheckBox optEnableIRSmoothing;
+        private System.Windows.Forms.Label lblIRSmoothingStrength;
+        private System.Windows.Forms.NumericUpDown optIRSmoothingStrength;
+        private System.Windows.Forms.CheckBox optUseHighPerfTimers;
+        private System.Windows.Forms.CheckBox optEnableHomographyCache;
     }
 }

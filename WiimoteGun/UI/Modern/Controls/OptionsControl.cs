@@ -128,6 +128,11 @@ namespace WiimoteGun.Controls
             optRestartOnDolphin.Checked = Options.Instance.RestartOnDolphin;
             optRestartOnCemu.Checked = Options.Instance.RestartOnCemu;
 
+            // IR Tracking Optimizations (EN/FR: Optimisations tracking IR)
+            optEnableIRSmoothing.Checked = Options.Instance.EnableIRSmoothing;
+            optIRSmoothingStrength.Value = Math.Min(Math.Max(Options.Instance.IRSmoothingStrength, optIRSmoothingStrength.Minimum), optIRSmoothingStrength.Maximum);
+            optUseHighPerfTimers.Checked = Options.Instance.UseHighPerfTimers;
+            optEnableHomographyCache.Checked = Options.Instance.EnableHomographyCache;
 
         }
 
@@ -174,6 +179,11 @@ namespace WiimoteGun.Controls
                 Options.Instance.RestartOnDolphin = optRestartOnDolphin.Checked;
                 Options.Instance.RestartOnCemu = optRestartOnCemu.Checked;
 
+                // IR Tracking Optimizations (EN/FR: Optimisations tracking IR)
+                Options.Instance.EnableIRSmoothing = optEnableIRSmoothing.Checked;
+                Options.Instance.IRSmoothingStrength = (int)optIRSmoothingStrength.Value;
+                Options.Instance.UseHighPerfTimers = optUseHighPerfTimers.Checked;
+                Options.Instance.EnableHomographyCache = optEnableHomographyCache.Checked;
 
 
                 // Save
