@@ -241,11 +241,26 @@ namespace WiimoteGun
                 RestartOnCemu = true;
 
                 // Initialize player mappings (EN/FR: Initialiser les mappings par joueur)
+                // Initialize player mappings (EN/FR: Initialiser les mappings par joueur)
+                // P1 Defaults (Plus=D5, Minus=D1)
                 P1Mappings = new PlayerMappings();
+                P1Mappings.WiiPlus = new ButtonAction(Keys.D5);
+                P1Mappings.WiiMinus = new ButtonAction(Keys.D1);
+
+                // P2 Defaults (Plus=D6, Minus=D2)
                 P2Mappings = new PlayerMappings();
+                P2Mappings.WiiPlus = new ButtonAction(Keys.D6);
+                P2Mappings.WiiMinus = new ButtonAction(Keys.D2);
+
+                // P3 Defaults (Plus=D8, Minus=D3)
                 P3Mappings = new PlayerMappings();
-                P3Mappings = new PlayerMappings();
+                P3Mappings.WiiPlus = new ButtonAction(Keys.D8);
+                P3Mappings.WiiMinus = new ButtonAction(Keys.D3);
+
+                // P4 Defaults (Plus=D5, Minus=D4)
                 P4Mappings = new PlayerMappings();
+                P4Mappings.WiiPlus = new ButtonAction(Keys.D5);
+                P4Mappings.WiiMinus = new ButtonAction(Keys.D4);
                 
                 // Gesture defaults (EN/FR: Valeurs par défaut pour les gestes)
                 EnableOffScreenReload = false;
@@ -353,6 +368,20 @@ namespace WiimoteGun
                         
                         // Apply log level immediately (EN/FR: Appliquer niveau de log immédiatement)
                         SimpleLogger.Instance.Threshold = options.LoggingLevel;
+                        SimpleLogger.Instance.Info(string.Format("[Options] Loaded settings from: {0}", path));
+
+                        if (options.HotkeyProfileP1 != null)
+                        {
+                             SimpleLogger.Instance.Info(string.Format("[Options] Loaded P1 Hotkeys: {0}", options.HotkeyProfileP1.Hotkeys.Count));
+                             foreach(var hk in options.HotkeyProfileP1.Hotkeys)
+                             {
+                                 SimpleLogger.Instance.Info(string.Format("[Options] P1 Hotkey: {0}", hk.GetDisplayName()));
+                             }
+                        }
+                        else
+                        {
+                             SimpleLogger.Instance.Info("[Options] Loaded P1 Hotkeys: NULL");
+                        }
 
                         // Migrate legacy calibration to per-player if needed (EN/FR: Migrer calibration héritée vers par-joueur si besoin)
                         if (options.CalibrationTop != -1 && options.CalibrationTopP1 == -1)
@@ -527,29 +556,9 @@ namespace WiimoteGun
             {
                 if (_instance == null)
                 {
-                    try
-                    {
-                        var settingsFile = GetSettingsFilename();
-                        if (File.Exists(settingsFile))
-                        {
-                            _instance = settingsFile.FromXml<Options>();
-
-                            // Merge with default values for missing properties
-                            var defaultInstance = new Options(true);
-                            foreach (var prop in typeof(Options).GetProperties())
-                            {
-                                if (prop.GetValue(_instance) == null)
-                                {
-                                    prop.SetValue(_instance, prop.GetValue(defaultInstance));
-                                }
-                            }
-                        }
-                        else
-                        {
-                            _instance = new Options();
-                        }
-                    }
-                    catch { _instance = new Options(); }
+                    // Use the robust Load() method instead of direct deserialization
+                    // (EN/FR: Utiliser la méthode Load() robuste au lieu de désérialisation directe)
+                    _instance = Load();
 
                     // Migrate old mappings to P1 if PlayerMappings are null (EN/FR: Migrer anciens mappings vers P1)
                     if (_instance.P1Mappings == null)
@@ -604,10 +613,29 @@ namespace WiimoteGun
 
         public void Save()
         {
-            string xml = this.ToXml();
-
-            try { File.WriteAllText(GetSettingsFilename(), xml); }
-            catch { }
+            try 
+            { 
+                 string xml = this.ToXml();
+                 string filename = GetSettingsFilename();
+                 File.WriteAllText(filename, xml); 
+                 SimpleLogger.Instance.Info(string.Format("Options saved to: {0} (Size: {1} bytes)", filename, xml.Length));
+                 // Log a snippet of the XML to verify hotkeys (searching for HotkeyProfileP1)
+                 // (EN/FR: Logger un extrait du XML pour vérifier les hotkeys)
+                 int index = xml.IndexOf("<HotkeyProfileP1>");
+                 if (index >= 0)
+                 {
+                     int end = xml.IndexOf("</HotkeyProfileP1>", index);
+                     if (end > index)
+                     {
+                         string snippet = xml.Substring(index, Math.Min(500, end - index)); // First 500 chars of profile
+                         SimpleLogger.Instance.Info("HotkeyProfileP1 XML Check: " + snippet.Replace("\r", "").Replace("\n", ""));
+                     }
+                 }
+            }
+            catch (Exception ex)
+            { 
+                SimpleLogger.Instance.Error("Failed to save settings: " + ex.ToString());
+            }
         }
 
         public PlayerMappings GetMappingsForPlayer(int playerIndex)
@@ -834,6 +862,7 @@ namespace WiimoteGun
         public bool UseSharedKeyboard { get; set; }
 
         [DefaultValue(false)]
+        [Obsolete("Use per-hotkey IsShared property instead.")]
         public bool UseSharedHotkeys { get; set; }
 
         // Keyboard Device ID forcing for TeknoParrot compatibility (EN/FR: Forçage des Device ID clavier pour compatibilité TeknoParrot)

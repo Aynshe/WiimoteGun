@@ -86,17 +86,17 @@ namespace WiimoteGun
             // columnHeader1
             // 
             this.columnHeader1.Text = "Trigger";
-            this.columnHeader1.Width = 150;
+            this.columnHeader1.Width = 120;
             // 
             // columnHeader2
             // 
-            this.columnHeader2.Text = "Type";
-            this.columnHeader2.Width = 80;
+            this.columnHeader2.Text = "Short Action";
+            this.columnHeader2.Width = 150;
             // 
             // columnHeader3
             // 
-            this.columnHeader3.Text = "Output Keys";
-            this.columnHeader3.Width = 200;
+            this.columnHeader3.Text = "Long Action";
+            this.columnHeader3.Width = 150;
             // 
             // columnHeader4
             // 

@@ -271,7 +271,22 @@ namespace WiimoteGun
             // Initialize Hotkey Manager (EN/FR: Initialiser gestionnaire hotkeys)
             HotkeyManager.Initialize();
             // Connect overlay state to hotkey manager (EN/FR: Connecter état overlay)
-            HotkeyManager.IsOverlayOpen = () => _profileOverlay != null && _profileOverlay.Visible;
+            // Fix: Only block hotkeys in Windowed Mode if the form is actually Active/Focused
+            // (EN/FR: Correction : Bloquer hotkeys en mode fenêtré SEULEMENT si la fenêtre est active)
+            HotkeyManager.IsOverlayOpen = () => 
+            {
+                if (_profileOverlay == null || !_profileOverlay.Visible) return false;
+                
+                // If Windowed Mode (Menu), only block if it's the Active Form (Focused)
+                // This allows hotkeys to work in-game even if the Menu window is open in the background
+                if (_profileOverlay.IsWindowedMode)
+                {
+                    return Form.ActiveForm == _profileOverlay;
+                }
+                
+                // Fullscreen Overlay always blocks inputs (it's a modal game menu)
+                return true;
+            };
             
             WiiMoteController.OverlayRequested += (s, e) => 
             {
@@ -1397,9 +1412,6 @@ namespace WiimoteGun
                     Options.Instance.P3Mappings.CopyFrom(profile.P3Mappings);
                 if (profile.P4Mappings != null)
                     Options.Instance.P4Mappings.CopyFrom(profile.P4Mappings);
-
-                // Apply Shared Hotkeys setting (EN/FR: Appliquer paramètre hotkeys partagées)
-                Options.Instance.UseSharedHotkeys = profile.UseSharedHotkeys;
 
                 // Apply Hotkeys to Options AND HotkeyManager (EN/FR: Appliquer Hotkeys aux Options ET HotkeyManager)
                 // P1

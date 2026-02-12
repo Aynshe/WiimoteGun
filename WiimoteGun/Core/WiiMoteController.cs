@@ -943,11 +943,11 @@ namespace WiimoteGun
 
 
                     
-                // Hotkey detection: notify HotkeyManager FIRST (EN/FR: Détection hotkeys : notifier d'abord)
-                DetectHotkeyButtonChanges(buttons, _lastState);
-
                 NunchukState nunchuk = e.WiimoteState.Nunchuk;
                 bool hasNunchuk = e.WiimoteState.ExtensionType == ExtensionType.Nunchuk;
+
+                // Hotkey detection: notify HotkeyManager FIRST (EN/FR: Détection hotkeys : notifier d'abord)
+                DetectHotkeyButtonChanges(buttons, _lastState, nunchuk, _lastNunchukState, hasNunchuk);
 
                 // This enables "Autocalibration" (Gun4IR/RetroShooter layouts) for GamePad mode.
                 var scaledPos = _calculator.GetScaledPosition(ir, buttons, _lastState);
@@ -1206,12 +1206,12 @@ namespace WiimoteGun
 
                     if (hasNunchuk)
                     {
-                        SendKeyEvent(_playerMappings.NunC, nunchuk.C, _lastNunchukState.C);
-                        SendKeyEvent(_playerMappings.NunZ, nunchuk.Z, _lastNunchukState.Z);
-                        SendKeyEvent(_playerMappings.NunUp, nunchuk.Joystick.Y > 0.3f, _lastNunchukState.Joystick.Y > 0.3f);
-                        SendKeyEvent(_playerMappings.NunDown, nunchuk.Joystick.Y < -0.3f, _lastNunchukState.Joystick.Y < -0.3f);
-                        SendKeyEvent(_playerMappings.NunLeft, nunchuk.Joystick.X < -0.3f, _lastNunchukState.Joystick.X < -0.3f);
-                        SendKeyEvent(_playerMappings.NunRight, nunchuk.Joystick.X > 0.3f, _lastNunchukState.Joystick.X > 0.3f);
+                        SendKeyEvent(_playerMappings.NunC, nunchuk.C && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunC"), _lastNunchukState.C);
+                        SendKeyEvent(_playerMappings.NunZ, nunchuk.Z && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunZ"), _lastNunchukState.Z);
+                        SendKeyEvent(_playerMappings.NunUp, nunchuk.Joystick.Y > 0.3f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunUp"), _lastNunchukState.Joystick.Y > 0.3f);
+                        SendKeyEvent(_playerMappings.NunDown, nunchuk.Joystick.Y < -0.3f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunDown"), _lastNunchukState.Joystick.Y < -0.3f);
+                        SendKeyEvent(_playerMappings.NunLeft, nunchuk.Joystick.X < -0.3f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunLeft"), _lastNunchukState.Joystick.X < -0.3f);
+                        SendKeyEvent(_playerMappings.NunRight, nunchuk.Joystick.X > 0.3f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunRight"), _lastNunchukState.Joystick.X > 0.3f);
                     }
 
                     _joy.CommitChanges();
@@ -1241,7 +1241,7 @@ namespace WiimoteGun
         /// Detect button changes and notify HotkeyManager for hotkey processing
         /// (EN/FR: Détecter changements de boutons et notifier HotkeyManager pour traitement hotkeys)
         /// </summary>
-        private void DetectHotkeyButtonChanges(ButtonState currentState, ButtonState lastState)
+        private void DetectHotkeyButtonChanges(ButtonState currentState, ButtonState lastState, NunchukState currentNunchuk, NunchukState lastNunchuk, bool hasNunchuk)
         {
             // Check each button for state changes (EN/FR: Vérifier chaque bouton pour changements d'état)
             CheckButtonStateChange("Home", currentState.Home, lastState.Home);
@@ -1255,6 +1255,18 @@ namespace WiimoteGun
             CheckButtonStateChange("Down", currentState.Down, lastState.Down);
             CheckButtonStateChange("Left", currentState.Left, lastState.Left);
             CheckButtonStateChange("Right", currentState.Right, lastState.Right);
+
+            if (hasNunchuk)
+            {
+                CheckButtonStateChange("NunC", currentNunchuk.C, lastNunchuk.C);
+                CheckButtonStateChange("NunZ", currentNunchuk.Z, lastNunchuk.Z);
+
+                // Nunchuk Stick Directions (Threshold > 0.3)
+                CheckButtonStateChange("NunUp", currentNunchuk.Joystick.Y > 0.3f, lastNunchuk.Joystick.Y > 0.3f);
+                CheckButtonStateChange("NunDown", currentNunchuk.Joystick.Y < -0.3f, lastNunchuk.Joystick.Y < -0.3f);
+                CheckButtonStateChange("NunLeft", currentNunchuk.Joystick.X < -0.3f, lastNunchuk.Joystick.X < -0.3f);
+                CheckButtonStateChange("NunRight", currentNunchuk.Joystick.X > 0.3f, lastNunchuk.Joystick.X > 0.3f);
+            }
         }
 
         /// <summary>
@@ -1332,25 +1344,25 @@ namespace WiimoteGun
                 if (_playerMappings == null) return false;
             }
 
-            if (_playerMappings.WiiA != null && _playerMappings.WiiA.Special == action && buttons.A) return true;
-            if (_playerMappings.WiiB != null && _playerMappings.WiiB.Special == action && buttons.B) return true;
-            if (_playerMappings.WiiUp != null && _playerMappings.WiiUp.Special == action && buttons.Up) return true;
-            if (_playerMappings.WiiDown != null && _playerMappings.WiiDown.Special == action && buttons.Down) return true;
-            if (_playerMappings.WiiLeft != null && _playerMappings.WiiLeft.Special == action && buttons.Left) return true;
-            if (_playerMappings.WiiRight != null && _playerMappings.WiiRight.Special == action && buttons.Right) return true;
-            if (_playerMappings.WiiOne != null && _playerMappings.WiiOne.Special == action && buttons.One) return true;
-            if (_playerMappings.WiiTwo != null && _playerMappings.WiiTwo.Special == action && buttons.Two) return true;
-            if (_playerMappings.WiiPlus != null && _playerMappings.WiiPlus.Special == action && buttons.Plus) return true;
-            if (_playerMappings.WiiMinus != null && _playerMappings.WiiMinus.Special == action && buttons.Minus) return true;
+            if (_playerMappings.WiiA != null && _playerMappings.WiiA.Special == action && buttons.A && !HotkeyManager.IsButtonConsumed(PlayerIndex, "A")) return true;
+            if (_playerMappings.WiiB != null && _playerMappings.WiiB.Special == action && buttons.B && !HotkeyManager.IsButtonConsumed(PlayerIndex, "B")) return true;
+            if (_playerMappings.WiiUp != null && _playerMappings.WiiUp.Special == action && buttons.Up && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Up")) return true;
+            if (_playerMappings.WiiDown != null && _playerMappings.WiiDown.Special == action && buttons.Down && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Down")) return true;
+            if (_playerMappings.WiiLeft != null && _playerMappings.WiiLeft.Special == action && buttons.Left && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Left")) return true;
+            if (_playerMappings.WiiRight != null && _playerMappings.WiiRight.Special == action && buttons.Right && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Right")) return true;
+            if (_playerMappings.WiiOne != null && _playerMappings.WiiOne.Special == action && buttons.One && !HotkeyManager.IsButtonConsumed(PlayerIndex, "One")) return true;
+            if (_playerMappings.WiiTwo != null && _playerMappings.WiiTwo.Special == action && buttons.Two && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Two")) return true;
+            if (_playerMappings.WiiPlus != null && _playerMappings.WiiPlus.Special == action && buttons.Plus && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Plus")) return true;
+            if (_playerMappings.WiiMinus != null && _playerMappings.WiiMinus.Special == action && buttons.Minus && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Minus")) return true;
 
             if (hasNunchuk)
             {
-                if (_playerMappings.NunC != null && _playerMappings.NunC.Special == action && nunchuk.C) return true;
-                if (_playerMappings.NunZ != null && _playerMappings.NunZ.Special == action && nunchuk.Z) return true;
-                if (_playerMappings.NunUp != null && _playerMappings.NunUp.Special == action && nunchuk.Joystick.Y > 0.3f) return true;
-                if (_playerMappings.NunDown != null && _playerMappings.NunDown.Special == action && nunchuk.Joystick.Y < -0.3f) return true;
-                if (_playerMappings.NunLeft != null && _playerMappings.NunLeft.Special == action && nunchuk.Joystick.X < -0.3f) return true;
-                if (_playerMappings.NunRight != null && _playerMappings.NunRight.Special == action && nunchuk.Joystick.X > 0.3f) return true;
+                if (_playerMappings.NunC != null && _playerMappings.NunC.Special == action && nunchuk.C && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunC")) return true;
+                if (_playerMappings.NunZ != null && _playerMappings.NunZ.Special == action && nunchuk.Z && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunZ")) return true;
+                if (_playerMappings.NunUp != null && _playerMappings.NunUp.Special == action && nunchuk.Joystick.Y > 0.3f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunUp")) return true;
+                if (_playerMappings.NunDown != null && _playerMappings.NunDown.Special == action && nunchuk.Joystick.Y < -0.3f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunDown")) return true;
+                if (_playerMappings.NunLeft != null && _playerMappings.NunLeft.Special == action && nunchuk.Joystick.X < -0.3f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunLeft")) return true;
+                if (_playerMappings.NunRight != null && _playerMappings.NunRight.Special == action && nunchuk.Joystick.X > 0.3f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunRight")) return true;
             }
 
             return false;
@@ -1969,21 +1981,23 @@ namespace WiimoteGun
 
                 // --- Buttons ---
                 // Suppress Home / Minus / DPAD if they are being used for offset adjustment
+                // Also suppress ANY button consumed by a hotkey combo
                 // (EN/FR: Supprimer Home / Minus / DPAD s'ils sont utilisés pour l'ajustement de l'offset)
-                bool homePressed = state.Buttons.Home && !_isOffsetAdjustmentActive;
-                bool minusPressed = state.Buttons.Minus && !_isOffsetAdjustmentActive;
+                // (EN/FR: Supprimer aussi TOUT bouton consommé par une hotkey)
+                bool homePressed = state.Buttons.Home && !_isOffsetAdjustmentActive && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Home");
+                bool minusPressed = state.Buttons.Minus && !_isOffsetAdjustmentActive && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Minus");
                 bool dpadActive = !_isOffsetAdjustmentActive;
 
-                report.SetButton(mappings.WiiA, state.Buttons.A);
-                report.SetButton(mappings.WiiB, state.Buttons.B);
-                report.SetButton(mappings.Wii1, state.Buttons.One);
-                report.SetButton(mappings.Wii2, state.Buttons.Two);
-                report.SetButton(mappings.WiiPlus, state.Buttons.Plus);
+                report.SetButton(mappings.WiiA, state.Buttons.A && !HotkeyManager.IsButtonConsumed(PlayerIndex, "A"));
+                report.SetButton(mappings.WiiB, state.Buttons.B && !HotkeyManager.IsButtonConsumed(PlayerIndex, "B"));
+                report.SetButton(mappings.Wii1, state.Buttons.One && !HotkeyManager.IsButtonConsumed(PlayerIndex, "One"));
+                report.SetButton(mappings.Wii2, state.Buttons.Two && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Two"));
+                report.SetButton(mappings.WiiPlus, state.Buttons.Plus && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Plus"));
                 report.SetButton(mappings.WiiMinus, minusPressed);
-                report.SetButton(mappings.WiiUp, state.Buttons.Up && dpadActive);
-                report.SetButton(mappings.WiiDown, state.Buttons.Down && dpadActive);
-                report.SetButton(mappings.WiiLeft, state.Buttons.Left && dpadActive);
-                report.SetButton(mappings.WiiRight, state.Buttons.Right && dpadActive);
+                report.SetButton(mappings.WiiUp, state.Buttons.Up && dpadActive && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Up"));
+                report.SetButton(mappings.WiiDown, state.Buttons.Down && dpadActive && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Down"));
+                report.SetButton(mappings.WiiLeft, state.Buttons.Left && dpadActive && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Left"));
+                report.SetButton(mappings.WiiRight, state.Buttons.Right && dpadActive && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Right"));
                 report.SetButton(mappings.WiiHome, homePressed);
 
                 // Check for Nunchuk (Stand-alone OR via MotionPlus)
@@ -1992,8 +2006,8 @@ namespace WiimoteGun
 
                 if (hasNunchuk)
                 {
-                    report.SetButton(mappings.NunchukC, state.Nunchuk.C);
-                    report.SetButton(mappings.NunchukZ, state.Nunchuk.Z);
+                    report.SetButton(mappings.NunchukC, state.Nunchuk.C && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunC"));
+                    report.SetButton(mappings.NunchukZ, state.Nunchuk.Z && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunZ"));
 
                     // --- Nunchuk Joystick ---
                     // WiimoteLib returns -0.5 to 0.5. We map to -1.0 to 1.0.
@@ -2026,10 +2040,10 @@ namespace WiimoteGun
                         if (mappings.NunchukJoystickAxis == GamePadAxis.Dpad)
                         {
                             // Digital D-Pad Mode (Values > 0.5 trigger button)
-                            bool dUp = joyY > 0.5f;
-                            bool dDown = joyY < -0.5f;
-                            bool dRight = joyX > 0.5f;
-                            bool dLeft = joyX < -0.5f;
+                            bool dUp = joyY > 0.5f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunUp");
+                            bool dDown = joyY < -0.5f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunDown");
+                            bool dRight = joyX > 0.5f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunRight");
+                            bool dLeft = joyX < -0.5f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunLeft");
 
                             if (dUp) report.SetButton(GamePadButton.DPadUp, true);
                             if (dDown) report.SetButton(GamePadButton.DPadDown, true);
@@ -2039,10 +2053,17 @@ namespace WiimoteGun
                         else
                         {
                             // Analog Axis Mode
-                            // Send to Report (Invert Y for standard gamepad: Up=Negative, but wait.. SetAxis usually expects standard logic)
-                            // Nunchuk Y: Up is Positive (~1.0), Down is Negative (~-1.0)
-                            // GamePad Y: Up is Negative (-1.0), Down is Positive (1.0)
-                            report.SetAxis(mappings.NunchukJoystickAxis, joyX, -joyY);
+                            // Send to Report (Invert Y for standard gamepad: Up=Negative)
+                            // Suppress axis if one of the directions is consumed (EN/FR: Supprimer l'axe si une des directions est consommée)
+                            float finalJoyX = joyX;
+                            float finalJoyY = joyY;
+
+                            if (joyX > 0.3f && HotkeyManager.IsButtonConsumed(PlayerIndex, "NunRight")) finalJoyX = 0f;
+                            if (joyX < -0.3f && HotkeyManager.IsButtonConsumed(PlayerIndex, "NunLeft")) finalJoyX = 0f;
+                            if (joyY > 0.3f && HotkeyManager.IsButtonConsumed(PlayerIndex, "NunUp")) finalJoyY = 0f;
+                            if (joyY < -0.3f && HotkeyManager.IsButtonConsumed(PlayerIndex, "NunDown")) finalJoyY = 0f;
+
+                            report.SetAxis(mappings.NunchukJoystickAxis, finalJoyX, -finalJoyY);
                         }
                     }
                 }

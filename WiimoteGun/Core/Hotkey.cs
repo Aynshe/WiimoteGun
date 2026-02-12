@@ -6,11 +6,11 @@ using System.Xml.Serialization;
 namespace WiimoteGun
 {
     /// <summary>
-    /// Represents a single hotkey with trigger button and keyboard output
-    /// (EN/FR: Représente une hotkey avec bouton déclencheur et sortie clavier)
+    /// Represents a single hotkey with trigger button and dual keyboard output (Short/Long)
+    /// (EN/FR: Représente une hotkey avec bouton déclencheur et double sortie clavier)
     /// </summary>
     [Serializable]
-    public class Hotkey
+    public class Hotkey : ICloneable
     {
         /// <summary>
         /// Trigger button (e.g., "A", "B", "Up", "Down")
@@ -19,70 +19,90 @@ namespace WiimoteGun
         public string TriggerButton { get; set; }
 
         /// <summary>
-        /// Press type: Short or Long (EN/FR: Type de pression)
-        /// </summary>
-        /// <summary>
-        /// Modifier button (e.g., "Home", "Minus", "Plus", "One", "Two", "A", "B")
-        /// Default: "Home"
+        /// Modifier button (e.g., "Home")
+        /// (EN/FR: Bouton modificateur)
         /// </summary>
         public string ModifierButton { get; set; }
 
         /// <summary>
-        /// Press type: Short or Long (EN/FR: Type de pression)
-        /// </summary>
-        public HotkeyPressType PressType { get; set; }
-
-        /// <summary>
-        /// Keyboard keys to send - NOT serialized directly (EN/FR: Touches clavier - pas sérialisé directement)
+        /// Keys to simulate on Short Press (< 500ms)
+        /// (EN/FR: Touches à simuler sur Pression Courte)
         /// </summary>
         [XmlIgnore]
-        public List<Keys> KeyCombination { get; set; }
+        public List<Keys> ShortPressKeys { get; set; }
 
         /// <summary>
-        /// String representation for XML serialization (EN/FR: Représentation string pour sérialisation XML)
+        /// Keys to simulate on Long Press (>= 500ms)
+        /// (EN/FR: Touches à simuler sur Pression Longue)
         /// </summary>
-        public string KeyCombinationString
+        [XmlIgnore]
+        public List<Keys> LongPressKeys { get; set; }
+
+        /// <summary>
+        /// String representation for XML serialization of ShortPressKeys
+        /// </summary>
+        public string ShortPressKeysString
         {
-            get { return string.Join(",", KeyCombination ?? new List<Keys>()); }
-            set { KeyCombination = ParseKeyCombin(value); }
+            get { return string.Join(",", ShortPressKeys ?? new List<Keys>()); }
+            set { ShortPressKeys = ParseKeyCombin(value); }
         }
 
         /// <summary>
-        /// User description (optional) (EN/FR: Description utilisateur)
+        /// String representation for XML serialization of LongPressKeys
+        /// </summary>
+        public string LongPressKeysString
+        {
+            get { return string.Join(",", LongPressKeys ?? new List<Keys>()); }
+            set { LongPressKeys = ParseKeyCombin(value); }
+        }
+
+        /// <summary>
+        /// Description of the hotkey action
+        /// (EN/FR: Description de l'action)
         /// </summary>
         public string Description { get; set; }
 
+        /// <summary>
+        /// Whether this hotkey is shared with all other players (P1 only)
+        /// (EN/FR: Si cette hotkey est partagée avec les autres joueurs)
+        /// </summary>
+        public bool IsShared { get; set; }
+
         public Hotkey()
         {
-            KeyCombination = new List<Keys>();
-            ModifierButton = "Home";
+            ShortPressKeys = new List<Keys>();
+            LongPressKeys = new List<Keys>();
+            ModifierButton = "Home"; // Default
+            IsShared = false;
         }
 
-        public Hotkey(string triggerButton, HotkeyPressType pressType, List<Keys> keyCombination, string description = "", string modifier = "Home")
+        public Hotkey Clone()
         {
-            TriggerButton = triggerButton;
-            PressType = pressType;
-            KeyCombination = keyCombination ?? new List<Keys>();
-            Description = description;
-            ModifierButton = modifier;
+            var clone = new Hotkey
+            {
+                TriggerButton = this.TriggerButton,
+                ModifierButton = this.ModifierButton,
+                Description = this.Description,
+                IsShared = this.IsShared
+            };
+
+            if (this.ShortPressKeys != null)
+                clone.ShortPressKeys = new List<Keys>(this.ShortPressKeys);
+            
+            if (this.LongPressKeys != null)
+                clone.LongPressKeys = new List<Keys>(this.LongPressKeys);
+
+            return clone;
         }
 
-        /// <summary>
-        /// Get friendly name for display (EN/FR: Nom convivial pour affichage)
-        /// </summary>
+        object ICloneable.Clone()
+        {
+            return Clone();
+        }
+
         public string GetDisplayName()
         {
-            string pressTypeStr = PressType == HotkeyPressType.Short ? "Short" : "Long";
-            string keysStr = string.Join("+", KeyCombination.ToArray());
-            return string.Format("{0} + {1} ({2}) → {3}", ModifierButton, TriggerButton, pressTypeStr, keysStr);
-        }
-
-        /// <summary>
-        /// Convert Keys list to string for serialization (EN/FR: Convertir liste Keys en string)
-        /// </summary>
-        public string KeyCombinationToString()
-        {
-            return string.Join(",", KeyCombination);
+            return string.Format("{0} + {1}", ModifierButton, TriggerButton);
         }
 
         /// <summary>
@@ -105,36 +125,5 @@ namespace WiimoteGun
             }
             return keys;
         }
-
-        /// <summary>
-        /// Create a deep copy of the hotkey (EN/FR: Créer une copie profonde)
-        /// </summary>
-        public Hotkey Clone()
-        {
-            return new Hotkey
-            {
-                TriggerButton = this.TriggerButton,
-                ModifierButton = this.ModifierButton,
-                PressType = this.PressType,
-                KeyCombination = new List<Keys>(this.KeyCombination),
-                Description = this.Description
-            };
-        }
-    }
-
-    /// <summary>
-    /// Hotkey press type: Short or Long (EN/FR: Type de pression hotkey)
-    /// </summary>
-    public enum HotkeyPressType
-    {
-        /// <summary>
-        /// Short press (&lt; 500ms) (EN/FR: Pression courte)
-        /// </summary>
-        Short,
-
-        /// <summary>
-        /// Long press (≥ 500ms) (EN/FR: Pression longue)
-        /// </summary>
-        Long
     }
 }

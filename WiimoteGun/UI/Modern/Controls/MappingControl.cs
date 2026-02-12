@@ -821,7 +821,6 @@ namespace WiimoteGun.Controls
                 profile.P2Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(2).Hotkeys.Select(h => h.Clone()));
                 profile.P3Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(3).Hotkeys.Select(h => h.Clone()));
                 profile.P4Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(4).Hotkeys.Select(h => h.Clone()));
-                profile.UseSharedHotkeys = Options.Instance.UseSharedHotkeys;
                 
                 string selectedFolder = comboBoxSubfolders.SelectedItem?.ToString();
                 string subfolder = selectedFolder == "(Root)" ? null : selectedFolder;
@@ -890,8 +889,6 @@ namespace WiimoteGun.Controls
                     var p4Prof = new HotkeyProfile(4);
                     p4Prof.Hotkeys = new List<Hotkey>(p4Lines);
                     HotkeyManager.SetProfile(4, p4Prof);
-                    
-                    Options.Instance.UseSharedHotkeys = profile.UseSharedHotkeys;
                     
                     // Force clear active modifier states to prevent stuck keys
                     HotkeyManager.ClearActiveState();

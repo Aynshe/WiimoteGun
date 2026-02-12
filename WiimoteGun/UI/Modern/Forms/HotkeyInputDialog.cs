@@ -7,33 +7,24 @@ using WiimoteGun.UI.Modern.Forms;
 namespace WiimoteGun
 {
     /// <summary>
-    /// Dialog for adding/editing a single hotkey
-    /// (EN/FR: Dialogue pour ajouter/éditer une hotkey)
-    /// </summary>
-    /// <summary>
-    /// Dialog for adding/editing a single hotkey
-    /// (EN/FR: Dialogue pour ajouter/éditer une hotkey)
+    /// Dialog for adding/editing a single hotkey (Dual Action)
+    /// (EN/FR: Dialogue pour ajouter/éditer une hotkey double action)
     /// </summary>
     public partial class HotkeyInputDialog : Form
     {
         private int _playerIndex;
         private Hotkey _hotkey;
-        private List<Keys> _capturedKeys = new List<Keys>();
+        private List<Keys> _capturedShortKeys = new List<Keys>();
+        private List<Keys> _capturedLongKeys = new List<Keys>();
 
         // All available modifier buttons (EN/FR: Tous les boutons modifier disponibles)
-        private static readonly string[] AllModifierButtons = new[] { "A", "B", "One", "Two", "Plus", "Minus", "Home", "Up", "Down", "Left", "Right" };
+        private static readonly string[] AllModifierButtons = new[] { "A", "B", "One", "Two", "Plus", "Minus", "Home", "Up", "Down", "Left", "Right", "NunC", "NunZ", "NunUp", "NunDown", "NunLeft", "NunRight" };
 
-        // Trigger buttons exclude Home — reserved as base modifier, hardware function on Bluetooth
-        // (EN/FR: Les triggers excluent Home — réservé comme modifier de base, fonction matérielle en Bluetooth)
-        private static readonly string[] AllTriggerButtons = new[] { "A", "B", "One", "Two", "Plus", "Minus", "Up", "Down", "Left", "Right" };
-
-        // Colors are now handled in Designer, or can be kept here if dynamic
-        private static readonly Color ColorAccent = Color.FromArgb(0, 122, 204);
+        // Trigger buttons exclude Home — reserved as base modifier
+        // (EN/FR: Les triggers excluent Home)
+        private static readonly string[] AllTriggerButtons = new[] { "A", "B", "One", "Two", "Plus", "Minus", "Up", "Down", "Left", "Right", "NunC", "NunZ", "NunUp", "NunDown", "NunLeft", "NunRight" };
 
         public Hotkey Hotkey { get { return _hotkey; } }
-
-        private System.Windows.Forms.Label _lblModifier;
-        private System.Windows.Forms.ComboBox _cmbModifier;
 
         public HotkeyInputDialog(int playerIndex, Hotkey existingHotkey)
         {
@@ -42,7 +33,11 @@ namespace WiimoteGun
             
             if (existingHotkey != null)
             {
-                _capturedKeys = new List<Keys>(existingHotkey.KeyCombination);
+                if (existingHotkey.ShortPressKeys != null)
+                    _capturedShortKeys = new List<Keys>(existingHotkey.ShortPressKeys);
+                
+                if (existingHotkey.LongPressKeys != null)
+                    _capturedLongKeys = new List<Keys>(existingHotkey.LongPressKeys);
             }
 
             InitializeComponent();
@@ -53,73 +48,36 @@ namespace WiimoteGun
 
         private void InitializeCustomControls()
         {
-            // Increase form height to accommodate new field
-            this.Height = 360;
-
-            // Shift existing controls down by 40px
-            _lblTrigger.Top += 40;
-            _cmbTriggerButton.Top += 40;
-            lblType.Top += 40;
-            _rbShort.Top += 40;
-            _rbLong.Top += 40;
-            _lblKeys.Top += 40;
-            _txtKeys.Top += 40;
-            _btnCaptureKeys.Top += 40;
-            _btnClearKeys.Top += 40;
-            _lblDescription.Top += 40;
-            _txtDescription.Top += 40;
-            _btnOK.Top += 40;
-            _btnCancel.Top += 40;
-
-            // Create Modifier Label
-            _lblModifier = new Label();
-            _lblModifier.AutoSize = true;
-            _lblModifier.Font = new System.Drawing.Font("Segoe UI", 10F);
-            _lblModifier.ForeColor = System.Drawing.Color.FromArgb(224, 224, 224);
-            _lblModifier.Location = new Point(20, 20);
-            _lblModifier.Text = "Modifier Button:";
-            this.Controls.Add(_lblModifier);
-
-            // Create Modifier ComboBox
-            _cmbModifier = new ComboBox();
-            _cmbModifier.BackColor = System.Drawing.Color.FromArgb(37, 37, 37);
-            _cmbModifier.ForeColor = System.Drawing.Color.FromArgb(224, 224, 224);
-            _cmbModifier.DropDownStyle = ComboBoxStyle.DropDownList;
-            _cmbModifier.Font = new System.Drawing.Font("Segoe UI", 10F);
-            _cmbModifier.Location = new Point(150, 17);
-            _cmbModifier.Size = new Size(250, 25);
-            // Populate modifier list — filter Home if DolphinBar mode
-            // (EN/FR: Remplir la liste modifier — masquer Home si mode DolphinBar)
+            // Note: Designer handles layout of Modifier, Trigger and Groups.
+            // We only need to dynamically populate the Modifier and Trigger lists.
+            
+            // Populate modifier list
+            _cmbModifier.Items.Clear();
             foreach (string btn in AllModifierButtons)
             {
-                // DolphinBar: Home is a hardware button (changes connection mode with D-pad)
-                // (EN/FR: DolphinBar : Home est un bouton matériel, change le mode de connexion avec D-pad)
+                // DolphinBar: Home is a hardware button
                 if (string.Equals(btn, "Home", StringComparison.OrdinalIgnoreCase) && Options.Instance.DetectDolphinbar)
                     continue;
 
                 _cmbModifier.Items.Add(btn);
             }
-            _cmbModifier.SelectedIndexChanged += CmbModifier_SelectedIndexChanged;
-            this.Controls.Add(_cmbModifier);
+
+            // Configure Shared checkbox visibility (P1 only)
+            // (EN/FR: Configurer la visibilité de la case de partage (P1 uniquement))
+            if (_cbSharedHotkey != null)
+            {
+                _cbSharedHotkey.Visible = (_playerIndex == 1);
+                _cbSharedHotkey.Checked = _hotkey.IsShared;
+            }
         }
 
-        /// <summary>
-        /// Update trigger list when modifier changes, excluding the selected modifier
-        /// (EN/FR: Mettre à jour la liste trigger quand le modifier change, en excluant le modifier sélectionné)
-        /// </summary>
         private void CmbModifier_SelectedIndexChanged(object sender, EventArgs e)
         {
             UpdateTriggerList();
         }
 
-        // D-pad buttons reserved for offset adjustment with Home (BT) or Minus (DolphinBar)
-        // (EN/FR: Boutons D-pad réservés pour l'ajustement d'offset avec Home (BT) ou Minus (DolphinBar))
         private static readonly HashSet<string> DpadButtons = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Up", "Down", "Left", "Right" };
 
-        /// <summary>
-        /// Populate trigger ComboBox with contextual filtering based on modifier and connection type
-        /// (EN/FR: Remplir le ComboBox trigger avec filtrage contextuel basé sur le modifier et le type de connexion)
-        /// </summary>
         private void UpdateTriggerList()
         {
             string currentTrigger = _cmbTriggerButton.SelectedItem as string;
@@ -129,21 +87,17 @@ namespace WiimoteGun
 
             foreach (string btn in AllTriggerButtons)
             {
-                // Exclude the selected modifier from trigger list
-                // (EN/FR: Exclure le modifier sélectionné de la liste trigger)
+                // Exclude selected modifier
                 if (string.Equals(btn, selectedModifier, StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                // Home + D-pad = offset adjustment on Bluetooth → hide D-pad triggers
-                // Minus + D-pad = offset adjustment on DolphinBar → hide D-pad triggers
-                // (EN/FR: Home/Minus + D-pad = ajustement offset → masquer D-pad des triggers)
+                // Exclude D-pad if Modifier is Home/Minus (Offset adjustment)
                 if (DpadButtons.Contains(btn) &&
                     (string.Equals(selectedModifier, "Home", StringComparison.OrdinalIgnoreCase) ||
                      string.Equals(selectedModifier, "Minus", StringComparison.OrdinalIgnoreCase)))
                     continue;
 
-                // Home + Plus = Overlay command → hide Plus when Home is modifier
-                // (EN/FR: Home + Plus = commande Overlay → masquer Plus quand Home est modifier)
+                // Home + Plus = Overlay command
                 if (string.Equals(btn, "Plus", StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(selectedModifier, "Home", StringComparison.OrdinalIgnoreCase))
                     continue;
@@ -151,8 +105,6 @@ namespace WiimoteGun
                 _cmbTriggerButton.Items.Add(btn);
             }
 
-            // Restore previous selection if still valid
-            // (EN/FR: Restaurer la sélection précédente si encore valide)
             if (currentTrigger != null && _cmbTriggerButton.Items.Contains(currentTrigger))
             {
                 _cmbTriggerButton.SelectedItem = currentTrigger;
@@ -161,7 +113,7 @@ namespace WiimoteGun
 
         private void InitializeCustomSettings()
         {
-            this.Text = _hotkey.TriggerButton == null ? "Add Hotkey" : "Edit Hotkey";
+            this.Text = string.IsNullOrEmpty(_hotkey.TriggerButton) ? "Add Hotkey" : "Edit Hotkey";
         }
 
         private void LoadExistingData()
@@ -184,67 +136,88 @@ namespace WiimoteGun
                 _cmbTriggerButton.SelectedItem = _hotkey.TriggerButton;
             }
 
-            if (_hotkey.PressType == HotkeyPressType.Long)
-            {
-                _rbLong.Checked = true;
-            }
-
             _txtDescription.Text = _hotkey.Description ?? "";
-            UpdateKeysDisplay();
+            UpdateShortKeysDisplay();
+            UpdateLongKeysDisplay();
+
+            if (_cbSharedHotkey != null)
+            {
+                _cbSharedHotkey.Checked = _hotkey.IsShared;
+            }
         }
 
-        private void BtnCaptureKeys_Click(object sender, EventArgs e)
+        #region Short Press Handlers
+        private void BtnCaptureShort_Click(object sender, EventArgs e)
         {
             using (var captureDialog = new KeyCaptureDialog())
             {
                 if (captureDialog.ShowDialog(this) == DialogResult.OK)
                 {
-                    _capturedKeys = captureDialog.CapturedKeys;
-                    UpdateKeysDisplay();
+                    _capturedShortKeys = captureDialog.CapturedKeys;
+                    UpdateShortKeysDisplay();
                 }
             }
         }
 
-        private void UpdateKeysDisplay()
+        private void BtnClearShort_Click(object sender, EventArgs e)
         {
-            if (_capturedKeys.Count == 0)
-            {
-                _txtKeys.Text = "(No keys captured)";
-            }
+            _capturedShortKeys.Clear();
+            UpdateShortKeysDisplay();
+        }
+
+        private void UpdateShortKeysDisplay()
+        {
+            if (_capturedShortKeys.Count == 0)
+                _txtShortKeys.Text = "(None)";
             else
+                _txtShortKeys.Text = string.Join(" + ", _capturedShortKeys);
+        }
+        #endregion
+
+        #region Long Press Handlers
+        private void BtnCaptureLong_Click(object sender, EventArgs e)
+        {
+            using (var captureDialog = new KeyCaptureDialog())
             {
-                _txtKeys.Text = string.Join(" + ", _capturedKeys);
+                if (captureDialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    _capturedLongKeys = captureDialog.CapturedKeys;
+                    UpdateLongKeysDisplay();
+                }
             }
         }
+
+        private void BtnClearLong_Click(object sender, EventArgs e)
+        {
+            _capturedLongKeys.Clear();
+            UpdateLongKeysDisplay();
+        }
+
+        private void UpdateLongKeysDisplay()
+        {
+            if (_capturedLongKeys.Count == 0)
+                _txtLongKeys.Text = "(None)";
+            else
+                _txtLongKeys.Text = string.Join(" + ", _capturedLongKeys);
+        }
+        #endregion
 
         private void ShowVirtualKeyboard(TextBox targetTextBox)
         {
             if (targetTextBox == null) return;
 
-            // Create and show virtual keyboard (EN/FR: Créer et afficher clavier virtuel)
             VirtualKeyboard keyboard = new VirtualKeyboard(targetTextBox);
-            
-            // Center on parent form (EN/FR: Centrer sur formulaire parent)
             keyboard.StartPosition = FormStartPosition.Manual;
             keyboard.Location = new Point(
                 this.Location.X + (this.Width - keyboard.Width) / 2,
                 this.Location.Y + (this.Height - keyboard.Height) / 2
             );
-            
             keyboard.ShowDialog(this);
         }
 
-        // Handler linked from Designer
         private void _txtDescription_Click(object sender, EventArgs e)
         {
             ShowVirtualKeyboard(_txtDescription);
-        }
-
-        // Handler linked from Designer
-        private void _btnClearKeys_Click(object sender, EventArgs e)
-        {
-            _capturedKeys.Clear();
-            UpdateKeysDisplay();
         }
 
         private void BtnOK_Click(object sender, EventArgs e)
@@ -252,39 +225,39 @@ namespace WiimoteGun
             // Validate
             if (_cmbModifier.SelectedItem == null)
             {
-                MessageBox.Show("Please select a modifier button.", "Validation Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Please select a modifier button.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             if (_cmbTriggerButton.SelectedItem == null)
             {
-                MessageBox.Show("Please select a trigger button.", "Validation Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Please select a trigger button.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            // Prevent Modifier == Trigger
             if (_cmbModifier.SelectedItem.ToString() == _cmbTriggerButton.SelectedItem.ToString())
             {
-                MessageBox.Show("Modifier and Trigger cannot be the same button.", "Validation Error", 
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Modifier and Trigger cannot be the same button.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            if (_capturedKeys.Count == 0)
+            // At least one action must be defined
+            if (_capturedShortKeys.Count == 0 && _capturedLongKeys.Count == 0)
             {
-                MessageBox.Show("Please capture at least one key.", "Validation Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Please define at least one action (Short or Long press).", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             // Create/update hotkey
             _hotkey.ModifierButton = _cmbModifier.SelectedItem.ToString();
             _hotkey.TriggerButton = _cmbTriggerButton.SelectedItem.ToString();
-            _hotkey.PressType = _rbShort.Checked ? HotkeyPressType.Short : HotkeyPressType.Long;
-            _hotkey.KeyCombination = new List<Keys>(_capturedKeys);
+            
+            // Assign keys (clone lists)
+            _hotkey.ShortPressKeys = new List<Keys>(_capturedShortKeys);
+            _hotkey.LongPressKeys = new List<Keys>(_capturedLongKeys);
+            
             _hotkey.Description = _txtDescription.Text.Trim();
+            _hotkey.IsShared = _cbSharedHotkey != null ? _cbSharedHotkey.Checked : false;
 
             this.DialogResult = DialogResult.OK;
             this.Close();

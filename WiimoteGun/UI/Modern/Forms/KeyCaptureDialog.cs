@@ -36,56 +36,72 @@ namespace WiimoteGun
             this.KeyUp += KeyCaptureDialog_KeyUp;
         }
 
-        private void KeyCaptureDialog_KeyDown(object sender, KeyEventArgs e)
+        /// <summary>
+        /// Intercept all keys including F1, ESC, etc. before they are processed by the form
+        /// (EN/FR: Intercepter toutes les touches y compris F1, ESC, etc. avant traitement par le formulaire)
+        /// </summary>
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            e.Handled = true;
-            e.SuppressKeyPress = true;
-
-            // Only block Enter - used to confirm dialog (EN/FR: Ne bloquer que Enter - utilisé pour confirmer dialogue)
-            // ESC can now be captured as a hotkey since we have a Cancel button
-            if (e.KeyCode == Keys.Enter)
-                return;
-
-            // CRITICAL FIX: Use KeyData to get the actual key pressed (EN/FR: Utiliser KeyData pour vraie touche)
-            // KeyData includes modifiers, KeyCode only gives base key
-            // This properly handles AZERTY, QWERTZ, and other layouts
-            Keys actualKey = e.KeyCode;
+            // Extract the key code (without modifiers)
+            Keys keyCode = keyData & Keys.KeyCode;
             
-            // Don't add modifier keys by themselves, they'll be in other keys
-            // (EN/FR: Ne pas ajouter modificateurs seuls, ils seront dans autres touches)
-            bool isModifierOnly = (e.KeyCode == Keys.ControlKey || e.KeyCode == Keys.Control || 
-                                   e.KeyCode == Keys.ShiftKey || e.KeyCode == Keys.Shift ||
-                                   e.KeyCode == Keys.Menu || e.KeyCode == Keys.Alt ||
-                                   e.KeyCode == Keys.LWin || e.KeyCode == Keys.RWin);
+            // Allow Enter to close the dialog (OK)
+            if (keyCode == Keys.Enter)
+            {
+                return base.ProcessCmdKey(ref msg, keyData);
+            }
+
+            // Capture the key
+            HandleKeyInput(keyData);
+            
+            // Return true to indicate we processed the key (suppress default behavior like closing on ESC)
+            return true;
+        }
+
+        // Refactored from KeyDown event to shared method
+        private void HandleKeyInput(Keys keyData)
+        {
+            Keys keyCode = keyData & Keys.KeyCode;
+            
+            // Don't add modifier keys by themselves
+            bool isModifierOnly = (keyCode == Keys.ControlKey || keyCode == Keys.Control || 
+                                   keyCode == Keys.ShiftKey || keyCode == Keys.Shift ||
+                                   keyCode == Keys.Menu || keyCode == Keys.Alt ||
+                                   keyCode == Keys.LWin || keyCode == Keys.RWin);
             
             if (isModifierOnly)
             {
-                // Just show it in display but don't add yet
-                // (EN/FR: Juste afficher mais ne pas ajouter)
                 UpdateDisplay();
                 return;
             }
             
-            // Add modifiers first if pressed (EN/FR: Ajouter modificateurs d'abord si pressés)
-            if (e.Control && !_capturedKeys.Contains(Keys.Control))
+            // Add modifiers first if pressed
+            if ((keyData & Keys.Control) == Keys.Control && !_capturedKeys.Contains(Keys.Control))
             {
                 _capturedKeys.Add(Keys.Control);
             }
-            if (e.Alt && !_capturedKeys.Contains(Keys.Alt))
+            if ((keyData & Keys.Alt) == Keys.Alt && !_capturedKeys.Contains(Keys.Alt))
             {
                 _capturedKeys.Add(Keys.Alt);
             }
-            if (e.Shift && !_capturedKeys.Contains(Keys.Shift))
+            if ((keyData & Keys.Shift) == Keys.Shift && !_capturedKeys.Contains(Keys.Shift))
             {
                 _capturedKeys.Add(Keys.Shift);
             }
             
-            // Add the main key (EN/FR: Ajouter touche principale)
-            if (!_capturedKeys.Contains(actualKey))
+            // Add the main key
+            if (!_capturedKeys.Contains(keyCode))
             {
-                _capturedKeys.Add(actualKey);
+                _capturedKeys.Add(keyCode);
                 UpdateDisplay();
             }
+        }
+
+        private void KeyCaptureDialog_KeyDown(object sender, KeyEventArgs e)
+        {
+            // Handled in ProcessCmdKey primarily, but keep this to suppress default handling just in case
+            e.Handled = true;
+            e.SuppressKeyPress = true;
         }
 
         private void KeyCaptureDialog_KeyUp(object sender, KeyEventArgs e)

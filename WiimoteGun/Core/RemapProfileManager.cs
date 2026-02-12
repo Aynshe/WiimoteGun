@@ -190,8 +190,7 @@ namespace WiimoteGun
                         P1Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(1).Hotkeys.Select(h => h.Clone())),
                         P2Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(2).Hotkeys.Select(h => h.Clone())),
                         P3Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(3).Hotkeys.Select(h => h.Clone())),
-                        P4Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(4).Hotkeys.Select(h => h.Clone())),
-                        UseSharedHotkeys = Options.Instance.UseSharedHotkeys
+                        P4Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(4).Hotkeys.Select(h => h.Clone()))
                     };
                     
                     XmlSerializer serializer = new XmlSerializer(typeof(RemapProfile));
@@ -363,7 +362,6 @@ namespace WiimoteGun
         public List<Hotkey> P2Hotkeys { get; set; }
         public List<Hotkey> P3Hotkeys { get; set; }
         public List<Hotkey> P4Hotkeys { get; set; }
-        public bool UseSharedHotkeys { get; set; }
 
         public RemapProfile()
         {
@@ -377,7 +375,6 @@ namespace WiimoteGun
             P2Hotkeys = new List<Hotkey>();
             P3Hotkeys = new List<Hotkey>();
             P4Hotkeys = new List<Hotkey>();
-            UseSharedHotkeys = false;
         }
     }
 }
