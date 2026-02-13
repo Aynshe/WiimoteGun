@@ -133,6 +133,10 @@ namespace WiimoteGun.Controls
             optIRSmoothingStrength.Value = Math.Min(Math.Max(Options.Instance.IRSmoothingStrength, optIRSmoothingStrength.Minimum), optIRSmoothingStrength.Maximum);
             optUseHighPerfTimers.Checked = Options.Instance.UseHighPerfTimers;
             optEnableHomographyCache.Checked = Options.Instance.EnableHomographyCache;
+            optUseIRExtrapolation.Checked = Options.Instance.UseIRExtrapolation;
+            optIRExtrapolationStrength.Value = (decimal)Math.Min(Math.Max(Options.Instance.IRExtrapolationStrength, (float)optIRExtrapolationStrength.Minimum), (float)optIRExtrapolationStrength.Maximum);
+            optEnableVirtualPolling.Checked = Options.Instance.EnableVirtualPolling;
+            optVirtualPollingRate.Value = Math.Min(Math.Max(Options.Instance.VirtualPollingRate, (int)optVirtualPollingRate.Minimum), (int)optVirtualPollingRate.Maximum);
 
         }
 
@@ -184,6 +188,10 @@ namespace WiimoteGun.Controls
                 Options.Instance.IRSmoothingStrength = (int)optIRSmoothingStrength.Value;
                 Options.Instance.UseHighPerfTimers = optUseHighPerfTimers.Checked;
                 Options.Instance.EnableHomographyCache = optEnableHomographyCache.Checked;
+                Options.Instance.UseIRExtrapolation = optUseIRExtrapolation.Checked;
+                Options.Instance.IRExtrapolationStrength = (float)optIRExtrapolationStrength.Value;
+                Options.Instance.EnableVirtualPolling = optEnableVirtualPolling.Checked;
+                Options.Instance.VirtualPollingRate = (int)optVirtualPollingRate.Value;
 
 
                 // Save

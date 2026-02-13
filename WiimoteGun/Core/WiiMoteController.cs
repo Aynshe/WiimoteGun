@@ -91,6 +91,19 @@ namespace WiimoteGun
         // (EN/FR: Remplace les appels DateTime.Now dans le chemin critique quand activé)
         private Stopwatch _perfStopwatch = Stopwatch.StartNew();
 
+        // Virtual Polling (Upsampling) (EN/FR: Polling Virtuel / Upsampling)
+        private WiimoteLib.Helpers.MultimediaTimer _virtualPollingTimer;
+        private int _lastX_Raw = 0; // Last processed but non-extrapolated X
+        private int _lastY_Raw = 0; // Last processed but non-extrapolated Y
+        private float _lastVelX_Diag = 0f; // Last calculated velocity X
+        private float _lastVelY_Diag = 0f; // Last calculated velocity Y
+        private bool _lastLeft_Raw = false;
+        private bool _lastRight_Raw = false;
+        private bool _lastMiddle_Raw = false;
+        private bool _lastMoveCursor_Raw = false;
+        private DateTime _lastProcessingTime = DateTime.MinValue;
+        private DateTime _lastAnyReportTime = DateTime.MinValue; // Last report time, real OR virtual (EN/FR: Temps dernier rapport, réel OU virtuel)
+
         // ... existing code ...
 
         private bool CheckShake(WiimoteState state)
@@ -191,6 +204,7 @@ namespace WiimoteGun
         // Hybrid Tracking Mode (EN/FR: Mode tracking hybride)
         private bool _useGyroForTracking = false; // Currently using gyro for cursor movement (EN/FR: Utilise actuellement gyro pour mouvement curseur)
         private DateTime _lastIRSeenTime = DateTime.Now; // Last time IR was valid (EN/FR: Dernière fois que l'IR était valide)
+        private int _diagFrameCount = 0; // Counter for diagnostic logging (EN/FR: Compteur pour logs diagnostic)
         private const float IR_LOST_TIMEOUT_MS = 100f; // Time before switching to gyro (EN/FR: Temps avant basculement vers gyro)
 
         // GamePad Sticky IR (EN/FR: Maintien IR pour GamePad)
@@ -285,13 +299,6 @@ namespace WiimoteGun
 
             _lastState = new ButtonState();
             _lastNunchukState = new NunchukState();
-            
-            // Initialize IR to Center (EN/FR: Initialiser IR au centre)
-            _lastValidIRX = 0.5f;
-            _lastValidIRY = 0.5f;
-
-            // Get player-specific mappings (EN/FR: Obtenir les mappings spécifiques au joueur)
-            _playerMappings = Options.Instance.GetMappingsForPlayer(playerIndex);
 
             // Select keyboard implementation based on configuration (EN/FR: Sélectionner implémentation clavier selon configuration)
             if (Options.Instance.DefaultMouseMode == MouseMode.SendInput)
@@ -348,6 +355,14 @@ namespace WiimoteGun
 
             SetupWiimote();
 
+            // Setup Hypersampling timer if enabled (EN/FR: Configurer timer de hypersampling si activé)
+            if (Options.Instance.EnableVirtualPolling)
+            {
+                int interval = 1000 / Options.Instance.VirtualPollingRate;
+                _virtualPollingTimer = new WiimoteLib.Helpers.MultimediaTimer(interval, OnVirtualPollingTick);
+                _virtualPollingTimer.Start();
+            }
+
             _watchDolphinThread = new Thread(CheckDolphin);
             _watchDolphinThread.IsBackground = true;
             _watchDolphinThread.Start();
@@ -391,7 +406,7 @@ namespace WiimoteGun
                 // (EN/FR: Si aucun rapport reçu en 2s alors qu'actif, renvoyer la commande de mode)
                 if (_mode != WiiMoteMode.Disabled && (DateTime.Now - _lastReportTime).TotalMilliseconds > HID_TIMEOUT_MS)
                 {
-                    SimpleLogger.Instance.Warning(string.Format("[P{0}] HID communication timeout ({1}ms). Attempting report mode recovery...", PlayerIndex, HID_TIMEOUT_MS));
+                    SimpleLogger.Instance.Debug(string.Format("[P{0}] HID communication timeout ({1}ms). Attempting report mode recovery...", PlayerIndex, HID_TIMEOUT_MS));
                     
                     // Update timer to avoid spamming recovery
                     _lastReportTime = DateTime.Now;
@@ -409,7 +424,7 @@ namespace WiimoteGun
                             else
                                 Wiimote.EnableMotionPlus(MotionPlusExtensionType.NoExtension);
                                 
-                            SimpleLogger.Instance.Info(string.Format("[P{0}] Report mode recovery command sent.", PlayerIndex));
+                            SimpleLogger.Instance.Debug(string.Format("[P{0}] Report mode recovery command sent.", PlayerIndex));
                         }
                         catch (Exception ex)
                         {
@@ -647,6 +662,13 @@ namespace WiimoteGun
                 _rumbleStopTimer = null;
             }
 
+            // Dispose virtual polling timer (EN/FR: Disposer le timer de polling virtuel)
+            if (_virtualPollingTimer != null)
+            {
+                _virtualPollingTimer.Stop();
+                _virtualPollingTimer = null;
+            }
+
             if (_hiddenWnd != null)
             {
                 var wnd = _hiddenWnd;
@@ -846,6 +868,8 @@ namespace WiimoteGun
             {
                 ButtonState buttons = e.WiimoteState.Buttons;
                 IRState ir = e.WiimoteState.IRState;
+                int velocityX = 0;
+                int velocityY = 0;
 
                 // --- MANUAL DISABLE HOTKEY (Off-Screen + Minus + Plus > 3s) ---
                 bool isOffScreen = !ir.IRSensor0.Found && !ir.IRSensor1.Found;
@@ -978,61 +1002,95 @@ namespace WiimoteGun
                     
                     if (hasValidIR)
                     {
-                        // IR is valid - use IR tracking (EN/FR: IR valide - utiliser tracking IR)
-                        x = (int)scaledPos.Value.X;
-                        y = (int)scaledPos.Value.Y;
+                        // 1. Get raw IR position (EN/FR: Obtenir position IR brute)
+                        int rawX = (int)scaledPos.Value.X;
+                        int rawY = (int)scaledPos.Value.Y;
                         
-                        // EMA Smoothing: smoothed = alpha * raw + (1-alpha) * previous
-                        // (EN/FR: Lissage EMA : lissé = alpha * brut + (1-alpha) * précédent)
+                        // 2. EMA Smoothing: Calculate smoothed position as a basis
+                        // (EN/FR: Lissage EMA : Calculer position lissée comme base)
+                        int smoothedX = rawX;
+                        int smoothedY = rawY;
+                        
                         if (Options.Instance.EnableIRSmoothing && _lastX != 0 && _lastY != 0)
                         {
-                            float strength = Math.Max(1, Math.Min(10, Options.Instance.IRSmoothingStrength));
-                            float alpha = 1.0f / strength;
-                            x = (int)(alpha * x + (1.0f - alpha) * _lastX);
-                            y = (int)(alpha * y + (1.0f - alpha) * _lastY);
+                            float strengthSm = Math.Max(1, Math.Min(10, Options.Instance.IRSmoothingStrength));
+                            float alpha = 1.0f / strengthSm;
+                            smoothedX = (int)(alpha * rawX + (1.0f - alpha) * _lastX);
+                            smoothedY = (int)(alpha * rawY + (1.0f - alpha) * _lastY);
                         }
                         
-                        // Check if cursor is at screen edge (EN/FR: Vérifier si curseur est au bord écran)
-                        bool atLeftEdge = x <= EDGE_MARGIN;
-                        bool atRightEdge = x >= (screenWidth - EDGE_MARGIN);
-                        bool atTopEdge = y <= EDGE_MARGIN;
-                        bool atBottomEdge = y >= (screenHeight - EDGE_MARGIN);
-                        bool atEdge = atLeftEdge || atRightEdge || atTopEdge || atBottomEdge;
+                        // 3. Calculate Velocity based on smoothed movement (EN/FR: Calculer vitesse basée sur mouvement lissé)
+                        if (_lastX != 0 && _lastY != 0)
+                        {
+                            velocityX = smoothedX - _lastX;
+                            velocityY = smoothedY - _lastY;
+                        }
+
+                        // IR Diagnostics: Calculate performance metrics (EN/FR: Diagnostics IR : Calculer métriques de performance)
+                        if (SimpleLogger.Instance.Threshold <= LogLevel.DEBUG && _lastIRSeenTime != DateTime.MinValue)
+                        {
+                            _diagFrameCount++;
+                            if (_diagFrameCount >= 100)
+                            {
+                                float frameTimeMs = (float)(DateTime.Now - _lastIRSeenTime).TotalMilliseconds;
+                                float smoothingLeadFrames = Options.Instance.IRSmoothingStrength - 1;
+                                float smoothingDelayMs = smoothingLeadFrames * frameTimeMs;
+                                float extrapolationLeadMs = Options.Instance.IRExtrapolationStrength * frameTimeMs;
+                                
+                                SimpleLogger.Instance.Debug(string.Format("P{0} IR DIAL: Frame={1:F1}ms | Smoothing={2:F1}ms (S:{3}) | Extrapol={4:F1}ms (S:{5:F1})", 
+                                    PlayerIndex, frameTimeMs, smoothingDelayMs, Options.Instance.IRSmoothingStrength, 
+                                    extrapolationLeadMs, Options.Instance.IRExtrapolationStrength));
+                                
+                                _diagFrameCount = 0;
+                            }
+                        }
                         
+                        // 4. Update basis for NEXT frame (Critical: update BEFORE adding prediction/gyro)
+                        // (EN/FR: Mettre à jour la base pour la prochaine frame)
+                        _lastX = smoothedX;
+                        _lastY = smoothedY;
+                        
+                        // 5. Start with smoothed position for final output
+                        x = smoothedX;
+                        y = smoothedY;
+                        
+                        // 6. Gyro at edge detection (EN/FR: Détection gyro aux bords)
+                        // Use a relative margin (e.g., 2% of range) or scale the 50px margin
+                        int marginX = (int)(EDGE_MARGIN * (65535.0f / screenWidth));
+                        int marginY = (int)(EDGE_MARGIN * (65535.0f / screenHeight));
+                        
+                        bool atLeftEdge = x <= marginX;
+                        bool atRightEdge = x >= (65535 - marginX);
+                        bool atTopEdge = y <= marginY;
+                        bool atBottomEdge = y >= (65535 - marginY);
+
+                        bool atEdge = atLeftEdge || atRightEdge || atTopEdge || atBottomEdge;
+
                         if (_gyroAimingEnabled && atEdge)
                         {
-                            // Cursor at edge - ACTIVATE GYRO to allow continued rotation
-                            // (EN/FR: Curseur au bord - ACTIVER GYRO pour rotation continue)
                             if (!_useGyroForTracking)
                             {
                                 _useGyroForTracking = true;
-                                string edgeDirection = atLeftEdge ? "Left" : atRightEdge ? "Right" : atTopEdge ? "Top" : "Bottom";
-                                SimpleLogger.Instance.Info($"P{PlayerIndex}: Gyro activated (cursor at {edgeDirection} edge)");
+                                SimpleLogger.Instance.Debug($"P{PlayerIndex}: Gyro activated at screen edge");
                             }
-                            
-                            // Apply gyro movement (EN/FR: Appliquer mouvement gyro)
-                            float sensitivityX = Options.Instance.GyroSensitivityX;
-                            float sensitivityY = Options.Instance.GyroSensitivityY;
-                            
-                            // Calculate movement delta (EN/FR: Calculer delta de mouvement)
-                            int deltaX = (int)(_lastGyroYaw * sensitivityX);
-                            int deltaY = (int)(-_lastGyroPitch * sensitivityY); // Inverted for natural feel
-                            
-                            // Add delta to current position (EN/FR: Ajouter delta à position actuelle)
-                            x = _lastX + deltaX;
-                            y = _lastY + deltaY;
-                            
-                            // Clamp to screen bounds (EN/FR: Limiter aux bords de l'écran)
-                            x = Math.Max(0, Math.Min(screenWidth - 1, x));
-                            y = Math.Max(0, Math.Min(screenHeight - 1, y));
-                            
-                            // Log gyro tracking (uncomment for debugging) (EN/FR: Logger tracking gyro)
-                            // SimpleLogger.Instance.Debug($"P{PlayerIndex} Gyro@Edge: ({x},{y}) delta=({deltaX},{deltaY})");
+
+                            // Scale pixel sensitivity/delta to 65535 range
+                            float gyroScaleX = 65535.0f / screenWidth;
+                            float gyroScaleY = 65535.0f / screenHeight;
+
+                            float sensitivityX = Options.Instance.GyroSensitivityX * gyroScaleX;
+                            float sensitivityY = Options.Instance.GyroSensitivityY * gyroScaleY;
+
+                            // Delta applies to previous position to accumulate
+                            x = x + (int)(_lastGyroYaw * sensitivityX);
+                            y = y + (int)(-_lastGyroPitch * sensitivityY);
+
+                            // Clamp to 65535 range
+                            x = Math.Max(0, Math.Min(65535, x));
+                            y = Math.Max(0, Math.Min(65535, y));
                         }
                         else
                         {
-                            // Cursor NOT at edge - use normal IR tracking and disable gyro
-                            // (EN/FR: Curseur PAS au bord - utiliser tracking IR normal et désactiver gyro)
                             if (_useGyroForTracking)
                             {
                                 _useGyroForTracking = false;
@@ -1040,8 +1098,17 @@ namespace WiimoteGun
                             }
                         }
                         
-                        _lastX = x;
-                        _lastY = y;
+                        // 7. IR Extrapolation: P_final = P_processed + (velocity * Strength)
+                        if (Options.Instance.UseIRExtrapolation)
+                        {
+                            float strengthEx = Options.Instance.IRExtrapolationStrength;
+                            x = (int)(x + velocityX * strengthEx);
+                            y = (int)(y + velocityY * strengthEx);
+                            
+                            x = Math.Max(0, Math.Min(65535, x));
+                            y = Math.Max(0, Math.Min(65535, y));
+                        }
+                        
                         _lastIRSeenTime = Options.Instance.UseHighPerfTimers ? DateTime.UtcNow : DateTime.Now;
                     }
                     else if (_gyroAimingEnabled)
@@ -1058,9 +1125,12 @@ namespace WiimoteGun
                                 SimpleLogger.Instance.Info($"P{PlayerIndex}: Switched to Gyro tracking (IR lost)");
                             }
 
-                            // Apply gyro movement (EN/FR: Appliquer mouvement gyro)
-                            float sensitivityX = Options.Instance.GyroSensitivityX;
-                            float sensitivityY = Options.Instance.GyroSensitivityY;
+                            // Scale pixel sensitivity/delta to 65535 range
+                            float gyroScaleX = 65535.0f / screenWidth;
+                            float gyroScaleY = 65535.0f / screenHeight;
+
+                            float sensitivityX = Options.Instance.GyroSensitivityX * gyroScaleX;
+                            float sensitivityY = Options.Instance.GyroSensitivityY * gyroScaleY;
 
                             // Calculate movement delta (EN/FR: Calculer delta de mouvement)
                             int deltaX = (int)(_lastGyroYaw * sensitivityX);
@@ -1070,9 +1140,9 @@ namespace WiimoteGun
                             x = _lastX + deltaX;
                             y = _lastY + deltaY;
 
-                            // Clamp to screen bounds (EN/FR: Limiter aux bords de l'écran)
-                            x = Math.Max(0, Math.Min(screenWidth - 1, x));
-                            y = Math.Max(0, Math.Min(screenHeight - 1, y));
+                            // Clamp to VMulti range (0-65535)
+                            x = Math.Max(0, Math.Min(65535, x));
+                            y = Math.Max(0, Math.Min(65535, y));
 
                             _lastX = x;
                             _lastY = y;
@@ -1181,6 +1251,18 @@ namespace WiimoteGun
                             // (EN/FR: Vérification sécurité : _virtualMouse peut être null pour Joueur 2+ en mode SendInput)
                             if (_virtualMouse != null)
                             {
+                                // Virtual Polling Storage (EN/FR: Stockage pour le Polling Virtuel)
+                                _lastX_Raw = x;
+                                _lastY_Raw = y;
+                                _lastVelX_Diag = velocityX;
+                                _lastVelY_Diag = velocityY;
+                                _lastLeft_Raw = left;
+                                _lastRight_Raw = right;
+                                _lastMiddle_Raw = middle;
+                                _lastMoveCursor_Raw = scaledPos.HasValue;
+                                _lastProcessingTime = DateTime.UtcNow;
+            _lastAnyReportTime = _lastProcessingTime;
+
                                 _virtualMouse.UpdateMouse(x, y, left, right, middle, scaledPos.HasValue);
                             }
                             
@@ -2213,6 +2295,52 @@ namespace WiimoteGun
                 {
                     SimpleLogger.Instance.Warning(string.Format("[P{0}] Could not identify DirectInput index for Virtual GamePad.", PlayerIndex));
                 }
+            }
+        }
+
+        /// <summary>
+        /// EN: Virtual Polling (Hypersampling) callback.
+        /// FR: Callback de Polling Virtuel (Hypersampling).
+        /// Sends predicted positions between hardware reports to increase perceived polling rate.
+        /// </summary>
+        private void OnVirtualPollingTick()
+        {
+            if (!Options.Instance.EnableVirtualPolling || _mode == WiiMoteMode.Disabled) return;
+            if (!_lastMoveCursor_Raw) return;
+
+            // Short-circuit: Do not send virtual reports if the target rate is close to native Wiimote (100Hz)
+            // (EN/FR: Ne pas envoyer de rapports virtuels si le taux est proche du natif Wiimote)
+            if (Options.Instance.VirtualPollingRate <= 110) return;
+
+            // Calculate time since last real report (for prediction vector) 
+            // and time since any report (for rate limiting synchronization)
+            // (EN/FR: Calculer temps depuis dernier rapport réel et depuis n'importe quel rapport)
+            DateTime now = DateTime.UtcNow;
+            double msSinceLastReal = (now - _lastProcessingTime).TotalMilliseconds;
+            double msSinceLastAny = (now - _lastAnyReportTime).TotalMilliseconds;
+
+            // Target interval for the configured polling rate (e.g. 4.0ms for 250Hz)
+            // (EN/FR: Intervalle cible pour le taux configuré)
+            double targetIntervalMs = 1000.0 / Options.Instance.VirtualPollingRate;
+
+            // Only predict if within a reasonable window (EN/FR: Prédire uniquement dans une fenêtre raisonnable)
+            // AND if enough time has passed to maintain the target rate (synchronization)
+            // We use a 0.85 factor to allow for slight jitter while being closer to target than additive
+            if (msSinceLastReal > 1.0 && msSinceLastReal < 20.0 && msSinceLastAny >= (targetIntervalMs * 0.85))
+            {
+                // Predict position using last known velocity
+                // Multiplier (msSinceLastReal / 10.0) approximates frames (10ms per frame)
+                float frameFactor = (float)(msSinceLastReal / 10.0);
+                
+                int predX = (int)(_lastX_Raw + _lastVelX_Diag * frameFactor);
+                int predY = (int)(_lastY_Raw + _lastVelY_Diag * frameFactor);
+
+                predX = Math.Max(0, Math.Min(65535, predX));
+                predY = Math.Max(0, Math.Min(65535, predY));
+
+                // Send extrapolated update
+                _virtualMouse.UpdateMouse(predX, predY, _lastLeft_Raw, _lastRight_Raw, _lastMiddle_Raw, true);
+                _lastAnyReportTime = now;
             }
         }
     }

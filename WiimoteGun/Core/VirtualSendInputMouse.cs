@@ -68,76 +68,80 @@ namespace WiimoteGun
         {
             try
             {
-                // Move cursor if requested (EN/FR: Déplacer curseur si demandé)
+                // Atomic SendInput construction (EN/FR: Construction d'un SendInput atomique)
+                // Combine movement and button flags in a single operation
+                // (EN/FR : Combiner mouvement et boutons en une seule opération)
+                uint sendInputFlags = 0;
+                bool needsUpdate = false;
+
                 if (moveCursor)
                 {
-                    // HYBRID APPROACH FOR MAXIMUM COMPATIBILITY (EN/FR: Approche hybride pour compatibilité maximale)
-                    // Combines legacy TeknoParrot support with modern FPS game support
-                    
+                    sendInputFlags |= MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
+                    needsUpdate = true;
+                }
+
+                if (leftButton != _lastLeftButton)
+                {
+                    sendInputFlags |= leftButton ? MOUSEEVENTF_LEFTDOWN : MOUSEEVENTF_LEFTUP;
+                    _lastLeftButton = leftButton;
+                    needsUpdate = true;
+                    OnLeftMouseButtonChanged?.Invoke(leftButton);
+                }
+
+                if (rightButton != _lastRightButton)
+                {
+                    sendInputFlags |= rightButton ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_RIGHTUP;
+                    _lastRightButton = rightButton;
+                    needsUpdate = true;
+                }
+
+                if (middleButton != _lastMiddleButton)
+                {
+                    sendInputFlags |= middleButton ? MOUSEEVENTF_MIDDLEDOWN : MOUSEEVENTF_MIDDLEUP;
+                    _lastMiddleButton = middleButton;
+                    needsUpdate = true;
+                }
+
+                if (needsUpdate)
+                {
                     var screen = System.Windows.Forms.Screen.AllScreens[Options.Instance.MonitorId];
-                    
-                    // Calculate pixel position on the specific monitor
                     int screenPixelX = (int)((x / 65535.0) * screen.Bounds.Width) + screen.Bounds.Left;
                     int screenPixelY = (int)((y / 65535.0) * screen.Bounds.Height) + screen.Bounds.Top;
-                    
-                    // 1. SetCursorPos - For games that read GetCursorPos() (EN/FR: Pour jeux lisant GetCursorPos)
-                    SetCursorPos(screenPixelX, screenPixelY);
 
-                    // 2. Legacy mouse_event (ABSOLUTE + raw pixels) - For TeknoParrot
-                    // (EN/FR: mouse_event legacy pour TeknoParrot)
-                    mouse_event(MOUSEEVENTF_ABSOLUTE, screenPixelX, screenPixelY, 0, UIntPtr.Zero);
-                    
-                    // 3. Modern SendInput (MOVE | ABSOLUTE + normalized coords) - For FPS games with DirectInput/RawInput
-                    // (EN/FR: SendInput moderne pour jeux FPS avec DirectInput/RawInput)
-                    // Calculate normalized coordinates for all screens
+                    // 1. SetCursorPos & mouse_event remains for legacy/visual sync (TeknoParrot)
+                    if (moveCursor)
+                    {
+                        SetCursorPos(screenPixelX, screenPixelY);
+                        mouse_event(MOUSEEVENTF_ABSOLUTE, screenPixelX, screenPixelY, 0, UIntPtr.Zero);
+                    }
+
+                    // 2. Modern Atomic SendInput (MOVE | ABSOLUTE | BUTTONS)
                     int totalWidth = System.Windows.Forms.SystemInformation.VirtualScreen.Width;
                     int totalHeight = System.Windows.Forms.SystemInformation.VirtualScreen.Height;
                     int virtualLeft = System.Windows.Forms.SystemInformation.VirtualScreen.Left;
                     int virtualTop = System.Windows.Forms.SystemInformation.VirtualScreen.Top;
-                    
+
                     int normalizedX = (int)(((screenPixelX - virtualLeft) * 65535.0) / totalWidth);
                     int normalizedY = (int)(((screenPixelY - virtualTop) * 65535.0) / totalHeight);
                     normalizedX = Math.Max(0, Math.Min(65535, normalizedX));
                     normalizedY = Math.Max(0, Math.Min(65535, normalizedY));
-                    
-                    // Send via SendInput for modern games
+
                     INPUT[] inputs = new INPUT[1];
                     inputs[0].type = INPUT_MOUSE;
                     inputs[0].mi.dx = normalizedX;
                     inputs[0].mi.dy = normalizedY;
                     inputs[0].mi.mouseData = 0;
-                    inputs[0].mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
+                    inputs[0].mi.dwFlags = sendInputFlags;
                     inputs[0].mi.time = 0;
                     inputs[0].mi.dwExtraInfo = IntPtr.Zero;
-                    
+
                     SendInput(1, inputs, Marshal.SizeOf(typeof(INPUT)));
-                    
-                    _lastX = screenPixelX;
-                    _lastY = screenPixelY;
-                }
 
-                // Handle button state changes (EN/FR: Gérer changements d'état des boutons)
-                if (leftButton != _lastLeftButton)
-                {
-                    mouse_event(leftButton ? MOUSEEVENTF_LEFTDOWN : MOUSEEVENTF_LEFTUP, 0, 0, 0, UIntPtr.Zero);
-
-                    // Trigger rumble event (EN/FR: Déclencher événement vibration)
-                    OnLeftMouseButtonChanged?.Invoke(leftButton);
-                    _lastLeftButton = leftButton;
-                }
-
-                // Handle right button state changes (EN/FR: Gérer changements bouton droit)
-                if (rightButton != _lastRightButton)
-                {
-                    mouse_event(rightButton ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
-                    _lastRightButton = rightButton;
-                }
-
-                // Handle middle button state changes (EN/FR: Gérer changements bouton milieu)
-                if (middleButton != _lastMiddleButton)
-                {
-                    mouse_event(middleButton ? MOUSEEVENTF_MIDDLEDOWN : MOUSEEVENTF_MIDDLEUP, 0, 0, 0, UIntPtr.Zero);
-                    _lastMiddleButton = middleButton;
+                    if (moveCursor)
+                    {
+                        _lastX = screenPixelX;
+                        _lastY = screenPixelY;
+                    }
                 }
             }
             catch (Exception ex)

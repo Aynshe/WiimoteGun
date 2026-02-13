@@ -12,7 +12,7 @@ namespace WiimoteLib {
 	public partial class Wiimote : IDisposable {
 		/// <summary>Initialize the MotionPlus extension.</summary>
 		public void EnableMotionPlus(MotionPlusExtensionType extension = MotionPlusExtensionType.NoExtension) {
-			Log.Info("InitializeMotionPlus");
+			Log.Debug("InitializeMotionPlus");
 			WriteByte(Registers.ExtensionInit1, 0x55);
 			/*WriteData(Registers.ExtensionInit2, 0x00);
 			WriteData(Registers.ExtensionInit1, 0x55);*/
@@ -22,7 +22,7 @@ namespace WiimoteLib {
 
 		/// <summary>Turns off the MotionPlus extension.</summary>
 		public void DisableMotionPlus() {
-			Log.Info("DisableMotionPlus");
+			Log.Debug("DisableMotionPlus");
 			//if (mWiimoteState.MotionPlus.ExtensionType != MotionPlusExtensionType.NoExtension) {
 			WriteByte(Registers.MotionPlusDisable, 0x55);
 			wiimoteState.MotionPlus.ExtensionType = MotionPlusExtensionType.NoExtension;
@@ -34,7 +34,7 @@ namespace WiimoteLib {
 		/// <param name="type">Report type</param>
 		/// <param name="continuous">Continuous data</param>
 		public void SetReportType(ReportType type, bool continuous) {
-			Log.Info("SetReportType: " + type);
+			Log.Debug("SetReportType: " + type);
 			SetReportType(type, IRSensitivity.Maximum, continuous);
 		}
 
@@ -44,7 +44,7 @@ namespace WiimoteLib {
 		/// <param name="continuous">Continuous data</param>
 		/// <param name="forceIRInit">EN: Force full IR sensor initialization / FR: Forcer l'initialisation complète du capteur IR</param>
 		public void SetReportType(ReportType reportType, IRSensitivity irSensitivity, bool continuous, bool forceIRInit = true) {
-			Log.Info(string.Format("[Wiimote] SetReportType: {0} (Force IR: {1})", reportType, forceIRInit));
+			Log.Debug(string.Format("[Wiimote] SetReportType: {0} (Force IR: {1})", reportType, forceIRInit));
 			Log.Debug(new StackTrace().ToString());
 			InputReport type = (InputReport) reportType;
 			DataReportAttribute dataReport =

@@ -225,7 +225,7 @@ namespace WiimoteGun
         {
             // Debug Log: Trace every button press to see if it reaches Manager
             // (EN/FR: Log de débogage : Tracer chaque pression bouton)
-            SimpleLogger.Instance.Info(string.Format("[Hotkey] OnButtonPressed P{0} Button={1}", playerIndex, button));
+            SimpleLogger.Instance.Debug(string.Format("[Hotkey] OnButtonPressed P{0} Button={1}", playerIndex, button));
 
             if (IsOverlayOpen != null && IsOverlayOpen())
             {

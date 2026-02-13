@@ -4,7 +4,22 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [2.2.2] - 2026-02-11
+## [2.2.2.9] - 2026-02-13
+
+### Added
+- **High-Precision Virtual Polling (Hypersampling)** - Complete overhaul of the upsampling mechanism to bypass the native 100Hz Wiimote limitation.
+- **High-Resolution System Timer** - Integrated `timeBeginPeriod(1)` to force Windows into 1ms timer resolution, resolving the previous ~150Hz cap.
+- **MultimediaTimer Integration** - Migrated from `System.Threading.Timer` to `MultimediaTimer` for hardware-interrupt level precision and stability.
+- **Smart Rate Limiting** - New global report synchronization (`_lastAnyReportTime`) that targets a precise total frequency (e.g. exactly 250Hz, 500Hz) instead of being additive.
+- **Native Poll Matching** - Automatic threshold logic that skips virtual reports when set to 100Hz or below, strictly matching native Wiimote performance for "Default" settings.
+- **Experimental IR Extrapolation** - New prediction logic to compensate for Wiimote latency, providing a more responsive cursor at higher movement speeds. Toggleable and adjustable in Options > General.
+- **Dual Action Hotkeys** - Complete redesign of the hotkey system to support two independent actions (Short vs Long press) on the same button combination.
+- **Hotkey Sharing Refactor** - New system allowing individual sharing of each Player 1 shortcut. Other players inherit shared keys with the ability to define their own overrides.
+
+### Fixed
+- **Alt+F4 Hotkey** - Fixed an issue where modifier keys were not correctly processed, preventing Alt+F4 from working.
+
+## [2.2.2] - 2026-02-13
 
 ### Added
 - **Bidirectional Player Swap** - New UI controls to hot-swap Wiimotes between player slots (e.g. Move P1 to P2) without disconnection. The system handles driver re-initialization seamlessly.

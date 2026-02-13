@@ -44,6 +44,12 @@ namespace WiimoteGun.Controls
             this.optIRSmoothingStrength = new System.Windows.Forms.NumericUpDown();
             this.optUseHighPerfTimers = new System.Windows.Forms.CheckBox();
             this.optEnableHomographyCache = new System.Windows.Forms.CheckBox();
+            this.optUseIRExtrapolation = new System.Windows.Forms.CheckBox();
+            this.optIRExtrapolationStrength = new System.Windows.Forms.NumericUpDown();
+            this.lblIRExtrapolationStrength = new System.Windows.Forms.Label();
+            this.optEnableVirtualPolling = new System.Windows.Forms.CheckBox();
+            this.lblVirtualPollingRate = new System.Windows.Forms.Label();
+            this.optVirtualPollingRate = new System.Windows.Forms.NumericUpDown();
             this.tabDetection = new System.Windows.Forms.TabPage();
             this.lblDetectionInfo = new System.Windows.Forms.Label();
             this.optDetectBluetooth = new System.Windows.Forms.CheckBox();
@@ -68,6 +74,8 @@ namespace WiimoteGun.Controls
             ((System.ComponentModel.ISupportInitialize)(this.optIRSensitivity)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.optMonitorId)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.optIRSmoothingStrength)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.optIRExtrapolationStrength)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.optVirtualPollingRate)).BeginInit();
             this.tabDetection.SuspendLayout();
             this.tabGestures.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.optShakeSensitivity)).BeginInit();
@@ -171,7 +179,7 @@ namespace WiimoteGun.Controls
             this.tabsOptions.Location = new System.Drawing.Point(155, 10);
             this.tabsOptions.Name = "tabsOptions";
             this.tabsOptions.SelectedIndex = 0;
-            this.tabsOptions.Size = new System.Drawing.Size(400, 600);
+            this.tabsOptions.Size = new System.Drawing.Size(400, 680);
             this.tabsOptions.SizeMode = System.Windows.Forms.TabSizeMode.Fixed;
             this.tabsOptions.TabIndex = 1;
             // 
@@ -182,7 +190,13 @@ namespace WiimoteGun.Controls
             this.tabGeneral.Controls.Add(this.optEnableHomographyCache);
             this.tabGeneral.Controls.Add(this.optIRSmoothingStrength);
             this.tabGeneral.Controls.Add(this.lblIRSmoothingStrength);
+            this.tabGeneral.Controls.Add(this.optIRExtrapolationStrength);
+            this.tabGeneral.Controls.Add(this.lblIRExtrapolationStrength);
+            this.tabGeneral.Controls.Add(this.optUseIRExtrapolation);
             this.tabGeneral.Controls.Add(this.optEnableIRSmoothing);
+            this.tabGeneral.Controls.Add(this.optEnableVirtualPolling);
+            this.tabGeneral.Controls.Add(this.lblVirtualPollingRate);
+            this.tabGeneral.Controls.Add(this.optVirtualPollingRate);
             this.tabGeneral.Controls.Add(this.optLogLevel);
             this.tabGeneral.Controls.Add(this.lblLogLevelModern);
             this.tabGeneral.Controls.Add(this.btnConfigureGamePad);
@@ -200,7 +214,7 @@ namespace WiimoteGun.Controls
             this.tabGeneral.Location = new System.Drawing.Point(4, 5);
             this.tabGeneral.Name = "tabGeneral";
             this.tabGeneral.Padding = new System.Windows.Forms.Padding(3);
-            this.tabGeneral.Size = new System.Drawing.Size(392, 591);
+            this.tabGeneral.Size = new System.Drawing.Size(392, 671);
             this.tabGeneral.TabIndex = 0;
             this.tabGeneral.Text = "General";
             // 
@@ -292,6 +306,76 @@ namespace WiimoteGun.Controls
             this.optEnableHomographyCache.TabIndex = 9;
             this.optEnableHomographyCache.Text = "Enable Homography Cache (Static Mode)";
             this.optEnableHomographyCache.UseVisualStyleBackColor = true;
+            // 
+            // optUseIRExtrapolation
+            // 
+            this.optUseIRExtrapolation.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.optUseIRExtrapolation.ForeColor = System.Drawing.Color.Goldenrod;
+            this.optUseIRExtrapolation.Location = new System.Drawing.Point(20, 520);
+            this.optUseIRExtrapolation.Name = "optUseIRExtrapolation";
+            this.optUseIRExtrapolation.Size = new System.Drawing.Size(250, 25);
+            this.optUseIRExtrapolation.TabIndex = 10;
+            this.optUseIRExtrapolation.Text = "Experimental: IR Extrapolation";
+            this.optUseIRExtrapolation.UseVisualStyleBackColor = true;
+            // 
+            // lblIRExtrapolationStrength
+            // 
+            this.lblIRExtrapolationStrength.Font = new System.Drawing.Font("Segoe UI", 9.5F);
+            this.lblIRExtrapolationStrength.ForeColor = System.Drawing.Color.White;
+            this.lblIRExtrapolationStrength.Location = new System.Drawing.Point(40, 550);
+            this.lblIRExtrapolationStrength.Name = "lblIRExtrapolationStrength";
+            this.lblIRExtrapolationStrength.Size = new System.Drawing.Size(120, 25);
+            this.lblIRExtrapolationStrength.TabIndex = 0;
+            this.lblIRExtrapolationStrength.Text = "Strength (0.1-10.0):";
+            this.lblIRExtrapolationStrength.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // optIRExtrapolationStrength
+            // 
+            this.optIRExtrapolationStrength.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.optIRExtrapolationStrength.DecimalPlaces = 1;
+            this.optIRExtrapolationStrength.ForeColor = System.Drawing.Color.White;
+            this.optIRExtrapolationStrength.Increment = new decimal(new int[] { 1, 0, 0, 65536 });
+            this.optIRExtrapolationStrength.Location = new System.Drawing.Point(170, 550);
+            this.optIRExtrapolationStrength.Maximum = new decimal(new int[] { 10, 0, 0, 0 });
+            this.optIRExtrapolationStrength.Minimum = new decimal(new int[] { 1, 0, 0, 65536 });
+            this.optIRExtrapolationStrength.Name = "optIRExtrapolationStrength";
+            this.optIRExtrapolationStrength.Size = new System.Drawing.Size(70, 25);
+            this.optIRExtrapolationStrength.TabIndex = 11;
+            this.optIRExtrapolationStrength.Value = new decimal(new int[] { 5, 0, 0, 65536 });
+            // 
+            // optEnableVirtualPolling
+            // 
+            this.optEnableVirtualPolling.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.optEnableVirtualPolling.ForeColor = System.Drawing.Color.Goldenrod;
+            this.optEnableVirtualPolling.Location = new System.Drawing.Point(20, 585);
+            this.optEnableVirtualPolling.Name = "optEnableVirtualPolling";
+            this.optEnableVirtualPolling.Size = new System.Drawing.Size(250, 25);
+            this.optEnableVirtualPolling.TabIndex = 12;
+            this.optEnableVirtualPolling.Text = "Enable Virtual Polling (Upsampling)";
+            this.optEnableVirtualPolling.UseVisualStyleBackColor = true;
+            // 
+            // lblVirtualPollingRate
+            // 
+            this.lblVirtualPollingRate.Font = new System.Drawing.Font("Segoe UI", 9.5F);
+            this.lblVirtualPollingRate.ForeColor = System.Drawing.Color.White;
+            this.lblVirtualPollingRate.Location = new System.Drawing.Point(40, 615);
+            this.lblVirtualPollingRate.Name = "lblVirtualPollingRate";
+            this.lblVirtualPollingRate.Size = new System.Drawing.Size(120, 25);
+            this.lblVirtualPollingRate.TabIndex = 0;
+            this.lblVirtualPollingRate.Text = "Rate (Hz):";
+            this.lblVirtualPollingRate.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // optVirtualPollingRate
+            // 
+            this.optVirtualPollingRate.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.optVirtualPollingRate.ForeColor = System.Drawing.Color.White;
+            this.optVirtualPollingRate.Location = new System.Drawing.Point(170, 615);
+            this.optVirtualPollingRate.Maximum = new decimal(new int[] { 1000, 0, 0, 0 });
+            this.optVirtualPollingRate.Minimum = new decimal(new int[] { 100, 0, 0, 0 });
+            this.optVirtualPollingRate.Name = "optVirtualPollingRate";
+            this.optVirtualPollingRate.Size = new System.Drawing.Size(70, 25);
+            this.optVirtualPollingRate.TabIndex = 13;
+            this.optVirtualPollingRate.Value = new decimal(new int[] { 250, 0, 0, 0 });
             // 
             // btnConfigureGamePad
             // 
@@ -623,7 +707,7 @@ namespace WiimoteGun.Controls
             this.btnApply.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnApply.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
             this.btnApply.ForeColor = System.Drawing.Color.White;
-            this.btnApply.Location = new System.Drawing.Point(155, 620);
+            this.btnApply.Location = new System.Drawing.Point(155, 700);
             this.btnApply.Name = "btnApply";
             this.btnApply.Size = new System.Drawing.Size(180, 40);
             this.btnApply.TabIndex = 2;
@@ -637,7 +721,7 @@ namespace WiimoteGun.Controls
             this.btnReset.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnReset.Font = new System.Drawing.Font("Segoe UI", 10F);
             this.btnReset.ForeColor = System.Drawing.Color.White;
-            this.btnReset.Location = new System.Drawing.Point(345, 620);
+            this.btnReset.Location = new System.Drawing.Point(345, 700);
             this.btnReset.Name = "btnReset";
             this.btnReset.Size = new System.Drawing.Size(100, 40);
             this.btnReset.TabIndex = 3;
@@ -659,8 +743,10 @@ namespace WiimoteGun.Controls
             this.tabGeneral.ResumeLayout(false);
             this.tabGeneral.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.optIRSensitivity)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.optIRSmoothingStrength)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.optMonitorId)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.optIRSmoothingStrength)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.optIRExtrapolationStrength)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.optVirtualPollingRate)).EndInit();
             this.tabDetection.ResumeLayout(false);
             this.tabDetection.PerformLayout();
             this.tabGestures.ResumeLayout(false);
@@ -719,5 +805,11 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.NumericUpDown optIRSmoothingStrength;
         private System.Windows.Forms.CheckBox optUseHighPerfTimers;
         private System.Windows.Forms.CheckBox optEnableHomographyCache;
+        private System.Windows.Forms.CheckBox optUseIRExtrapolation;
+        private System.Windows.Forms.Label lblIRExtrapolationStrength;
+        private System.Windows.Forms.NumericUpDown optIRExtrapolationStrength;
+        private System.Windows.Forms.CheckBox optEnableVirtualPolling;
+        private System.Windows.Forms.Label lblVirtualPollingRate;
+        private System.Windows.Forms.NumericUpDown optVirtualPollingRate;
     }
 }

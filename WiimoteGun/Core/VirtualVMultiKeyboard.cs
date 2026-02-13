@@ -119,23 +119,28 @@ namespace WiimoteGun
             if (key == Keys.None || _client == null || _disposed)
                 return;
 
+            // Update modifiers (EN/FR: Mettre à jour les modificateurs)
+            bool isModifier = UpdateModifiers(key, pressed);
+
             byte hidKeyCode = ConvertKeysToHidKeyCode(key);
             
-            if (hidKeyCode == 0)
+            // Allow processing if it's a modifier OR has a valid HID code
+            // (EN/FR: Autoriser si c'est un modificateur OU s'il y a un code HID valide)
+            if (hidKeyCode == 0 && !isModifier)
                 return;
 
             // Update pressed keys set (EN/FR: Mettre à jour l'ensemble des touches pressées)
-            if (pressed)
+            if (hidKeyCode > 0)
             {
-                _pressedKeys.Add(hidKeyCode);
+                if (pressed)
+                {
+                    _pressedKeys.Add(hidKeyCode);
+                }
+                else
+                {
+                    _pressedKeys.Remove(hidKeyCode);
+                }
             }
-            else
-            {
-                _pressedKeys.Remove(hidKeyCode);
-            }
-
-            // Update modifiers (EN/FR: Mettre à jour les modificateurs)
-            UpdateModifiers(key, pressed);
 
             // Send keyboard report with all pressed keys (EN/FR: Envoyer le rapport clavier avec toutes les touches pressées)
             SendKeyboardReport();
@@ -149,10 +154,12 @@ namespace WiimoteGun
 
         /// <summary>
         /// Update modifier flags based on key (EN/FR: Mettre à jour les flags modificateurs)
+        /// Returns true if the key was a modifier.
         /// </summary>
-        private void UpdateModifiers(Keys key, bool pressed)
+        private bool UpdateModifiers(Keys key, bool pressed)
         {
             VMultiKeyboardModifier mod = VMultiKeyboardModifier.None;
+            bool isModifier = true;
 
             switch (key)
             {
@@ -172,6 +179,7 @@ namespace WiimoteGun
                     break;
                 case Keys.LMenu:
                 case Keys.Menu:
+                case Keys.Alt:
                     mod = VMultiKeyboardModifier.LeftAlt;
                     break;
                 case Keys.RMenu:
@@ -183,6 +191,9 @@ namespace WiimoteGun
                 case Keys.RWin:
                     mod = VMultiKeyboardModifier.RightGui;
                     break;
+                default:
+                    isModifier = false;
+                    break;
             }
 
             if (mod != VMultiKeyboardModifier.None)
@@ -192,6 +203,8 @@ namespace WiimoteGun
                 else
                     _currentModifiers &= ~mod;
             }
+
+            return isModifier;
         }
 
         /// <summary>

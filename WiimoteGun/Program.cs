@@ -28,6 +28,12 @@ namespace WiimoteGun
         [System.Runtime.InteropServices.DllImport("kernel32.dll")]
         private static extern bool CloseHandle(IntPtr hObject);
 
+        [System.Runtime.InteropServices.DllImport("winmm.dll", EntryPoint = "timeBeginPeriod")]
+        private static extern int TimeBeginPeriod(int msec);
+
+        [System.Runtime.InteropServices.DllImport("winmm.dll", EntryPoint = "timeEndPeriod")]
+        private static extern int TimeEndPeriod(int msec);
+
         private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
 
         static NotifyIcon _trayIcon;
@@ -42,6 +48,21 @@ namespace WiimoteGun
 
         [STAThread]
         static void Main(string[] args)
+        {
+            // Increase timer resolution for Virtual Polling (EN/FR: Augmenter résolution timer pour Polling Virtuel)
+            TimeBeginPeriod(1);
+            
+            try 
+            {
+                MainExecution(args);
+            }
+            finally
+            {
+                TimeEndPeriod(1);
+            }
+        }
+
+        static void MainExecution(string[] args)
         {
             // Parse -remap argument first (EN/FR: Parser argument -remap d'abord)
             ParseRemapArgument(args);

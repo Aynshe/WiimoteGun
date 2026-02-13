@@ -325,6 +325,11 @@ namespace WiimoteGun
                 IRSmoothingStrength = 5;
                 UseHighPerfTimers = false;
                 EnableHomographyCache = false;
+                UseIRExtrapolation = false;
+                IRExtrapolationStrength = 0.5f;
+
+                EnableVirtualPolling = false;
+                VirtualPollingRate = 250;
 
                 DefaultMouseMode = MouseMode.RawInput;
                 GyroSensitivityX = 1.0f;
@@ -1036,6 +1041,18 @@ namespace WiimoteGun
 
         [DefaultValue(false)]
         public bool EnableHomographyCache { get; set; } // Cache static homography matrix (EN/FR: Mise en cache matrice homographie statique)
+
+        [DefaultValue(false)]
+        public bool UseIRExtrapolation { get; set; }
+
+        [DefaultValue(0.5f)]
+        public float IRExtrapolationStrength { get; set; }
+
+        [DefaultValue(false)]
+        public bool EnableVirtualPolling { get; set; }
+
+        [DefaultValue(250)]
+        public int VirtualPollingRate { get; set; } // 100-1000 Hz
 
         // Gesture & Reload Settings (EN/FR: Paramètres Gestes & Rechargement)
         [DefaultValue(false)]
