@@ -373,6 +373,9 @@ namespace WiimoteGun
                     ServiceClient.EnableGamepad(i);
                 }
             }
+            // Cleanup redundant startup gamepads removal (already handled by RemoveUnwantedCollections or Service Registration)
+            // (EN/FR: Suppression du nettoyage redondant des gamepads au démarrage)
+            /* 
             else
             {
                 // If persistent gamepads are disabled, ensure they are removed from the system at startup
@@ -383,6 +386,7 @@ namespace WiimoteGun
                     ServiceClient.RemoveGamepad(i);
                 }
             }
+            */
 
             // Clean up unwanted VMulti collections to prevent them from appearing in emulators
             // (EN/FR: Nettoyer les collections VMulti non désirées pour éviter qu'elles n'apparaissent dans les émulateurs)

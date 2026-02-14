@@ -4,6 +4,12 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.2.2.10] - 2026-02-14
+
+### Fixed
+- Fixed initial mouse movement delay (standardized time source related to High Performance Timer option and moved connection vibration to background initialization).
+- Optimized application restart delay (decoupled VMulti initialization from main thread and reduced service queue congestion).
+
 ## [2.2.2.9] - 2026-02-13
 
 ### Added

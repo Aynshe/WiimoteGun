@@ -24,6 +24,7 @@ namespace WiimoteGun
         private ButtonState _lastState;
         private NunchukState _lastNunchukState;
         private object _lock = new object();
+        private string _uniqueId;
         private WiimoteHiddenWnd _hiddenWnd;
         private Thread _watchDolphinThread;
         private AutoResetEvent _watchDolphinfinishEvent = new AutoResetEvent(false);
@@ -32,7 +33,7 @@ namespace WiimoteGun
         private PlayerMappings _playerMappings;
 
         // Auto-sleep after inactivity (EN/FR: Mise en veille automatique après inactivité)
-        private DateTime _lastActivityTime = DateTime.Now;
+        private DateTime _lastActivityTime;
         private System.Threading.Timer _sleepCheckTimer;
         private const int SLEEP_TIMEOUT_MINUTES = 10;
 
@@ -63,7 +64,7 @@ namespace WiimoteGun
         private const int GESTURE_CLICK_DURATION_FRAMES = 6; // Reverted to ~100ms (6 frames) for reliability
 
         // HID Watchdog (EN/FR: Watchdog HID)
-        private DateTime _lastReportTime = DateTime.Now;
+        private DateTime _lastReportTime;
         private const int HID_TIMEOUT_MS = 2000; // 2 seconds threshold
 
         // Cooldowns (EN/FR: Délais de récupération)
@@ -71,7 +72,7 @@ namespace WiimoteGun
         const int GRENADE_COOLDOWN_MS = 1000;
         
         // Startup safety (EN/FR: Sécurité au démarrage)
-        private DateTime _controllerStartTime = DateTime.Now;
+        private DateTime _controllerStartTime;
         private const int STARTUP_GRACE_PERIOD_MS = 2000; // Ignore gestures for 2s after start
 
         // In-Game Offset Adjustment (EN/FR: Ajustement offset en jeu)
@@ -112,7 +113,7 @@ namespace WiimoteGun
             if (!Options.Instance.EnableShakeReload) return false;
             
             // Ignore gestures during startup grace period (EN/FR: Ignorer gestes pendant période de grâce)
-            if ((DateTime.Now - _controllerStartTime).TotalMilliseconds < STARTUP_GRACE_PERIOD_MS) return false;
+            if ((GetNow() - _controllerStartTime).TotalMilliseconds < STARTUP_GRACE_PERIOD_MS) return false;
 
             // Get acceleration (EN/FR: Obtenir accélération)
             Point3F accel = Options.Instance.ShakeFromNunchuk && state.ExtensionType == ExtensionType.Nunchuk 
@@ -142,7 +143,7 @@ namespace WiimoteGun
                 
                 // Force reset if shaking for too long (> 1s) - prevents getting stuck
                 // (EN/FR: Reset forcé si secousse trop longue (> 1s) - évite blocage)
-                bool timeOut = (DateTime.Now - _lastShakeTime).TotalMilliseconds > 1000;
+                bool timeOut = (GetNow() - _lastShakeTime).TotalMilliseconds > 1000;
 
                 if (magnitude < resetThreshold || timeOut)
                 {
@@ -159,9 +160,9 @@ namespace WiimoteGun
                     _isShaking = true;
                     
                     // Check cooldown only for firing the event
-                    if ((DateTime.Now - _lastShakeTime).TotalMilliseconds > SHAKE_COOLDOWN_MS)
+                    if ((GetNow() - _lastShakeTime).TotalMilliseconds > SHAKE_COOLDOWN_MS)
                     {
-                        _lastShakeTime = DateTime.Now;
+                        _lastShakeTime = GetNow();
                         triggered = true;
                         SimpleLogger.Instance.Info(string.Format("Shake fired! Mag: {0:F2} > {1}", magnitude, threshold));
                     }
@@ -196,14 +197,14 @@ namespace WiimoteGun
         // Gyroscope drift detection (EN/FR: Détection dérive gyroscope)
         private float _gyroDriftYaw = 0f;
         private float _gyroDriftPitch = 0f;
-        private DateTime _lastGyroStillTime = DateTime.Now;
+        private DateTime _lastGyroStillTime;
         private const float GYRO_STILL_THRESHOLD = 0.5f; // °/s threshold to consider "still" (EN/FR: Seuil °/s pour considérer "immobile")
         private const float ACCEL_SENSITIVITY = 50f; // Multiplier for accelerometer delta (EN/FR: Multiplicateur pour delta accéléromètre)
         private bool _gyroFirstRun = true; // Track first run for logging (EN/FR: Suivi premier run pour logging)
 
         // Hybrid Tracking Mode (EN/FR: Mode tracking hybride)
         private bool _useGyroForTracking = false; // Currently using gyro for cursor movement (EN/FR: Utilise actuellement gyro pour mouvement curseur)
-        private DateTime _lastIRSeenTime = DateTime.Now; // Last time IR was valid (EN/FR: Dernière fois que l'IR était valide)
+        private DateTime _lastIRSeenTime; // Last time IR was valid (EN/FR: Dernière fois que l'IR était valide)
         private int _diagFrameCount = 0; // Counter for diagnostic logging (EN/FR: Compteur pour logs diagnostic)
         private const float IR_LOST_TIMEOUT_MS = 100f; // Time before switching to gyro (EN/FR: Temps avant basculement vers gyro)
 
@@ -216,6 +217,12 @@ namespace WiimoteGun
         private static bool _inputsLocked = false; // Locks all controllers input (EN/FR: Verrouille inputs de tous contrôleurs)
         public static event EventHandler<ButtonPressedEventArgs> ButtonPressed; // Fired when button is pressed in assign mode (EN/FR: Déclenché quand bouton pressé en mode assign)
         
+        /// <summary>
+        /// EN: Get current time based on high performance timer setting.
+        /// FR: Obtenir l'heure actuelle selon le réglage du timer haute performance.
+        /// </summary>
+        private DateTime GetNow() => Options.Instance.UseHighPerfTimers ? DateTime.UtcNow : DateTime.Now;
+
         public Wiimote Wiimote { get; }
         public int PlayerIndex { get; }
         public int ScreenIndex { get; set; }
@@ -228,128 +235,14 @@ namespace WiimoteGun
             Wiimote = wiimote;
             PlayerIndex = playerIndex;
             ScreenIndex = Options.Instance.MonitorId;
-
-            // Enable Virtual Driver via Service (if in RawInput mode)
-            if (Options.Instance.DefaultMouseMode == MouseMode.RawInput)
-            {
-
-                 ServiceClient.EnablePlayer(PlayerIndex);
-                 
-                 // Proactive gamepad removal if global mode is disabled (EN/FR: Suppression proactive du gamepad si le mode global est désactivé)
-                 // Avoids waiting for the 3-second scheduled cleanup
-                 if (!Options.Instance.EnableGamePadSwapMode)
-                 {
-                     ServiceClient.RemoveGamepad(PlayerIndex);
-                 }
-                 
-                 // Robust wait loop for device initialization (EN/FR: Boucle d'attente robuste pour l'initialisation du périphérique)
-                 SimpleLogger.Instance.Info($"Waiting for VMulti P{PlayerIndex} initialization...");
-                 
-                 bool deviceReady = false;
-                 // Try for up to 6 seconds (12 * 500ms)
-                 for (int i = 0; i < 12; i++)
-                 {
-                     System.Threading.Thread.Sleep(500);
-                     // VMulti uses HID directly, no context reload needed
-                     
-                     VMultiDeviceDetector.PlayerDevices devices = VMultiDeviceDetector.DetectPlayerVMultiDevices(PlayerIndex);
-                     string mouseId = devices.MouseId;
-                     if (!string.IsNullOrEmpty(mouseId))
-                     {
-                         deviceReady = true;
-                         SimpleLogger.Instance.Info(string.Format("VMulti P{0} ready after {1}ms", PlayerIndex, (i + 1) * 500));
-                         break;
-                     }
-                 }
-                 
-                 if (!deviceReady)
-                 {
-                     SimpleLogger.Instance.Warning($"VMulti P{PlayerIndex} detection timed out. Retrying enable...");
-                     ServiceClient.EnablePlayer(PlayerIndex);
-
-                     // Also retry gamepad removal if global mode is disabled
-                     if (!Options.Instance.EnableGamePadSwapMode)
-                     {
-                         ServiceClient.RemoveGamepad(PlayerIndex);
-                     }
-
-                     System.Threading.Thread.Sleep(1500);
-                     // VMulti uses HID directly, no context reload needed
-                 }
-
-                 // Auto-detect and save VMulti mouse after activation (EN/FR: Auto-détecter et sauvegarder souris VMulti après activation)
-                 // VMulti mice only exist AFTER EnablePlayer, so we detect them here, not at startup
-                 if (Options.Instance.AutoLockVMultiDevices)
-                 {
-                     string currentPreferredMouse = Options.Instance.GetPreferredMouseId(PlayerIndex);
-                     // Only auto-assign if no preference set or if current preference seems invalid
-                     if (string.IsNullOrEmpty(currentPreferredMouse) || currentPreferredMouse.Contains("vmulti"))
-                     {
-                         VMultiDeviceDetector.PlayerDevices devices = VMultiDeviceDetector.DetectPlayerVMultiDevices(PlayerIndex);
-                         string mouseId = devices.MouseId;
-                         if (!string.IsNullOrEmpty(mouseId))
-                         {
-                             Options.Instance.SetPreferredMouseId(PlayerIndex, mouseId);
-                             Options.Instance.Save();
-                             SimpleLogger.Instance.Info(string.Format("[VMulti Post-Activation] Auto-saved P{0} Mouse: {1}", PlayerIndex, mouseId));
-                         }
-                     }
-                 }
-            }
+            _uniqueId = Wiimote.Address.ToString().Replace(":", "");
 
             _lastState = new ButtonState();
             _lastNunchukState = new NunchukState();
 
-            // Select keyboard implementation based on configuration (EN/FR: Sélectionner implémentation clavier selon configuration)
-            if (Options.Instance.DefaultMouseMode == MouseMode.SendInput)
-            {
-                // SendInput mode: Use simple SendInput keyboard (EN/FR: Mode SendInput : Utiliser clavier SendInput simple)
-                _joy = new VirtualSendInputKeyboard();
-                SimpleLogger.Instance.Info($"P{playerIndex}: Using SendInput keyboard");
-            }
-            else
-            {
-                // RawInput mode: Use VMulti keyboard (EN/FR: Mode RawInput : Utiliser clavier VMulti)
-                _joy = new VirtualVMultiKeyboard(playerIndex);
-                SimpleLogger.Instance.Info($"P{playerIndex}: Using VMulti keyboard");
-            }
-            
-            // Select mouse implementation based on configuration (EN/FR: Sélectionner implémentation souris selon configuration)
-            string uniqueId = Wiimote.Address.ToString().Replace(":", "");
-            
-            if (Options.Instance.DefaultMouseMode == MouseMode.SendInput)
-            {
-                // SendInput mode: Only Player 1 gets a mouse (EN/FR: Mode SendInput : Seul Joueur 1 a une souris)
-                if (playerIndex == 1)
-                {
-                    _virtualMouse = new VirtualSendInputMouse();
-                    SimpleLogger.Instance.Info($"P{playerIndex}: Using SendInput mouse (single-player mode)");
-                    
-                    // Subscribe to left mouse button events for rumble (EN/FR: S'abonner aux événements bouton gauche pour vibration)
-                    if (_virtualMouse is VirtualSendInputMouse sendInputMouse)
-                    {
-                        sendInputMouse.OnLeftMouseButtonChanged += HandleTriggerButton;
-                    }
-                }
-                else
-                {
-                    SimpleLogger.Instance.Warning($"P{playerIndex}: SendInput mode only supports Player 1. Mouse disabled for this player.");
-                    _virtualMouse = null; // No mouse for P2-P4 in SendInput mode
-                }
-            }
-            else // MouseMode.RawInput
-            {
-                // RawInput/VMulti mode: All players get independent mice (EN/FR: Mode RawInput : Tous les joueurs ont des souris indépendantes)
-                _virtualMouse = new VirtualVMultiMouse(playerIndex, uniqueId);
-                SimpleLogger.Instance.Info($"P{playerIndex}: Using VMulti mouse (multi-player mode)");
-                
-                // Subscribe to left mouse button events for rumble (EN/FR: S'abonner aux événements bouton gauche pour vibration)
-                if (_virtualMouse is VirtualVMultiMouse vmultiMouse)
-                {
-                    vmultiMouse.OnLeftMouseButtonChanged += HandleTriggerButton;
-                }
-            }
-            
+            _joy = null; // Will be initialized in SetupWiimote (EN/FR: Sera initialisé dans SetupWiimote)
+            _virtualMouse = null;
+
             // Pass player index for per-player calibration (EN/FR: Passer l'index joueur pour calibration par joueur)
             _calculator = new ScreenPositionCalculator(ScreenIndex, PlayerIndex);
 
@@ -376,6 +269,13 @@ namespace WiimoteGun
             // Initialize rumble timers (disabled by default) (EN/FR: Initialiser timers vibration (désactivés par défaut))
             _rumbleTimer = new System.Threading.Timer(_ => RumbleRepetitionCallback(), null, Timeout.Infinite, Timeout.Infinite);
             _rumbleStopTimer = new System.Threading.Timer(_ => StopRumble(), null, Timeout.Infinite, Timeout.Infinite);
+
+            // Initialize time-based fields (EN/FR: Initialiser les champs basés sur le temps)
+            _lastActivityTime = GetNow();
+            _lastReportTime = GetNow();
+            _lastIRSeenTime = GetNow();
+            _lastGyroStillTime = GetNow();
+            _controllerStartTime = GetNow();
         }
 
         private void CheckSleep()
@@ -404,12 +304,12 @@ namespace WiimoteGun
                 // Bluetooth/DolphinBar: HID Watchdog (EN/FR: Watchdog HID)
                 // If we haven't received a report in 2s while active, re-send the report mode command
                 // (EN/FR: Si aucun rapport reçu en 2s alors qu'actif, renvoyer la commande de mode)
-                if (_mode != WiiMoteMode.Disabled && (DateTime.Now - _lastReportTime).TotalMilliseconds > HID_TIMEOUT_MS)
+                if (_mode != WiiMoteMode.Disabled && (GetNow() - _lastReportTime).TotalMilliseconds > HID_TIMEOUT_MS)
                 {
                     SimpleLogger.Instance.Debug(string.Format("[P{0}] HID communication timeout ({1}ms). Attempting report mode recovery...", PlayerIndex, HID_TIMEOUT_MS));
                     
                     // Update timer to avoid spamming recovery
-                    _lastReportTime = DateTime.Now;
+                    _lastReportTime = GetNow();
 
                     ThreadPool.QueueUserWorkItem(o =>
                     {
@@ -434,7 +334,7 @@ namespace WiimoteGun
                 }
 
                 // Bluetooth: Auto-sleep after inactivity (EN/FR: Mise en veille auto après inactivité)
-                double inactiveMinutes = (DateTime.Now - _lastActivityTime).TotalMinutes;
+                double inactiveMinutes = (GetNow() - _lastActivityTime).TotalMinutes;
                 
                 if (inactiveMinutes >= SLEEP_TIMEOUT_MINUTES)
                 {
@@ -452,7 +352,7 @@ namespace WiimoteGun
 
         private void ResetSleepTimer()
         {
-            _lastActivityTime = DateTime.Now;
+            _lastActivityTime = GetNow();
         }
 
         private void SetupWiimote()
@@ -461,6 +361,100 @@ namespace WiimoteGun
             {
                 try
                 {
+                    // -------------------------------------------------------------------
+                    // PHASE 0: VMulti Initialization (if in RawInput mode)
+                    // (EN/FR: PHASE 0 : Initialisation VMulti (si mode RawInput))
+                    // -------------------------------------------------------------------
+                    if (Options.Instance.DefaultMouseMode == MouseMode.RawInput)
+                    {
+                        ServiceClient.EnablePlayer(PlayerIndex);
+
+                        // Proactive gamepad removal if global mode is disabled (EN/FR: Suppression proactive du gamepad si le mode global est désactivé)
+                        if (!Options.Instance.EnableGamePadSwapMode)
+                        {
+                            ServiceClient.RemoveGamepad(PlayerIndex);
+                        }
+
+                        SimpleLogger.Instance.Info($"Waiting for VMulti P{PlayerIndex} initialization...");
+
+                        bool deviceReady = false;
+                        // Try for up to 6 seconds (12 * 500ms)
+                        for (int i = 0; i < 13; i++) // 13 iterations to allow iteration 0 (immediate check)
+                        {
+                            // EN: Early-check (iteration 0) to avoid unnecessary 500ms sleep on restart
+                            // FR: Check précoce (itération 0) pour éviter un sleep de 500ms inutile au redémarrage
+                            if (i > 0) Thread.Sleep(500);
+
+                            VMultiDeviceDetector.PlayerDevices devices = VMultiDeviceDetector.DetectPlayerVMultiDevices(PlayerIndex);
+                            if (!string.IsNullOrEmpty(devices.MouseId))
+                            {
+                                deviceReady = true;
+                                SimpleLogger.Instance.Info(string.Format("VMulti P{0} ready after {1}ms", PlayerIndex, Math.Max(0, (i) * 500)));
+                                break;
+                            }
+                        }
+
+                        if (!deviceReady)
+                        {
+                            SimpleLogger.Instance.Warning($"VMulti P{PlayerIndex} detection timed out. Retrying enable...");
+                            ServiceClient.EnablePlayer(PlayerIndex);
+                            Thread.Sleep(1500);
+                            
+                            VMultiDeviceDetector.PlayerDevices devicesRetry = VMultiDeviceDetector.DetectPlayerVMultiDevices(PlayerIndex);
+                            if (string.IsNullOrEmpty(devicesRetry.MouseId))
+                            {
+                                SimpleLogger.Instance.Error($"VMulti P{PlayerIndex} mouse not detected! HID operations will fail.");
+                            }
+                        }
+
+                        // Auto-detect and save VMulti mouse after activation (EN/FR: Auto-détecter et sauvegarder souris VMulti après activation)
+                        // VMulti mice only exist AFTER EnablePlayer, so we detect them here, not at startup
+                        if (Options.Instance.AutoLockVMultiDevices)
+                        {
+                            VMultiDeviceDetector.PlayerDevices finalDevices = VMultiDeviceDetector.DetectPlayerVMultiDevices(PlayerIndex);
+                            string mouseId = finalDevices.MouseId;
+                            if (!string.IsNullOrEmpty(mouseId))
+                            {
+                                Options.Instance.SetPreferredMouseId(PlayerIndex, mouseId);
+                                Options.Instance.Save();
+                                SimpleLogger.Instance.Info(string.Format("[VMulti Post-Activation] Auto-saved P{0} Mouse: {1}", PlayerIndex, mouseId));
+                            }
+                        }
+                    }
+
+                    // -------------------------------------------------------------------
+                    // PHASE 1: Virtual Devices Creation
+                    // (EN/FR: PHASE 1 : Création des périphériques virtuels)
+                    // -------------------------------------------------------------------
+                    if (Options.Instance.DefaultMouseMode == MouseMode.SendInput)
+                    {
+                        // SendInput mode: Use simple SendInput keyboard
+                        _joy = new VirtualSendInputKeyboard();
+                        
+                        // Only Player 1 gets a mouse in SendInput mode
+                        if (PlayerIndex == 1)
+                        {
+                            _virtualMouse = new VirtualSendInputMouse();
+                            if (_virtualMouse is VirtualSendInputMouse sendInputMouse)
+                            {
+                                sendInputMouse.OnLeftMouseButtonChanged += HandleTriggerButton;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // RawInput/VMulti mode: All players get independent keyboard and mice
+                        _joy = new VirtualVMultiKeyboard(PlayerIndex);
+                        _virtualMouse = new VirtualVMultiMouse(PlayerIndex, _uniqueId);
+                        
+                        if (_virtualMouse is VirtualVMultiMouse vmultiMouse)
+                        {
+                            vmultiMouse.OnLeftMouseButtonChanged += HandleTriggerButton;
+                        }
+                    }
+
+                    SimpleLogger.Instance.Info($"P{PlayerIndex}: Virtual devices initialized (Mode: {Options.Instance.DefaultMouseMode})");
+
                     // CRITICAL FIX: Clear any stuck rumble state (EN/FR: Arrêter la vibration bloquée)
                     Wiimote.SetRumble(false);
                     Thread.Sleep(50);
@@ -510,7 +504,7 @@ namespace WiimoteGun
 
                                     // Log battery level after status is fetched (EN/FR: Logger le niveau de batterie après récupération du statut)
                                     _lastBatteryLevel = Wiimote.WiimoteState.Status.Battery;
-                                    _lastBatteryLogTime = DateTime.Now;
+                                    _lastBatteryLogTime = GetNow();
                                     SimpleLogger.Instance.Info($"[P{PlayerIndex}] Battery status fetched: {_lastBatteryLevel:F1}% " + (Wiimote.WiimoteState.Status.BatteryLow ? "(LOW!)" : ""));
                                 }
                             }
@@ -549,6 +543,12 @@ namespace WiimoteGun
                         else if (statusCompleted)
                         {
                             SimpleLogger.Instance.Info("GetStatus completed successfully");
+                            
+                            // -------------------------------------------------------------------
+                            // SUCCESS NOTIFICATION: Wiimote is fully initialized and ready
+                            // (EN/FR: NOTIFICATION SUCCÈS : Wiimote initialisée et prête)
+                            // -------------------------------------------------------------------
+                            Vibrate(Wiimote);
                         }
                     }
                 }
@@ -605,7 +605,9 @@ namespace WiimoteGun
                 Program.PostToUIThread(wnd.Dispose);
             }
 
-            Vibrate(Wiimote);
+            // CRITICAL: Vibrate moved to SetupWiimote (end of background initialization)
+            // (EN/FR: Vibration déplacée dans SetupWiimote (fin d'initialisation asynchrone))
+            // Vibrate(Wiimote); 
         }
 
         public void Dispose()
@@ -1032,7 +1034,7 @@ namespace WiimoteGun
                             _diagFrameCount++;
                             if (_diagFrameCount >= 100)
                             {
-                                float frameTimeMs = (float)(DateTime.Now - _lastIRSeenTime).TotalMilliseconds;
+                                float frameTimeMs = (float)(GetNow() - _lastIRSeenTime).TotalMilliseconds;
                                 float smoothingLeadFrames = Options.Instance.IRSmoothingStrength - 1;
                                 float smoothingDelayMs = smoothingLeadFrames * frameTimeMs;
                                 float extrapolationLeadMs = Options.Instance.IRExtrapolationStrength * frameTimeMs;
@@ -1109,12 +1111,12 @@ namespace WiimoteGun
                             y = Math.Max(0, Math.Min(65535, y));
                         }
                         
-                        _lastIRSeenTime = Options.Instance.UseHighPerfTimers ? DateTime.UtcNow : DateTime.Now;
+                        _lastIRSeenTime = GetNow();
                     }
                     else if (_gyroAimingEnabled)
                     {
                         // IR lost - fallback to gyro (EN/FR: IR perdu - basculer vers gyro)
-                        double msSinceIRLost = (DateTime.Now - _lastIRSeenTime).TotalMilliseconds;
+                        double msSinceIRLost = (GetNow() - _lastIRSeenTime).TotalMilliseconds;
                         
                         if (msSinceIRLost > IR_LOST_TIMEOUT_MS)
                         {
@@ -1260,8 +1262,9 @@ namespace WiimoteGun
                                 _lastRight_Raw = right;
                                 _lastMiddle_Raw = middle;
                                 _lastMoveCursor_Raw = scaledPos.HasValue;
-                                _lastProcessingTime = DateTime.UtcNow;
-            _lastAnyReportTime = _lastProcessingTime;
+                                _lastProcessingTime = GetNow();
+                                _lastAnyReportTime = _lastProcessingTime;
+                                _lastReportTime = _lastProcessingTime; // Also update watchdog timer on real reports
 
                                 _virtualMouse.UpdateMouse(x, y, left, right, middle, scaledPos.HasValue);
                             }
@@ -2315,7 +2318,7 @@ namespace WiimoteGun
             // Calculate time since last real report (for prediction vector) 
             // and time since any report (for rate limiting synchronization)
             // (EN/FR: Calculer temps depuis dernier rapport réel et depuis n'importe quel rapport)
-            DateTime now = DateTime.UtcNow;
+            DateTime now = GetNow();
             double msSinceLastReal = (now - _lastProcessingTime).TotalMilliseconds;
             double msSinceLastAny = (now - _lastAnyReportTime).TotalMilliseconds;
 
