@@ -150,7 +150,7 @@ namespace WiimoteGun.Controls
             lbl.Font = new Font("Segoe UI", 10, FontStyle.Bold | FontStyle.Underline);
             lbl.ForeColor = Color.FromArgb(0, 122, 204); // Accent color
             lbl.AutoSize = true;
-            lbl.Margin = new Padding(10, 20, 10, 5);
+            lbl.Margin = new Padding(10, 10, 10, 2);
             flowLayoutPanelButtons.Controls.Add(lbl);
             flowLayoutPanelButtons.SetFlowBreak(lbl, true); // Force new line after
         }
@@ -158,8 +158,8 @@ namespace WiimoteGun.Controls
         private void AddMappingRow(string labelText, GamePadButton currentValue, Action<GamePadButton> setter)
         {
             Panel row = new Panel();
-            row.Size = new Size(500, 35);
-            row.Margin = new Padding(5);
+            row.Size = new Size(400, 28);
+            row.Margin = new Padding(1);
             
             Label lbl = new Label();
             lbl.Text = labelText + ":";
@@ -168,7 +168,7 @@ namespace WiimoteGun.Controls
             lbl.AutoSize = false;
             lbl.Size = new Size(150, 25);
             lbl.TextAlign = ContentAlignment.MiddleLeft;
-            lbl.Location = new Point(10, 5);
+            lbl.Location = new Point(10, 2);
             
             ComboBox cbo = new ComboBox();
             cbo.DropDownStyle = ComboBoxStyle.DropDownList;
@@ -176,7 +176,7 @@ namespace WiimoteGun.Controls
             cbo.BackColor = Color.FromArgb(50, 50, 50);
             cbo.ForeColor = Color.White;
             cbo.Size = new Size(200, 25);
-            cbo.Location = new Point(170, 5);
+            cbo.Location = new Point(170, 2);
             cbo.DisplayMember = "Name";
             cbo.ValueMember = "Value";
             

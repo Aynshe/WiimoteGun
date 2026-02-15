@@ -4,6 +4,16 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.2.3.0] - 2026-02-15
+
+### Added
+- **Manual paths for Dolphin & Cemu** - Added support for standalone instances of Dolphin and Cemu in the Options menu.
+- **Dynamic Standalone UI** - Direct emulator paths are now locked/unlocked based on the Standalone mode toggle, with clear auto-detection hints when disabled.
+
+### Fixed
+- **Standalone Profile Indexing** - Fixed a bug where PCSX2 and DuckStation profiles wouldn't update if the emulator folder was selected directly (non-Retrobat structure). 
+- **UI Contextual Cleanup** - The "GamePad Mapping" button in the overlay is now conditionally hidden if GamePad swap mode is disabled in options.
+
 ## [2.2.2.10] - 2026-02-14
 
 ### Fixed

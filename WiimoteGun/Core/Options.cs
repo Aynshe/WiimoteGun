@@ -345,6 +345,13 @@ namespace WiimoteGun
                 GamePadMappingsP4 = new GamePadMappings();
 
                 LoggingLevel = LogLevel.INFO;
+
+                // Standalone Mode defaults (EN/FR: Valeurs par défaut du mode Standalone)
+                StandaloneMode = false;
+                PCSX2Path = "";
+                DuckStationPath = "";
+                DolphinPath = "";
+                CemuPath = "";
             }
         }
 
@@ -1126,6 +1133,41 @@ namespace WiimoteGun
         public GamePadMappings GamePadMappingsP2 { get; set; }
         public GamePadMappings GamePadMappingsP3 { get; set; }
         public GamePadMappings GamePadMappingsP4 { get; set; }
+
+        /// <summary>
+        /// EN: Enable standalone mode (no RetroBat dependency, local profile folder).
+        /// FR: Activer le mode autonome (pas de dépendance RetroBat, dossier de profil local).
+        /// </summary>
+        [DefaultValue(false)]
+        public bool StandaloneMode { get; set; }
+
+        /// <summary>
+        /// EN: Manual path for PCSX2 emulator.
+        /// FR: Chemin manuel pour l'émulateur PCSX2.
+        /// </summary>
+        [DefaultValue("")]
+        public string PCSX2Path { get; set; }
+
+        /// <summary>
+        /// EN: Manual path for DuckStation emulator.
+        /// FR: Chemin manuel pour l'émulateur DuckStation.
+        /// </summary>
+        [DefaultValue("")]
+        public string DuckStationPath { get; set; }
+
+        /// <summary>
+        /// EN: Manual path for Dolphin emulator.
+        /// FR: Chemin manuel pour l'émulateur Dolphin.
+        /// </summary>
+        [DefaultValue("")]
+        public string DolphinPath { get; set; }
+
+        /// <summary>
+        /// EN: Manual path for Cemu emulator.
+        /// FR: Chemin manuel pour l'émulateur Cemu.
+        /// </summary>
+        [DefaultValue("")]
+        public string CemuPath { get; set; }
 
         /// <summary>
         /// EN: Get GamePad mappings for a specific player (1-4).

@@ -60,6 +60,7 @@ namespace WiimoteGun.Controls
             btnHotkeys.FlatAppearance.BorderSize = 0;
             btnSave.FlatAppearance.BorderSize = 0;
             btnLoad.FlatAppearance.BorderSize = 0;
+            btnGamePadMapping.FlatAppearance.BorderSize = 0;
             btnConfirmAssign.FlatAppearance.BorderSize = 0;
             btnCancelAssign.FlatAppearance.BorderSize = 0;
             
@@ -73,15 +74,24 @@ namespace WiimoteGun.Controls
             // Back
             if (btnBack != null)
                 btnBack.Click += (s, e) => BackRequested?.Invoke(this, EventArgs.Empty);
+
+            // Conditional visibility (EN/FR: Visibilité conditionnelle)
+            if (btnGamePadMapping != null)
+                btnGamePadMapping.Visible = Options.Instance.EnableGamePadSwapMode;
         }
 
         public event EventHandler BackRequested;
+        public event EventHandler GamePadMappingRequested;
 
         // Public methods (EN/FR: Méthodes publiques)
         public void LoadData()
         {
             LoadProfileUI();
             LoadCurrentMappings();
+
+            // Masquer le bouton de mappage GamePad si l'option n'est pas activée (EN/FR: Hide GamePad mapping button if option not enabled)
+            if (btnGamePadMapping != null)
+                btnGamePadMapping.Visible = Options.Instance.EnableGamePadSwapMode;
         }
 
         public void SetCurrentGame(string exeName, string exePath = null)
@@ -771,7 +781,12 @@ namespace WiimoteGun.Controls
                 }
             }
         }
-
+        
+        private void BtnGamePadMapping_Click(object sender, EventArgs e)
+        {
+            GamePadMappingRequested?.Invoke(this, EventArgs.Empty);
+        }
+        
         private void ComboBoxSubfolders_SelectedIndexChanged(object sender, EventArgs e)
         {
             RefreshProfileList();

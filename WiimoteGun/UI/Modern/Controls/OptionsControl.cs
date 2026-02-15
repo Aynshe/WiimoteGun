@@ -50,6 +50,31 @@ namespace WiimoteGun.Controls
             // Back
             if (btnBack != null)
                 btnBack.Click += (s, e) => BackRequested?.Invoke(this, EventArgs.Empty);
+
+            // Standalone Browsing Buttons
+            btnBrowsePCSX2.Click += (s, e) => BrowseFolder(txtPCSX2Path, "Select PCSX2 Emulators Root Folder");
+            btnBrowseDuckStation.Click += (s, e) => BrowseFolder(txtDuckStationPath, "Select DuckStation Emulators Root Folder");
+            btnBrowseDolphin.Click += (s, e) => BrowseFolder(txtDolphinPath, "Select Dolphin Emulators Root Folder");
+            btnBrowseCemu.Click += (s, e) => BrowseFolder(txtCemuPath, "Select Cemu Emulators Root Folder");
+            
+            // Standalone Toggle Logic
+            optStandaloneMode.CheckedChanged += (s, e) => UpdateStandaloneUIState();
+        }
+
+        private void BrowseFolder(TextBox targetTextBox, string description)
+        {
+            using (var fbd = new FolderBrowserDialog())
+            {
+                fbd.Description = description;
+                fbd.ShowNewFolderButton = false;
+                if (!string.IsNullOrEmpty(targetTextBox.Text) && System.IO.Directory.Exists(targetTextBox.Text))
+                    fbd.SelectedPath = targetTextBox.Text;
+
+                if (fbd.ShowDialog() == DialogResult.OK)
+                {
+                    targetTextBox.Text = fbd.SelectedPath;
+                }
+            }
         }
 
         public event EventHandler BackRequested;
@@ -138,6 +163,57 @@ namespace WiimoteGun.Controls
             optEnableVirtualPolling.Checked = Options.Instance.EnableVirtualPolling;
             optVirtualPollingRate.Value = Math.Min(Math.Max(Options.Instance.VirtualPollingRate, (int)optVirtualPollingRate.Minimum), (int)optVirtualPollingRate.Maximum);
 
+            // Standalone
+            optStandaloneMode.Checked = Options.Instance.StandaloneMode;
+            txtPCSX2Path.Text = Options.Instance.PCSX2Path;
+            txtDuckStationPath.Text = Options.Instance.DuckStationPath;
+            txtDolphinPath.Text = Options.Instance.DolphinPath;
+            txtCemuPath.Text = Options.Instance.CemuPath;
+
+            UpdateStandaloneUIState();
+        }
+
+        private void UpdateStandaloneUIState()
+        {
+            bool isStandalone = optStandaloneMode.Checked;
+
+            // Enable/Disable controls
+            txtPCSX2Path.Enabled = isStandalone;
+            btnBrowsePCSX2.Enabled = isStandalone;
+            txtDuckStationPath.Enabled = isStandalone;
+            btnBrowseDuckStation.Enabled = isStandalone;
+            txtDolphinPath.Enabled = isStandalone;
+            btnBrowseDolphin.Enabled = isStandalone;
+            txtCemuPath.Enabled = isStandalone;
+            btnBrowseCemu.Enabled = isStandalone;
+
+            // Update hint text if NOT standalone
+            if (!isStandalone)
+            {
+                string autoHint = "(Auto-detected via RetroBat)";
+                txtPCSX2Path.Text = autoHint;
+                txtDuckStationPath.Text = autoHint;
+                txtDolphinPath.Text = autoHint;
+                txtCemuPath.Text = autoHint;
+                
+                txtPCSX2Path.ForeColor = Color.Gray;
+                txtDuckStationPath.ForeColor = Color.Gray;
+                txtDolphinPath.ForeColor = Color.Gray;
+                txtCemuPath.ForeColor = Color.Gray;
+            }
+            else
+            {
+                // Restore actual paths from instance when re-enabled
+                txtPCSX2Path.Text = Options.Instance.PCSX2Path;
+                txtDuckStationPath.Text = Options.Instance.DuckStationPath;
+                txtDolphinPath.Text = Options.Instance.DolphinPath;
+                txtCemuPath.Text = Options.Instance.CemuPath;
+
+                txtPCSX2Path.ForeColor = Color.White;
+                txtDuckStationPath.ForeColor = Color.White;
+                txtDolphinPath.ForeColor = Color.White;
+                txtCemuPath.ForeColor = Color.White;
+            }
         }
 
         private void BtnApplyOptions_Click(object sender, EventArgs e)
@@ -192,6 +268,16 @@ namespace WiimoteGun.Controls
                 Options.Instance.IRExtrapolationStrength = (float)optIRExtrapolationStrength.Value;
                 Options.Instance.EnableVirtualPolling = optEnableVirtualPolling.Checked;
                 Options.Instance.VirtualPollingRate = (int)optVirtualPollingRate.Value;
+
+                // Standalone - Only save paths if in standalone mode to avoid saving hints
+                Options.Instance.StandaloneMode = optStandaloneMode.Checked;
+                if (Options.Instance.StandaloneMode)
+                {
+                    Options.Instance.PCSX2Path = txtPCSX2Path.Text.Trim();
+                    Options.Instance.DuckStationPath = txtDuckStationPath.Text.Trim();
+                    Options.Instance.DolphinPath = txtDolphinPath.Text.Trim();
+                    Options.Instance.CemuPath = txtCemuPath.Text.Trim();
+                }
 
 
                 // Save

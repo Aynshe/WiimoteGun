@@ -26,6 +26,12 @@ namespace WiimoteGun
         /// </summary>
         public static string GetRetroBatPath()
         {
+            if (Options.Instance.StandaloneMode)
+            {
+                SimpleLogger.Instance.Info("Standalone Mode: Skipping RetroBat registry search");
+                return null;
+            }
+
             try
             {
                 using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RETROBAT_REGISTRY_KEY))
@@ -59,21 +65,33 @@ namespace WiimoteGun
             if (_cachedRemapDirectory != null && Directory.Exists(_cachedRemapDirectory))
                 return _cachedRemapDirectory;
 
-            string retroBatPath = GetRetroBatPath();
             string remapDir;
 
-            if (!string.IsNullOrEmpty(retroBatPath) && Directory.Exists(retroBatPath))
+            if (Options.Instance.StandaloneMode)
             {
-                remapDir = Path.Combine(retroBatPath, REMAP_SUBFOLDER);
-                SimpleLogger.Instance.Info(string.Format("Using RetroBat remap directory: {0}", remapDir));
+                // Standalone: use local directory
+                // (EN/FR: Autonome : utiliser dossier local)
+                string exeDir = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                remapDir = Path.Combine(exeDir, "RemapProfiles");
+                SimpleLogger.Instance.Info(string.Format("Standalone Mode: Using local remap directory: {0}", remapDir));
             }
             else
             {
-                // Fallback: use local directory if RetroBat not found
-                // (EN/FR: Repli : utiliser dossier local si RetroBat introuvable)
-                string exeDir = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
-                remapDir = Path.Combine(exeDir, "RemapProfiles");
-                SimpleLogger.Instance.Warning(string.Format("RetroBat not found, using fallback directory: {0}", remapDir));
+                string retroBatPath = GetRetroBatPath();
+
+                if (!string.IsNullOrEmpty(retroBatPath) && Directory.Exists(retroBatPath))
+                {
+                    remapDir = Path.Combine(retroBatPath, REMAP_SUBFOLDER);
+                    SimpleLogger.Instance.Info(string.Format("Using RetroBat remap directory: {0}", remapDir));
+                }
+                else
+                {
+                    // Fallback: use local directory if RetroBat not found
+                    // (EN/FR: Repli : utiliser dossier local si RetroBat introuvable)
+                    string exeDir = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                    remapDir = Path.Combine(exeDir, "RemapProfiles");
+                    SimpleLogger.Instance.Warning(string.Format("RetroBat not found, using fallback directory: {0}", remapDir));
+                }
             }
 
             // Create directory if it doesn't exist (EN/FR: Créer le dossier s'il n'existe pas)

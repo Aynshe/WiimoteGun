@@ -65,11 +65,29 @@ namespace WiimoteGun.Core
                     }
                 }
 
-                if (!emulatorRoots.Any())
+                // Standalone / Manual paths (EN/FR: Chemins autonomes / manuels)
+                if (!string.IsNullOrEmpty(Options.Instance.PCSX2Path) && Directory.Exists(Options.Instance.PCSX2Path))
                 {
-                    // Fallback to registry-fetched path
-                    if (!string.IsNullOrEmpty(retroBatPath))
-                        emulatorRoots.Add(Path.Combine(retroBatPath, "emulators"));
+                    emulatorRoots.Add(Options.Instance.PCSX2Path);
+                    SimpleLogger.Instance.Info(string.Format("[ProfileAutomator] Adding manual PCSX2 path: {0}", Options.Instance.PCSX2Path));
+                }
+
+                if (!string.IsNullOrEmpty(Options.Instance.DuckStationPath) && Directory.Exists(Options.Instance.DuckStationPath))
+                {
+                    emulatorRoots.Add(Options.Instance.DuckStationPath);
+                    SimpleLogger.Instance.Info(string.Format("[ProfileAutomator] Adding manual DuckStation path: {0}", Options.Instance.DuckStationPath));
+                }
+
+                if (!string.IsNullOrEmpty(Options.Instance.DolphinPath) && Directory.Exists(Options.Instance.DolphinPath))
+                {
+                    emulatorRoots.Add(Options.Instance.DolphinPath);
+                    SimpleLogger.Instance.Info(string.Format("[ProfileAutomator] Adding manual Dolphin path: {0}", Options.Instance.DolphinPath));
+                }
+
+                if (!string.IsNullOrEmpty(Options.Instance.CemuPath) && Directory.Exists(Options.Instance.CemuPath))
+                {
+                    emulatorRoots.Add(Options.Instance.CemuPath);
+                    SimpleLogger.Instance.Info(string.Format("[ProfileAutomator] Adding manual Cemu path: {0}", Options.Instance.CemuPath));
                 }
 
                 if (!emulatorRoots.Any())
@@ -85,19 +103,41 @@ namespace WiimoteGun.Core
 
                 foreach (var root in emulatorRoots)
                 {
+                    // EN: Check both <root>\<emuName>\<dir> and <root>\<dir> for Standalone support.
+                    // FR: Vérifier à la fois <root>\<emuName>\<dir> et <root>\<dir> pour le support Standalone.
+                    
                     // Update input profiles (EN/FR: Mettre à jour les profils d'entrée)
-                    UpdateDuckStationProfiles(root, dinputIndices);
-                    UpdatePCSX2Profiles(root, dinputIndices);
+                    string dsProfileDir = FindEmulatorSubDir(root, "duckstation", "inputprofiles");
+                    if (dsProfileDir != null) UpdateDuckStationProfiles(dsProfileDir, dinputIndices);
+
+                    string ps2ProfileDir = FindEmulatorSubDir(root, "pcsx2", "inputprofiles");
+                    if (ps2ProfileDir != null) UpdatePCSX2Profiles(ps2ProfileDir, dinputIndices);
 
                     // Update game settings (EN/FR: Mettre à jour les paramètres de jeu)
-                    UpdateDuckStationGameSettings(root, anyGamePadActive);
-                    UpdatePCSX2GameSettings(root, anyGamePadActive);
+                    string dsSettingsDir = FindEmulatorSubDir(root, "duckstation", "gamesettings");
+                    if (dsSettingsDir != null) UpdateDuckStationGameSettings(dsSettingsDir, anyGamePadActive);
+
+                    string ps2SettingsDir = FindEmulatorSubDir(root, "pcsx2", "gamesettings");
+                    if (ps2SettingsDir != null) UpdatePCSX2GameSettings(ps2SettingsDir, anyGamePadActive);
                 }
             }
             catch (Exception ex)
             {
                 SimpleLogger.Instance.Error("[ProfileAutomator] Error updating profiles: " + ex.Message);
             }
+        }
+
+        private static string FindEmulatorSubDir(string root, string emuSubName, string targetDir)
+        {
+            // 1. Try standard RetroBat structure: root\emuSubName\targetDir
+            string path1 = Path.Combine(root, emuSubName, targetDir);
+            if (Directory.Exists(path1)) return path1;
+
+            // 2. Try direct structure (if root IS already the emulator folder): root\targetDir
+            string path2 = Path.Combine(root, targetDir);
+            if (Directory.Exists(path2)) return path2;
+
+            return null;
         }
 
         private const string DUCKSTATION_TEMPLATE = @"[ControllerPorts]
@@ -307,10 +347,8 @@ guncon2_Trigger = DInput-0/Button1
 EnableMouseMapping = false
 ";
 
-        private static void UpdateDuckStationProfiles(string emulatorRoot, Dictionary<int, int> dinputIndices)
+        private static void UpdateDuckStationProfiles(string profileDir, Dictionary<int, int> dinputIndices)
         {
-            string profileDir = Path.Combine(emulatorRoot, @"duckstation\inputprofiles");
-            if (!Directory.Exists(profileDir)) return;
 
             string defaultProfile = Path.Combine(profileDir, "gamepad-wiimotegun.ini");
             if (!File.Exists(defaultProfile))
@@ -347,10 +385,8 @@ EnableMouseMapping = false
             }
         }
 
-        private static void UpdatePCSX2Profiles(string emulatorRoot, Dictionary<int, int> dinputIndices)
+        private static void UpdatePCSX2Profiles(string profileDir, Dictionary<int, int> dinputIndices)
         {
-            string profileDir = Path.Combine(emulatorRoot, @"pcsx2\inputprofiles");
-            if (!Directory.Exists(profileDir)) return;
 
             string defaultProfile = Path.Combine(profileDir, "gamepad-wiimotegun.ini");
             if (!File.Exists(defaultProfile))
@@ -387,15 +423,13 @@ EnableMouseMapping = false
             }
         }
 
-        private static void UpdateDuckStationGameSettings(string root, bool anyGamePadActive)
+        private static void UpdateDuckStationGameSettings(string settingsDir, bool anyGamePadActive)
         {
-            string settingsDir = Path.Combine(root, @"duckstation\gamesettings");
             UpdateGameSettingsInternal(settingsDir, anyGamePadActive, "DuckStation");
         }
 
-        private static void UpdatePCSX2GameSettings(string root, bool anyGamePadActive)
+        private static void UpdatePCSX2GameSettings(string settingsDir, bool anyGamePadActive)
         {
-            string settingsDir = Path.Combine(root, @"pcsx2\gamesettings");
             UpdateGameSettingsInternal(settingsDir, anyGamePadActive, "PCSX2");
         }
 

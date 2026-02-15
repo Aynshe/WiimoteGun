@@ -39,6 +39,7 @@ namespace WiimoteGun.Controls
             this.btnDeleteProfile = new System.Windows.Forms.Button();
             this.btnAssignMode = new System.Windows.Forms.Button();
             this.btnHotkeys = new System.Windows.Forms.Button();
+            this.btnGamePadMapping = new System.Windows.Forms.Button();
             this.btnSave = new System.Windows.Forms.Button();
             this.btnLoad = new System.Windows.Forms.Button();
             this.txtProfileName = new System.Windows.Forms.TextBox();
@@ -194,6 +195,20 @@ namespace WiimoteGun.Controls
             this.btnHotkeys.Text = "Hotkeys";
             this.btnHotkeys.UseVisualStyleBackColor = false;
             this.btnHotkeys.Click += new System.EventHandler(this.BtnHotkeys_Click);
+            // 
+            // btnGamePadMapping
+            // 
+            this.btnGamePadMapping.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
+            this.btnGamePadMapping.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnGamePadMapping.Font = new System.Drawing.Font("Segoe UI", 8F, System.Drawing.FontStyle.Bold);
+            this.btnGamePadMapping.ForeColor = System.Drawing.Color.White;
+            this.btnGamePadMapping.Location = new System.Drawing.Point(470, 165);
+            this.btnGamePadMapping.Name = "btnGamePadMapping";
+            this.btnGamePadMapping.Size = new System.Drawing.Size(80, 30);
+            this.btnGamePadMapping.TabIndex = 10;
+            this.btnGamePadMapping.Text = "🎮 GamePad";
+            this.btnGamePadMapping.UseVisualStyleBackColor = false;
+            this.btnGamePadMapping.Click += new System.EventHandler(this.BtnGamePadMapping_Click);
             // 
             // btnSave
             // 
@@ -427,6 +442,7 @@ namespace WiimoteGun.Controls
             this.Controls.Add(this.comboActionSelector);
             this.Controls.Add(this.lblAssignStatus);
             this.Controls.Add(this.panelMappingDisplay);
+            this.Controls.Add(this.btnGamePadMapping);
             this.Controls.Add(this.tabControlPlayers);
             this.Controls.Add(this.chkEnableGyro);
             this.Controls.Add(this.chkAutoLoad);
@@ -467,6 +483,7 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.Button btnDeleteProfile;
         private System.Windows.Forms.Button btnAssignMode;
         private System.Windows.Forms.Button btnHotkeys;
+        private System.Windows.Forms.Button btnGamePadMapping;
         private System.Windows.Forms.Button btnSave;
         private System.Windows.Forms.Button btnLoad;
         private System.Windows.Forms.TextBox txtProfileName;

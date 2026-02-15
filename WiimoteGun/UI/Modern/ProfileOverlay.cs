@@ -25,6 +25,7 @@ namespace WiimoteGun.Forms
         private AssignControl assignControl;
         private OptionsControl optionsControl;
         private MappingControl mappingControl;
+        private GamePadMappingControl gamePadMappingControl;
         private IRControl irControl;
         
         // Custom Title Bar
@@ -86,11 +87,17 @@ namespace WiimoteGun.Forms
             irControl = new IRControl { Location = contentLoc, Visible = false };
             this.Controls.Add(irControl);
 
+            // GamePad Mapping
+            gamePadMappingControl = new GamePadMappingControl { Location = contentLoc, Visible = false };
+            this.Controls.Add(gamePadMappingControl);
+
             // Wire Internal Back Events
             assignControl.BackRequested += (s, e) => ShowPage("Home");
             optionsControl.BackRequested += (s, e) => ShowPage("Home");
             mappingControl.BackRequested += (s, e) => ShowPage("Home");
+            mappingControl.GamePadMappingRequested += (s, e) => ShowPage("GamePadMapping");
             irControl.BackRequested += (s, e) => ShowPage("Home");
+            gamePadMappingControl.BackRequested += (s, e) => ShowPage("Mapping");
         }
 
         /* 
@@ -107,6 +114,7 @@ namespace WiimoteGun.Forms
             optionsControl.Visible = false;
             mappingControl.Visible = false;
             irControl.Visible = false;
+            gamePadMappingControl.Visible = false;
             
             // Unload data if needed
             assignControl.UnloadData();
@@ -134,6 +142,10 @@ namespace WiimoteGun.Forms
                 case "IRViz":
                     irControl.Visible = true;
                     irControl.LoadData();
+                    break;
+                case "GamePadMapping":
+                    gamePadMappingControl.Visible = true;
+                    gamePadMappingControl.LoadData();
                     break;
             }
         }
