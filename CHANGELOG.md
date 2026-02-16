@@ -4,6 +4,19 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.3.0.0] - 2026-02-16
+
+### Added
+- **Full Dolphin Automation** - Automatic generation of `GameSettings` files for 51 games (based on internal GameID -> Name mapping).
+- **Automatic Wiimote Profiles** - Dynamic creation of global Dolphin profiles (`P1-wiimotegun.ini` to `P4-wiimotegun.ini`) if missing.
+- **Unified Masking Logic** - Standardized behavior across Dolphin, PCSX2, and DuckStation: custom config files are now **ACTIVE** in GamePad mode and **MASKED** (`-wiimotegun`) in Wiimote/Mouse mode to prevent conflicts.
+- **GamePad Mode Bypass** - Process monitor optimization to ignore restarts when launching Dolphin or Cemu if a controller is in GamePad mode.
+
+### Fixed
+- **Dolphin Indexing** - Corrected indexing in `GameSettings` files (switched from 0-3 to 1-4 for `WiimoteSource` and `WiimoteProfile`).
+- **Game Mappings** - Updated `RGSE8P` to `GHOSTSQUAD` and added support for `SC2E8P` (The Conduit v2).
+- **PCSX2/DuckStation Internal Inhibition** - Refined INI content modification logic to disable specific devices without requiring global profile renaming.
+
 ## [2.2.3.0] - 2026-02-15
 
 ### Added

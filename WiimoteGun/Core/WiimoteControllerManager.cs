@@ -17,6 +17,18 @@ namespace WiimoteGun
         public int ConnectedWiimotesCount { get { return _controllers.Count; } }
         public IEnumerable<WiiMoteController> Controllers { get { return _controllers.AsReadOnly(); } }
 
+        /// <summary>
+        /// Check if any connected controller is currently in GamePad or GamePad43 mode.
+        /// (EN/FR: Vérifier si au moins un contrôleur est en mode GamePad ou GamePad43)
+        /// </summary>
+        public bool IsAnyGamePadActive
+        {
+            get
+            {
+                return _controllers.Any(c => c.Mode == WiiMoteMode.GamePad || c.Mode == WiiMoteMode.GamePad43);
+            }
+        }
+
         public WiimoteControllerManager()
         {
             _controllers = new List<WiiMoteController>();

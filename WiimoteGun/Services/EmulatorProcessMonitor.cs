@@ -33,6 +33,13 @@ namespace WiimoteGun
                     if (name == "Dolphin" && !Options.Instance.RestartOnDolphin) continue;
                     if (name == "Cemu" && !Options.Instance.RestartOnCemu) continue;
 
+                    // EN: Bypass monitoring if any Wiimote is in GamePad mode to avoid global restarts
+                    // FR: Bypasser la surveillance si un Wiimote est en mode GamePad pour éviter les redémarrages globaux
+                    if (Program.WiiMoteManager != null && Program.WiiMoteManager.IsAnyGamePadActive)
+                    {
+                        continue;
+                    }
+
                     var processes = Process.GetProcessesByName(name);
                     if (processes.Length > 0)
                     {

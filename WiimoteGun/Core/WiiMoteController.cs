@@ -1805,7 +1805,12 @@ namespace WiimoteGun
             Process px = list.FirstOrDefault(p => "dolphin".Equals(p.ProcessName, StringComparison.InvariantCultureIgnoreCase));
             if (px != null && Options.Instance.RestartOnDolphin)
             {
-                locks = true;
+                // EN: Disable locking if current Wiimote is in GamePad mode
+                // FR: Désactiver le verrouillage si la Wiimote actuelle est en mode GamePad
+                if (_mode != WiiMoteMode.GamePad && _mode != WiiMoteMode.GamePad43)
+                {
+                    locks = true;
+                }
                 return px;
             }
 
