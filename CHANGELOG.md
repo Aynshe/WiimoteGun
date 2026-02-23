@@ -4,6 +4,13 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.3.2.2] - 2026-02-23
+### Added
+- Service Update Automation: Implemented `UpdateService.ps1` for automated service maintenance.
+- Service Log Rotation: Added 1.5MB limit for `WiimoteGunService.log` with automatic backup to `.bak`.
+- Direct PowerShell Execution: Improved update script reliability by launching PS1 directly with elevated privileges.
+- Auto-Pause: Added user prompt at the end of update script to verify results.
+
 ## [2.3.2.1] - 2026-02-23
 
 ### Fixed

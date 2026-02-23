@@ -264,6 +264,10 @@ namespace WiimoteGun
             // and enable themselves BEFORE the registration wipes the service state.
             ServiceClient.RegisterClient();
 
+            // EN: Check for service updates (Stop -> Replace -> Start) if a newer version is packaged.
+            // FR: Vérifier les mises à jour du service (Arrêt -> Remplacement -> Démarrage) si une version plus récente est incluse.
+            ServiceClient.CheckAndPromptServiceUpdate();
+
             // Update PATH environment variable if needed (EN/FR: Mettre à jour variable PATH si nécessaire)
             UpdatePathEnvironmentVariable();
 

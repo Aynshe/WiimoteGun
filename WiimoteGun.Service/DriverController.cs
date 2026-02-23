@@ -31,6 +31,13 @@ namespace WiimoteGun.Service
         {
             try
             {
+                FileInfo fi = new FileInfo(LogFile);
+                if (fi.Exists && fi.Length > 1536 * 1024) // 1.5 MB limit
+                {
+                    string backupFile = LogFile + ".bak";
+                    if (File.Exists(backupFile)) File.Delete(backupFile);
+                    File.Move(LogFile, backupFile);
+                }
                 File.AppendAllText(LogFile, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - {message}{Environment.NewLine}");
             }
             catch { } 

@@ -111,5 +111,123 @@ namespace WiimoteGun
         /// FR: Supprimer (désactiver) le périphérique gamepad Col06 pour un joueur spécifique.
         /// </summary>
         public static void RemoveGamepad(int playerIndex) { SendCommand(string.Format("REMOVE_GAMEPAD_P{0}", playerIndex)); }
+
+        // ========== Service Version Management (EN/FR: Gestion Version Service) ==========
+
+        private const string SERVICE_NAME = "WiimoteGunHelper";
+        private const string UPDATE_SUBFOLDER = @"WiimoteGun.Service\update_service";
+
+        /// <summary>
+        /// EN: Checks if the installed service is outdated and prompts the user to update.
+        /// FR: Vérifie si le service installé est obsolète et invite l'utilisateur à le mettre à jour.
+        /// </summary>
+        public static void CheckAndPromptServiceUpdate()
+        {
+            try
+            {
+                string installedServicePath = GetInstalledServicePath();
+                if (string.IsNullOrEmpty(installedServicePath) || !File.Exists(installedServicePath))
+                {
+                    SimpleLogger.Instance.Debug("Service not found in registry, skipping version check.");
+                    return;
+                }
+
+                FileVersionInfo installedVersion = FileVersionInfo.GetVersionInfo(installedServicePath);
+                
+                // Get packaged version (relative to main app)
+                string appDir = AppDomain.CurrentDomain.BaseDirectory;
+                string packagedServicePath = Path.Combine(appDir, UPDATE_SUBFOLDER, "WiimoteGun.Service.exe");
+
+                if (!File.Exists(packagedServicePath))
+                {
+                    SimpleLogger.Instance.Debug("No update service EXE found in " + UPDATE_SUBFOLDER + ", skipping.");
+                    return;
+                }
+
+                FileVersionInfo packagedVersion = FileVersionInfo.GetVersionInfo(packagedServicePath);
+
+                Version vInstalled = new Version(installedVersion.FileVersion);
+                Version vPackaged = new Version(packagedVersion.FileVersion);
+
+                if (vPackaged > vInstalled)
+                {
+                    SimpleLogger.Instance.Info(string.Format("Service update available! Installed: {0}, Packaged: {1}", vInstalled, vPackaged));
+                    
+                    string msg = string.Format(
+                        "A new version of the WiimoteGun Helper Service is available.\n\n" +
+                        "Installed: {0}\n" +
+                        "New Version: {1}\n\n" +
+                        "Do you want to update the service now? (Requires Admin rights)\n\n" +
+                        "Une nouvelle version du Service WiimoteGun est disponible.\n\n" +
+                        "Voulez-vous mettre à jour le service maintenant ? (Nécessite les droits Admin)",
+                        vInstalled, vPackaged);
+
+                    if (System.Windows.Forms.MessageBox.Show(msg, "Service Update", 
+                        System.Windows.Forms.MessageBoxButtons.YesNo, System.Windows.Forms.MessageBoxIcon.Information) == System.Windows.Forms.DialogResult.Yes)
+                    {
+                        TriggerServiceUpdate(installedServicePath, packagedServicePath);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error("Error during service version check: " + ex.Message);
+            }
+        }
+
+        private static string GetInstalledServicePath()
+        {
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\" + SERVICE_NAME))
+                {
+                    if (key != null)
+                    {
+                        string imagePath = key.GetValue("ImagePath") as string;
+                        if (!string.IsNullOrEmpty(imagePath))
+                        {
+                            // Remove quotes if present
+                            return imagePath.Replace("\"", "").Trim();
+                        }
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private static void TriggerServiceUpdate(string installedServicePath, string packagedServicePath)
+        {
+            try
+            {
+                string appDir = AppDomain.CurrentDomain.BaseDirectory;
+                string scriptDir = Path.Combine(appDir, "WiimoteGun.Service");
+                string scriptPath = Path.Combine(scriptDir, "UpdateService.ps1");
+
+                // Launch the PowerShell script as admin, passing the installation destination path
+                if (File.Exists(scriptPath))
+                {
+                    ProcessStartInfo psi = new ProcessStartInfo
+                    {
+                        FileName = "powershell.exe",
+                        Arguments = string.Format("-NoProfile -ExecutionPolicy Bypass -File \"{0}\" -ServicePath \"{1}\"", scriptPath, installedServicePath),
+                        Verb = "runas", // Force Admin
+                        UseShellExecute = true,
+                        WorkingDirectory = scriptDir
+                    };
+                    Process.Start(psi);
+                }
+                else
+                {
+                    System.Windows.Forms.MessageBox.Show("Update script not found: " + scriptPath, "Error", 
+                        System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Windows.Forms.MessageBox.Show("Failed to trigger update: " + ex.Message, "Error", 
+                    System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+            }
+        }
     }
 }
