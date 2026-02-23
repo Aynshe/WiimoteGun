@@ -225,27 +225,23 @@ namespace WiimoteGun
             // Validate
             if (_cmbModifier.SelectedItem == null)
             {
-                MessageBox.Show("Please select a modifier button.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                MessageBox.Show(this, "Please select a modifier button.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);               return;
             }
 
             if (_cmbTriggerButton.SelectedItem == null)
             {
-                MessageBox.Show("Please select a trigger button.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                MessageBox.Show(this, "Please select a trigger button.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);               return;
             }
 
             if (_cmbModifier.SelectedItem.ToString() == _cmbTriggerButton.SelectedItem.ToString())
             {
-                MessageBox.Show("Modifier and Trigger cannot be the same button.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                MessageBox.Show(this, "Modifier and Trigger cannot be the same button.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);               return;
             }
 
             // At least one action must be defined
             if (_capturedShortKeys.Count == 0 && _capturedLongKeys.Count == 0)
             {
-                MessageBox.Show("Please define at least one action (Short or Long press).", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                MessageBox.Show(this, "Please define at least one action (Short or Long press).", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);               return;
             }
 
             // Create/update hotkey

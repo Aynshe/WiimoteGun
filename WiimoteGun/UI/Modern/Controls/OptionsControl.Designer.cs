@@ -18,6 +18,8 @@ namespace WiimoteGun.Controls
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(OptionsControl));
+            this.optEnableFPSMode = new System.Windows.Forms.CheckBox();
             this.lblHelpPersistentGamePads = new System.Windows.Forms.Label();
             this.panelOptionsSidebar = new System.Windows.Forms.Panel();
             this.btnTabGeneral = new System.Windows.Forms.Button();
@@ -27,6 +29,17 @@ namespace WiimoteGun.Controls
             this.btnBack = new System.Windows.Forms.Button();
             this.tabsOptions = new System.Windows.Forms.TabControl();
             this.tabGeneral = new System.Windows.Forms.TabPage();
+            this.optUseHighPerfTimers = new System.Windows.Forms.CheckBox();
+            this.optEnableHomographyCache = new System.Windows.Forms.CheckBox();
+            this.optIRSmoothingStrength = new System.Windows.Forms.NumericUpDown();
+            this.lblIRSmoothingStrength = new System.Windows.Forms.Label();
+            this.optIRExtrapolationStrength = new System.Windows.Forms.NumericUpDown();
+            this.lblIRExtrapolationStrength = new System.Windows.Forms.Label();
+            this.optUseIRExtrapolation = new System.Windows.Forms.CheckBox();
+            this.optEnableIRSmoothing = new System.Windows.Forms.CheckBox();
+            this.optEnableVirtualPolling = new System.Windows.Forms.CheckBox();
+            this.lblVirtualPollingRate = new System.Windows.Forms.Label();
+            this.optVirtualPollingRate = new System.Windows.Forms.NumericUpDown();
             this.optLogLevel = new System.Windows.Forms.ComboBox();
             this.lblLogLevelModern = new System.Windows.Forms.Label();
             this.btnConfigureGamePad = new System.Windows.Forms.Button();
@@ -41,64 +54,80 @@ namespace WiimoteGun.Controls
             this.lblMonitorId = new System.Windows.Forms.Label();
             this.optMouseMode = new System.Windows.Forms.ComboBox();
             this.lblMouseMode = new System.Windows.Forms.Label();
-            this.optEnableIRSmoothing = new System.Windows.Forms.CheckBox();
-            this.lblIRSmoothingStrength = new System.Windows.Forms.Label();
-            this.optIRSmoothingStrength = new System.Windows.Forms.NumericUpDown();
-            this.optUseHighPerfTimers = new System.Windows.Forms.CheckBox();
-            this.optEnableHomographyCache = new System.Windows.Forms.CheckBox();
-            this.optUseIRExtrapolation = new System.Windows.Forms.CheckBox();
-            this.optIRExtrapolationStrength = new System.Windows.Forms.NumericUpDown();
-            this.lblIRExtrapolationStrength = new System.Windows.Forms.Label();
-            this.optEnableVirtualPolling = new System.Windows.Forms.CheckBox();
-            this.lblVirtualPollingRate = new System.Windows.Forms.Label();
-            this.optVirtualPollingRate = new System.Windows.Forms.NumericUpDown();
             this.tabDetection = new System.Windows.Forms.TabPage();
             this.lblDetectionInfo = new System.Windows.Forms.Label();
             this.optDetectBluetooth = new System.Windows.Forms.CheckBox();
             this.optDetectDolphin = new System.Windows.Forms.CheckBox();
             this.tabGestures = new System.Windows.Forms.TabPage();
-            this.tabEmulators = new System.Windows.Forms.TabPage();
+            this.lblGrenadeDevice = new System.Windows.Forms.Label();
+            this.optGrenadeDevice = new System.Windows.Forms.ComboBox();
+            this.lblShakeDevice = new System.Windows.Forms.Label();
+            this.optShakeDevice = new System.Windows.Forms.ComboBox();
             this.lblGesturesDevSeparator = new System.Windows.Forms.Label();
-            this.optShakeSensitivity = new System.Windows.Forms.TrackBar();
+            this.optShakeSensitivity = new System.Windows.Forms.ComboBox();
             this.lblShakeSensitivity = new System.Windows.Forms.Label();
             this.optEnableGrenadeGesture = new System.Windows.Forms.CheckBox();
-            this.optShakeFromNunchuk = new System.Windows.Forms.CheckBox();
             this.optEnableShakeReload = new System.Windows.Forms.CheckBox();
             this.optOffScreenReloadAuto = new System.Windows.Forms.CheckBox();
             this.optEnableOffScreenReload = new System.Windows.Forms.CheckBox();
+            this.tabEmulators = new System.Windows.Forms.TabPage();
+            this.lblHelpRestartCemu = new System.Windows.Forms.Label();
+            this.lblHelpRestartDolphin = new System.Windows.Forms.Label();
+            this.btnBrowseCemu = new System.Windows.Forms.Button();
+            this.txtCemuPath = new System.Windows.Forms.TextBox();
+            this.lblCemuPath = new System.Windows.Forms.Label();
+            this.btnBrowseDolphin = new System.Windows.Forms.Button();
+            this.txtDolphinPath = new System.Windows.Forms.TextBox();
+            this.lblDolphinPath = new System.Windows.Forms.Label();
+            this.btnBrowseDuckStation = new System.Windows.Forms.Button();
+            this.txtDuckStationPath = new System.Windows.Forms.TextBox();
+            this.lblDuckStationPath = new System.Windows.Forms.Label();
+            this.btnBrowsePCSX2 = new System.Windows.Forms.Button();
+            this.txtPCSX2Path = new System.Windows.Forms.TextBox();
+            this.lblPCSX2Path = new System.Windows.Forms.Label();
+            this.optStandaloneMode = new System.Windows.Forms.CheckBox();
             this.optRestartOnCemu = new System.Windows.Forms.CheckBox();
             this.optRestartOnDolphin = new System.Windows.Forms.CheckBox();
-            this.optStandaloneMode = new System.Windows.Forms.CheckBox();
-            this.lblPCSX2Path = new System.Windows.Forms.Label();
-            this.txtPCSX2Path = new System.Windows.Forms.TextBox();
-            this.btnBrowsePCSX2 = new System.Windows.Forms.Button();
-            this.lblDuckStationPath = new System.Windows.Forms.Label();
-            this.txtDuckStationPath = new System.Windows.Forms.TextBox();
-            this.btnBrowseDuckStation = new System.Windows.Forms.Button();
-            this.lblDolphinPath = new System.Windows.Forms.Label();
-            this.txtDolphinPath = new System.Windows.Forms.TextBox();
-            this.btnBrowseDolphin = new System.Windows.Forms.Button();
-            this.lblCemuPath = new System.Windows.Forms.Label();
-            this.txtCemuPath = new System.Windows.Forms.TextBox();
-            this.btnBrowseCemu = new System.Windows.Forms.Button();
-            this.lblHelpRestartDolphin = new System.Windows.Forms.Label();
-            this.lblHelpRestartCemu = new System.Windows.Forms.Label();
             this.toolTipRestart = new System.Windows.Forms.ToolTip(this.components);
             this.btnApply = new System.Windows.Forms.Button();
             this.btnReset = new System.Windows.Forms.Button();
             this.panelOptionsSidebar.SuspendLayout();
             this.tabsOptions.SuspendLayout();
             this.tabGeneral.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.optIRSensitivity)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.optMonitorId)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.optIRSmoothingStrength)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.optIRExtrapolationStrength)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.optVirtualPollingRate)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.optIRSensitivity)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.optMonitorId)).BeginInit();
             this.tabDetection.SuspendLayout();
             this.tabGestures.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.optShakeSensitivity)).BeginInit();
             this.tabEmulators.SuspendLayout();
             this.SuspendLayout();
+            // 
+            // optEnableFPSMode
+            // 
+            this.optEnableFPSMode.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.optEnableFPSMode.ForeColor = System.Drawing.Color.Goldenrod;
+            this.optEnableFPSMode.Location = new System.Drawing.Point(20, 243);
+            this.optEnableFPSMode.Name = "optEnableFPSMode";
+            this.optEnableFPSMode.Size = new System.Drawing.Size(154, 25);
+            this.optEnableFPSMode.TabIndex = 1;
+            this.optEnableFPSMode.Text = "FPS Mode  (Alpha DEV)";
+            this.optEnableFPSMode.UseVisualStyleBackColor = true;
+            this.optEnableFPSMode.CheckedChanged += new System.EventHandler(this.optEnableFPSMode_CheckedChanged);
+            // 
+            // lblHelpPersistentGamePads
+            // 
+            this.lblHelpPersistentGamePads.AutoSize = true;
+            this.lblHelpPersistentGamePads.Cursor = System.Windows.Forms.Cursors.Help;
+            this.lblHelpPersistentGamePads.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
+            this.lblHelpPersistentGamePads.ForeColor = System.Drawing.Color.Goldenrod;
+            this.lblHelpPersistentGamePads.Location = new System.Drawing.Point(197, 309);
+            this.lblHelpPersistentGamePads.Name = "lblHelpPersistentGamePads";
+            this.lblHelpPersistentGamePads.Size = new System.Drawing.Size(12, 15);
+            this.lblHelpPersistentGamePads.TabIndex = 17;
+            this.lblHelpPersistentGamePads.Text = "?";
+            this.toolTipRestart.SetToolTip(this.lblHelpPersistentGamePads, resources.GetString("lblHelpPersistentGamePads.ToolTip"));
             // 
             // panelOptionsSidebar
             // 
@@ -204,6 +233,7 @@ namespace WiimoteGun.Controls
             // tabGeneral
             // 
             this.tabGeneral.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(20)))), ((int)(((byte)(20)))));
+            this.tabGeneral.Controls.Add(this.optEnableFPSMode);
             this.tabGeneral.Controls.Add(this.lblHelpPersistentGamePads);
             this.tabGeneral.Controls.Add(this.optUseHighPerfTimers);
             this.tabGeneral.Controls.Add(this.optEnableHomographyCache);
@@ -230,79 +260,12 @@ namespace WiimoteGun.Controls
             this.tabGeneral.Controls.Add(this.lblMonitorId);
             this.tabGeneral.Controls.Add(this.optMouseMode);
             this.tabGeneral.Controls.Add(this.lblMouseMode);
-            this.tabGeneral.Location = new System.Drawing.Point(4, 5);
+            this.tabGeneral.Location = new System.Drawing.Point(4, 22);
             this.tabGeneral.Name = "tabGeneral";
             this.tabGeneral.Padding = new System.Windows.Forms.Padding(3);
-            this.tabGeneral.Size = new System.Drawing.Size(392, 671);
+            this.tabGeneral.Size = new System.Drawing.Size(392, 654);
             this.tabGeneral.TabIndex = 0;
             this.tabGeneral.Text = "General";
-            // 
-            // optLogLevel
-            // 
-            this.optLogLevel.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
-            this.optLogLevel.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.optLogLevel.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.optLogLevel.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.optLogLevel.ForeColor = System.Drawing.Color.White;
-            this.optLogLevel.FormattingEnabled = true;
-            this.optLogLevel.Items.AddRange(new object[] {
-            "ALL",
-            "TRACE",
-            "DEBUG",
-            "INFO",
-            "WARNING",
-            "ERROR",
-            "FATAL",
-            "NONE"});
-            this.optLogLevel.Location = new System.Drawing.Point(140, 340);
-            this.optLogLevel.Name = "optLogLevel";
-            this.optLogLevel.Size = new System.Drawing.Size(200, 25);
-            this.optLogLevel.TabIndex = 5;
-            // 
-            // lblLogLevelModern
-            // 
-            this.lblLogLevelModern.Font = new System.Drawing.Font("Segoe UI", 9.5F);
-            this.lblLogLevelModern.ForeColor = System.Drawing.Color.White;
-            this.lblLogLevelModern.Location = new System.Drawing.Point(10, 340);
-            this.lblLogLevelModern.Name = "lblLogLevelModern";
-            this.lblLogLevelModern.Size = new System.Drawing.Size(120, 25);
-            this.lblLogLevelModern.TabIndex = 0;
-            this.lblLogLevelModern.Text = "Logging Level:";
-            this.lblLogLevelModern.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            //
-            // optEnableIRSmoothing
-            //
-            this.optEnableIRSmoothing.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.optEnableIRSmoothing.ForeColor = System.Drawing.Color.White;
-            this.optEnableIRSmoothing.Location = new System.Drawing.Point(20, 385);
-            this.optEnableIRSmoothing.Name = "optEnableIRSmoothing";
-            this.optEnableIRSmoothing.Size = new System.Drawing.Size(220, 25);
-            this.optEnableIRSmoothing.TabIndex = 6;
-            this.optEnableIRSmoothing.Text = "Enable IR Smoothing (EMA)";
-            this.optEnableIRSmoothing.UseVisualStyleBackColor = true;
-            // 
-            // lblIRSmoothingStrength
-            // 
-            this.lblIRSmoothingStrength.Font = new System.Drawing.Font("Segoe UI", 9.5F);
-            this.lblIRSmoothingStrength.ForeColor = System.Drawing.Color.White;
-            this.lblIRSmoothingStrength.Location = new System.Drawing.Point(40, 415);
-            this.lblIRSmoothingStrength.Name = "lblIRSmoothingStrength";
-            this.lblIRSmoothingStrength.Size = new System.Drawing.Size(120, 25);
-            this.lblIRSmoothingStrength.TabIndex = 0;
-            this.lblIRSmoothingStrength.Text = "Strength (1-10):";
-            this.lblIRSmoothingStrength.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            // 
-            // optIRSmoothingStrength
-            // 
-            this.optIRSmoothingStrength.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
-            this.optIRSmoothingStrength.ForeColor = System.Drawing.Color.White;
-            this.optIRSmoothingStrength.Location = new System.Drawing.Point(170, 415);
-            this.optIRSmoothingStrength.Maximum = new decimal(new int[] { 10, 0, 0, 0 });
-            this.optIRSmoothingStrength.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
-            this.optIRSmoothingStrength.Name = "optIRSmoothingStrength";
-            this.optIRSmoothingStrength.Size = new System.Drawing.Size(70, 25);
-            this.optIRSmoothingStrength.TabIndex = 7;
-            this.optIRSmoothingStrength.Value = new decimal(new int[] { 5, 0, 0, 0 });
             // 
             // optUseHighPerfTimers
             // 
@@ -326,6 +289,82 @@ namespace WiimoteGun.Controls
             this.optEnableHomographyCache.Text = "Enable Homography Cache (Static Mode)";
             this.optEnableHomographyCache.UseVisualStyleBackColor = true;
             // 
+            // optIRSmoothingStrength
+            // 
+            this.optIRSmoothingStrength.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.optIRSmoothingStrength.ForeColor = System.Drawing.Color.White;
+            this.optIRSmoothingStrength.Location = new System.Drawing.Point(166, 420);
+            this.optIRSmoothingStrength.Maximum = new decimal(new int[] {
+            10,
+            0,
+            0,
+            0});
+            this.optIRSmoothingStrength.Minimum = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
+            this.optIRSmoothingStrength.Name = "optIRSmoothingStrength";
+            this.optIRSmoothingStrength.Size = new System.Drawing.Size(70, 20);
+            this.optIRSmoothingStrength.TabIndex = 7;
+            this.optIRSmoothingStrength.Value = new decimal(new int[] {
+            5,
+            0,
+            0,
+            0});
+            // 
+            // lblIRSmoothingStrength
+            // 
+            this.lblIRSmoothingStrength.Font = new System.Drawing.Font("Segoe UI", 9.5F);
+            this.lblIRSmoothingStrength.ForeColor = System.Drawing.Color.White;
+            this.lblIRSmoothingStrength.Location = new System.Drawing.Point(40, 415);
+            this.lblIRSmoothingStrength.Name = "lblIRSmoothingStrength";
+            this.lblIRSmoothingStrength.Size = new System.Drawing.Size(120, 25);
+            this.lblIRSmoothingStrength.TabIndex = 0;
+            this.lblIRSmoothingStrength.Text = "Strength (1-10):";
+            this.lblIRSmoothingStrength.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // optIRExtrapolationStrength
+            // 
+            this.optIRExtrapolationStrength.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.optIRExtrapolationStrength.DecimalPlaces = 1;
+            this.optIRExtrapolationStrength.ForeColor = System.Drawing.Color.White;
+            this.optIRExtrapolationStrength.Increment = new decimal(new int[] {
+            1,
+            0,
+            0,
+            65536});
+            this.optIRExtrapolationStrength.Location = new System.Drawing.Point(166, 555);
+            this.optIRExtrapolationStrength.Maximum = new decimal(new int[] {
+            10,
+            0,
+            0,
+            0});
+            this.optIRExtrapolationStrength.Minimum = new decimal(new int[] {
+            1,
+            0,
+            0,
+            65536});
+            this.optIRExtrapolationStrength.Name = "optIRExtrapolationStrength";
+            this.optIRExtrapolationStrength.Size = new System.Drawing.Size(70, 20);
+            this.optIRExtrapolationStrength.TabIndex = 11;
+            this.optIRExtrapolationStrength.Value = new decimal(new int[] {
+            5,
+            0,
+            0,
+            65536});
+            // 
+            // lblIRExtrapolationStrength
+            // 
+            this.lblIRExtrapolationStrength.Font = new System.Drawing.Font("Segoe UI", 9.5F);
+            this.lblIRExtrapolationStrength.ForeColor = System.Drawing.Color.White;
+            this.lblIRExtrapolationStrength.Location = new System.Drawing.Point(40, 548);
+            this.lblIRExtrapolationStrength.Name = "lblIRExtrapolationStrength";
+            this.lblIRExtrapolationStrength.Size = new System.Drawing.Size(120, 25);
+            this.lblIRExtrapolationStrength.TabIndex = 0;
+            this.lblIRExtrapolationStrength.Text = "Strength (0.1-10.0):";
+            this.lblIRExtrapolationStrength.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
             // optUseIRExtrapolation
             // 
             this.optUseIRExtrapolation.Font = new System.Drawing.Font("Segoe UI", 9F);
@@ -337,30 +376,16 @@ namespace WiimoteGun.Controls
             this.optUseIRExtrapolation.Text = "Experimental: IR Extrapolation";
             this.optUseIRExtrapolation.UseVisualStyleBackColor = true;
             // 
-            // lblIRExtrapolationStrength
+            // optEnableIRSmoothing
             // 
-            this.lblIRExtrapolationStrength.Font = new System.Drawing.Font("Segoe UI", 9.5F);
-            this.lblIRExtrapolationStrength.ForeColor = System.Drawing.Color.White;
-            this.lblIRExtrapolationStrength.Location = new System.Drawing.Point(40, 550);
-            this.lblIRExtrapolationStrength.Name = "lblIRExtrapolationStrength";
-            this.lblIRExtrapolationStrength.Size = new System.Drawing.Size(120, 25);
-            this.lblIRExtrapolationStrength.TabIndex = 0;
-            this.lblIRExtrapolationStrength.Text = "Strength (0.1-10.0):";
-            this.lblIRExtrapolationStrength.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            // 
-            // optIRExtrapolationStrength
-            // 
-            this.optIRExtrapolationStrength.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
-            this.optIRExtrapolationStrength.DecimalPlaces = 1;
-            this.optIRExtrapolationStrength.ForeColor = System.Drawing.Color.White;
-            this.optIRExtrapolationStrength.Increment = new decimal(new int[] { 1, 0, 0, 65536 });
-            this.optIRExtrapolationStrength.Location = new System.Drawing.Point(170, 550);
-            this.optIRExtrapolationStrength.Maximum = new decimal(new int[] { 10, 0, 0, 0 });
-            this.optIRExtrapolationStrength.Minimum = new decimal(new int[] { 1, 0, 0, 65536 });
-            this.optIRExtrapolationStrength.Name = "optIRExtrapolationStrength";
-            this.optIRExtrapolationStrength.Size = new System.Drawing.Size(70, 25);
-            this.optIRExtrapolationStrength.TabIndex = 11;
-            this.optIRExtrapolationStrength.Value = new decimal(new int[] { 5, 0, 0, 65536 });
+            this.optEnableIRSmoothing.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.optEnableIRSmoothing.ForeColor = System.Drawing.Color.White;
+            this.optEnableIRSmoothing.Location = new System.Drawing.Point(20, 385);
+            this.optEnableIRSmoothing.Name = "optEnableIRSmoothing";
+            this.optEnableIRSmoothing.Size = new System.Drawing.Size(220, 25);
+            this.optEnableIRSmoothing.TabIndex = 6;
+            this.optEnableIRSmoothing.Text = "Enable IR Smoothing (EMA)";
+            this.optEnableIRSmoothing.UseVisualStyleBackColor = true;
             // 
             // optEnableVirtualPolling
             // 
@@ -377,7 +402,7 @@ namespace WiimoteGun.Controls
             // 
             this.lblVirtualPollingRate.Font = new System.Drawing.Font("Segoe UI", 9.5F);
             this.lblVirtualPollingRate.ForeColor = System.Drawing.Color.White;
-            this.lblVirtualPollingRate.Location = new System.Drawing.Point(40, 615);
+            this.lblVirtualPollingRate.Location = new System.Drawing.Point(40, 611);
             this.lblVirtualPollingRate.Name = "lblVirtualPollingRate";
             this.lblVirtualPollingRate.Size = new System.Drawing.Size(120, 25);
             this.lblVirtualPollingRate.TabIndex = 0;
@@ -388,13 +413,58 @@ namespace WiimoteGun.Controls
             // 
             this.optVirtualPollingRate.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
             this.optVirtualPollingRate.ForeColor = System.Drawing.Color.White;
-            this.optVirtualPollingRate.Location = new System.Drawing.Point(170, 615);
-            this.optVirtualPollingRate.Maximum = new decimal(new int[] { 1000, 0, 0, 0 });
-            this.optVirtualPollingRate.Minimum = new decimal(new int[] { 100, 0, 0, 0 });
+            this.optVirtualPollingRate.Location = new System.Drawing.Point(166, 616);
+            this.optVirtualPollingRate.Maximum = new decimal(new int[] {
+            1000,
+            0,
+            0,
+            0});
+            this.optVirtualPollingRate.Minimum = new decimal(new int[] {
+            100,
+            0,
+            0,
+            0});
             this.optVirtualPollingRate.Name = "optVirtualPollingRate";
-            this.optVirtualPollingRate.Size = new System.Drawing.Size(70, 25);
+            this.optVirtualPollingRate.Size = new System.Drawing.Size(70, 20);
             this.optVirtualPollingRate.TabIndex = 13;
-            this.optVirtualPollingRate.Value = new decimal(new int[] { 250, 0, 0, 0 });
+            this.optVirtualPollingRate.Value = new decimal(new int[] {
+            250,
+            0,
+            0,
+            0});
+            // 
+            // optLogLevel
+            // 
+            this.optLogLevel.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.optLogLevel.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.optLogLevel.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.optLogLevel.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.optLogLevel.ForeColor = System.Drawing.Color.White;
+            this.optLogLevel.FormattingEnabled = true;
+            this.optLogLevel.Items.AddRange(new object[] {
+            "ALL",
+            "TRACE",
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "FATAL",
+            "NONE"});
+            this.optLogLevel.Location = new System.Drawing.Point(140, 340);
+            this.optLogLevel.Name = "optLogLevel";
+            this.optLogLevel.Size = new System.Drawing.Size(200, 23);
+            this.optLogLevel.TabIndex = 5;
+            // 
+            // lblLogLevelModern
+            // 
+            this.lblLogLevelModern.Font = new System.Drawing.Font("Segoe UI", 9.5F);
+            this.lblLogLevelModern.ForeColor = System.Drawing.Color.White;
+            this.lblLogLevelModern.Location = new System.Drawing.Point(10, 340);
+            this.lblLogLevelModern.Name = "lblLogLevelModern";
+            this.lblLogLevelModern.Size = new System.Drawing.Size(120, 25);
+            this.lblLogLevelModern.TabIndex = 0;
+            this.lblLogLevelModern.Text = "Logging Level:";
+            this.lblLogLevelModern.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // btnConfigureGamePad
             // 
@@ -402,7 +472,7 @@ namespace WiimoteGun.Controls
             this.btnConfigureGamePad.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnConfigureGamePad.Font = new System.Drawing.Font("Segoe UI", 8F);
             this.btnConfigureGamePad.ForeColor = System.Drawing.Color.White;
-            this.btnConfigureGamePad.Location = new System.Drawing.Point(250, 260);
+            this.btnConfigureGamePad.Location = new System.Drawing.Point(220, 273);
             this.btnConfigureGamePad.Name = "btnConfigureGamePad";
             this.btnConfigureGamePad.Size = new System.Drawing.Size(120, 25);
             this.btnConfigureGamePad.TabIndex = 3;
@@ -410,24 +480,11 @@ namespace WiimoteGun.Controls
             this.btnConfigureGamePad.UseVisualStyleBackColor = false;
             this.btnConfigureGamePad.Click += new System.EventHandler(this.BtnConfigureGamePad_Click);
             // 
-            // lblHelpPersistentGamePads
-            // 
-            this.lblHelpPersistentGamePads.AutoSize = true;
-            this.lblHelpPersistentGamePads.Cursor = System.Windows.Forms.Cursors.Help;
-            this.lblHelpPersistentGamePads.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
-            this.lblHelpPersistentGamePads.ForeColor = System.Drawing.Color.Goldenrod;
-            this.lblHelpPersistentGamePads.Location = new System.Drawing.Point(240, 304);
-            this.lblHelpPersistentGamePads.Name = "lblHelpPersistentGamePads";
-            this.lblHelpPersistentGamePads.Size = new System.Drawing.Size(12, 15);
-            this.lblHelpPersistentGamePads.TabIndex = 17;
-            this.lblHelpPersistentGamePads.Text = "?";
-            this.toolTipRestart.SetToolTip(this.lblHelpPersistentGamePads, "Maintains virtual gamepads active even when no Wiimote is connected. This prevents emulators from losing controller assignments and shifting DInput indices.\n(FR: Maintient les manettes virtuelles actives même sans Wiimote connectée. Évite que les émulateurs ne perdent les assignations et que les indices DInput ne changent.)");
-            // 
             // optPersistentGamePads
             // 
             this.optPersistentGamePads.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.optPersistentGamePads.ForeColor = System.Drawing.Color.White;
-            this.optPersistentGamePads.Location = new System.Drawing.Point(20, 300);
+            this.optPersistentGamePads.Location = new System.Drawing.Point(20, 304);
             this.optPersistentGamePads.Name = "optPersistentGamePads";
             this.optPersistentGamePads.Size = new System.Drawing.Size(220, 25);
             this.optPersistentGamePads.TabIndex = 4;
@@ -438,18 +495,19 @@ namespace WiimoteGun.Controls
             // 
             this.optEnableGamePadSwap.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.optEnableGamePadSwap.ForeColor = System.Drawing.Color.White;
-            this.optEnableGamePadSwap.Location = new System.Drawing.Point(20, 260);
+            this.optEnableGamePadSwap.Location = new System.Drawing.Point(20, 273);
             this.optEnableGamePadSwap.Name = "optEnableGamePadSwap";
-            this.optEnableGamePadSwap.Size = new System.Drawing.Size(220, 25);
+            this.optEnableGamePadSwap.Size = new System.Drawing.Size(189, 25);
             this.optEnableGamePadSwap.TabIndex = 2;
-            this.optEnableGamePadSwap.Text = "Enable GamePad Swap Mode (Col06)";
+            this.optEnableGamePadSwap.Text = "Enable GamePad Swap Mode";
             this.optEnableGamePadSwap.UseVisualStyleBackColor = true;
+            this.optEnableGamePadSwap.CheckedChanged += new System.EventHandler(this.optEnableGamePadSwap_CheckedChanged);
             // 
             // optShowNotifications
             // 
             this.optShowNotifications.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.optShowNotifications.ForeColor = System.Drawing.Color.White;
-            this.optShowNotifications.Location = new System.Drawing.Point(20, 220);
+            this.optShowNotifications.Location = new System.Drawing.Point(20, 205);
             this.optShowNotifications.Name = "optShowNotifications";
             this.optShowNotifications.Size = new System.Drawing.Size(200, 25);
             this.optShowNotifications.TabIndex = 1;
@@ -461,12 +519,24 @@ namespace WiimoteGun.Controls
             this.optIRSensitivity.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
             this.optIRSensitivity.ForeColor = System.Drawing.Color.White;
             this.optIRSensitivity.Location = new System.Drawing.Point(140, 170);
-            this.optIRSensitivity.Maximum = new decimal(new int[] { 5, 0, 0, 0 });
-            this.optIRSensitivity.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
+            this.optIRSensitivity.Maximum = new decimal(new int[] {
+            5,
+            0,
+            0,
+            0});
+            this.optIRSensitivity.Minimum = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
             this.optIRSensitivity.Name = "optIRSensitivity";
-            this.optIRSensitivity.Size = new System.Drawing.Size(100, 25);
+            this.optIRSensitivity.Size = new System.Drawing.Size(100, 20);
             this.optIRSensitivity.TabIndex = 1;
-            this.optIRSensitivity.Value = new decimal(new int[] { 1, 0, 0, 0 });
+            this.optIRSensitivity.Value = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
             // 
             // lblIRSensitivity
             // 
@@ -494,7 +564,7 @@ namespace WiimoteGun.Controls
             "Four Corners"});
             this.optLEDLayout.Location = new System.Drawing.Point(140, 120);
             this.optLEDLayout.Name = "optLEDLayout";
-            this.optLEDLayout.Size = new System.Drawing.Size(200, 25);
+            this.optLEDLayout.Size = new System.Drawing.Size(200, 23);
             this.optLEDLayout.TabIndex = 1;
             // 
             // lblLEDLayout
@@ -513,9 +583,13 @@ namespace WiimoteGun.Controls
             this.optMonitorId.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
             this.optMonitorId.ForeColor = System.Drawing.Color.White;
             this.optMonitorId.Location = new System.Drawing.Point(140, 70);
-            this.optMonitorId.Maximum = new decimal(new int[] { 9, 0, 0, 0 });
+            this.optMonitorId.Maximum = new decimal(new int[] {
+            9,
+            0,
+            0,
+            0});
             this.optMonitorId.Name = "optMonitorId";
-            this.optMonitorId.Size = new System.Drawing.Size(100, 25);
+            this.optMonitorId.Size = new System.Drawing.Size(100, 20);
             this.optMonitorId.TabIndex = 1;
             // 
             // lblMonitorId
@@ -542,7 +616,7 @@ namespace WiimoteGun.Controls
             "RawInput"});
             this.optMouseMode.Location = new System.Drawing.Point(140, 20);
             this.optMouseMode.Name = "optMouseMode";
-            this.optMouseMode.Size = new System.Drawing.Size(200, 25);
+            this.optMouseMode.Size = new System.Drawing.Size(200, 23);
             this.optMouseMode.TabIndex = 1;
             // 
             // lblMouseMode
@@ -562,9 +636,9 @@ namespace WiimoteGun.Controls
             this.tabDetection.Controls.Add(this.lblDetectionInfo);
             this.tabDetection.Controls.Add(this.optDetectBluetooth);
             this.tabDetection.Controls.Add(this.optDetectDolphin);
-            this.tabDetection.Location = new System.Drawing.Point(4, 5);
+            this.tabDetection.Location = new System.Drawing.Point(4, 22);
             this.tabDetection.Name = "tabDetection";
-            this.tabDetection.Size = new System.Drawing.Size(392, 591);
+            this.tabDetection.Size = new System.Drawing.Size(392, 654);
             this.tabDetection.TabIndex = 2;
             this.tabDetection.Text = "Detection";
             // 
@@ -602,37 +676,99 @@ namespace WiimoteGun.Controls
             // tabGestures
             // 
             this.tabGestures.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(20)))), ((int)(((byte)(20)))));
+            this.tabGestures.Controls.Add(this.lblGrenadeDevice);
+            this.tabGestures.Controls.Add(this.optGrenadeDevice);
+            this.tabGestures.Controls.Add(this.lblShakeDevice);
+            this.tabGestures.Controls.Add(this.optShakeDevice);
             this.tabGestures.Controls.Add(this.lblGesturesDevSeparator);
             this.tabGestures.Controls.Add(this.optShakeSensitivity);
             this.tabGestures.Controls.Add(this.lblShakeSensitivity);
             this.tabGestures.Controls.Add(this.optEnableGrenadeGesture);
-            this.tabGestures.Controls.Add(this.optShakeFromNunchuk);
             this.tabGestures.Controls.Add(this.optEnableShakeReload);
             this.tabGestures.Controls.Add(this.optOffScreenReloadAuto);
             this.tabGestures.Controls.Add(this.optEnableOffScreenReload);
-            this.tabGestures.Location = new System.Drawing.Point(4, 5);
+            this.tabGestures.Location = new System.Drawing.Point(4, 22);
             this.tabGestures.Name = "tabGestures";
-            this.tabGestures.Size = new System.Drawing.Size(392, 591);
+            this.tabGestures.Size = new System.Drawing.Size(392, 654);
             this.tabGestures.TabIndex = 3;
             this.tabGestures.Text = "Gestures";
+            // 
+            // lblGrenadeDevice
+            // 
+            this.lblGrenadeDevice.ForeColor = System.Drawing.Color.White;
+            this.lblGrenadeDevice.Location = new System.Drawing.Point(20, 275);
+            this.lblGrenadeDevice.Name = "lblGrenadeDevice";
+            this.lblGrenadeDevice.Size = new System.Drawing.Size(120, 25);
+            this.lblGrenadeDevice.TabIndex = 5;
+            this.lblGrenadeDevice.Text = "Grenade Device:";
+            this.lblGrenadeDevice.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // optGrenadeDevice
+            // 
+            this.optGrenadeDevice.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.optGrenadeDevice.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.optGrenadeDevice.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.optGrenadeDevice.ForeColor = System.Drawing.Color.White;
+            this.optGrenadeDevice.FormattingEnabled = true;
+            this.optGrenadeDevice.Items.AddRange(new object[] {
+            "Wiimote",
+            "Nunchuk"});
+            this.optGrenadeDevice.Location = new System.Drawing.Point(140, 275);
+            this.optGrenadeDevice.Name = "optGrenadeDevice";
+            this.optGrenadeDevice.Size = new System.Drawing.Size(200, 21);
+            this.optGrenadeDevice.TabIndex = 6;
+            // 
+            // lblShakeDevice
+            // 
+            this.lblShakeDevice.ForeColor = System.Drawing.Color.White;
+            this.lblShakeDevice.Location = new System.Drawing.Point(20, 195);
+            this.lblShakeDevice.Name = "lblShakeDevice";
+            this.lblShakeDevice.Size = new System.Drawing.Size(120, 25);
+            this.lblShakeDevice.TabIndex = 3;
+            this.lblShakeDevice.Text = "Shake Device:";
+            this.lblShakeDevice.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // optShakeDevice
+            // 
+            this.optShakeDevice.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.optShakeDevice.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.optShakeDevice.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.optShakeDevice.ForeColor = System.Drawing.Color.White;
+            this.optShakeDevice.FormattingEnabled = true;
+            this.optShakeDevice.Items.AddRange(new object[] {
+            "Wiimote",
+            "Nunchuk"});
+            this.optShakeDevice.Location = new System.Drawing.Point(140, 195);
+            this.optShakeDevice.Name = "optShakeDevice";
+            this.optShakeDevice.Size = new System.Drawing.Size(200, 21);
+            this.optShakeDevice.TabIndex = 4;
             // 
             // lblGesturesDevSeparator
             // 
             this.lblGesturesDevSeparator.AutoSize = true;
             this.lblGesturesDevSeparator.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Italic);
             this.lblGesturesDevSeparator.ForeColor = System.Drawing.Color.Goldenrod;
-            this.lblGesturesDevSeparator.Location = new System.Drawing.Point(20, 95);
+            this.lblGesturesDevSeparator.Location = new System.Drawing.Point(137, 93);
             this.lblGesturesDevSeparator.Name = "lblGesturesDevSeparator";
-            this.lblGesturesDevSeparator.Size = new System.Drawing.Size(200, 15);
+            this.lblGesturesDevSeparator.Size = new System.Drawing.Size(137, 15);
             this.lblGesturesDevSeparator.TabIndex = 0;
-            this.lblGesturesDevSeparator.Text = "—— In Development (For Test) ——";
+            this.lblGesturesDevSeparator.Text = "—— (Experimental) ——";
             // 
             // optShakeSensitivity
             // 
+            this.optShakeSensitivity.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.optShakeSensitivity.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.optShakeSensitivity.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.optShakeSensitivity.ForeColor = System.Drawing.Color.White;
+            this.optShakeSensitivity.FormattingEnabled = true;
+            this.optShakeSensitivity.Items.AddRange(new object[] {
+            "Very Low",
+            "Low",
+            "Medium",
+            "High"});
             this.optShakeSensitivity.Location = new System.Drawing.Point(140, 150);
-            this.optShakeSensitivity.Maximum = 2;
             this.optShakeSensitivity.Name = "optShakeSensitivity";
-            this.optShakeSensitivity.Size = new System.Drawing.Size(200, 45);
+            this.optShakeSensitivity.Size = new System.Drawing.Size(200, 21);
             this.optShakeSensitivity.TabIndex = 2;
             // 
             // lblShakeSensitivity
@@ -651,20 +787,9 @@ namespace WiimoteGun.Controls
             this.optEnableGrenadeGesture.Location = new System.Drawing.Point(20, 240);
             this.optEnableGrenadeGesture.Name = "optEnableGrenadeGesture";
             this.optEnableGrenadeGesture.Size = new System.Drawing.Size(200, 25);
-            this.optEnableGrenadeGesture.TabIndex = 1;
+            this.optEnableGrenadeGesture.TabIndex = 5;
             this.optEnableGrenadeGesture.Text = "Grenade Gesture";
             this.optEnableGrenadeGesture.UseVisualStyleBackColor = true;
-            // 
-            // optShakeFromNunchuk
-            // 
-            this.optShakeFromNunchuk.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.optShakeFromNunchuk.ForeColor = System.Drawing.Color.White;
-            this.optShakeFromNunchuk.Location = new System.Drawing.Point(20, 200);
-            this.optShakeFromNunchuk.Name = "optShakeFromNunchuk";
-            this.optShakeFromNunchuk.Size = new System.Drawing.Size(200, 25);
-            this.optShakeFromNunchuk.TabIndex = 1;
-            this.optShakeFromNunchuk.Text = "Shake from Nunchuk";
-            this.optShakeFromNunchuk.UseVisualStyleBackColor = true;
             // 
             // optEnableShakeReload
             // 
@@ -719,11 +844,192 @@ namespace WiimoteGun.Controls
             this.tabEmulators.Controls.Add(this.optStandaloneMode);
             this.tabEmulators.Controls.Add(this.optRestartOnCemu);
             this.tabEmulators.Controls.Add(this.optRestartOnDolphin);
-            this.tabEmulators.Location = new System.Drawing.Point(4, 5);
+            this.tabEmulators.Location = new System.Drawing.Point(4, 22);
             this.tabEmulators.Name = "tabEmulators";
-            this.tabEmulators.Size = new System.Drawing.Size(392, 591);
+            this.tabEmulators.Size = new System.Drawing.Size(392, 654);
             this.tabEmulators.TabIndex = 4;
             this.tabEmulators.Text = "Emulators";
+            // 
+            // lblHelpRestartCemu
+            // 
+            this.lblHelpRestartCemu.AutoSize = true;
+            this.lblHelpRestartCemu.Cursor = System.Windows.Forms.Cursors.Help;
+            this.lblHelpRestartCemu.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
+            this.lblHelpRestartCemu.ForeColor = System.Drawing.Color.Goldenrod;
+            this.lblHelpRestartCemu.Location = new System.Drawing.Point(164, 64);
+            this.lblHelpRestartCemu.Name = "lblHelpRestartCemu";
+            this.lblHelpRestartCemu.Size = new System.Drawing.Size(12, 15);
+            this.lblHelpRestartCemu.TabIndex = 16;
+            this.lblHelpRestartCemu.Text = "?";
+            this.toolTipRestart.SetToolTip(this.lblHelpRestartCemu, "Automatically restarts the Wiimote connection when Cemu is detected to ensure pro" +
+        "per synchronization.\n(FR: Redémarre automatiquement la Wiimote pour assurer la s" +
+        "ynchronisation avec Cemu.)");
+            // 
+            // lblHelpRestartDolphin
+            // 
+            this.lblHelpRestartDolphin.AutoSize = true;
+            this.lblHelpRestartDolphin.Cursor = System.Windows.Forms.Cursors.Help;
+            this.lblHelpRestartDolphin.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
+            this.lblHelpRestartDolphin.ForeColor = System.Drawing.Color.Goldenrod;
+            this.lblHelpRestartDolphin.Location = new System.Drawing.Point(164, 24);
+            this.lblHelpRestartDolphin.Name = "lblHelpRestartDolphin";
+            this.lblHelpRestartDolphin.Size = new System.Drawing.Size(12, 15);
+            this.lblHelpRestartDolphin.TabIndex = 15;
+            this.lblHelpRestartDolphin.Text = "?";
+            this.toolTipRestart.SetToolTip(this.lblHelpRestartDolphin, "Automatically restarts the Wiimote connection when Dolphin is detected to ensure " +
+        "proper synchronization.\n(FR: Redémarre automatiquement la Wiimote pour assurer l" +
+        "a synchronisation avec Dolphin.)");
+            // 
+            // btnBrowseCemu
+            // 
+            this.btnBrowseCemu.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
+            this.btnBrowseCemu.FlatAppearance.BorderSize = 0;
+            this.btnBrowseCemu.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnBrowseCemu.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.btnBrowseCemu.ForeColor = System.Drawing.Color.White;
+            this.btnBrowseCemu.Location = new System.Drawing.Point(290, 385);
+            this.btnBrowseCemu.Name = "btnBrowseCemu";
+            this.btnBrowseCemu.Size = new System.Drawing.Size(80, 23);
+            this.btnBrowseCemu.TabIndex = 14;
+            this.btnBrowseCemu.Text = "Browse...";
+            this.btnBrowseCemu.UseVisualStyleBackColor = false;
+            // 
+            // txtCemuPath
+            // 
+            this.txtCemuPath.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.txtCemuPath.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.txtCemuPath.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.txtCemuPath.ForeColor = System.Drawing.Color.White;
+            this.txtCemuPath.Location = new System.Drawing.Point(20, 385);
+            this.txtCemuPath.Name = "txtCemuPath";
+            this.txtCemuPath.Size = new System.Drawing.Size(260, 23);
+            this.txtCemuPath.TabIndex = 13;
+            // 
+            // lblCemuPath
+            // 
+            this.lblCemuPath.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.lblCemuPath.ForeColor = System.Drawing.Color.White;
+            this.lblCemuPath.Location = new System.Drawing.Point(20, 360);
+            this.lblCemuPath.Name = "lblCemuPath";
+            this.lblCemuPath.Size = new System.Drawing.Size(350, 20);
+            this.lblCemuPath.TabIndex = 12;
+            this.lblCemuPath.Text = "Cemu Emulators Root (Manual):";
+            // 
+            // btnBrowseDolphin
+            // 
+            this.btnBrowseDolphin.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
+            this.btnBrowseDolphin.FlatAppearance.BorderSize = 0;
+            this.btnBrowseDolphin.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnBrowseDolphin.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.btnBrowseDolphin.ForeColor = System.Drawing.Color.White;
+            this.btnBrowseDolphin.Location = new System.Drawing.Point(290, 315);
+            this.btnBrowseDolphin.Name = "btnBrowseDolphin";
+            this.btnBrowseDolphin.Size = new System.Drawing.Size(80, 23);
+            this.btnBrowseDolphin.TabIndex = 11;
+            this.btnBrowseDolphin.Text = "Browse...";
+            this.btnBrowseDolphin.UseVisualStyleBackColor = false;
+            // 
+            // txtDolphinPath
+            // 
+            this.txtDolphinPath.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.txtDolphinPath.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.txtDolphinPath.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.txtDolphinPath.ForeColor = System.Drawing.Color.White;
+            this.txtDolphinPath.Location = new System.Drawing.Point(20, 315);
+            this.txtDolphinPath.Name = "txtDolphinPath";
+            this.txtDolphinPath.Size = new System.Drawing.Size(260, 23);
+            this.txtDolphinPath.TabIndex = 10;
+            // 
+            // lblDolphinPath
+            // 
+            this.lblDolphinPath.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.lblDolphinPath.ForeColor = System.Drawing.Color.White;
+            this.lblDolphinPath.Location = new System.Drawing.Point(20, 290);
+            this.lblDolphinPath.Name = "lblDolphinPath";
+            this.lblDolphinPath.Size = new System.Drawing.Size(350, 20);
+            this.lblDolphinPath.TabIndex = 9;
+            this.lblDolphinPath.Text = "Dolphin Emulators Root (Manual):";
+            // 
+            // btnBrowseDuckStation
+            // 
+            this.btnBrowseDuckStation.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
+            this.btnBrowseDuckStation.FlatAppearance.BorderSize = 0;
+            this.btnBrowseDuckStation.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnBrowseDuckStation.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.btnBrowseDuckStation.ForeColor = System.Drawing.Color.White;
+            this.btnBrowseDuckStation.Location = new System.Drawing.Point(290, 245);
+            this.btnBrowseDuckStation.Name = "btnBrowseDuckStation";
+            this.btnBrowseDuckStation.Size = new System.Drawing.Size(80, 23);
+            this.btnBrowseDuckStation.TabIndex = 8;
+            this.btnBrowseDuckStation.Text = "Browse...";
+            this.btnBrowseDuckStation.UseVisualStyleBackColor = false;
+            // 
+            // txtDuckStationPath
+            // 
+            this.txtDuckStationPath.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.txtDuckStationPath.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.txtDuckStationPath.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.txtDuckStationPath.ForeColor = System.Drawing.Color.White;
+            this.txtDuckStationPath.Location = new System.Drawing.Point(20, 245);
+            this.txtDuckStationPath.Name = "txtDuckStationPath";
+            this.txtDuckStationPath.Size = new System.Drawing.Size(260, 23);
+            this.txtDuckStationPath.TabIndex = 7;
+            // 
+            // lblDuckStationPath
+            // 
+            this.lblDuckStationPath.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.lblDuckStationPath.ForeColor = System.Drawing.Color.White;
+            this.lblDuckStationPath.Location = new System.Drawing.Point(20, 220);
+            this.lblDuckStationPath.Name = "lblDuckStationPath";
+            this.lblDuckStationPath.Size = new System.Drawing.Size(350, 20);
+            this.lblDuckStationPath.TabIndex = 6;
+            this.lblDuckStationPath.Text = "DuckStation Emulators Root (Manual):";
+            // 
+            // btnBrowsePCSX2
+            // 
+            this.btnBrowsePCSX2.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
+            this.btnBrowsePCSX2.FlatAppearance.BorderSize = 0;
+            this.btnBrowsePCSX2.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnBrowsePCSX2.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.btnBrowsePCSX2.ForeColor = System.Drawing.Color.White;
+            this.btnBrowsePCSX2.Location = new System.Drawing.Point(290, 175);
+            this.btnBrowsePCSX2.Name = "btnBrowsePCSX2";
+            this.btnBrowsePCSX2.Size = new System.Drawing.Size(80, 23);
+            this.btnBrowsePCSX2.TabIndex = 5;
+            this.btnBrowsePCSX2.Text = "Browse...";
+            this.btnBrowsePCSX2.UseVisualStyleBackColor = false;
+            // 
+            // txtPCSX2Path
+            // 
+            this.txtPCSX2Path.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.txtPCSX2Path.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.txtPCSX2Path.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.txtPCSX2Path.ForeColor = System.Drawing.Color.White;
+            this.txtPCSX2Path.Location = new System.Drawing.Point(20, 175);
+            this.txtPCSX2Path.Name = "txtPCSX2Path";
+            this.txtPCSX2Path.Size = new System.Drawing.Size(260, 23);
+            this.txtPCSX2Path.TabIndex = 4;
+            // 
+            // lblPCSX2Path
+            // 
+            this.lblPCSX2Path.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.lblPCSX2Path.ForeColor = System.Drawing.Color.White;
+            this.lblPCSX2Path.Location = new System.Drawing.Point(20, 150);
+            this.lblPCSX2Path.Name = "lblPCSX2Path";
+            this.lblPCSX2Path.Size = new System.Drawing.Size(350, 20);
+            this.lblPCSX2Path.TabIndex = 3;
+            this.lblPCSX2Path.Text = "PCSX2 Emulators Root (Manual):";
+            // 
+            // optStandaloneMode
+            // 
+            this.optStandaloneMode.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
+            this.optStandaloneMode.ForeColor = System.Drawing.Color.Goldenrod;
+            this.optStandaloneMode.Location = new System.Drawing.Point(20, 110);
+            this.optStandaloneMode.Name = "optStandaloneMode";
+            this.optStandaloneMode.Size = new System.Drawing.Size(300, 25);
+            this.optStandaloneMode.TabIndex = 2;
+            this.optStandaloneMode.Text = "Standalone / Portable Mode (No RetroBat)";
+            this.optStandaloneMode.UseVisualStyleBackColor = true;
             // 
             // optRestartOnCemu
             // 
@@ -747,32 +1053,6 @@ namespace WiimoteGun.Controls
             this.optRestartOnDolphin.Text = "Restart on Dolphin";
             this.optRestartOnDolphin.UseVisualStyleBackColor = true;
             // 
-            // lblHelpRestartDolphin
-            // 
-            this.lblHelpRestartDolphin.AutoSize = true;
-            this.lblHelpRestartDolphin.Cursor = System.Windows.Forms.Cursors.Help;
-            this.lblHelpRestartDolphin.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
-            this.lblHelpRestartDolphin.ForeColor = System.Drawing.Color.Goldenrod;
-            this.lblHelpRestartDolphin.Location = new System.Drawing.Point(220, 24);
-            this.lblHelpRestartDolphin.Name = "lblHelpRestartDolphin";
-            this.lblHelpRestartDolphin.Size = new System.Drawing.Size(12, 15);
-            this.lblHelpRestartDolphin.TabIndex = 15;
-            this.lblHelpRestartDolphin.Text = "?";
-            this.toolTipRestart.SetToolTip(this.lblHelpRestartDolphin, "Automatically restarts the Wiimote connection when Dolphin is detected to ensure proper synchronization.\n(FR: Redémarre automatiquement la Wiimote pour assurer la synchronisation avec Dolphin.)");
-            // 
-            // lblHelpRestartCemu
-            // 
-            this.lblHelpRestartCemu.AutoSize = true;
-            this.lblHelpRestartCemu.Cursor = System.Windows.Forms.Cursors.Help;
-            this.lblHelpRestartCemu.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
-            this.lblHelpRestartCemu.ForeColor = System.Drawing.Color.Goldenrod;
-            this.lblHelpRestartCemu.Location = new System.Drawing.Point(220, 64);
-            this.lblHelpRestartCemu.Name = "lblHelpRestartCemu";
-            this.lblHelpRestartCemu.Size = new System.Drawing.Size(12, 15);
-            this.lblHelpRestartCemu.TabIndex = 16;
-            this.lblHelpRestartCemu.Text = "?";
-            this.toolTipRestart.SetToolTip(this.lblHelpRestartCemu, "Automatically restarts the Wiimote connection when Cemu is detected to ensure proper synchronization.\n(FR: Redémarre automatiquement la Wiimote pour assurer la synchronisation avec Cemu.)");
-            // 
             // toolTipRestart
             // 
             this.toolTipRestart.AutoPopDelay = 10000;
@@ -780,157 +1060,6 @@ namespace WiimoteGun.Controls
             this.toolTipRestart.ReshowDelay = 100;
             this.toolTipRestart.ToolTipIcon = System.Windows.Forms.ToolTipIcon.Info;
             this.toolTipRestart.ToolTipTitle = "Reinitialization Help";
-            // 
-            // optStandaloneMode
-            // 
-            this.optStandaloneMode.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
-            this.optStandaloneMode.ForeColor = System.Drawing.Color.Goldenrod;
-            this.optStandaloneMode.Location = new System.Drawing.Point(20, 110);
-            this.optStandaloneMode.Name = "optStandaloneMode";
-            this.optStandaloneMode.Size = new System.Drawing.Size(300, 25);
-            this.optStandaloneMode.TabIndex = 2;
-            this.optStandaloneMode.Text = "Standalone / Portable Mode (No RetroBat)";
-            this.optStandaloneMode.UseVisualStyleBackColor = true;
-            // 
-            // lblPCSX2Path
-            // 
-            this.lblPCSX2Path.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.lblPCSX2Path.ForeColor = System.Drawing.Color.White;
-            this.lblPCSX2Path.Location = new System.Drawing.Point(20, 150);
-            this.lblPCSX2Path.Name = "lblPCSX2Path";
-            this.lblPCSX2Path.Size = new System.Drawing.Size(350, 20);
-            this.lblPCSX2Path.TabIndex = 3;
-            this.lblPCSX2Path.Text = "PCSX2 Emulators Root (Manual):";
-            // 
-            // txtPCSX2Path
-            // 
-            this.txtPCSX2Path.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
-            this.txtPCSX2Path.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.txtPCSX2Path.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.txtPCSX2Path.ForeColor = System.Drawing.Color.White;
-            this.txtPCSX2Path.Location = new System.Drawing.Point(20, 175);
-            this.txtPCSX2Path.Name = "txtPCSX2Path";
-            this.txtPCSX2Path.Size = new System.Drawing.Size(260, 23);
-            this.txtPCSX2Path.TabIndex = 4;
-            // 
-            // btnBrowsePCSX2
-            // 
-            this.btnBrowsePCSX2.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
-            this.btnBrowsePCSX2.FlatAppearance.BorderSize = 0;
-            this.btnBrowsePCSX2.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnBrowsePCSX2.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.btnBrowsePCSX2.ForeColor = System.Drawing.Color.White;
-            this.btnBrowsePCSX2.Location = new System.Drawing.Point(290, 175);
-            this.btnBrowsePCSX2.Name = "btnBrowsePCSX2";
-            this.btnBrowsePCSX2.Size = new System.Drawing.Size(80, 23);
-            this.btnBrowsePCSX2.TabIndex = 5;
-            this.btnBrowsePCSX2.Text = "Browse...";
-            this.btnBrowsePCSX2.UseVisualStyleBackColor = false;
-            // 
-            // lblDuckStationPath
-            // 
-            this.lblDuckStationPath.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.lblDuckStationPath.ForeColor = System.Drawing.Color.White;
-            this.lblDuckStationPath.Location = new System.Drawing.Point(20, 220);
-            this.lblDuckStationPath.Name = "lblDuckStationPath";
-            this.lblDuckStationPath.Size = new System.Drawing.Size(350, 20);
-            this.lblDuckStationPath.TabIndex = 6;
-            this.lblDuckStationPath.Text = "DuckStation Emulators Root (Manual):";
-            // 
-            // txtDuckStationPath
-            // 
-            this.txtDuckStationPath.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
-            this.txtDuckStationPath.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.txtDuckStationPath.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.txtDuckStationPath.ForeColor = System.Drawing.Color.White;
-            this.txtDuckStationPath.Location = new System.Drawing.Point(20, 245);
-            this.txtDuckStationPath.Name = "txtDuckStationPath";
-            this.txtDuckStationPath.Size = new System.Drawing.Size(260, 23);
-            this.txtDuckStationPath.TabIndex = 7;
-            // 
-            // btnBrowseDuckStation
-            // 
-            this.btnBrowseDuckStation.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
-            this.btnBrowseDuckStation.FlatAppearance.BorderSize = 0;
-            this.btnBrowseDuckStation.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnBrowseDuckStation.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.btnBrowseDuckStation.ForeColor = System.Drawing.Color.White;
-            this.btnBrowseDuckStation.Location = new System.Drawing.Point(290, 245);
-            this.btnBrowseDuckStation.Name = "btnBrowseDuckStation";
-            this.btnBrowseDuckStation.Size = new System.Drawing.Size(80, 23);
-            this.btnBrowseDuckStation.TabIndex = 8;
-            this.btnBrowseDuckStation.Text = "Browse...";
-            this.btnBrowseDuckStation.UseVisualStyleBackColor = false;
-            // 
-            // lblDolphinPath
-            // 
-            this.lblDolphinPath.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.lblDolphinPath.ForeColor = System.Drawing.Color.White;
-            this.lblDolphinPath.Location = new System.Drawing.Point(20, 290);
-            this.lblDolphinPath.Name = "lblDolphinPath";
-            this.lblDolphinPath.Size = new System.Drawing.Size(350, 20);
-            this.lblDolphinPath.TabIndex = 9;
-            this.lblDolphinPath.Text = "Dolphin Emulators Root (Manual):";
-            // 
-            // txtDolphinPath
-            // 
-            this.txtDolphinPath.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
-            this.txtDolphinPath.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.txtDolphinPath.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.txtDolphinPath.ForeColor = System.Drawing.Color.White;
-            this.txtDolphinPath.Location = new System.Drawing.Point(20, 315);
-            this.txtDolphinPath.Name = "txtDolphinPath";
-            this.txtDolphinPath.Size = new System.Drawing.Size(260, 23);
-            this.txtDolphinPath.TabIndex = 10;
-            // 
-            // btnBrowseDolphin
-            // 
-            this.btnBrowseDolphin.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
-            this.btnBrowseDolphin.FlatAppearance.BorderSize = 0;
-            this.btnBrowseDolphin.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnBrowseDolphin.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.btnBrowseDolphin.ForeColor = System.Drawing.Color.White;
-            this.btnBrowseDolphin.Location = new System.Drawing.Point(290, 315);
-            this.btnBrowseDolphin.Name = "btnBrowseDolphin";
-            this.btnBrowseDolphin.Size = new System.Drawing.Size(80, 23);
-            this.btnBrowseDolphin.TabIndex = 11;
-            this.btnBrowseDolphin.Text = "Browse...";
-            this.btnBrowseDolphin.UseVisualStyleBackColor = false;
-            // 
-            // lblCemuPath
-            // 
-            this.lblCemuPath.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.lblCemuPath.ForeColor = System.Drawing.Color.White;
-            this.lblCemuPath.Location = new System.Drawing.Point(20, 360);
-            this.lblCemuPath.Name = "lblCemuPath";
-            this.lblCemuPath.Size = new System.Drawing.Size(350, 20);
-            this.lblCemuPath.TabIndex = 12;
-            this.lblCemuPath.Text = "Cemu Emulators Root (Manual):";
-            // 
-            // txtCemuPath
-            // 
-            this.txtCemuPath.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
-            this.txtCemuPath.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.txtCemuPath.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.txtCemuPath.ForeColor = System.Drawing.Color.White;
-            this.txtCemuPath.Location = new System.Drawing.Point(20, 385);
-            this.txtCemuPath.Name = "txtCemuPath";
-            this.txtCemuPath.Size = new System.Drawing.Size(260, 23);
-            this.txtCemuPath.TabIndex = 13;
-            // 
-            // btnBrowseCemu
-            // 
-            this.btnBrowseCemu.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
-            this.btnBrowseCemu.FlatAppearance.BorderSize = 0;
-            this.btnBrowseCemu.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnBrowseCemu.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.btnBrowseCemu.ForeColor = System.Drawing.Color.White;
-            this.btnBrowseCemu.Location = new System.Drawing.Point(290, 385);
-            this.btnBrowseCemu.Name = "btnBrowseCemu";
-            this.btnBrowseCemu.Size = new System.Drawing.Size(80, 23);
-            this.btnBrowseCemu.TabIndex = 14;
-            this.btnBrowseCemu.Text = "Browse...";
-            this.btnBrowseCemu.UseVisualStyleBackColor = false;
             // 
             // btnApply
             // 
@@ -962,6 +1091,7 @@ namespace WiimoteGun.Controls
             // 
             // OptionsControl
             // 
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Transparent;
             this.Controls.Add(this.btnReset);
@@ -974,16 +1104,14 @@ namespace WiimoteGun.Controls
             this.tabsOptions.ResumeLayout(false);
             this.tabGeneral.ResumeLayout(false);
             this.tabGeneral.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.optIRSensitivity)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.optMonitorId)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.optIRSmoothingStrength)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.optIRExtrapolationStrength)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.optVirtualPollingRate)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.optIRSensitivity)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.optMonitorId)).EndInit();
             this.tabDetection.ResumeLayout(false);
-            this.tabDetection.PerformLayout();
             this.tabGestures.ResumeLayout(false);
             this.tabGestures.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.optShakeSensitivity)).EndInit();
             this.tabEmulators.ResumeLayout(false);
             this.tabEmulators.PerformLayout();
             this.ResumeLayout(false);
@@ -1021,11 +1149,15 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.CheckBox optEnableOffScreenReload;
         private System.Windows.Forms.CheckBox optOffScreenReloadAuto;
         private System.Windows.Forms.CheckBox optEnableShakeReload;
-        private System.Windows.Forms.CheckBox optShakeFromNunchuk;
+
         private System.Windows.Forms.CheckBox optEnableGrenadeGesture;
         private System.Windows.Forms.Label lblGesturesDevSeparator;
         private System.Windows.Forms.Label lblShakeSensitivity;
-        private System.Windows.Forms.TrackBar optShakeSensitivity;
+        private System.Windows.Forms.ComboBox optShakeSensitivity;
+        private System.Windows.Forms.Label lblShakeDevice;
+        private System.Windows.Forms.ComboBox optShakeDevice;
+        private System.Windows.Forms.Label lblGrenadeDevice;
+        private System.Windows.Forms.ComboBox optGrenadeDevice;
         private System.Windows.Forms.Button btnConfigureGamePad;
         private System.Windows.Forms.CheckBox optRestartOnDolphin;
         private System.Windows.Forms.CheckBox optRestartOnCemu;
@@ -1059,6 +1191,7 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.Label lblHelpRestartDolphin;
         private System.Windows.Forms.Label lblHelpRestartCemu;
         private System.Windows.Forms.Label lblHelpPersistentGamePads;
+        private System.Windows.Forms.CheckBox optEnableFPSMode;
         private System.Windows.Forms.ToolTip toolTipRestart;
     }
 }

@@ -17,6 +17,8 @@ namespace WiimoteGun
         private const string RETROBAT_PATH_VALUE = "LatestKnownInstallPath";
         private const string REMAP_SUBFOLDER = @"user\WiimoteGunRemap";
         private const string DEFAULT_PROFILE_NAME = "default.remap";
+        private const string GAMEPAD_SUBFOLDER = "Gamepad";
+        private const string DEFAULT_GAMEPAD_PROFILE_NAME = "default.remap";
 
         private static string _cachedRemapDirectory = null;
 
@@ -210,6 +212,11 @@ namespace WiimoteGun
                         P3Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(3).Hotkeys.Select(h => h.Clone())),
                         P4Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(4).Hotkeys.Select(h => h.Clone()))
                     };
+
+                    // FIX V25e: Sanitize default profile to ensure Gyro is DISABLED.
+                    // This prevents 'dirty' gyro state from the current session (e.g. loaded from another profile) 
+                    // from polluting the auto-generated default.remap.
+
                     
                     XmlSerializer serializer = new XmlSerializer(typeof(RemapProfile));
                     using (FileStream stream = File.Create(defaultPath))
@@ -360,6 +367,217 @@ namespace WiimoteGun
             string targetDir = string.IsNullOrEmpty(subfolder) ? remapDir : Path.Combine(remapDir, subfolder);
             return Path.Combine(targetDir, profileName);
         }
+
+        // =============================================================================================
+        // GAMEPAD PROFILE MANAGEMENT (EN/FR: GESTION PROFILS GAMEPAD)
+        // =============================================================================================
+
+        /// <summary>
+        /// Get the GamePad remap directory path (creates if doesn't exist)
+        /// (EN/FR: Obtenir le chemin du dossier remap GamePad)
+        /// </summary>
+        public static string GetGamePadRemapDirectory()
+        {
+            string baseRemapDir = GetRemapDirectory();
+            if (string.IsNullOrEmpty(baseRemapDir)) return null;
+
+            string gamepadDir = Path.Combine(baseRemapDir, GAMEPAD_SUBFOLDER);
+            
+            try
+            {
+                if (!Directory.Exists(gamepadDir))
+                {
+                    Directory.CreateDirectory(gamepadDir);
+                    SimpleLogger.Instance.Info(string.Format("Created GamePad remap directory: {0}", gamepadDir));
+                }
+                return gamepadDir;
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error(string.Format("Failed to create GamePad remap directory: {0}", ex.Message));
+                return null;
+            }
+        }
+
+        public static List<string> GetGamePadSubfolders()
+        {
+            string gamepadDir = GetGamePadRemapDirectory();
+            if (string.IsNullOrEmpty(gamepadDir) || !Directory.Exists(gamepadDir))
+                return new List<string>();
+
+            try
+            {
+                return Directory.GetDirectories(gamepadDir)
+                    .Select(d => Path.GetFileName(d))
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error($"Failed to get GamePad subfolders: {ex.Message}");
+                return new List<string>();
+            }
+        }
+
+        public static List<string> GetGamePadProfilesInFolder(string subfolder)
+        {
+            string gamepadDir = GetGamePadRemapDirectory();
+            if (string.IsNullOrEmpty(gamepadDir)) return new List<string>();
+
+            string targetDir = string.IsNullOrEmpty(subfolder) 
+                ? gamepadDir 
+                : Path.Combine(gamepadDir, subfolder);
+
+            if (!Directory.Exists(targetDir)) return new List<string>();
+
+            try
+            {
+                return Directory.GetFiles(targetDir, "*.remap")
+                    .Select(f => Path.GetFileName(f))
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error($"Failed to get GamePad profiles: {ex.Message}");
+                return new List<string>();
+            }
+        }
+
+        public static GamePadProfile LoadGamePadProfile(string relativePath)
+        {
+            string gamepadDir = GetGamePadRemapDirectory();
+            if (string.IsNullOrEmpty(gamepadDir)) return null;
+
+            string fullPath = Path.Combine(gamepadDir, relativePath);
+            fullPath = fullPath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+
+            if (!File.Exists(fullPath))
+            {
+                SimpleLogger.Instance.Error($"GamePad profile not found: {fullPath}");
+                return null;
+            }
+
+            try
+            {
+                XmlSerializer serializer = new XmlSerializer(typeof(GamePadProfile));
+                using (FileStream stream = File.OpenRead(fullPath))
+                {
+                    var profile = serializer.Deserialize(stream) as GamePadProfile;
+                    SimpleLogger.Instance.Info($"Loaded GamePad profile: {fullPath}");
+                    return profile;
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error($"Failed to load GamePad profile {fullPath}: {ex.Message}");
+                return null;
+            }
+        }
+
+        public static GamePadProfile LoadDefaultGamePadProfile()
+        {
+            return LoadGamePadProfile(DEFAULT_GAMEPAD_PROFILE_NAME);
+        }
+
+        public static bool SaveGamePadProfile(string profileName, string subfolder, GamePadProfile profile)
+        {
+            string gamepadDir = GetGamePadRemapDirectory();
+            if (string.IsNullOrEmpty(gamepadDir)) return false;
+
+            // AUTO-CREATE default.remap on first profile save (EN/FR: Auto-créer default.remap à la première sauvegarde)
+            string defaultPath = Path.Combine(gamepadDir, DEFAULT_GAMEPAD_PROFILE_NAME);
+            if (!File.Exists(defaultPath))
+            {
+                try
+                {
+                    // Create default.remap from current Options settings (EN/FR: Créer default.remap depuis les options actuelles)
+                    GamePadProfile defaultProfile = new GamePadProfile
+                    {
+                        ProfileName = "Default",
+                        P1Mappings = Options.Instance.P1GamePadMappings?.Clone() ?? new GamePadMappings(),
+                        P2Mappings = Options.Instance.P2GamePadMappings?.Clone() ?? new GamePadMappings(),
+                        P3Mappings = Options.Instance.P3GamePadMappings?.Clone() ?? new GamePadMappings(),
+                        P4Mappings = Options.Instance.P4GamePadMappings?.Clone() ?? new GamePadMappings()
+                    };
+
+                    XmlSerializer serializer = new XmlSerializer(typeof(GamePadProfile));
+                    using (FileStream stream = File.Create(defaultPath))
+                    {
+                        serializer.Serialize(stream, defaultProfile);
+                    }
+                    SimpleLogger.Instance.Info(string.Format("Auto-created GamePad default.remap from current settings.cfg: {0}", defaultPath));
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.Instance.Warning(string.Format("Failed to auto-create GamePad default.remap: {0}", ex.Message));
+                }
+            }
+
+            // Ensure only default.remap in root Gamepad folder? 
+            // The constraint "Only default.remap allowed in Root" was for main remap folder because of settings.cfg confusion?
+            // Let's enforce it here too for consistency, or not?
+            // Main constraint was because loading "Root" meant loading settings.cfg or default.remap. 
+            // Here, GamePad profiles are separate. But let's keep it clean.
+            
+            if (string.IsNullOrEmpty(subfolder) || subfolder == "[Root]")
+            {
+                 // EN/FR: Force 'default.remap' when saving to Root, regardless of input name.
+                 // This ensures a fallback profile always exists.
+                 // (EN/FR: Force 'default.remap' lors de la sauvegarde dans Root, quel que soit le nom.
+                 // Cela garantit qu'un profil de repli existe toujours.)
+                 profileName = DEFAULT_GAMEPAD_PROFILE_NAME;
+            }
+
+            string targetDir = string.IsNullOrEmpty(subfolder) ? gamepadDir : Path.Combine(gamepadDir, subfolder);
+
+            try
+            {
+                if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
+            }
+            catch { return false; }
+
+            if (!profileName.EndsWith(".remap", StringComparison.OrdinalIgnoreCase))
+                profileName += ".remap";
+
+            string fullPath = Path.Combine(targetDir, profileName);
+
+            try
+            {
+                XmlSerializer serializer = new XmlSerializer(typeof(GamePadProfile));
+                using (FileStream stream = File.Create(fullPath))
+                {
+                    serializer.Serialize(stream, profile);
+                }
+                SimpleLogger.Instance.Info($"Saved GamePad profile: {fullPath}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error($"Failed to save GamePad profile: {ex.Message}");
+                return false;
+            }
+        }
+
+    }
+
+    [Serializable]
+    public class GamePadProfile
+    {
+        public string ProfileName { get; set; }
+        public GamePadMappings P1Mappings { get; set; }
+        public GamePadMappings P2Mappings { get; set; }
+        public GamePadMappings P3Mappings { get; set; }
+        public GamePadMappings P4Mappings { get; set; }
+
+        public GamePadProfile()
+        {
+            ProfileName = "Unnamed";
+            P1Mappings = new GamePadMappings();
+            P2Mappings = new GamePadMappings();
+            P3Mappings = new GamePadMappings();
+            P4Mappings = new GamePadMappings();
+        }
+
+
     }
 
     /// <summary>

@@ -49,8 +49,8 @@
     <WarningLevel>4</WarningLevel>
     <RunCodeAnalysis>false</RunCodeAnalysis>
     <Prefer32Bit>false</Prefer32Bit>
-    <PlatformTarget>x86</PlatformTarget>
-    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -60,8 +60,8 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
-    <PlatformTarget>x86</PlatformTarget>
-    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
   </PropertyGroup>
   <PropertyGroup>
     <StartupObject>WiimoteGun.Program</StartupObject>
@@ -78,6 +78,9 @@
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
     <Reference Include="System.ServiceProcess" />
+    <Reference Include="Nefarius.ViGEm.Client">
+      <HintPath>lib\Nefarius.ViGEm.Client.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
   </ItemGroup>
@@ -128,7 +131,10 @@
     </Compile>
     <Compile Include="Core\PlayerMappings.cs" />
     <Compile Include="Core\GamePadMappings.cs" />
+    <Compile Include="Core\IVirtualGamepad.cs" />
     <Compile Include="Core\VMultiGamepad.cs" />
+    <Compile Include="Core\ViGEmGamepad.cs" />
+    <Compile Include="Core\ViGEmClientManager.cs" />
     <Compile Include="Core\DirectInputHelper.cs" />
     <Compile Include="Core\EmulatorProfileAutomator.cs" />
     <Compile Include="Core\Options.cs" />
@@ -359,6 +365,15 @@
     </EmbeddedResource>
     <EmbeddedResource Include="UI\Modern\Controls\AssignControl.resx">
       <DependentUpon>AssignControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UI\Modern\Controls\GamePadMappingControl.resx">
+      <DependentUpon>GamePadMappingControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UI\Modern\Controls\MappingControl.resx">
+      <DependentUpon>MappingControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UI\Modern\Controls\OptionsControl.resx">
+      <DependentUpon>OptionsControl.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="UI\Modern\Forms\ModalInputDialog.resx">
       <DependentUpon>ModalInputDialog.cs</DependentUpon>

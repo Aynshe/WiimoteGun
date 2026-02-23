@@ -144,15 +144,11 @@ namespace WiimoteGun
         private FileStream _controlStream;
         private string _devicePath;
         private bool _isConnected;
+        private int _refCount = 0;
         private static readonly object _globalLock = new object();
 
         // Static device cache for all players (EN/FR: Cache statique des périphériques pour tous les joueurs)
-        private static Dictionary<int, VMultiClient> _activeClients;
-
-        static VMultiClient()
-        {
-            _activeClients = new Dictionary<int, VMultiClient>();
-        }
+        private static Dictionary<int, VMultiClient> _instancePool = new Dictionary<int, VMultiClient>();
 
         #endregion
 
@@ -178,39 +174,51 @@ namespace WiimoteGun
         #region Constructor & Disposal
 
         /// <summary>
-        /// Create a VMulti client for a specific player
-        /// (EN/FR: Créer un client VMulti pour un joueur spécifique)
+        /// EN: Get or create a shared VMulti client for a specific player.
+        /// FR: Obtenir ou créer un client VMulti partagé pour un joueur spécifique.
         /// </summary>
         /// <param name="playerIndex">Player index 1-4</param>
-        public VMultiClient(int playerIndex)
+        public static VMultiClient GetSharedClient(int playerIndex)
         {
             if (playerIndex < 1 || playerIndex > 4)
                 throw new ArgumentOutOfRangeException("playerIndex", "Player index must be between 1 and 4");
 
-            _playerIndex = playerIndex;
-            _isConnected = false;
-
             lock (_globalLock)
             {
-                // Check if a client already exists for this player
-                if (_activeClients.ContainsKey(playerIndex))
+                if (!_instancePool.TryGetValue(playerIndex, out VMultiClient client))
                 {
-                    SimpleLogger.Instance.Warning(string.Format("[VMultiClient] Client for P{0} already exists. Disposing old instance.", playerIndex));
-                    _activeClients[playerIndex].Dispose();
+                    client = new VMultiClient(playerIndex);
+                    _instancePool[playerIndex] = client;
                 }
-                _activeClients[playerIndex] = this;
+                client._refCount++;
+                return client;
             }
+        }
+
+        /// <summary>
+        /// Private constructor for pool management
+        /// </summary>
+        private VMultiClient(int playerIndex)
+        {
+            _playerIndex = playerIndex;
+            _isConnected = false;
         }
 
         public void Dispose()
         {
-            Disconnect();
-
             lock (_globalLock)
             {
-                if (_activeClients.ContainsKey(_playerIndex) && _activeClients[_playerIndex] == this)
+                _refCount--;
+                if (_refCount <= 0)
                 {
-                    _activeClients.Remove(_playerIndex);
+                    Disconnect();
+                    
+                    // FR: Uniquement retirer du pool si CETTE instance est celle du pool
+                    // EN: Only remove from pool if THIS instance is the one in the pool
+                    if (_instancePool.TryGetValue(_playerIndex, out VMultiClient pooledClient) && pooledClient == this)
+                    {
+                        _instancePool.Remove(_playerIndex);
+                    }
                 }
             }
         }
@@ -365,7 +373,6 @@ namespace WiimoteGun
                     }
                 }
 
-                SimpleLogger.Instance.Warning(string.Format("[VMultiClient] No device found for Player {0}", playerIndex));
                 return null;
             }
             finally
@@ -414,7 +421,7 @@ namespace WiimoteGun
         /// Check if device is the VMulti control device (Usage 0x0001)
         /// (EN/FR: Vérifier si le périphérique est le périphérique de contrôle VMulti)
         /// </summary>
-        private bool IsVMultiControlDevice(string devicePath, ushort expectedVid)
+        private static bool IsVMultiControlDevice(string devicePath, ushort expectedVid)
         {
             SafeFileHandle handle = CreateFile(
                 devicePath,
@@ -475,7 +482,7 @@ namespace WiimoteGun
         /// Check if device matches VID/PID
         /// (EN/FR: Vérifier si le périphérique correspond au VID/PID)
         /// </summary>
-        private bool IsVMultiDeviceByVidPid(string devicePath, ushort vid, ushort pid)
+        private static bool IsVMultiDeviceByVidPid(string devicePath, ushort vid, ushort pid)
         {
             // Quick path-based check (EN/FR: Vérification rapide par chemin)
             string lowerPath = devicePath.ToLowerInvariant();
@@ -564,6 +571,48 @@ namespace WiimoteGun
             return UpdateMouse(absX, absY, buttons, wheel);
         }
 
+        /// <summary>
+        /// Update relative mouse position and buttons
+        /// (EN/FR: Mettre à jour la position relative de la souris et les boutons)
+        /// </summary>
+        /// <param name="dx">Relative X (-127 to 127)</param>
+        /// <param name="dy">Relative Y (-127 to 127)</param>
+        /// <param name="buttons">Button flags</param>
+        /// <param name="wheel">Wheel position</param>
+        public bool UpdateRelativeMouse(sbyte dx, sbyte dy, VMultiMouseButton buttons = VMultiMouseButton.None, sbyte wheel = 0)
+        {
+            if (!IsConnected)
+            {
+                if (!Connect())
+                    return false;
+            }
+
+            try
+            {
+                // Create relative mouse report (EN/FR: Créer le rapport souris relative)
+                VMultiRelativeMouseReport relativeMouseReport = new VMultiRelativeMouseReport
+                {
+                    ReportID = VMultiReportIds.RelativeMouse,
+                    Button = (byte)buttons,
+                    XValue = dx,
+                    YValue = dy,
+                    WheelPosition = (sbyte)wheel
+                };
+
+                // Wrap in control report (EN/FR: Encapsuler dans le rapport de contrôle)
+                VMultiControlReport controlReport = VMultiControlReport.Create();
+                controlReport.EmbedRelativeMouseReport(relativeMouseReport);
+
+                // Send via HID (EN/FR: Envoyer via HID)
+                return SendReport(controlReport.ToByteArray());
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error(string.Format("[VMultiClient] UpdateRelativeMouse error P{0}: {1}", _playerIndex, ex.Message));
+                return false;
+            }
+        }
+
         #endregion
 
         #region Keyboard Control
@@ -625,6 +674,31 @@ namespace WiimoteGun
         #region Low-Level Report Sending
 
         /// <summary>
+        /// EN: Send a high-level GamePad report.
+        /// FR: Envoyer un rapport GamePad de haut niveau.
+        /// </summary>
+        public bool SendReport(VMultiGamepadReport gamepadReport)
+        {
+            if (!IsConnected)
+            {
+                if (!Connect())
+                    return false;
+            }
+
+            try
+            {
+                VMultiControlReport controlReport = VMultiControlReport.Create();
+                controlReport.EmbedGamepadReport(gamepadReport);
+                return SendReport(controlReport.ToByteArray());
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error(string.Format("[VMultiClient] SendReport (GamePad) error P{0}: {1}", _playerIndex, ex.Message));
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Send a raw HID report
         /// (EN/FR: Envoyer un rapport HID brut)
         /// </summary>
@@ -669,11 +743,75 @@ namespace WiimoteGun
             if (playerIndex < 1 || playerIndex > 4)
                 return false;
 
-            using (VMultiClient tempClient = new VMultiClient(playerIndex))
+            // Simplified detection without creating a full instance
+            // (EN/FR: Détection simplifiée sans créer une instance complète)
+            Guid hidGuid;
+            HidD_GetHidGuid(out hidGuid);
+
+            IntPtr deviceInfoSet = SetupDiGetClassDevs(
+                ref hidGuid,
+                IntPtr.Zero,
+                IntPtr.Zero,
+                DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+
+            if (deviceInfoSet == IntPtr.Zero || deviceInfoSet == (IntPtr)(-1))
+                return false;
+
+            try
             {
-                string path = tempClient.FindVMultiDevice(playerIndex);
-                return !string.IsNullOrEmpty(path);
+                SP_DEVICE_INTERFACE_DATA deviceInterfaceData = new SP_DEVICE_INTERFACE_DATA();
+                deviceInterfaceData.cbSize = Marshal.SizeOf(deviceInterfaceData);
+
+                uint memberIndex = 0;
+                string targetSuffix = GetVMultiSuffix(playerIndex);
+                ushort targetVid = VMultiDeviceIds.PlayerVids[playerIndex - 1];
+
+                while (SetupDiEnumDeviceInterfaces(deviceInfoSet, IntPtr.Zero, ref hidGuid, memberIndex++, ref deviceInterfaceData))
+                {
+                    string devicePath = GetDevicePathFromInterface(deviceInfoSet, ref deviceInterfaceData);
+                    if (string.IsNullOrEmpty(devicePath)) continue;
+
+                    if (devicePath.IndexOf(targetSuffix, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        if (IsVMultiControlDevice(devicePath, targetVid)) return true;
+                    }
+
+                    if (IsVMultiDeviceByVidPid(devicePath, targetVid, VMultiDeviceIds.DefaultPid))
+                    {
+                        if (IsVMultiControlDevice(devicePath, targetVid)) return true;
+                    }
+                }
+                return false;
             }
+            finally
+            {
+                SetupDiDestroyDeviceInfoList(deviceInfoSet);
+            }
+        }
+
+        /// <summary>
+        /// Local helper for path extraction
+        /// </summary>
+        private static string GetDevicePathFromInterface(IntPtr deviceInfoSet, ref SP_DEVICE_INTERFACE_DATA deviceInterfaceData)
+        {
+            uint requiredSize = 0;
+            SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref deviceInterfaceData, IntPtr.Zero, 0, out requiredSize, IntPtr.Zero);
+            if (requiredSize == 0) return null;
+
+            IntPtr detailDataBuffer = Marshal.AllocHGlobal((int)requiredSize);
+            try
+            {
+                Marshal.WriteInt32(detailDataBuffer, IntPtr.Size == 8 ? 8 : 6);
+                if (SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref deviceInterfaceData, detailDataBuffer, requiredSize, out requiredSize, IntPtr.Zero))
+                {
+                    return Marshal.PtrToStringAuto(IntPtr.Add(detailDataBuffer, 4));
+                }
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(detailDataBuffer);
+            }
+            return null;
         }
 
         /// <summary>

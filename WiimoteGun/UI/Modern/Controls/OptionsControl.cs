@@ -4,6 +4,7 @@ using System.Windows.Forms;
 using System.Diagnostics;
 using WiimoteGun;
 using WiimoteGun.Common;
+using WiimoteGun.Core;
 
 namespace WiimoteGun.Controls
 {
@@ -59,6 +60,27 @@ namespace WiimoteGun.Controls
             
             // Standalone Toggle Logic
             optStandaloneMode.CheckedChanged += (s, e) => UpdateStandaloneUIState();
+
+            // Mutual Exclusivity for Gestures (EN/FR: Exclusivité mutuelle pour les gestes)
+            optShakeDevice.SelectedIndexChanged += (s, e) => EnsureGestureDeviceExclusivity(true);
+            optGrenadeDevice.SelectedIndexChanged += (s, e) => EnsureGestureDeviceExclusivity(false);
+        }
+
+        private void EnsureGestureDeviceExclusivity(bool shakeChanged)
+        {
+            // Only enforce if both are enabled or we want to prevent same-device mapping
+            // Index 0 = Wiimote, 1 = Nunchuk (EN/FR: Index 0 = Wiimote, 1 = Nunchuk)
+            if (optShakeDevice.SelectedIndex == -1 || optGrenadeDevice.SelectedIndex == -1) return;
+
+            if (optShakeDevice.SelectedIndex == optGrenadeDevice.SelectedIndex)
+            {
+                // If they match, swap the one that WASN'T just changed by the user (or the other one)
+                // (EN/FR: Si identique, changer celui qui n'a pas été modifié par l'utilisateur)
+                if (shakeChanged)
+                    optGrenadeDevice.SelectedIndex = (optShakeDevice.SelectedIndex == 0) ? 1 : 0;
+                else
+                    optShakeDevice.SelectedIndex = (optGrenadeDevice.SelectedIndex == 0) ? 1 : 0;
+            }
         }
 
         private void BrowseFolder(TextBox targetTextBox, string description)
@@ -70,7 +92,7 @@ namespace WiimoteGun.Controls
                 if (!string.IsNullOrEmpty(targetTextBox.Text) && System.IO.Directory.Exists(targetTextBox.Text))
                     fbd.SelectedPath = targetTextBox.Text;
 
-                if (fbd.ShowDialog() == DialogResult.OK)
+                if (fbd.ShowDialog(this.FindForm()) == DialogResult.OK)
                 {
                     targetTextBox.Text = fbd.SelectedPath;
                 }
@@ -118,7 +140,13 @@ namespace WiimoteGun.Controls
 
             
             // Set active
+            // Set active
             activeBtn.BackColor = active;
+
+            // EN: Refresh gesture lock state when switching to Gestures tab
+            // FR: Rafraîchir l'état de verrouillage des gestes lors du passage à l'onglet Gestes
+            if (index == 2)
+                UpdateGestureLockState();
         }
 
         public void LoadOptionsFromInstance()
@@ -131,6 +159,7 @@ namespace WiimoteGun.Controls
             optShowNotifications.Checked = Options.Instance.ShowNotifications;
             optEnableGamePadSwap.Checked = Options.Instance.EnableGamePadSwapMode;
             optPersistentGamePads.Checked = Options.Instance.PersistentGamePads;
+            optEnableFPSMode.Checked = Options.Instance.EnableFPSMode;
 
             // Log Level
             optLogLevel.SelectedItem = Options.Instance.LoggingLevel.ToString();
@@ -141,12 +170,18 @@ namespace WiimoteGun.Controls
             optDetectDolphin.Checked = Options.Instance.DetectDolphinbar;
             optDetectBluetooth.Checked = Options.Instance.DetectBlueTooth;
 
-            // Gestures
+            // Gestures (EN/FR: Gestes)
             optEnableOffScreenReload.Checked = Options.Instance.EnableOffScreenReload;
             optOffScreenReloadAuto.Checked = Options.Instance.OffScreenReloadAuto;
             optEnableShakeReload.Checked = Options.Instance.EnableShakeReload;
-            optShakeSensitivity.Value = Options.Instance.ShakeSensitivity;
-            optShakeFromNunchuk.Checked = Options.Instance.ShakeFromNunchuk;
+            
+            // Map 0-3 index to Very Low, Low, Medium, High (EN/FR: Index 0-3 vers les niveaux de sensibilité)
+            optShakeSensitivity.SelectedIndex = Math.Min(Math.Max(Options.Instance.ShakeSensitivity, 0), 3);
+            
+            // Map bool to index: 0=Wiimote, 1=Nunchuk (EN/FR: 0=Wiimote, 1=Nunchuk)
+            optShakeDevice.SelectedIndex = Options.Instance.ShakeFromNunchuk ? 1 : 0;
+            optGrenadeDevice.SelectedIndex = Options.Instance.GrenadeFromNunchuk ? 1 : 0;
+            
             optEnableGrenadeGesture.Checked = Options.Instance.EnableGrenadeGesture;
 
             // Emulators
@@ -171,6 +206,10 @@ namespace WiimoteGun.Controls
             txtCemuPath.Text = Options.Instance.CemuPath;
 
             UpdateStandaloneUIState();
+
+            // EN: Check if remap profiles have Shake mappings that override gesture settings
+            // FR: Vérifier si les profils remap ont des mappings Shake qui priment sur les paramètres de gestes
+            UpdateGestureLockState();
         }
 
         private void UpdateStandaloneUIState()
@@ -216,6 +255,93 @@ namespace WiimoteGun.Controls
             }
         }
 
+        /// <summary>
+        /// EN: Checks active remap profiles for Shake mappings and locks/unlocks gesture settings accordingly.
+        /// FR: Vérifie les profils remap actifs pour les mappings Shake et verrouille/déverrouille les paramètres de gestes.
+        /// </summary>
+        private void UpdateGestureLockState()
+        {
+            try
+            {
+                // EN: Check Mouse/Keyboard profile for P1 (FR: Vérifier le profil Souris/Clavier de P1)
+                var mouseMappings = Options.Instance.P1Mappings;
+                bool mouseShakeWiimoteMapped = mouseMappings != null && mouseMappings.AccelWiimoteShake != null &&
+                    (mouseMappings.AccelWiimoteShake.Special != SpecialAction.None || mouseMappings.AccelWiimoteShake.Key != System.Windows.Forms.Keys.None);
+                bool mouseShakeNunchukMapped = mouseMappings != null && mouseMappings.AccelNunchukShake != null &&
+                    (mouseMappings.AccelNunchukShake.Special != SpecialAction.None || mouseMappings.AccelNunchukShake.Key != System.Windows.Forms.Keys.None);
+
+                // EN: Check GamePad profile for P1 (FR: Vérifier le profil GamePad de P1)
+                var padMappings = Options.Instance.P1GamePadMappings;
+                bool padShakeWiimoteMapped = padMappings != null && padMappings.AccelWiimoteShake != null &&
+                    padMappings.AccelWiimoteShake.TargetType != GamePadMotionTargetType.None;
+                bool padShakeNunchukMapped = padMappings != null && padMappings.AccelNunchukShake != null &&
+                    padMappings.AccelNunchukShake.TargetType != GamePadMotionTargetType.None;
+
+                bool hasAnyShakeMapping = mouseShakeWiimoteMapped || mouseShakeNunchukMapped || padShakeWiimoteMapped || padShakeNunchukMapped;
+
+                string lockReason = "";
+                if (hasAnyShakeMapping)
+                {
+                    // EN: Build reason message (FR: Construire le message de raison)
+                    if (mouseShakeWiimoteMapped || mouseShakeNunchukMapped)
+                        lockReason += "Mouse/IR profile has Shake mapped. ";
+                    if (padShakeWiimoteMapped || padShakeNunchukMapped)
+                        lockReason += "GamePad profile has Shake mapped. ";
+                    lockReason += "Remove the mapping to enable gestures.";
+                }
+
+                // EN: Lock/Unlock Shake Reload (FR: Verrouiller/Déverrouiller Shake Reload)
+                optEnableShakeReload.Enabled = !hasAnyShakeMapping;
+                if (hasAnyShakeMapping)
+                {
+                    optEnableShakeReload.Checked = false;
+                    optEnableShakeReload.ForeColor = Color.Gray;
+                    optEnableShakeReload.Text = "Shake Reload (Locked)";
+                }
+                else
+                {
+                    optEnableShakeReload.ForeColor = Color.White;
+                    optEnableShakeReload.Text = "Shake Reload";
+                }
+
+                // EN: Lock/Unlock Grenade Gesture (FR: Verrouiller/Déverrouiller Grenade Gesture)
+                optEnableGrenadeGesture.Enabled = !hasAnyShakeMapping;
+                if (hasAnyShakeMapping)
+                {
+                    optEnableGrenadeGesture.Checked = false;
+                    optEnableGrenadeGesture.ForeColor = Color.Gray;
+                    optEnableGrenadeGesture.Text = "Grenade Gesture (Locked)";
+                }
+                else
+                {
+                    optEnableGrenadeGesture.ForeColor = Color.White;
+                    optEnableGrenadeGesture.Text = "Grenade Gesture";
+                }
+
+                // EN: Show/Hide lock reason label (FR: Afficher/Masquer label de raison de verrouillage)
+                if (lblGestureLockReason == null)
+                {
+                    lblGestureLockReason = new Label();
+                    lblGestureLockReason.Name = "lblGestureLockReason";
+                    lblGestureLockReason.ForeColor = Color.FromArgb(255, 180, 0); // Orange warning color
+                    lblGestureLockReason.Font = new Font("Segoe UI", 8F, FontStyle.Italic);
+                    lblGestureLockReason.AutoSize = false;
+                    lblGestureLockReason.Size = new Size(340, 40);
+                    lblGestureLockReason.Location = new Point(20, 310);
+                    tabGestures.Controls.Add(lblGestureLockReason);
+                }
+
+                lblGestureLockReason.Text = hasAnyShakeMapping ? "⚠ " + lockReason : "";
+                lblGestureLockReason.Visible = hasAnyShakeMapping;
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Warning(string.Format("UpdateGestureLockState error: {0}", ex.Message));
+            }
+        }
+
+        private Label lblGestureLockReason;
+
         private void BtnApplyOptions_Click(object sender, EventArgs e)
         {
             try 
@@ -233,6 +359,7 @@ namespace WiimoteGun.Controls
                 Options.Instance.ShowNotifications = optShowNotifications.Checked;
                 Options.Instance.EnableGamePadSwapMode = optEnableGamePadSwap.Checked;
                 Options.Instance.PersistentGamePads = optPersistentGamePads.Checked;
+                Options.Instance.EnableFPSMode = optEnableFPSMode.Checked;
 
                 // Save Log Level (EN/FR: Sauvegarder niveau de log)
                 if (optLogLevel.SelectedItem != null)
@@ -247,12 +374,20 @@ namespace WiimoteGun.Controls
                 Options.Instance.DetectDolphinbar = optDetectDolphin.Checked;
                 Options.Instance.DetectBlueTooth = optDetectBluetooth.Checked;
 
-                // Gestures
+                // Gestures (EN/FR: Gestes)
                 Options.Instance.EnableOffScreenReload = optEnableOffScreenReload.Checked;
                 Options.Instance.OffScreenReloadAuto = optOffScreenReloadAuto.Checked;
                 Options.Instance.EnableShakeReload = optEnableShakeReload.Checked;
-                Options.Instance.ShakeSensitivity = optShakeSensitivity.Value;
-                Options.Instance.ShakeFromNunchuk = optShakeFromNunchuk.Checked;
+                
+                if (optShakeSensitivity.SelectedIndex != -1)
+                    Options.Instance.ShakeSensitivity = optShakeSensitivity.SelectedIndex;
+                
+                if (optShakeDevice.SelectedIndex != -1)
+                    Options.Instance.ShakeFromNunchuk = (optShakeDevice.SelectedIndex == 1);
+
+                if (optGrenadeDevice.SelectedIndex != -1)
+                    Options.Instance.GrenadeFromNunchuk = (optGrenadeDevice.SelectedIndex == 1);
+                
                 Options.Instance.EnableGrenadeGesture = optEnableGrenadeGesture.Checked;
 
                 // Emulators
@@ -284,7 +419,7 @@ namespace WiimoteGun.Controls
                 Options.Instance.Save();
                 
                 SimpleLogger.Instance.Info("Options saved. Restarting...");
-                MessageBox.Show("Options saved. Application will restart.", "Restart", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this.FindForm(), "Options saved. Application will restart.", "Restart", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 // Restart Logic
                 ProcessStartInfo psi = new ProcessStartInfo
@@ -300,7 +435,7 @@ namespace WiimoteGun.Controls
             catch (Exception ex)
             {
                 SimpleLogger.Instance.Error($"Error saving options: {ex.Message}");
-                MessageBox.Show($"Error saving options: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this.FindForm(), $"Error saving options: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -347,6 +482,16 @@ namespace WiimoteGun.Controls
                 form.Controls.Add(control);
                 form.ShowDialog(this);
             }
+        }
+
+        private void optEnableFPSMode_CheckedChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void optEnableGamePadSwap_CheckedChanged(object sender, EventArgs e)
+        {
+
         }
     }
 }

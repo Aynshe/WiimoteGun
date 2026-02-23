@@ -132,7 +132,7 @@ namespace WiimoteGun.Forms
                 Process.Start(psi).WaitForExit();
                 
                 string action = install ? "installed" : "uninstalled";
-                MessageBox.Show($"Service {action} successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, $"Service {action} successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 
                 if (install)
                 {
@@ -148,7 +148,7 @@ namespace WiimoteGun.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show(string.Format("Operation failed: {0}", ex.Message), "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, string.Format("Operation failed: {0}", ex.Message), "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -198,7 +198,7 @@ namespace WiimoteGun.Forms
 
                 if (!Directory.Exists(driverBaseDir))
                 {
-                    MessageBox.Show($"Driver files not found at:\n{driverBaseDir}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(this, $"Driver files not found at:\n{driverBaseDir}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
@@ -218,7 +218,7 @@ namespace WiimoteGun.Forms
                     
                     if (!File.Exists(devconPath))
                     {
-                         MessageBox.Show("devcon.exe missing in virtual1 folder", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                         MessageBox.Show(this, "devcon.exe missing in virtual1 folder", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                          return;
                     }
                     
@@ -328,13 +328,13 @@ timeout /t 3
                 System.Threading.Thread.Sleep(2000); // 2 seconds for device registration/deregistration
                 
                 string msg = install ? "Installation logic Executed." : "Uninstallation logic Executed.";
-                MessageBox.Show(msg + " Please check console output if it appeared.", "Result", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, msg + " Please check console output if it appeared.", "Result", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 
                 CheckComponents();
             }
             catch (Exception ex)
             {
-               MessageBox.Show($"Operation failed: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+               MessageBox.Show(this, $"Operation failed: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }

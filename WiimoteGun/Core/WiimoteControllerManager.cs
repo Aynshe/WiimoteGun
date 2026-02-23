@@ -25,7 +25,7 @@ namespace WiimoteGun
         {
             get
             {
-                return _controllers.Any(c => c.Mode == WiiMoteMode.GamePad || c.Mode == WiiMoteMode.GamePad43);
+                return _controllers.Any(c => c.Mode == WiiMoteMode.GamePad || c.Mode == WiiMoteMode.GamePad43 || c.Mode == WiiMoteMode.GamePadFPS);
             }
         }
 

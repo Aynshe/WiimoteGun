@@ -4,30 +4,50 @@ using System.Linq;
 using System.Drawing;
 using System.Windows.Forms;
 using System.IO;
+using System.Reflection;
 using WiimoteGun.UI.Modern.Forms;
 
 namespace WiimoteGun.Controls
 {
     public partial class MappingControl : UserControl
     {
+        private VirtualKeyboard _activeKeyboard;
+
         private void ShowVirtualKeyboard(TextBox target)
         {
-            VirtualKeyboard keyboard = new VirtualKeyboard(target);
-            keyboard.StartPosition = FormStartPosition.Manual;
+            if (_activeKeyboard != null && !_activeKeyboard.IsDisposed)
+            {
+                // V25p: Do NOT call Focus() here, it steals focus from the TextBox if user re-clicks it.
+                // (EN/FR: NE PAS appeler Focus() ici, cela vole le focus du TextBox si l'utilisateur reclique.)
+                return;
+            }
+
+            // V25p: Force activation of the parent form (ProfileOverlay)
+            // This is critical for physical keyboard input to work in Overlay mode (which is non-activating by default).
+            // (EN/FR: Forcer l'activation du formulaire parent pour permettre la saisie physique en mode Overlay.)
+            this.FindForm()?.Activate();
+
+            _activeKeyboard = new VirtualKeyboard(target);
+            _activeKeyboard.StartPosition = FormStartPosition.Manual;
             
             Point screenPos = target.PointToScreen(new Point(0, target.Height));
-            keyboard.Location = new Point(
-                screenPos.X + (target.Width - keyboard.Width) / 2,
+            _activeKeyboard.Location = new Point(
+                screenPos.X + (target.Width - _activeKeyboard.Width) / 2,
                 screenPos.Y + 5 
             );
             
             var screen = Screen.FromControl(this);
-            if (keyboard.Bottom > screen.WorkingArea.Bottom)
+            if (_activeKeyboard.Bottom > screen.WorkingArea.Bottom)
             {
-                 keyboard.Top = target.PointToScreen(Point.Empty).Y - keyboard.Height - 5;
+                 _activeKeyboard.Top = target.PointToScreen(Point.Empty).Y - _activeKeyboard.Height - 5;
             }
 
-            keyboard.ShowDialog(this.FindForm());
+            _activeKeyboard.FormClosed += (s, e) => _activeKeyboard = null;
+            _activeKeyboard.Show();
+
+            // V25p: Explicitly return focus to the target TextBox after showing the OSK.
+            // (EN/FR: Rendre explicitement le focus au TextBox après avoir affiché le clavier.)
+            target.Focus();
         }
 
         // State (EN/FR: État)
@@ -113,6 +133,9 @@ namespace WiimoteGun.Controls
             var subfolders = RemapProfileManager.GetSubfolders();
             foreach (var folder in subfolders)
             {
+                // V27: Hide Gamepad folder from Mouse UI (EN/FR: Cacher le dossier Gamepad de l'interface Souris)
+                if (folder.Equals("Gamepad", StringComparison.OrdinalIgnoreCase)) continue;
+                
                 comboBoxSubfolders.Items.Add(folder);
             }
             
@@ -140,25 +163,44 @@ namespace WiimoteGun.Controls
 
         private void UpdateCurrentGameLabel()
         {
+            string statusText = "";
+            bool hasLink = false;
+
+            // 1. Status of Current Game (EN/FR: Statut du jeu actuel)
             if (!string.IsNullOrEmpty(_currentExecutable) && _currentExecutable != "Unknown")
             {
                 string mappedProfile = GameProfileMappingManager.GetProfileForGame(_currentExecutable, _currentExecutablePath);
                 if (!string.IsNullOrEmpty(mappedProfile))
                 {
-                    lblLinkedExe.Text = $"Linked EXE: {_currentExecutable} → {mappedProfile}";
-                    lblLinkedExe.ForeColor = ColorAccent;
+                    statusText = $"Current Game '{_currentExecutable}' -> '{mappedProfile}'";
+                    hasLink = true;
                 }
                 else
                 {
-                    lblLinkedExe.Text = $"Linked EXE: {_currentExecutable} (not mapped)";
-                    lblLinkedExe.ForeColor = Color.Gray;
+                    statusText = $"Current Game '{_currentExecutable}' (not mapped)";
                 }
             }
             else
             {
-                lblLinkedExe.Text = "Linked EXE: None";
-                lblLinkedExe.ForeColor = Color.Gray;
+                statusText = "No Game Detected";
             }
+
+            // 2. Status of Loaded Profile (EN/FR: Statut du profil chargé)
+            string currentProfile = Program.GetActiveRemapProfile();
+            if (!string.IsNullOrEmpty(currentProfile))
+            {
+                // We use the relative path (e.g. "fps/gear5.remap")
+                string linkedExe = GameProfileMappingManager.GetExecutableForProfile(currentProfile);
+                if (!string.IsNullOrEmpty(linkedExe))
+                {
+                    // Append info (EN/FR: Ajouter info)
+                    statusText += $" | Profile linked to: {linkedExe}";
+                    hasLink = true;
+                }
+            }
+
+            lblLinkedExe.Text = statusText;
+            lblLinkedExe.ForeColor = hasLink ? ColorAccent : Color.Gray;
         }
 
         private void UpdateAutoLoadCheckbox()
@@ -172,7 +214,7 @@ namespace WiimoteGun.Controls
                 
                 chkAutoLoad.Checked = !string.IsNullOrEmpty(mappedProfile) && 
                                       !string.IsNullOrEmpty(currentProfile) &&
-                                      mappedProfile.Equals(currentProfile, StringComparison.OrdinalIgnoreCase);
+                                      mappedProfile.Replace('\\', '/').Equals(currentProfile.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase);
                 chkAutoLoad.Enabled = true;
             }
             else
@@ -190,6 +232,9 @@ namespace WiimoteGun.Controls
             panelMappingDisplay.Controls.Clear();
             
             PlayerMappings mappings = Options.Instance.GetMappingsForPlayer(_currentPlayer);
+            
+
+
             LoadPlayerMappings(panelMappingDisplay, mappings);
         }
 
@@ -197,6 +242,7 @@ namespace WiimoteGun.Controls
         // (EN/FR: Afficher mappings joueur en 2 colonnes)
         private void LoadPlayerMappings(Panel panel, PlayerMappings mappings)
         {
+            panel.AutoScroll = true; // EN/FR: Activer le défilement vertical
             panel.Controls.Clear();
             
             int panelWidth = panel.Width;
@@ -326,6 +372,204 @@ namespace WiimoteGun.Controls
                     Size = new Size(column2Width, 18)
                 };
                 panel.Controls.Add(lblNoNunchuk);
+                yPos += spacing;
+            }
+
+            int motionY = Math.Max(yPos, 15 + (10 * spacing)) + 35; // EN/FR: Augmenté de 15 à 35 pour aérer
+            
+            int totalMotionColumns = 2; // EN/FR: Passé de 3 à 2 colonnes pour éviter le texte tronqué
+            int motionColumnWidth = totalWidth / totalMotionColumns;
+            
+            Action<string, int, int> AddMotionHeaderRow = (title, rowY, colIdx) =>
+            {
+                Label lblHeader = new Label
+                {
+                    Text = title,
+                    ForeColor = ColorAccent,
+                    Font = new Font("Segoe UI", 9.0F, FontStyle.Bold),
+                    Location = new Point(startX + (colIdx * motionColumnWidth), rowY),
+                    Size = new Size(motionColumnWidth, 18),
+                    TextAlign = ContentAlignment.MiddleCenter
+                };
+                panel.Controls.Add(lblHeader);
+            };
+
+            Action<string, string, ButtonAction, int, int> AddMotionActionRow = (displayName, internalName, mapping, rowY, colIdx) =>
+            {
+                int colX = startX + (colIdx * motionColumnWidth);
+                int localLabelWidth = 100; // EN/FR: Plus large
+                
+                Label lblButton = new Label
+                {
+                    Text = displayName + ":",
+                    ForeColor = ColorText,
+                    Font = new Font("Segoe UI", 8.0F),
+                    Location = new Point(colX, rowY),
+                    Size = new Size(localLabelWidth, 18),
+                    TextAlign = ContentAlignment.MiddleLeft
+                };
+                
+                Label lblMapping = new Label
+                {
+                    Text = GetMappingDisplay(mapping),
+                    ForeColor = ColorAccent,
+                    Font = new Font("Segoe UI", 8.0F, FontStyle.Bold),
+                    Location = new Point(colX + localLabelWidth + 2, rowY),
+                    Size = new Size(motionColumnWidth - localLabelWidth - 5, 18),
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    Cursor = Cursors.Hand
+                };
+
+                lblMapping.Click += (s, e) => {
+                    _isAssignMode = true; 
+                    _waitingForButton = internalName;
+                    _waitingForPlayer = _currentPlayer;
+                    _originalMapping = GetCurrentMapping(_currentPlayer, internalName);
+                    ShowActionSelector(internalName);
+                };
+                
+                panel.Controls.Add(lblButton);
+                panel.Controls.Add(lblMapping);
+            };
+
+            // Wiimote Motions
+            AddMotionHeaderRow("━ Wiimote ━ (Experimental)", motionY, 0);
+            AddMotionActionRow("Up", "AccelWiimoteUp", mappings.AccelWiimoteUp, motionY + spacing * 1, 0);
+            AddMotionActionRow("Down", "AccelWiimoteDown", mappings.AccelWiimoteDown, motionY + spacing * 2, 0);
+            AddMotionActionRow("Left", "AccelWiimoteLeft", mappings.AccelWiimoteLeft, motionY + spacing * 3, 0);
+            AddMotionActionRow("Right", "AccelWiimoteRight", mappings.AccelWiimoteRight, motionY + spacing * 4, 0);
+            AddMotionActionRow("Shake", "AccelWiimoteShake", mappings.AccelWiimoteShake, motionY + spacing * 5, 0);
+
+            // Nunchuk Motions
+            AddMotionHeaderRow("━ Nunchuk ━ (Experimental)", motionY, 1);
+            AddMotionActionRow("Up", "AccelNunchukUp", mappings.AccelNunchukUp, motionY + spacing * 1, 1);
+            AddMotionActionRow("Down", "AccelNunchukDown", mappings.AccelNunchukDown, motionY + spacing * 2, 1);
+            AddMotionActionRow("Left", "AccelNunchukLeft", mappings.AccelNunchukLeft, motionY + spacing * 3, 1);
+            AddMotionActionRow("Right", "AccelNunchukRight", mappings.AccelNunchukRight, motionY + spacing * 4, 1);
+            AddMotionActionRow("Shake", "AccelNunchukShake", mappings.AccelNunchukShake, motionY + spacing * 5, 1);
+
+            // Motion Plus (Lower row, 2 columns spans)
+            int secondRowY = motionY + spacing * 7;
+            AddMotionHeaderRow("━━━━ Gyroscope (Motion Plus) (Experimental) ━━━━", secondRowY, 0);
+            ((Label)panel.Controls[panel.Controls.Count-1]).Width = totalWidth; // Center span
+
+            AddMotionActionRow("Tilt Up", "GyroMotionPlusUp", mappings.GyroMotionPlusUp, secondRowY + spacing * 1, 0);
+            AddMotionActionRow("Tilt Down", "GyroMotionPlusDown", mappings.GyroMotionPlusDown, secondRowY + spacing * 2, 0);
+            AddMotionActionRow("Tilt Left", "GyroMotionPlusLeft", mappings.GyroMotionPlusLeft, secondRowY + spacing * 3, 0);
+            AddMotionActionRow("Tilt Right", "GyroMotionPlusRight", mappings.GyroMotionPlusRight, secondRowY + spacing * 1, 1);
+            AddMotionActionRow("Roll Left", "GyroMotionPlusRollLeft", mappings.GyroMotionPlusRollLeft, secondRowY + spacing * 2, 1);
+            AddMotionActionRow("Roll Right", "GyroMotionPlusRollRight", mappings.GyroMotionPlusRollRight, secondRowY + spacing * 3, 1);
+
+            // Sensitivity Settings (EN/FR: Réglages de sensibilité)
+            int sensY = secondRowY + spacing * 6; // EN/FR: Augmenté pour aérer (5 -> 6)
+            
+            Action<string, float, Action<float>, int, bool> AddSensControl = (labelText, currentVal, setter, colIdx, isDeadzone) =>
+            {
+                int colX = startX + (colIdx * motionColumnWidth);
+                Label lbl = new Label {
+                    Text = labelText + ":",
+                    ForeColor = ColorText,
+                    Font = new Font("Segoe UI", 8.0F),
+                    Location = new Point(colX, sensY),
+                    Size = new Size(110, 18),
+                    TextAlign = ContentAlignment.MiddleLeft
+                };
+                NumericUpDown num = new NumericUpDown {
+                    Minimum = 0, Maximum = 100, // EN/FR: Max 100.0 (unifié avec GamePad)
+                    Value = (decimal)currentVal,
+                    Location = new Point(colX + 115, sensY),
+                    Size = new Size(50, 18),
+                    BackColor = Color.FromArgb(45, 45, 48),
+                    ForeColor = Color.White,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    DecimalPlaces = 2,
+                    Increment = 0.1m
+                };
+                num.ValueChanged += (s, e) => {
+                    setter((float)num.Value);
+                    Options.Instance.Save();
+                };
+                panel.Controls.Add(lbl);
+                panel.Controls.Add(num);
+            };
+
+            AddSensControl("Wiimote Accel", mappings.AccelWiimoteSensitivity, (v) => mappings.AccelWiimoteSensitivity = v, 0, false);
+            AddSensControl("Nunchuk Accel", mappings.AccelNunchukSensitivity, (v) => mappings.AccelNunchukSensitivity = v, 1, false);
+            sensY += spacing;
+            AddSensControl("Wiimote DZ (G)", mappings.AccelWiimoteDeadzone, (v) => mappings.AccelWiimoteDeadzone = v, 0, true);
+            AddSensControl("Nunchuk DZ (G)", mappings.AccelNunchukDeadzone, (v) => mappings.AccelNunchukDeadzone = v, 1, true);
+            sensY += spacing;
+            AddSensControl("Wii Shake (G)", mappings.AccelWiimoteShakeDeadzone, (v) => mappings.AccelWiimoteShakeDeadzone = v, 0, true);
+            AddSensControl("Nun Shake (G)", mappings.AccelNunchukShakeDeadzone, (v) => mappings.AccelNunchukShakeDeadzone = v, 1, true);
+            sensY += spacing;
+            // EN: Shake oscillation count control (integer, not scaled by 100)
+            // FR: Contrôle du nombre d'oscillations shake (entier, pas mis à l'échelle par 100)
+            {
+                int colX = startX;
+                Label lblShakeCount = new Label {
+                    Text = "Shake Count:",
+                    ForeColor = ColorText,
+                    Font = new Font("Segoe UI", 8.0F),
+                    Location = new Point(colX, sensY),
+                    Size = new Size(110, 18),
+                    TextAlign = ContentAlignment.MiddleLeft
+                };
+                NumericUpDown numShakeCount = new NumericUpDown {
+                    Minimum = 2, Maximum = 10,
+                    Value = mappings.ShakeOscillationRequired,
+                    Location = new Point(colX + 115, sensY),
+                    Size = new Size(50, 18),
+                    BackColor = Color.FromArgb(45, 45, 48),
+                    ForeColor = Color.White,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    DecimalPlaces = 0
+                };
+                numShakeCount.ValueChanged += (s, e2) => {
+                    mappings.ShakeOscillationRequired = (int)numShakeCount.Value;
+                    Options.Instance.Save();
+                };
+                panel.Controls.Add(lblShakeCount);
+                panel.Controls.Add(numShakeCount);
+            }
+            sensY += spacing;
+            AddSensControl("Gyro Sens.", mappings.GyroSensitivity, (v) => mappings.GyroSensitivity = v, 0, false);
+            AddSensControl("Gyro Deadzone", mappings.GyroDeadzone, (v) => mappings.GyroDeadzone = v, 1, true);
+
+            // 3D Visualizer Button (EN/FR: Bouton Visualiseur 3D)
+            Button btnViz = new Button {
+                Text = "3D",
+                Location = new Point(startX + 180, sensY),
+                Size = new Size(35, 24),
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 8.0F, FontStyle.Bold),
+                ForeColor = Color.Gold,
+                Cursor = Cursors.Hand
+            };
+            btnViz.FlatAppearance.BorderSize = 0;
+            btnViz.Click += (s, e) => Open3DVisualizer();
+            
+            ToolTip tt = new ToolTip();
+            tt.SetToolTip(btnViz, "Open 3D Visualizer (Calibration tool)");
+            panel.Controls.Add(btnViz);
+        }
+
+        private void Open3DVisualizer()
+        {
+            try {
+                var formType = Assembly.GetExecutingAssembly().GetTypes()
+                    .FirstOrDefault(t => t.Name == "GyroVisualizerForm");
+                
+                if (formType != null)
+                {
+                    Form form = (Form)Activator.CreateInstance(formType);
+                    form.Show();
+                }
+                else 
+                {
+                    MessageBox.Show(this.FindForm(), "GyroVisualizerForm not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            } catch (Exception ex) {
+                MessageBox.Show(this.FindForm(), "Error opening visualizer: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -460,10 +704,7 @@ namespace WiimoteGun.Controls
             
             // Update gyro checkbox for new player
             PlayerMappings mappings = Options.Instance.GetMappingsForPlayer(_currentPlayer);
-            if (mappings != null)
-            {
-                chkEnableGyro.Checked = mappings.EnableGyroAiming;
-            }
+
         }
 
         private void OnWiimoteButtonPressed(object sender, ButtonPressedEventArgs e)
@@ -513,6 +754,26 @@ namespace WiimoteGun.Controls
                 case "NunDown": return mappings.NunDown;
                 case "NunLeft": return mappings.NunLeft;
                 case "NunRight": return mappings.NunRight;
+                
+                case "AccelWiimoteUp": return mappings.AccelWiimoteUp;
+                case "AccelWiimoteDown": return mappings.AccelWiimoteDown;
+                case "AccelWiimoteLeft": return mappings.AccelWiimoteLeft;
+                case "AccelWiimoteRight": return mappings.AccelWiimoteRight;
+                case "AccelWiimoteShake": return mappings.AccelWiimoteShake;
+
+                case "AccelNunchukUp": return mappings.AccelNunchukUp;
+                case "AccelNunchukDown": return mappings.AccelNunchukDown;
+                case "AccelNunchukLeft": return mappings.AccelNunchukLeft;
+                case "AccelNunchukRight": return mappings.AccelNunchukRight;
+                case "AccelNunchukShake": return mappings.AccelNunchukShake;
+
+                case "GyroMotionPlusUp": return mappings.GyroMotionPlusUp;
+                case "GyroMotionPlusDown": return mappings.GyroMotionPlusDown;
+                case "GyroMotionPlusLeft": return mappings.GyroMotionPlusLeft;
+                case "GyroMotionPlusRight": return mappings.GyroMotionPlusRight;
+                case "GyroMotionPlusRollLeft": return mappings.GyroMotionPlusRollLeft;
+                case "GyroMotionPlusRollRight": return mappings.GyroMotionPlusRollRight;
+                
                 default: return new ButtonAction();
             }
         }
@@ -644,6 +905,25 @@ namespace WiimoteGun.Controls
                 case "NunDown": mappings.NunDown = action; break;
                 case "NunLeft": mappings.NunLeft = action; break;
                 case "NunRight": mappings.NunRight = action; break;
+                
+                case "AccelWiimoteUp": mappings.AccelWiimoteUp = action; break;
+                case "AccelWiimoteDown": mappings.AccelWiimoteDown = action; break;
+                case "AccelWiimoteLeft": mappings.AccelWiimoteLeft = action; break;
+                case "AccelWiimoteRight": mappings.AccelWiimoteRight = action; break;
+                case "AccelWiimoteShake": mappings.AccelWiimoteShake = action; break;
+
+                case "AccelNunchukUp": mappings.AccelNunchukUp = action; break;
+                case "AccelNunchukDown": mappings.AccelNunchukDown = action; break;
+                case "AccelNunchukLeft": mappings.AccelNunchukLeft = action; break;
+                case "AccelNunchukRight": mappings.AccelNunchukRight = action; break;
+                case "AccelNunchukShake": mappings.AccelNunchukShake = action; break;
+
+                case "GyroMotionPlusUp": mappings.GyroMotionPlusUp = action; break;
+                case "GyroMotionPlusDown": mappings.GyroMotionPlusDown = action; break;
+                case "GyroMotionPlusLeft": mappings.GyroMotionPlusLeft = action; break;
+                case "GyroMotionPlusRight": mappings.GyroMotionPlusRight = action; break;
+                case "GyroMotionPlusRollLeft": mappings.GyroMotionPlusRollLeft = action; break;
+                case "GyroMotionPlusRollRight": mappings.GyroMotionPlusRollRight = action; break;
             }
         }
 
@@ -701,7 +981,7 @@ namespace WiimoteGun.Controls
             {
                 ofd.Filter = "Executables (*.exe)|*.exe";
                 ofd.Title = "Select Game/Application Executable";
-                if (ofd.ShowDialog() == DialogResult.OK)
+                if (ofd.ShowDialog(this.FindForm()) == DialogResult.OK)
                 {
                     SetCurrentGame(Path.GetFileName(ofd.FileName), ofd.FileName);
                     // Selected notification
@@ -713,11 +993,21 @@ namespace WiimoteGun.Controls
         {
             using (var dialog = new ModalInputDialog("New Folder", "Folder Name:"))
             {
-                if (dialog.ShowDialog() == DialogResult.OK)
+                if (dialog.ShowDialog(this.FindForm()) == DialogResult.OK)
                 {
                     string folderName = dialog.InputValue;
                     if (!string.IsNullOrEmpty(folderName))
                     {
+                        // V27: Prevent creating 'Gamepad' folder in Mouse UI (reserved for Gamepad profiles)
+                        // (EN/FR: Empêcher création dossier 'Gamepad' en UI Souris - réservé aux profils Gamepad)
+                        if (folderName.Equals("Gamepad", StringComparison.OrdinalIgnoreCase))
+                        {
+                            MessageBox.Show(this.FindForm(), 
+                                "The name 'Gamepad' is reserved for system Gamepad profiles.\nPlease choose another name.", 
+                                "Reserved Name", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+
                         try
                         {
                             string remapDir = RemapProfileManager.GetRemapDirectory();
@@ -726,11 +1016,11 @@ namespace WiimoteGun.Controls
                             
                             LoadProfileUI();
                             comboBoxSubfolders.SelectedItem = folderName;
-                            MessageBox.Show($"Folder '{folderName}' created!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            MessageBox.Show(this.FindForm(), $"Folder '{folderName}' created!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }
                         catch (Exception ex)
                         {
-                            MessageBox.Show($"Failed to create folder: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            MessageBox.Show(this.FindForm(), $"Failed to create folder: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
                     }
                 }
@@ -742,11 +1032,11 @@ namespace WiimoteGun.Controls
             string selectedProfile = comboBoxProfiles.SelectedItem?.ToString();
             if (string.IsNullOrEmpty(selectedProfile))
             {
-                MessageBox.Show("Please select a profile to delete", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this.FindForm(), "Please select a profile to delete", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             
-            var result = MessageBox.Show($"Delete '{selectedProfile}'?", "Confirm", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            var result = MessageBox.Show(this.FindForm(), $"Delete '{selectedProfile}'?", "Confirm", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (result == DialogResult.Yes)
             {
                 try
@@ -757,14 +1047,19 @@ namespace WiimoteGun.Controls
                     
                     if (File.Exists(profilePath))
                     {
+                        // V25l/m: Cleanup mappings using RELATIVE path (as stored in JSON)
+                        // (EN/FR: Nettoyer mappings avec chemin RELATIF comme stocké dans JSON)
+                        string relativePathCleanup = string.IsNullOrEmpty(subfolder) ? selectedProfile : Path.Combine(subfolder, selectedProfile);
+                        GameProfileMappingManager.RemoveMappingByProfile(relativePathCleanup);
+
                         File.Delete(profilePath);
                         RefreshProfileList();
-                        MessageBox.Show($"Profile '{selectedProfile}' deleted", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show(this.FindForm(), $"Profile '{selectedProfile}' deleted", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Failed to delete: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(this.FindForm(), $"Failed to delete: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
@@ -777,7 +1072,7 @@ namespace WiimoteGun.Controls
                 {
                     HotkeyManager.SetProfile(_currentPlayer, dialog.HotkeyProfile);
                     SimpleLogger.Instance?.Info($"Hotkeys updated for Player {_currentPlayer}");
-                    MessageBox.Show($"Hotkeys saved for Player {_currentPlayer}", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(this.FindForm(), $"Hotkeys saved for Player {_currentPlayer}", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
         }
@@ -810,7 +1105,7 @@ namespace WiimoteGun.Controls
             string profileName = txtProfileName.Text.Trim();
             if (string.IsNullOrEmpty(profileName))
             {
-                MessageBox.Show("Please enter profile name", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this.FindForm(), "Please enter profile name", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             
@@ -844,17 +1139,54 @@ namespace WiimoteGun.Controls
                 
                 if (success)
                 {
+                    // FIX V25: Also save the Game Mapping (JSON) if Auto-Load is checked OR user confirms
+                    // (EN/FR: Sauver aussi le mapping jeu (JSON) si Auto-Load coché OU utilisateur confirme)
+                    
+                    bool hasExe = !string.IsNullOrEmpty(_currentExecutable) && !string.IsNullOrEmpty(_currentExecutablePath);
+                    bool shouldSaveMapping = false;
+
+                    if (hasExe)
+                    {
+                        if (chkAutoLoad.Checked)
+                        {
+                            shouldSaveMapping = true;
+                        }
+                        else
+                        {
+                            // If user manually selected an EXE but forgot to check Auto-Load, ask them.
+                            // (EN/FR: Si utilisateur a sélectionné manuellement un EXE mais oublié de cocher Auto-Load, demander.)
+                            var result = MessageBox.Show(this.FindForm(),
+                                $"Do you want to link this profile to '{_currentExecutable}' for auto-loading?", 
+                                "Link Executable?", 
+                                MessageBoxButtons.YesNo, 
+                                MessageBoxIcon.Question);
+                                
+                            if (result == DialogResult.Yes)
+                            {
+                                chkAutoLoad.Checked = true;
+                                shouldSaveMapping = true;
+                            }
+                        }
+                    }
+
+                    if (shouldSaveMapping)
+                    {
+                        string savedProfilePath = string.IsNullOrEmpty(subfolder) ? profileName + ".remap" : Path.Combine(subfolder, profileName + ".remap");
+                        GameProfileMappingManager.AddMapping(_currentExecutable, savedProfilePath, _currentExecutablePath);
+                        UpdateCurrentGameLabel(); // Refresh label to show link
+                    }
+
                     RefreshProfileList();
-                    MessageBox.Show($"Profile '{profileName}' saved", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(this.FindForm(), $"Profile '{profileName}' saved", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
                 {
-                    MessageBox.Show("Failed to save profile", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(this.FindForm(), "Failed to save profile", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this.FindForm(), $"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -863,7 +1195,7 @@ namespace WiimoteGun.Controls
             string selectedProfile = comboBoxProfiles.SelectedItem?.ToString();
             if (string.IsNullOrEmpty(selectedProfile))
             {
-                MessageBox.Show("Please select a profile", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this.FindForm(), "Please select a profile", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             
@@ -913,17 +1245,18 @@ namespace WiimoteGun.Controls
                     
                     LoadCurrentMappings();
                     UpdateAutoLoadCheckbox();
+                    UpdateCurrentGameLabel(); // V25m: Force UI refresh of "Linked EXE" status
                     
-                    MessageBox.Show($"Profile '{profile.ProfileName}' loaded", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(this.FindForm(), $"Profile '{profile.ProfileName}' loaded", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
                 {
-                    MessageBox.Show("Failed to load profile", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(this.FindForm(), "Failed to load profile", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this.FindForm(), $"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -949,7 +1282,7 @@ namespace WiimoteGun.Controls
                             _updatingCheckbox = true;
                             chkAutoLoad.Checked = false;
                             _updatingCheckbox = false;
-                            MessageBox.Show("No active profile", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            MessageBox.Show(this.FindForm(), "No active profile", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         }
                     }
                 }
@@ -970,15 +1303,6 @@ namespace WiimoteGun.Controls
             }
         }
 
-        private void ChkEnableGyro_CheckedChanged(object sender, EventArgs e)
-        {
-            PlayerMappings mappings = Options.Instance.GetMappingsForPlayer(_currentPlayer);
-            if (mappings != null)
-            {
-                mappings.EnableGyroAiming = chkEnableGyro.Checked;
-                SimpleLogger.Instance?.Info($"Gyro {(chkEnableGyro.Checked ? "enabled" : "disabled")} for P{_currentPlayer}");
-                // Gyro toggle notification
-            }
-        }
+
     }
 }

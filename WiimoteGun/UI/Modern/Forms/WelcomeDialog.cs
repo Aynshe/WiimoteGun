@@ -90,6 +90,7 @@ namespace WiimoteGun
             AppendText("• OFF-SCREEN + Minus + Plus (3s) - Manually Disable Virtual Device / Désactiver Périphérique Virtuel Manuellement\n");
             AppendText("• Right-click tray icon - settings / paramètres\n\n");
             
+            /* 
             AppendText("─────────────────────────────────────────────────────────────────────\n\n");
             
             // TROUBLESHOOTING
@@ -99,9 +100,10 @@ namespace WiimoteGun
             AppendText("Si vous devez désactiver un Joueur (réactivation à la prochaine connexion, redémarrage nécessaire entre désactivation et activation) :\n");
             AppendText("• Use the Manual Disable hotkey (Off-screen Minus+Plus 3s)\n");
             AppendText("• Utilisez le raccourci Désactivation Manuelle (Hors-écran Moins+Plus 3s)\n\n");
-
+            
             AppendText("─────────────────────────────────────────────────────────────────────\n\n");
-
+            */
+            
             // Footer
             AppendColoredTitle("Enjoy! / Amusez-vous bien ! 🎮", Color.FromArgb(0, 120, 215));
         }

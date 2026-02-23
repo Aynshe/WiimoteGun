@@ -355,5 +355,81 @@ namespace WiimoteGun.UI.Modern.Forms
             KeyboardClosed?.Invoke(this, EventArgs.Empty);
             this.Close();
         }
+
+        // ============================================
+        // Non-Activating Window Logic (EN/FR: Logique fenêtre non-activante)
+        // ============================================
+
+        protected override bool ShowWithoutActivation => true;
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                // WS_EX_NOACTIVATE (0x08000000): Window does not become the foreground window when clicked.
+                // WS_EX_TOPMOST (0x00000008): Window should be placed above all non-topmost windows.
+                cp.ExStyle |= 0x08000000 | 0x00000008;
+                return cp;
+            }
+        }
+
+        // ============================================
+        // Physical Key Forwarding (EN/FR: Redirection des touches physiques)
+        // ============================================
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (_targetTextBox != null)
+            {
+                Keys code = keyData & Keys.KeyCode;
+
+                // Handle basic characters and backspace (EN/FR: Gérer caractères de base et backspace)
+                if (code == Keys.Back)
+                {
+                    Backspace();
+                    return true;
+                }
+                
+                if (code == Keys.Space)
+                {
+                    InsertText(" ");
+                    return true;
+                }
+
+                if (code == Keys.Enter)
+                {
+                    CloseKeyboard();
+                    return true;
+                }
+
+                // If it's a normal key or with Shift, try to get the character
+                // (EN/FR: Si c'est une touche normale ou avec Shift, essayer de récupérer le caractère)
+                if ((code >= Keys.A && code <= Keys.Z) || (code >= Keys.D0 && code <= Keys.D9))
+                {
+                    // For simplicity, we use the character display of the key
+                    // This is a safety measure if focus is lost to the form.
+                    // (EN/FR: Mesure de sécurité si le focus est perdu au profit du formulaire.)
+                    char c = (char)0;
+                    if (code >= Keys.A && code <= Keys.Z)
+                    {
+                        bool isUpper = Control.IsKeyLocked(Keys.CapsLock) ^ ((keyData & Keys.Shift) != 0);
+                        c = (char)((isUpper ? 'A' : 'a') + (code - Keys.A));
+                    }
+                    else if (code >= Keys.D0 && code <= Keys.D9)
+                    {
+                        c = (char)('0' + (code - Keys.D0));
+                    }
+
+                    if (c != 0)
+                    {
+                        InsertText(c.ToString());
+                        return true;
+                    }
+                }
+            }
+
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
     }
 }

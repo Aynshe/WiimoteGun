@@ -33,10 +33,6 @@ namespace WiimoteGun.UI.Modern.Forms
             this.cbPlayerSelect = new System.Windows.Forms.ComboBox();
             this.pbGyroCanvas = new System.Windows.Forms.PictureBox();
             this.lblTitle = new System.Windows.Forms.Label();
-            this.lblGyroYaw = new System.Windows.Forms.Label();
-            this.lblGyroPitch = new System.Windows.Forms.Label();
-            this.lblGyroRoll = new System.Windows.Forms.Label();
-            this.lblGyroMode = new System.Windows.Forms.Label();
             this.btnCalibrateGyro = new System.Windows.Forms.Button();
             this.lblHelp = new System.Windows.Forms.Label();
             this.refreshTimer = new System.Windows.Forms.Timer(this.components);
@@ -77,7 +73,7 @@ namespace WiimoteGun.UI.Modern.Forms
             this.pbGyroCanvas.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.pbGyroCanvas.Location = new System.Drawing.Point(20, 60);
             this.pbGyroCanvas.Name = "pbGyroCanvas";
-            this.pbGyroCanvas.Size = new System.Drawing.Size(550, 350);
+            this.pbGyroCanvas.Size = new System.Drawing.Size(750, 350);
             this.pbGyroCanvas.TabIndex = 2;
             this.pbGyroCanvas.TabStop = false;
             this.pbGyroCanvas.Paint += new System.Windows.Forms.PaintEventHandler(this.PbGyroCanvas_Paint);
@@ -86,52 +82,13 @@ namespace WiimoteGun.UI.Modern.Forms
             // 
             this.lblTitle.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
             this.lblTitle.ForeColor = System.Drawing.Color.LightGray;
-            this.lblTitle.Location = new System.Drawing.Point(590, 60);
+            this.lblTitle.Location = new System.Drawing.Point(790, 60);
             this.lblTitle.Name = "lblTitle";
             this.lblTitle.Size = new System.Drawing.Size(170, 25);
             this.lblTitle.TabIndex = 3;
             this.lblTitle.Text = "📐 Orientation:";
             // 
-            // lblGyroYaw
-            // 
-            this.lblGyroYaw.Font = new System.Drawing.Font("Consolas", 11F, System.Drawing.FontStyle.Bold);
-            this.lblGyroYaw.ForeColor = System.Drawing.Color.Cyan;
-            this.lblGyroYaw.Location = new System.Drawing.Point(590, 100);
-            this.lblGyroYaw.Name = "lblGyroYaw";
-            this.lblGyroYaw.Size = new System.Drawing.Size(180, 30);
-            this.lblGyroYaw.TabIndex = 4;
-            this.lblGyroYaw.Text = "Yaw: 0.00";
-            // 
-            // lblGyroPitch
-            // 
-            this.lblGyroPitch.Font = new System.Drawing.Font("Consolas", 11F, System.Drawing.FontStyle.Bold);
-            this.lblGyroPitch.ForeColor = System.Drawing.Color.LightGreen;
-            this.lblGyroPitch.Location = new System.Drawing.Point(590, 140);
-            this.lblGyroPitch.Name = "lblGyroPitch";
-            this.lblGyroPitch.Size = new System.Drawing.Size(180, 30);
-            this.lblGyroPitch.TabIndex = 5;
-            this.lblGyroPitch.Text = "Pitch: 0.00";
-            // 
-            // lblGyroRoll
-            // 
-            this.lblGyroRoll.Font = new System.Drawing.Font("Consolas", 11F, System.Drawing.FontStyle.Bold);
-            this.lblGyroRoll.ForeColor = System.Drawing.Color.Yellow;
-            this.lblGyroRoll.Location = new System.Drawing.Point(590, 180);
-            this.lblGyroRoll.Name = "lblGyroRoll";
-            this.lblGyroRoll.Size = new System.Drawing.Size(180, 30);
-            this.lblGyroRoll.TabIndex = 6;
-            this.lblGyroRoll.Text = "Roll: 0.00";
-            // 
-            // lblGyroMode
-            // 
-            this.lblGyroMode.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Italic);
-            this.lblGyroMode.ForeColor = System.Drawing.Color.Orange;
-            this.lblGyroMode.Location = new System.Drawing.Point(590, 260);
-            this.lblGyroMode.Name = "lblGyroMode";
-            this.lblGyroMode.Size = new System.Drawing.Size(180, 50);
-            this.lblGyroMode.TabIndex = 7;
-            this.lblGyroMode.Text = "Mode: Waiting...";
-            // 
+ 
             // btnCalibrateGyro
             // 
             this.btnCalibrateGyro.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(204)))), ((int)(((byte)(102)))), ((int)(((byte)(0)))));
@@ -139,7 +96,7 @@ namespace WiimoteGun.UI.Modern.Forms
             this.btnCalibrateGyro.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnCalibrateGyro.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
             this.btnCalibrateGyro.ForeColor = System.Drawing.Color.White;
-            this.btnCalibrateGyro.Location = new System.Drawing.Point(590, 340);
+            this.btnCalibrateGyro.Location = new System.Drawing.Point(790, 340);
             this.btnCalibrateGyro.Name = "btnCalibrateGyro";
             this.btnCalibrateGyro.Size = new System.Drawing.Size(180, 55);
             this.btnCalibrateGyro.TabIndex = 8;
@@ -168,13 +125,10 @@ namespace WiimoteGun.UI.Modern.Forms
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
-            this.ClientSize = new System.Drawing.Size(800, 500);
+            this.ClientSize = new System.Drawing.Size(1000, 500);
             this.Controls.Add(this.lblHelp);
             this.Controls.Add(this.btnCalibrateGyro);
-            this.Controls.Add(this.lblGyroMode);
-            this.Controls.Add(this.lblGyroRoll);
-            this.Controls.Add(this.lblGyroPitch);
-            this.Controls.Add(this.lblGyroYaw);
+
             this.Controls.Add(this.lblTitle);
             this.Controls.Add(this.pbGyroCanvas);
             this.Controls.Add(this.cbPlayerSelect);
@@ -195,11 +149,7 @@ namespace WiimoteGun.UI.Modern.Forms
         private System.Windows.Forms.Label lblPlayer;
         private System.Windows.Forms.ComboBox cbPlayerSelect;
         private System.Windows.Forms.PictureBox pbGyroCanvas;
-        private System.Windows.Forms.Label lblTitle;
-        private System.Windows.Forms.Label lblGyroYaw;
-        private System.Windows.Forms.Label lblGyroPitch;
-        private System.Windows.Forms.Label lblGyroRoll;
-        private System.Windows.Forms.Label lblGyroMode;
+            private System.Windows.Forms.Label lblTitle;
         private System.Windows.Forms.Button btnCalibrateGyro;
         private System.Windows.Forms.Label lblHelp;
         private System.Windows.Forms.Timer refreshTimer;

@@ -33,7 +33,7 @@ namespace WiimoteGun
 
             try
             {
-                _client = new VMultiClient(playerIndex);
+                _client = VMultiClient.GetSharedClient(playerIndex);
 
                 if (_client.Connect())
                 {

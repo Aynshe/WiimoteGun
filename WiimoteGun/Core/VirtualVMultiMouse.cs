@@ -48,7 +48,7 @@ namespace WiimoteGun
 
             try
             {
-                _client = new VMultiClient(playerIndex);
+                _client = VMultiClient.GetSharedClient(playerIndex);
                 
                 if (_client.Connect())
                 {
@@ -75,7 +75,7 @@ namespace WiimoteGun
         /// <param name="rightButton">Right button state</param>
         /// <param name="middleButton">Middle button state</param>
         /// <param name="moveCursor">Whether to move cursor (EN/FR: Si on doit déplacer le curseur)</param>
-        public void UpdateMouse(int x, int y, bool leftButton, bool rightButton, bool middleButton, bool moveCursor = true)
+        public void UpdateMouse(int x, int y, bool leftButton, bool rightButton, bool middleButton, bool moveCursor = true, bool isAbsolute = true)
         {
             if (_client == null || _disposed)
                 return;
@@ -107,15 +107,27 @@ namespace WiimoteGun
                 // Send if moving cursor or buttons changed (EN/FR: Envoyer si déplacement curseur ou boutons changés)
                 if (moveCursor || buttonChanged)
                 {
-                    // Clamp and scale coordinates (EN/FR: Limiter et mettre à l'échelle les coordonnées)
-                    x = Math.Max(0, Math.Min(65535, x));
-                    y = Math.Max(0, Math.Min(65535, y));
+                    if (isAbsolute)
+                    {
+                        // Clamp and scale coordinates (EN/FR: Limiter et mettre à l'échelle les coordonnées)
+                        int absX = Math.Max(0, Math.Min(65535, x));
+                        int absY = Math.Max(0, Math.Min(65535, y));
 
-                    // Convert to VMulti range (0-32767) (EN/FR: Convertir à la plage VMulti)
-                    ushort vmultiX = (ushort)(x * SCALE_FACTOR);
-                    ushort vmultiY = (ushort)(y * SCALE_FACTOR);
+                        // Convert to VMulti range (0-32767) (EN/FR: Convertir à la plage VMulti)
+                        ushort vmultiX = (ushort)(absX * SCALE_FACTOR);
+                        ushort vmultiY = (ushort)(absY * SCALE_FACTOR);
 
-                    _client.UpdateMouse(vmultiX, vmultiY, buttons, 0);
+                        _client.UpdateMouse(vmultiX, vmultiY, buttons, 0);
+                    }
+                    else
+                    {
+                        // Relative Move (EN/FR: Mouvement relatif)
+                        // VMulti uses sbyte (-127 to 127) for relative reports
+                        sbyte dx = (sbyte)Math.Max(-127, Math.Min(127, x));
+                        sbyte dy = (sbyte)Math.Max(-127, Math.Min(127, y));
+
+                        _client.UpdateRelativeMouse(dx, dy, buttons, 0);
+                    }
                 }
             }
             catch (Exception ex)

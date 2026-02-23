@@ -36,12 +36,12 @@ namespace WiimoteGun
             this.cbStartWithWindows = new System.Windows.Forms.CheckBox();
             this.rbBoth = new System.Windows.Forms.RadioButton();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
+            this.cboLogLevel = new System.Windows.Forms.ComboBox();
+            this.lblLogLevel = new System.Windows.Forms.Label();
             this.btnConfigureGamePad = new System.Windows.Forms.Button();
             this.chkEnableGamePadSwap = new System.Windows.Forms.CheckBox();
             this.chkPersistentGamePads = new System.Windows.Forms.CheckBox();
             this.chkNotifications = new System.Windows.Forms.CheckBox();
-            this.lblLogLevel = new System.Windows.Forms.Label();
-            this.cboLogLevel = new System.Windows.Forms.ComboBox();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.rbBlueTooth = new System.Windows.Forms.RadioButton();
             this.rbDolphinbar = new System.Windows.Forms.RadioButton();
@@ -50,7 +50,6 @@ namespace WiimoteGun
             this.lblLEDLayout = new System.Windows.Forms.Label();
             this.trackBar1 = new System.Windows.Forms.TrackBar();
             this.label2 = new System.Windows.Forms.Label();
-            this.chkPermissiveCalibration = new System.Windows.Forms.CheckBox();
             this.groupBox4 = new System.Windows.Forms.GroupBox();
             this.chkAutoLockVMulti = new System.Windows.Forms.CheckBox();
             this.btnInstallPlayer1 = new System.Windows.Forms.Button();
@@ -77,6 +76,7 @@ namespace WiimoteGun
             this.lblMouseModeWarning = new System.Windows.Forms.Label();
             this.rbMouseRawInput = new System.Windows.Forms.RadioButton();
             this.rbMouseSendInput = new System.Windows.Forms.RadioButton();
+            this.chkPermissiveCalibration = new System.Windows.Forms.CheckBox();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown1)).BeginInit();
             this.groupBox1.SuspendLayout();
             this.groupBox2.SuspendLayout();
@@ -92,7 +92,7 @@ namespace WiimoteGun
             // 
             this.btnCancel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.btnCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.btnCancel.Location = new System.Drawing.Point(719, 512);
+            this.btnCancel.Location = new System.Drawing.Point(719, 425);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(75, 26);
             this.btnCancel.TabIndex = 0;
@@ -103,7 +103,7 @@ namespace WiimoteGun
             // btnOk
             // 
             this.btnOk.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnOk.Location = new System.Drawing.Point(638, 512);
+            this.btnOk.Location = new System.Drawing.Point(638, 425);
             this.btnOk.Name = "btnOk";
             this.btnOk.Size = new System.Drawing.Size(75, 26);
             this.btnOk.TabIndex = 1;
@@ -169,6 +169,33 @@ namespace WiimoteGun
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Misc options";
             // 
+            // cboLogLevel
+            // 
+            this.cboLogLevel.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboLogLevel.FormattingEnabled = true;
+            this.cboLogLevel.Items.AddRange(new object[] {
+            "ALL",
+            "TRACE",
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "FATAL",
+            "NONE"});
+            this.cboLogLevel.Location = new System.Drawing.Point(233, 124);
+            this.cboLogLevel.Name = "cboLogLevel";
+            this.cboLogLevel.Size = new System.Drawing.Size(121, 21);
+            this.cboLogLevel.TabIndex = 10;
+            // 
+            // lblLogLevel
+            // 
+            this.lblLogLevel.AutoSize = true;
+            this.lblLogLevel.Location = new System.Drawing.Point(13, 127);
+            this.lblLogLevel.Name = "lblLogLevel";
+            this.lblLogLevel.Size = new System.Drawing.Size(74, 13);
+            this.lblLogLevel.TabIndex = 9;
+            this.lblLogLevel.Text = "Logging Level";
+            // 
             // btnConfigureGamePad
             // 
             this.btnConfigureGamePad.Location = new System.Drawing.Point(233, 72);
@@ -177,6 +204,7 @@ namespace WiimoteGun
             this.btnConfigureGamePad.TabIndex = 7;
             this.btnConfigureGamePad.Text = "Configure...";
             this.btnConfigureGamePad.UseVisualStyleBackColor = true;
+            this.btnConfigureGamePad.Visible = false;
             this.btnConfigureGamePad.Click += new System.EventHandler(this.btnConfigureGamePad_Click);
             // 
             // chkEnableGamePadSwap
@@ -208,33 +236,6 @@ namespace WiimoteGun
             this.chkNotifications.TabIndex = 5;
             this.chkNotifications.Text = "Show notifications";
             this.chkNotifications.UseVisualStyleBackColor = true;
-            // 
-            // lblLogLevel
-            // 
-            this.lblLogLevel.AutoSize = true;
-            this.lblLogLevel.Location = new System.Drawing.Point(13, 127);
-            this.lblLogLevel.Name = "lblLogLevel";
-            this.lblLogLevel.Size = new System.Drawing.Size(74, 13);
-            this.lblLogLevel.TabIndex = 9;
-            this.lblLogLevel.Text = "Logging Level";
-            // 
-            // cboLogLevel
-            // 
-            this.cboLogLevel.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.cboLogLevel.FormattingEnabled = true;
-            this.cboLogLevel.Items.AddRange(new object[] {
-            "ALL",
-            "TRACE",
-            "DEBUG",
-            "INFO",
-            "WARNING",
-            "ERROR",
-            "FATAL",
-            "NONE"});
-            this.cboLogLevel.Location = new System.Drawing.Point(233, 124);
-            this.cboLogLevel.Name = "cboLogLevel";
-            this.cboLogLevel.Size = new System.Drawing.Size(121, 21);
-            this.cboLogLevel.TabIndex = 10;
             // 
             // groupBox2
             // 
@@ -329,16 +330,6 @@ namespace WiimoteGun
             this.label2.TabIndex = 4;
             this.label2.Text = "IR Sensitivity";
             // 
-            // chkPermissiveCalibration
-            // 
-            this.chkPermissiveCalibration.AutoSize = true;
-            this.chkPermissiveCalibration.Location = new System.Drawing.Point(150, 121);
-            this.chkPermissiveCalibration.Name = "chkPermissiveCalibration";
-            this.chkPermissiveCalibration.Size = new System.Drawing.Size(206, 17);
-            this.chkPermissiveCalibration.TabIndex = 8;
-            this.chkPermissiveCalibration.Text = "Permissive Calibration (Large Screens)";
-            this.chkPermissiveCalibration.UseVisualStyleBackColor = true;
-            // 
             // groupBox4
             // 
             this.groupBox4.Controls.Add(this.chkAutoLockVMulti);
@@ -352,7 +343,7 @@ namespace WiimoteGun
             this.groupBox4.Controls.Add(this.btnUninstallPlayer4);
             this.groupBox4.Location = new System.Drawing.Point(410, 312);
             this.groupBox4.Name = "groupBox4";
-            this.groupBox4.Size = new System.Drawing.Size(384, 198);
+            this.groupBox4.Size = new System.Drawing.Size(384, 106);
             this.groupBox4.TabIndex = 10;
             this.groupBox4.TabStop = false;
             this.groupBox4.Text = "Virtual HID Driver";
@@ -362,7 +353,7 @@ namespace WiimoteGun
             this.chkAutoLockVMulti.AutoSize = true;
             this.chkAutoLockVMulti.Checked = true;
             this.chkAutoLockVMulti.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.chkAutoLockVMulti.Location = new System.Drawing.Point(13, 175);
+            this.chkAutoLockVMulti.Location = new System.Drawing.Point(13, 22);
             this.chkAutoLockVMulti.Name = "chkAutoLockVMulti";
             this.chkAutoLockVMulti.Size = new System.Drawing.Size(196, 17);
             this.chkAutoLockVMulti.TabIndex = 10;
@@ -371,82 +362,98 @@ namespace WiimoteGun
             // 
             // btnInstallPlayer1
             // 
-            this.btnInstallPlayer1.Location = new System.Drawing.Point(13, 50);
+            this.btnInstallPlayer1.Enabled = false;
+            this.btnInstallPlayer1.Location = new System.Drawing.Point(13, 42);
             this.btnInstallPlayer1.Name = "btnInstallPlayer1";
             this.btnInstallPlayer1.Size = new System.Drawing.Size(120, 25);
             this.btnInstallPlayer1.TabIndex = 2;
             this.btnInstallPlayer1.Text = "➕ Add Player 1";
             this.btnInstallPlayer1.UseVisualStyleBackColor = true;
+            this.btnInstallPlayer1.Visible = false;
             this.btnInstallPlayer1.Click += new System.EventHandler(this.btnInstallPlayer1_Click);
             // 
             // btnUninstallPlayer1
             // 
-            this.btnUninstallPlayer1.Location = new System.Drawing.Point(138, 50);
+            this.btnUninstallPlayer1.Enabled = false;
+            this.btnUninstallPlayer1.Location = new System.Drawing.Point(138, 42);
             this.btnUninstallPlayer1.Name = "btnUninstallPlayer1";
             this.btnUninstallPlayer1.Size = new System.Drawing.Size(55, 25);
             this.btnUninstallPlayer1.TabIndex = 3;
             this.btnUninstallPlayer1.Text = "❌";
             this.btnUninstallPlayer1.UseVisualStyleBackColor = true;
+            this.btnUninstallPlayer1.Visible = false;
             this.btnUninstallPlayer1.Click += new System.EventHandler(this.btnUninstallPlayer1_Click);
             // 
             // btnInstallPlayer2
             // 
-            this.btnInstallPlayer2.Location = new System.Drawing.Point(199, 50);
+            this.btnInstallPlayer2.Enabled = false;
+            this.btnInstallPlayer2.Location = new System.Drawing.Point(199, 42);
             this.btnInstallPlayer2.Name = "btnInstallPlayer2";
             this.btnInstallPlayer2.Size = new System.Drawing.Size(120, 25);
             this.btnInstallPlayer2.TabIndex = 4;
             this.btnInstallPlayer2.Text = "➕ Add Player 2";
             this.btnInstallPlayer2.UseVisualStyleBackColor = true;
+            this.btnInstallPlayer2.Visible = false;
             this.btnInstallPlayer2.Click += new System.EventHandler(this.btnInstallPlayer2_Click);
             // 
             // btnUninstallPlayer2
             // 
-            this.btnUninstallPlayer2.Location = new System.Drawing.Point(324, 50);
+            this.btnUninstallPlayer2.Enabled = false;
+            this.btnUninstallPlayer2.Location = new System.Drawing.Point(324, 42);
             this.btnUninstallPlayer2.Name = "btnUninstallPlayer2";
             this.btnUninstallPlayer2.Size = new System.Drawing.Size(45, 25);
             this.btnUninstallPlayer2.TabIndex = 5;
             this.btnUninstallPlayer2.Text = "❌";
             this.btnUninstallPlayer2.UseVisualStyleBackColor = true;
+            this.btnUninstallPlayer2.Visible = false;
             this.btnUninstallPlayer2.Click += new System.EventHandler(this.btnUninstallPlayer2_Click);
             // 
             // btnInstallPlayer3
             // 
-            this.btnInstallPlayer3.Location = new System.Drawing.Point(13, 81);
+            this.btnInstallPlayer3.Enabled = false;
+            this.btnInstallPlayer3.Location = new System.Drawing.Point(13, 73);
             this.btnInstallPlayer3.Name = "btnInstallPlayer3";
             this.btnInstallPlayer3.Size = new System.Drawing.Size(120, 25);
             this.btnInstallPlayer3.TabIndex = 6;
             this.btnInstallPlayer3.Text = "➕ Add Player 3";
             this.btnInstallPlayer3.UseVisualStyleBackColor = true;
+            this.btnInstallPlayer3.Visible = false;
             this.btnInstallPlayer3.Click += new System.EventHandler(this.btnInstallPlayer3_Click);
             // 
             // btnUninstallPlayer3
             // 
-            this.btnUninstallPlayer3.Location = new System.Drawing.Point(138, 81);
+            this.btnUninstallPlayer3.Enabled = false;
+            this.btnUninstallPlayer3.Location = new System.Drawing.Point(138, 73);
             this.btnUninstallPlayer3.Name = "btnUninstallPlayer3";
             this.btnUninstallPlayer3.Size = new System.Drawing.Size(55, 25);
             this.btnUninstallPlayer3.TabIndex = 7;
             this.btnUninstallPlayer3.Text = "❌";
             this.btnUninstallPlayer3.UseVisualStyleBackColor = true;
+            this.btnUninstallPlayer3.Visible = false;
             this.btnUninstallPlayer3.Click += new System.EventHandler(this.btnUninstallPlayer3_Click);
             // 
             // btnInstallPlayer4
             // 
-            this.btnInstallPlayer4.Location = new System.Drawing.Point(199, 81);
+            this.btnInstallPlayer4.Enabled = false;
+            this.btnInstallPlayer4.Location = new System.Drawing.Point(199, 73);
             this.btnInstallPlayer4.Name = "btnInstallPlayer4";
             this.btnInstallPlayer4.Size = new System.Drawing.Size(120, 25);
             this.btnInstallPlayer4.TabIndex = 8;
             this.btnInstallPlayer4.Text = "➕ Add Player 4";
             this.btnInstallPlayer4.UseVisualStyleBackColor = true;
+            this.btnInstallPlayer4.Visible = false;
             this.btnInstallPlayer4.Click += new System.EventHandler(this.btnInstallPlayer4_Click);
             // 
             // btnUninstallPlayer4
             // 
-            this.btnUninstallPlayer4.Location = new System.Drawing.Point(324, 81);
+            this.btnUninstallPlayer4.Enabled = false;
+            this.btnUninstallPlayer4.Location = new System.Drawing.Point(324, 73);
             this.btnUninstallPlayer4.Name = "btnUninstallPlayer4";
             this.btnUninstallPlayer4.Size = new System.Drawing.Size(45, 25);
             this.btnUninstallPlayer4.TabIndex = 9;
             this.btnUninstallPlayer4.Text = "❌";
             this.btnUninstallPlayer4.UseVisualStyleBackColor = true;
+            this.btnUninstallPlayer4.Visible = false;
             this.btnUninstallPlayer4.Click += new System.EventHandler(this.btnUninstallPlayer4_Click);
             // 
             // grpGestures
@@ -483,7 +490,7 @@ namespace WiimoteGun
             this.chkOffScreenReload.AutoSize = true;
             this.chkOffScreenReload.Location = new System.Drawing.Point(13, 20);
             this.chkOffScreenReload.Name = "chkOffScreenReload";
-            this.chkOffScreenReload.Size = new System.Drawing.Size(200, 17);
+            this.chkOffScreenReload.Size = new System.Drawing.Size(172, 17);
             this.chkOffScreenReload.TabIndex = 0;
             this.chkOffScreenReload.Text = "Off-screen Reload (Right Click)";
             this.chkOffScreenReload.UseVisualStyleBackColor = true;
@@ -493,7 +500,7 @@ namespace WiimoteGun
             this.rbGrenadeNunchuk.AutoSize = true;
             this.rbGrenadeNunchuk.Location = new System.Drawing.Point(180, 42);
             this.rbGrenadeNunchuk.Name = "rbGrenadeNunchuk";
-            this.rbGrenadeNunchuk.Size = new System.Drawing.Size(80, 17);
+            this.rbGrenadeNunchuk.Size = new System.Drawing.Size(69, 17);
             this.rbGrenadeNunchuk.TabIndex = 5;
             this.rbGrenadeNunchuk.Text = "Nunchuk";
             this.rbGrenadeNunchuk.UseVisualStyleBackColor = true;
@@ -504,7 +511,7 @@ namespace WiimoteGun
             this.rbGrenadeWiimote.Checked = true;
             this.rbGrenadeWiimote.Location = new System.Drawing.Point(90, 42);
             this.rbGrenadeWiimote.Name = "rbGrenadeWiimote";
-            this.rbGrenadeWiimote.Size = new System.Drawing.Size(80, 17);
+            this.rbGrenadeWiimote.Size = new System.Drawing.Size(63, 17);
             this.rbGrenadeWiimote.TabIndex = 4;
             this.rbGrenadeWiimote.TabStop = true;
             this.rbGrenadeWiimote.Text = "Wiimote";
@@ -539,7 +546,7 @@ namespace WiimoteGun
             this.chkEnableShake.AutoSize = true;
             this.chkEnableShake.Location = new System.Drawing.Point(6, 20);
             this.chkEnableShake.Name = "chkEnableShake";
-            this.chkEnableShake.Size = new System.Drawing.Size(65, 17);
+            this.chkEnableShake.Size = new System.Drawing.Size(59, 17);
             this.chkEnableShake.TabIndex = 0;
             this.chkEnableShake.Text = "Enable";
             this.chkEnableShake.UseVisualStyleBackColor = true;
@@ -550,7 +557,7 @@ namespace WiimoteGun
             this.rbShakeWiimote.Checked = true;
             this.rbShakeWiimote.Location = new System.Drawing.Point(70, 19);
             this.rbShakeWiimote.Name = "rbShakeWiimote";
-            this.rbShakeWiimote.Size = new System.Drawing.Size(80, 17);
+            this.rbShakeWiimote.Size = new System.Drawing.Size(63, 17);
             this.rbShakeWiimote.TabIndex = 1;
             this.rbShakeWiimote.TabStop = true;
             this.rbShakeWiimote.Text = "Wiimote";
@@ -561,7 +568,7 @@ namespace WiimoteGun
             this.rbShakeNunchuk.AutoSize = true;
             this.rbShakeNunchuk.Location = new System.Drawing.Point(150, 19);
             this.rbShakeNunchuk.Name = "rbShakeNunchuk";
-            this.rbShakeNunchuk.Size = new System.Drawing.Size(80, 17);
+            this.rbShakeNunchuk.Size = new System.Drawing.Size(69, 17);
             this.rbShakeNunchuk.TabIndex = 2;
             this.rbShakeNunchuk.Text = "Nunchuk";
             this.rbShakeNunchuk.UseVisualStyleBackColor = true;
@@ -580,6 +587,7 @@ namespace WiimoteGun
             this.cboShakeSensitivity.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cboShakeSensitivity.FormattingEnabled = true;
             this.cboShakeSensitivity.Items.AddRange(new object[] {
+            "Very Low",
             "Low",
             "Medium",
             "High"});
@@ -636,13 +644,25 @@ namespace WiimoteGun
             this.rbMouseSendInput.UseVisualStyleBackColor = true;
             this.rbMouseSendInput.CheckedChanged += new System.EventHandler(this.rbMouseSendInput_CheckedChanged);
             // 
+            // chkPermissiveCalibration
+            // 
+            this.chkPermissiveCalibration.AutoSize = true;
+            this.chkPermissiveCalibration.Enabled = false;
+            this.chkPermissiveCalibration.Location = new System.Drawing.Point(150, 174);
+            this.chkPermissiveCalibration.Name = "chkPermissiveCalibration";
+            this.chkPermissiveCalibration.Size = new System.Drawing.Size(206, 17);
+            this.chkPermissiveCalibration.TabIndex = 8;
+            this.chkPermissiveCalibration.Text = "Permissive Calibration (Large Screens)";
+            this.chkPermissiveCalibration.UseVisualStyleBackColor = true;
+            this.chkPermissiveCalibration.Visible = false;
+            // 
             // OptionsForm
             // 
             this.AcceptButton = this.btnOk;
             this.AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
             this.CancelButton = this.btnCancel;
-            this.ClientSize = new System.Drawing.Size(806, 550);
+            this.ClientSize = new System.Drawing.Size(806, 462);
             this.Controls.Add(this.groupBox4);
             this.Controls.Add(this.groupBox1);
             this.Controls.Add(this.grpGestures);
@@ -728,11 +748,11 @@ namespace WiimoteGun
         private System.Windows.Forms.RadioButton rbMouseRawInput;
         private System.Windows.Forms.Label lblMouseModeWarning;
         private System.Windows.Forms.CheckBox chkAutoLockVMulti;
-        private System.Windows.Forms.CheckBox chkPermissiveCalibration;
         private System.Windows.Forms.CheckBox chkEnableGamePadSwap;
         private System.Windows.Forms.CheckBox chkPersistentGamePads;
         private System.Windows.Forms.Button btnConfigureGamePad;
         private System.Windows.Forms.Label lblLogLevel;
         private System.Windows.Forms.ComboBox cboLogLevel;
+        private System.Windows.Forms.CheckBox chkPermissiveCalibration;
     }
 }

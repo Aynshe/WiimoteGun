@@ -58,10 +58,10 @@ namespace WiimoteGun.Controls
                     }
                     else 
                     {
-                        MessageBox.Show("GyroVisualizerForm not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        MessageBox.Show(this.FindForm(), "GyroVisualizerForm not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 } catch (Exception ex) {
-                    MessageBox.Show("Error opening visualizer: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(this.FindForm(), "Error opening visualizer: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             };
 
@@ -113,12 +113,12 @@ namespace WiimoteGun.Controls
                 }
                 else 
                 {
-                     MessageBox.Show("IRVisualizerForm not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                     MessageBox.Show(this.FindForm(), "IRVisualizerForm not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
              } 
              catch (Exception ex) 
              { 
-                MessageBox.Show($"Error opening IR Visualizer: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error); 
+                MessageBox.Show(this.FindForm(), $"Error opening IR Visualizer: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error); 
              }
         }
 
@@ -135,7 +135,7 @@ namespace WiimoteGun.Controls
             Options.Instance.SetDynamicPerspectiveOffsetX(_selectedIRPlayer, (int)nudIROffsetX.Value);
             Options.Instance.SetDynamicPerspectiveOffsetY(_selectedIRPlayer, (int)nudIROffsetY.Value);
             Options.Instance.Save();
-            MessageBox.Show($"✓ P{_selectedIRPlayer} Offset Saved", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this.FindForm(), $"✓ P{_selectedIRPlayer} Offset Saved", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void IrRefreshTimer_Tick(object sender, EventArgs e)

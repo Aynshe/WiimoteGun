@@ -41,7 +41,24 @@ namespace WiimoteGun.Forms
         private System.Windows.Forms.Timer _gameDetectTimer;
         private string _currentExecutable = "";
         
+        // Dynamic Sizing Constants (EN/FR: Constantes de redimensionnement dynamique)
+        private const int COMPACT_WIDTH = 600;
+        private const int EXTENDED_WIDTH = 800;
+        private const int CONTENT_HEIGHT = 780;
+        
         public bool IsWindowedMode { get { return _windowedMode; } }
+
+        public bool IsEditing
+        {
+            get
+            {
+                // Return true if any "editing" control is visible
+                return (mappingControl != null && mappingControl.Visible) ||
+                       (assignControl != null && assignControl.Visible) ||
+                       (optionsControl != null && optionsControl.Visible) ||
+                       (gamePadMappingControl != null && gamePadMappingControl.Visible);
+            }
+        }
 
         public ProfileOverlay(bool windowedMode)
         {
@@ -60,11 +77,10 @@ namespace WiimoteGun.Forms
         private void InitializeControls()
         {
             int topOffset = _windowedMode ? 32 : 0;
-            Size contentSize = new Size(560, 780); // Standardize size (increased for AssignControl)
-            Point contentLoc = new Point((this.Width - contentSize.Width) / 2, 30 + topOffset);
-
+            // (EN/FR: La taille sera ajustée dynamiquement dans ShowPage)
+            
             // Home
-            homeControl = new HomeControl { Location = contentLoc, Visible = true };
+            homeControl = new HomeControl { Visible = true };
             homeControl.OptionsClicked += (s, e) => ShowPage("Options");
             homeControl.MappingClicked += (s, e) => ShowPage("Mapping");
             homeControl.AssignClicked += (s, e) => ShowPage("Assign");
@@ -72,23 +88,23 @@ namespace WiimoteGun.Forms
             this.Controls.Add(homeControl);
 
             // Assign
-            assignControl = new AssignControl { Location = contentLoc, Visible = false };
+            assignControl = new AssignControl { Visible = false };
             this.Controls.Add(assignControl);
 
             // Options
-            optionsControl = new OptionsControl { Location = contentLoc, Visible = false };
+            optionsControl = new OptionsControl { Visible = false };
             this.Controls.Add(optionsControl);
             
             // Mapping
-            mappingControl = new MappingControl { Location = contentLoc, Visible = false };
+            mappingControl = new MappingControl { Visible = false };
             this.Controls.Add(mappingControl);
 
             // IR
-            irControl = new IRControl { Location = contentLoc, Visible = false };
+            irControl = new IRControl { Visible = false };
             this.Controls.Add(irControl);
 
             // GamePad Mapping
-            gamePadMappingControl = new GamePadMappingControl { Location = contentLoc, Visible = false };
+            gamePadMappingControl = new GamePadMappingControl { Visible = false };
             this.Controls.Add(gamePadMappingControl);
 
             // Wire Internal Back Events
@@ -98,6 +114,9 @@ namespace WiimoteGun.Forms
             mappingControl.GamePadMappingRequested += (s, e) => ShowPage("GamePadMapping");
             irControl.BackRequested += (s, e) => ShowPage("Home");
             gamePadMappingControl.BackRequested += (s, e) => ShowPage("Mapping");
+
+            // Initial Resize
+            ShowPage("Home");
         }
 
         /* 
@@ -108,6 +127,44 @@ namespace WiimoteGun.Forms
 
         private void ShowPage(string page)
         {
+            // Determine Target Width (EN/FR: Déterminer la largeur cible)
+            int targetWidth = (page == "GamePadMapping") ? EXTENDED_WIDTH : COMPACT_WIDTH;
+            int targetHeight = 840;
+
+            // Resize Form (EN/FR: Redimensionner le formulaire)
+            if (this.Width != targetWidth)
+            {
+                // Store current center to maintain positioning (Optional, otherwise it jumps)
+                Point center = new Point(this.Left + this.Width / 2, this.Top + this.Height / 2);
+                
+                this.Width = targetWidth;
+                this.Height = targetHeight;
+
+                // Re-center (EN/FR: Recentrer)
+                this.Left = center.X - targetWidth / 2;
+                this.Top = center.Y - targetHeight / 2;
+
+                // Update rounded corners for Overlay mode (EN/FR: Mettre à jour les coins arrondis)
+                if (!_windowedMode)
+                {
+                    GraphicsPath path = new GraphicsPath();
+                    int radius = 12;
+                    Rectangle bounds = new Rectangle(0, 0, this.Width, this.Height);
+                    path.AddArc(bounds.X, bounds.Y, radius, radius, 180, 90);
+                    path.AddArc(bounds.Right - radius, bounds.Y, radius, radius, 270, 90);
+                    path.AddArc(bounds.Right - radius, bounds.Bottom - radius, radius, radius, 0, 90);
+                    path.AddArc(bounds.X, bounds.Bottom - radius, radius, radius, 90, 90);
+                    path.CloseFigure();
+                    this.Region = new Region(path);
+                }
+                
+                // Update Title Bar width if exists
+                if (pnlTitleBar != null)
+                {
+                    pnlTitleBar.Width = this.Width;
+                }
+            }
+
             // Hide all
             homeControl.Visible = false;
             assignControl.Visible = false;
@@ -120,33 +177,45 @@ namespace WiimoteGun.Forms
             assignControl.UnloadData();
             irControl.UnloadData();
 
-            // btnBackToHome logic removed
+            // Setup common control sizing and position (EN/FR: Configurer taille et position commune)
+            int topOffset = _windowedMode ? 32 : 0;
+            Size contentSize = new Size(targetWidth - 40, CONTENT_HEIGHT);
+            Point contentLoc = new Point((this.Width - contentSize.Width) / 2, 30 + topOffset);
+
+            UserControl activeControl = null;
 
             switch (page)
             {
                 case "Home":
-                    homeControl.Visible = true;
+                    activeControl = homeControl;
                     break;
                 case "Options":
-                    optionsControl.Visible = true;
+                    activeControl = optionsControl;
                     break;
                 case "Mapping":
-                    mappingControl.Visible = true;
-                    // refresh mapping data if needed
-                     mappingControl.SetCurrentGame(_currentExecutable);
+                    activeControl = mappingControl;
+                    mappingControl.SetCurrentGame(_currentExecutable);
                     break;
                 case "Assign":
-                    assignControl.Visible = true;
+                    activeControl = assignControl;
                     assignControl.LoadData();
                     break;
                 case "IRViz":
-                    irControl.Visible = true;
+                    activeControl = irControl;
                     irControl.LoadData();
                     break;
                 case "GamePadMapping":
-                    gamePadMappingControl.Visible = true;
+                    activeControl = gamePadMappingControl;
+                    gamePadMappingControl.SetCurrentGame(_currentExecutable);
                     gamePadMappingControl.LoadData();
                     break;
+            }
+
+            if (activeControl != null)
+            {
+                activeControl.Size = contentSize;
+                activeControl.Location = contentLoc;
+                activeControl.Visible = true;
             }
         }
 
@@ -158,7 +227,7 @@ namespace WiimoteGun.Forms
              if (!_windowedMode)
             {
                 this.FormBorderStyle = FormBorderStyle.None;
-                this.Size = new Size(600, 840);
+                this.Size = new Size(800, 840);
                 this.StartPosition = FormStartPosition.CenterScreen;
                 this.TopMost = true;
                 this.ShowInTaskbar = false;
@@ -177,7 +246,7 @@ namespace WiimoteGun.Forms
             else
             {
                 this.AutoScaleMode = AutoScaleMode.None;
-                this.ClientSize = new Size(600, 840);
+                this.ClientSize = new Size(800, 840);
                 this.FormBorderStyle = FormBorderStyle.None;
                 this.StartPosition = FormStartPosition.CenterScreen;
                 SetupCustomTitleBar();
@@ -280,8 +349,10 @@ namespace WiimoteGun.Forms
                 GetWindowThreadProcessId(handle, out processId);
                 Process p = Process.GetProcessById((int)processId);
                 
-                string processName = p.ProcessName;
-                if (processName.ToLower() == "explorer" || processName.ToLower() == "searchhost") return; // Ignore shell
+                string processName = p.ProcessName.ToLower();
+                // Ignore shell and self (overlay)
+                // (EN/FR: Ignorer shell et soi-même (overlay))
+                if (processName == "explorer" || processName == "searchhost" || processName == "wiimotegun") return;
 
                 if (processName + ".exe" != _currentExecutable)
                 {
@@ -289,6 +360,9 @@ namespace WiimoteGun.Forms
                     // Update Mapping Control
                     if (mappingControl != null)
                         mappingControl.SetCurrentGame(_currentExecutable);
+                    // Update GamePad Mapping Control (EN/FR: Mettre à jour l'UI GamePad)
+                    if (gamePadMappingControl != null && gamePadMappingControl.Visible)
+                        gamePadMappingControl.SetCurrentGame(_currentExecutable);
                 }
             }
             catch {}

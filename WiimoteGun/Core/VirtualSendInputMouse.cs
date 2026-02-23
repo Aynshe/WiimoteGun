@@ -64,7 +64,7 @@ namespace WiimoteGun
             SimpleLogger.Instance.Info("VirtualSendInputMouse initialized (mouse_event mode - single player)");
         }
 
-        public void UpdateMouse(int x, int y, bool leftButton, bool rightButton, bool middleButton, bool moveCursor = true)
+        public void UpdateMouse(int x, int y, bool leftButton, bool rightButton, bool middleButton, bool moveCursor = true, bool isAbsolute = true)
         {
             try
             {
@@ -76,7 +76,11 @@ namespace WiimoteGun
 
                 if (moveCursor)
                 {
-                    sendInputFlags |= MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
+                    sendInputFlags |= MOUSEEVENTF_MOVE;
+                    if (isAbsolute)
+                    {
+                        sendInputFlags |= MOUSEEVENTF_ABSOLUTE;
+                    }
                     needsUpdate = true;
                 }
 
@@ -104,44 +108,49 @@ namespace WiimoteGun
 
                 if (needsUpdate)
                 {
-                    var screen = System.Windows.Forms.Screen.AllScreens[Options.Instance.MonitorId];
-                    int screenPixelX = (int)((x / 65535.0) * screen.Bounds.Width) + screen.Bounds.Left;
-                    int screenPixelY = (int)((y / 65535.0) * screen.Bounds.Height) + screen.Bounds.Top;
+                    int dx = 0;
+                    int dy = 0;
 
-                    // 1. SetCursorPos & mouse_event remains for legacy/visual sync (TeknoParrot)
-                    if (moveCursor)
+                    if (isAbsolute)
                     {
-                        SetCursorPos(screenPixelX, screenPixelY);
-                        mouse_event(MOUSEEVENTF_ABSOLUTE, screenPixelX, screenPixelY, 0, UIntPtr.Zero);
+                        // Modern Atomic SendInput (MOVE | ABSOLUTE | BUTTONS)
+                        var screen = System.Windows.Forms.Screen.AllScreens[Options.Instance.MonitorId];
+                        int screenPixelX = (int)((x / 65535.0) * screen.Bounds.Width) + screen.Bounds.Left;
+                        int screenPixelY = (int)((y / 65535.0) * screen.Bounds.Height) + screen.Bounds.Top;
+
+                        int totalWidth = System.Windows.Forms.SystemInformation.VirtualScreen.Width;
+                        int totalHeight = System.Windows.Forms.SystemInformation.VirtualScreen.Height;
+                        int virtualLeft = System.Windows.Forms.SystemInformation.VirtualScreen.Left;
+                        int virtualTop = System.Windows.Forms.SystemInformation.VirtualScreen.Top;
+
+                        dx = (int)(((screenPixelX - virtualLeft) * 65535.0) / totalWidth);
+                        dy = (int)(((screenPixelY - virtualTop) * 65535.0) / totalHeight);
+                        dx = Math.Max(0, Math.Min(65535, dx));
+                        dy = Math.Max(0, Math.Min(65535, dy));
+
+                        if (moveCursor)
+                        {
+                            _lastX = screenPixelX;
+                            _lastY = screenPixelY;
+                        }
                     }
-
-                    // 2. Modern Atomic SendInput (MOVE | ABSOLUTE | BUTTONS)
-                    int totalWidth = System.Windows.Forms.SystemInformation.VirtualScreen.Width;
-                    int totalHeight = System.Windows.Forms.SystemInformation.VirtualScreen.Height;
-                    int virtualLeft = System.Windows.Forms.SystemInformation.VirtualScreen.Left;
-                    int virtualTop = System.Windows.Forms.SystemInformation.VirtualScreen.Top;
-
-                    int normalizedX = (int)(((screenPixelX - virtualLeft) * 65535.0) / totalWidth);
-                    int normalizedY = (int)(((screenPixelY - virtualTop) * 65535.0) / totalHeight);
-                    normalizedX = Math.Max(0, Math.Min(65535, normalizedX));
-                    normalizedY = Math.Max(0, Math.Min(65535, normalizedY));
+                    else
+                    {
+                        // In relative mode, x and y are treated as pixel deltas (EN/FR: En mode relatif, x et y sont des deltas de pixels)
+                        dx = x;
+                        dy = y;
+                    }
 
                     INPUT[] inputs = new INPUT[1];
                     inputs[0].type = INPUT_MOUSE;
-                    inputs[0].mi.dx = normalizedX;
-                    inputs[0].mi.dy = normalizedY;
+                    inputs[0].mi.dx = dx;
+                    inputs[0].mi.dy = dy;
                     inputs[0].mi.mouseData = 0;
                     inputs[0].mi.dwFlags = sendInputFlags;
                     inputs[0].mi.time = 0;
                     inputs[0].mi.dwExtraInfo = IntPtr.Zero;
 
                     SendInput(1, inputs, Marshal.SizeOf(typeof(INPUT)));
-
-                    if (moveCursor)
-                    {
-                        _lastX = screenPixelX;
-                        _lastY = screenPixelY;
-                    }
                 }
             }
             catch (Exception ex)

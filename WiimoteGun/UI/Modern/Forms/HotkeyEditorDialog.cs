@@ -114,8 +114,8 @@ namespace WiimoteGun
         {
             if (_listViewHotkeys.SelectedItems.Count == 0)
             {
-                MessageBox.Show("Please select a hotkey to edit.", "No Selection", 
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, "Please select a hotkey to edit.", "No Selection", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -170,8 +170,8 @@ namespace WiimoteGun
         {
             if (_listViewHotkeys.SelectedItems.Count == 0)
             {
-                MessageBox.Show("Please select a hotkey to delete.", "No Selection",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, "Please select a hotkey to delete.", "No Selection",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -181,12 +181,12 @@ namespace WiimoteGun
             bool isFallback = _playerIndex != 1 && !_hotkeyProfile.HasHotkey(selectedHotkey.TriggerButton, selectedHotkey.ModifierButton);
             if (isFallback)
             {
-                MessageBox.Show("Shared hotkeys from Player 1 can only be deleted from the Player 1 configuration.", "Cannot Delete",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, "Shared hotkeys from Player 1 can only be deleted from the Player 1 configuration.", "Cannot Delete", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            var result = MessageBox.Show(
+            var result = MessageBox.Show(this,
                 string.Format("Delete hotkey: {0}?", selectedHotkey.GetDisplayName()),
                 "Confirm Delete",
                 MessageBoxButtons.YesNo,

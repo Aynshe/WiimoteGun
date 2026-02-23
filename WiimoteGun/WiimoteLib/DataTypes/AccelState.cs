@@ -52,17 +52,23 @@ namespace WiimoteLib.DataTypes {
 				// X = (byte[2] bits[7:0] 9:2) | (byte[5] bits[3:2] 1:0) out[9:0]
 				// Y = (byte[3] bits[7:0] 9:2) | (byte[5] bits[5:4] 1:0) out[9:0]
 				// Z = (byte[4] bits[7:0] 9:2) | (byte[5] bits[7:6] 1:0) out[9:0]
-				RawValues.X = (buff[off + 2] << 2) | ((buff[5] >> 2) & 0x3);
-				RawValues.Y = (buff[off + 3] << 2) | ((buff[5] >> 4) & 0x3);
-				RawValues.Z = (buff[off + 4] << 2) | ((buff[5] >> 6) & 0x3);
+				RawValues.X = (buff[off + 2] << 2) | ((buff[off + 5] >> 2) & 0x3);
+				RawValues.Y = (buff[off + 3] << 2) | ((buff[off + 5] >> 4) & 0x3);
+				RawValues.Z = (buff[off + 4] << 2) | ((buff[off + 5] >> 6) & 0x3);
 			}
 			else {
-				// X = (byte[2] bits[7:0] 9:2) | (byte[5] bit[4] 1) out[9:1]
-				// Y = (byte[3] bits[7:0] 9:2) | (byte[5] bit[5] 1) out[9:1]
-				// Z = (byte[4] bits[7:1] 9:3) | (byte[5] bits[7:6] 2:1) out[9:1]
-				RawValues.X = (buff[off + 2] << 2) | ((buff[5] >> 3) & 0x2);
-				RawValues.Y = (buff[off + 3] << 2) | ((buff[5] >> 4) & 0x2);
-				RawValues.Z = ((buff[off + 4] & 0xFE) << 2) | ((buff[5] >> 5) & 0x6);
+				// [FIX V20c] EN: In passthrough mode (0x05), Nunchuk Accel data IS available
+				// but with reduced resolution (9 bits instead of 10). WiiBrew bit shifts:
+				//   - LSB of AX, AY, AZ is dropped
+				//   - Byte 5 layout after passthrough transformations:
+				//     Bit 7: AZ from byte4[0], Bit 6: AZ[1], Bit 5: AY[1], 
+				//     Bit 4: AX[1], Bit 3: BC, Bit 2: BZ, Bit 1: ext_flag, Bit 0: ext_connected
+				// FR: En passthrough (0x05), l'accel Nunchuk EST dispo mais en 9 bits (pas 10).
+				// Bytes 2-4 contiennent les MSBs [9:2], seul 1 bit additionnel par axe dans byte 5.
+				RawValues.X = (buff[off + 2] << 2) | (((buff[off + 5] >> 4) & 0x1) << 1);
+				RawValues.Y = (buff[off + 3] << 2) | (((buff[off + 5] >> 5) & 0x1) << 1);
+				RawValues.Z = (buff[off + 4] << 2) | (((buff[off + 5] >> 6) & 0x1) << 1)
+				                                    | (((buff[off + 5] >> 7) & 0x1));
 			}
 			ParseRaw(calib);
 		}

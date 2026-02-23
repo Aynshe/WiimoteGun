@@ -7,9 +7,7 @@ namespace WiimoteGun
     /// </summary>
     public interface IVirtualMouse : IDisposable
     {
-        /// <summary>
-        /// Update mouse position and button states (EN/FR: Mettre à jour la position et les boutons de la souris)
-        /// </summary>
-        void UpdateMouse(int x, int y, bool leftButton, bool rightButton, bool middleButton, bool moveCursor = true);
+        /// <param name="isAbsolute">Whether the coordinates are absolute (65535 range) or relative (EN/FR: Si les coordonnées sont absolues ou relatives)</param>
+        void UpdateMouse(int x, int y, bool leftButton, bool rightButton, bool middleButton, bool moveCursor = true, bool isAbsolute = true);
     }
 }

@@ -43,9 +43,8 @@ namespace WiimoteGun
             cboLEDLayout.SelectedIndex = (int)Options.Instance.LEDLayout;
             cboLEDLayout.SelectedIndexChanged += CboLEDLayout_SelectedIndexChanged;
             
-            // Permissive Calibration Binding
-            // chkPermissiveCalibration.DataBindings.Add("Checked", Options.Instance, "PermissiveWiimoteBarCalibration");
-            chkPermissiveCalibration.Visible = false; // Hide from UI as requested
+            // Permissive Calibration Binding (EN/FR: Liaison calibration permissive)
+            chkPermissiveCalibration.DataBindings.Add("Checked", Options.Instance, "PermissiveWiimoteBarCalibration");
             UpdatePermissiveCalibrationVisibility();
 
             // Gesture Controls Binding
@@ -78,24 +77,38 @@ namespace WiimoteGun
                 lblMouseModeWarning.Visible = false;
             }
 
-            // Hide dev gesture controls if not enabled (EN/FR: Cacher contrôles dev si non activé)
-            bool showDevGestures = Options.Instance.EnableDevGestures;
-            grpShakeReload.Visible = showDevGestures;
-            chkGrenadeGesture.Visible = showDevGestures;
-            rbGrenadeWiimote.Visible = showDevGestures;
-            rbGrenadeNunchuk.Visible = showDevGestures;
-            
-            // Adjust group box height if dev gestures are hidden (EN/FR: Ajuster hauteur group box si gestes dev cachés)
-            if (!showDevGestures)
-            {
-                grpGestures.Height = 50; // Only show Off-Screen Reload
-            }
+            // Show experimental gesture controls (EN/FR: Afficher gestes expérimentaux)
+            grpShakeReload.Visible = true;
+            chkGrenadeGesture.Visible = true;
+            rbGrenadeWiimote.Visible = true;
+            rbGrenadeNunchuk.Visible = true;
+            grpGestures.Height = 135; // Standard height (EN/FR: Hauteur standard)
             
             // VMulti Auto-Lock binding (EN/FR: Liaison Auto-Lock VMulti)
             chkAutoLockVMulti.DataBindings.Add("Checked", Options.Instance, "AutoLockVMultiDevices");
             
             // Set current Log Level (EN/FR: Définir le niveau de log actuel)
             cboLogLevel.SelectedItem = Options.Instance.LoggingLevel.ToString();
+
+            // Mutual Exclusivity for Legacy Gestures (EN/FR: Exclusivité mutuelle pour les gestes legacy)
+            rbShakeWiimote.CheckedChanged += (s, e) => { if (rbShakeWiimote.Checked) EnsureLegacyExclusivity(true); };
+            rbShakeNunchuk.CheckedChanged += (s, e) => { if (rbShakeNunchuk.Checked) EnsureLegacyExclusivity(true); };
+            rbGrenadeWiimote.CheckedChanged += (s, e) => { if (rbGrenadeWiimote.Checked) EnsureLegacyExclusivity(false); };
+            rbGrenadeNunchuk.CheckedChanged += (s, e) => { if (rbGrenadeNunchuk.Checked) EnsureLegacyExclusivity(false); };
+        }
+
+        private void EnsureLegacyExclusivity(bool shakeChanged)
+        {
+            if (shakeChanged)
+            {
+                if (rbShakeWiimote.Checked && rbGrenadeWiimote.Checked) rbGrenadeNunchuk.Checked = true;
+                if (rbShakeNunchuk.Checked && rbGrenadeNunchuk.Checked) rbGrenadeWiimote.Checked = true;
+            }
+            else
+            {
+                if (rbGrenadeWiimote.Checked && rbShakeWiimote.Checked) rbShakeNunchuk.Checked = true;
+                if (rbGrenadeNunchuk.Checked && rbShakeNunchuk.Checked) rbShakeWiimote.Checked = true;
+            }
         }
 
         private void btnCancel_Click(object sender, EventArgs e)
@@ -115,16 +128,16 @@ namespace WiimoteGun
             Options.Instance.IRSensitivity = trackBar1.Value;
 
             Options.Instance.LEDLayout = (LEDLayoutType)cboLEDLayout.SelectedIndex; // Save LED layout (EN/FR: Sauvegarder layout LED)
-            // Options.Instance.PermissiveWiimoteBarCalibration = chkPermissiveCalibration.Checked;
+            Options.Instance.PermissiveWiimoteBarCalibration = chkPermissiveCalibration.Checked;
             
             // Save Gesture Settings
             Options.Instance.EnableOffScreenReload = chkOffScreenReload.Checked;
-            Options.Instance.OffScreenReloadAuto = cboOffScreenMode.SelectedIndex == 1;
+            Options.Instance.OffScreenReloadAuto = (cboOffScreenMode.SelectedIndex == 1);
             Options.Instance.EnableGrenadeGesture = chkGrenadeGesture.Checked;
             Options.Instance.GrenadeFromNunchuk = rbGrenadeNunchuk.Checked;
-            Options.Instance.EnableShakeReload = chkEnableShake.Checked;
-            Options.Instance.ShakeFromNunchuk = rbShakeNunchuk.Checked;
             Options.Instance.ShakeSensitivity = cboShakeSensitivity.SelectedIndex;
+            Options.Instance.ShakeFromNunchuk = rbShakeNunchuk.Checked;
+
             
             // Save Mouse Mode (EN/FR: Sauvegarder Mode Souris)
             Options.Instance.DefaultMouseMode = rbMouseSendInput.Checked ? MouseMode.SendInput : MouseMode.RawInput;
@@ -331,8 +344,7 @@ namespace WiimoteGun
             // Only show permissive calibration for WiimoteBar layout (Index 0)
             // (EN/FR: Afficher calibration permissive uniquement pour layout WiimoteBar)
             bool isWiimoteBar = cboLEDLayout.SelectedIndex == 0;
-            // chkPermissiveCalibration.Visible = isWiimoteBar;
-            chkPermissiveCalibration.Visible = false; // Always hidden as requested
+            chkPermissiveCalibration.Visible = isWiimoteBar;
         }
 
         private void btnConfigureGamePad_Click(object sender, EventArgs e)

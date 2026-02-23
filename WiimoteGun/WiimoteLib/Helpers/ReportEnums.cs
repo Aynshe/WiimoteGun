@@ -193,8 +193,19 @@ namespace WiimoteLib {
 					if (stream == null)
 						return false;
 
-					stream.Write(Buffer, 0, Length);
-					return true;
+					// Retry logic for "Device not ready" IOException (EN/FR: Logique de retry pour IOException "Périphérique pas prêt")
+					int retries = 0;
+					while (true) {
+						try {
+							stream.Write(Buffer, 0, Length);
+							return true;
+						}
+						catch (IOException ex) when (retries < 5) {
+							retries++;
+							Log.Warning($"Write retry {retries} for {this}: {ex.Message}");
+							System.Threading.Thread.Sleep(50);
+						}
+					}
 				}
 				catch (ObjectDisposedException) {
 					// Stream closed during write (EN/FR: Flux fermé pendant l'écriture)

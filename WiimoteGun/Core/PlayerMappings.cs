@@ -25,12 +25,45 @@ namespace WiimoteGun
         public ButtonAction NunLeft { get; set; }
         public ButtonAction NunRight { get; set; }
         
-        // FPS Gyro Aiming Mode (EN/FR: Mode visée gyroscopique pour FPS)
-        public bool EnableGyroAiming { get; set; }
+        // Wiener/Accel Movements for Keyboard/Mouse triggers
+        public ButtonAction AccelWiimoteUp { get; set; }
+        public ButtonAction AccelWiimoteDown { get; set; }
+        public ButtonAction AccelWiimoteLeft { get; set; }
+        public ButtonAction AccelWiimoteRight { get; set; }
+        public ButtonAction AccelWiimoteShake { get; set; }
+
+        public ButtonAction AccelNunchukUp { get; set; }
+        public ButtonAction AccelNunchukDown { get; set; }
+        public ButtonAction AccelNunchukLeft { get; set; }
+        public ButtonAction AccelNunchukRight { get; set; }
+        public ButtonAction AccelNunchukShake { get; set; }
+
+        public ButtonAction GyroMotionPlusUp { get; set; }
+        public ButtonAction GyroMotionPlusDown { get; set; }
+        public ButtonAction GyroMotionPlusLeft { get; set; }
+        public ButtonAction GyroMotionPlusRight { get; set; }
+        public ButtonAction GyroMotionPlusRollLeft { get; set; }
+        public ButtonAction GyroMotionPlusRollRight { get; set; }
+
+        public float AccelWiimoteSensitivity { get; set; }
+        public float AccelNunchukSensitivity { get; set; }
+        public float GyroSensitivity { get; set; }
+
+        public float AccelWiimoteDeadzone { get; set; }
+        public float AccelNunchukDeadzone { get; set; }
+        public float GyroDeadzone { get; set; }
+
+        public float AccelWiimoteShakeDeadzone { get; set; }
+        public float AccelNunchukShakeDeadzone { get; set; }
+
+        // EN: Number of back-and-forth oscillations required to trigger shake
+        // FR: Nombre d'oscillations aller-retour nécessaires pour déclencher le shake
+        public int ShakeOscillationRequired { get; set; }
+
 
         public PlayerMappings()
         {
-            EnableGyroAiming = false;
+
             // Default mappings (EN/FR: Mappings par défaut)
             WiiA = new ButtonAction(SpecialAction.RightMouse);
             WiiB = new ButtonAction(SpecialAction.LeftMouse);
@@ -48,6 +81,32 @@ namespace WiimoteGun
             NunDown = new ButtonAction(Keys.Down);
             NunLeft = new ButtonAction(Keys.Left);
             NunRight = new ButtonAction(Keys.Right);
+            AccelWiimoteUp = new ButtonAction();
+            AccelWiimoteDown = new ButtonAction();
+            AccelWiimoteLeft = new ButtonAction();
+            AccelWiimoteRight = new ButtonAction();
+            AccelWiimoteShake = new ButtonAction();
+            AccelNunchukUp = new ButtonAction();
+            AccelNunchukDown = new ButtonAction();
+            AccelNunchukLeft = new ButtonAction();
+            AccelNunchukRight = new ButtonAction();
+            AccelNunchukShake = new ButtonAction();
+            GyroMotionPlusUp = new ButtonAction();
+            GyroMotionPlusDown = new ButtonAction();
+            GyroMotionPlusLeft = new ButtonAction();
+            GyroMotionPlusRight = new ButtonAction();
+            GyroMotionPlusRollLeft = new ButtonAction();
+            GyroMotionPlusRollRight = new ButtonAction();
+
+            AccelWiimoteSensitivity = 10.0f;
+            AccelNunchukSensitivity = 20.0f;
+            GyroSensitivity = 40.0f;
+            AccelWiimoteDeadzone = 2.5f;
+            AccelNunchukDeadzone = 1.5f;
+            GyroDeadzone = 1.0f;
+            AccelWiimoteShakeDeadzone = 2.0f;
+            AccelNunchukShakeDeadzone = 2.0f;
+            ShakeOscillationRequired = 4;
         }
 
         /// <summary>
@@ -71,7 +130,32 @@ namespace WiimoteGun
             NunDown = source.NunDown;
             NunLeft = source.NunLeft;
             NunRight = source.NunRight;
-            EnableGyroAiming = source.EnableGyroAiming;
+            AccelWiimoteUp = source.AccelWiimoteUp;
+            AccelWiimoteDown = source.AccelWiimoteDown;
+            AccelWiimoteLeft = source.AccelWiimoteLeft;
+            AccelWiimoteRight = source.AccelWiimoteRight;
+            AccelWiimoteShake = source.AccelWiimoteShake;
+            AccelNunchukUp = source.AccelNunchukUp;
+            AccelNunchukDown = source.AccelNunchukDown;
+            AccelNunchukLeft = source.AccelNunchukLeft;
+            AccelNunchukRight = source.AccelNunchukRight;
+            AccelNunchukShake = source.AccelNunchukShake;
+            GyroMotionPlusUp = source.GyroMotionPlusUp;
+            GyroMotionPlusDown = source.GyroMotionPlusDown;
+            GyroMotionPlusLeft = source.GyroMotionPlusLeft;
+            GyroMotionPlusRight = source.GyroMotionPlusRight;
+            GyroMotionPlusRollLeft = source.GyroMotionPlusRollLeft;
+            GyroMotionPlusRollRight = source.GyroMotionPlusRollRight;
+
+            AccelWiimoteSensitivity = source.AccelWiimoteSensitivity;
+            AccelNunchukSensitivity = source.AccelNunchukSensitivity;
+            GyroSensitivity = source.GyroSensitivity;
+            AccelWiimoteDeadzone = source.AccelWiimoteDeadzone;
+            AccelNunchukDeadzone = source.AccelNunchukDeadzone;
+            GyroDeadzone = source.GyroDeadzone;
+            AccelWiimoteShakeDeadzone = source.AccelWiimoteShakeDeadzone;
+            AccelNunchukShakeDeadzone = source.AccelNunchukShakeDeadzone;
+            ShakeOscillationRequired = source.ShakeOscillationRequired;
         }
 
         /// <summary>

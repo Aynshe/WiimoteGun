@@ -429,6 +429,23 @@ namespace WiimoteGun.VMulti
             }
         }
 
+        // Embed a relative mouse report (EN/FR: Intégrer un rapport souris relative)
+        public void EmbedRelativeMouseReport(VMultiRelativeMouseReport relativeMouseReport)
+        {
+            ReportLength = (byte)Marshal.SizeOf(typeof(VMultiRelativeMouseReport));
+            
+            IntPtr ptr = Marshal.AllocHGlobal(ReportLength);
+            try
+            {
+                Marshal.StructureToPtr(relativeMouseReport, ptr, false);
+                Marshal.Copy(ptr, Data, 0, ReportLength);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(ptr);
+            }
+        }
+
         // Embed a gamepad report (EN/FR: Intégrer un rapport gamepad)
         public void EmbedGamepadReport(VMultiGamepadReport gamepadReport)
         {

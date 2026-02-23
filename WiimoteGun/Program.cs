@@ -44,7 +44,23 @@ namespace WiimoteGun
         static IRVisualizerForm _irVisualizerForm; // Single instance of IR Visualizer (EN/FR: Instance unique IR Visualizer)
         static MessageWindow _messageWindow; // IPC window for -refresh command (EN/FR: Fenêtre IPC pour commande -refresh)
         static string _activeRemapProfile = null; // Active remap profile path (EN/FR: Chemin du profil remap actif)
+        static string _activeGamePadProfile = null; // Active GamePad profile path (EN/FR: Chemin du profil GamePad actif)
         static bool _menuMode = false; // Menu mode flag for windowed overlay (EN/FR: Drapeau mode menu pour overlay fenêtré)
+        
+        static string _lastDetectedGame = null;
+        static string _lastDetectedGamePath = null;
+        static int _lastDetectedProcessId = 0;
+        static string _autoLoadedGameExe = null;
+        static string _autoLoadedGamePadExe = null;
+        static bool _manualProfileOverride = false;
+        static bool _manualGamePadProfileOverride = false;
+        static bool _defaultProfileLoadAttempted = false;
+        static System.Threading.Timer _gameDetectionTimer;
+        static ProfileOverlay _profileOverlay;
+        static WindowsFormsSynchronizationContext _synchronizationContext;
+
+        public static string LastDetectedGameName { get { return _lastDetectedGame; } }
+        public static string LastDetectedGamePath { get { return _lastDetectedGamePath; } }
 
         [STAThread]
         static void Main(string[] args)
@@ -481,459 +497,15 @@ namespace WiimoteGun
 
             var menuItems = new MenuItem[]
             {
-                new MenuItem("&Button Mapping", OnShowButtonMapping),
-                new MenuItem("&IR Visualizer", OnShowIRVisualizer),
-                new MenuItem("&Assign Wiimotes", (s,e) => {}) { Name = "AssignWiimotes" }, // Placeholder
-                new MenuItem("&Options", OnShowOptions),
+                new MenuItem("&Options", (s, e) => OpenWindowedOverlay()),
+                new MenuItem("Options (&legacy)", OnShowOptions),
+                new MenuItem("-"),
                 new MenuItem("&About", OnShowAbout),
                 new MenuItem("-"),
                 new MenuItem("&Exit", OnExitClicked)
             };
 
             _trayIcon.ContextMenu = new ContextMenu(menuItems);
-            _trayIcon.ContextMenu.Popup += OnContextMenuPopup;
-        }
-
-        private static void OnContextMenuPopup(object sender, EventArgs e)
-        {
-            var menu = sender as ContextMenu;
-            if (menu == null) return;
-
-            // Find the Assign Wiimotes menu item
-            MenuItem assignMenu = null;
-            foreach (MenuItem item in menu.MenuItems)
-            {
-                if (item.Name == "AssignWiimotes")
-                {
-                    assignMenu = item;
-                    break;
-                }
-            }
-
-            if (assignMenu == null) return;
-
-            assignMenu.MenuItems.Clear();
-
-            // Create submenus for P1 to P4
-            for (int i = 1; i <= 4; i++)
-            {
-                var playerMenu = new MenuItem($"Player {i}");
-                PopulatePlayerMenu(playerMenu, i);
-                assignMenu.MenuItems.Add(playerMenu);
-            }
-        }
-
-        private static void PopulatePlayerMenu(MenuItem playerMenu, int playerIndex)
-        {
-            var controllers = _wiiMoteManager.GetControllers();
-            // Removed Wiimote MAC assignment (Legacy/Bluetooth only)
-            // (EN/FR: Suppression assignation MAC Wiimote)
-
-
-            // Add separator and Mouse Device submenu (EN/FR: Ajouter séparateur et sous-menu Souris)
-            playerMenu.MenuItems.Add("-");
-            var mouseSubmenu = new MenuItem("🖱️ Mouse Device");
-            PopulateMouseDeviceMenu(mouseSubmenu, playerIndex);
-            playerMenu.MenuItems.Add(mouseSubmenu);
-            
-            // Add Keyboard Device submenu (EN/FR: Ajouter sous-menu Clavier)
-            var keyboardSubmenu = new MenuItem("⌨️ Keyboard Device");
-            PopulateKeyboardDeviceMenu(keyboardSubmenu, playerIndex);
-            playerMenu.MenuItems.Add(keyboardSubmenu);
-            
-            // Add Rumble Settings submenu (EN/FR: Ajouter sous-menu Paramètres Vibration)
-            var rumbleSubmenu = new MenuItem("💥 Rumble Settings");
-            PopulateRumbleMenu(rumbleSubmenu, playerIndex);
-            playerMenu.MenuItems.Add(rumbleSubmenu);
-        }
-
-        private static void PopulateMouseDeviceMenu(MenuItem mouseMenu, int playerIndex)
-        {
-            // Check if VMulti Auto-Lock is active for this player (EN/FR: Vérifier si Auto-Lock VMulti est actif pour ce joueur)
-            if (VMultiDeviceDetector.ShouldLockPlayerDevices(playerIndex))
-            {
-                var lockItem = new MenuItem($"🔒 Locked to VMulti Player {playerIndex}");
-                lockItem.Enabled = false;
-                mouseMenu.MenuItems.Add(lockItem);
-                return;
-            }
-
-            string currentPreferred = Options.Instance.GetPreferredMouseId(playerIndex);
-
-            // Add "None (Auto)" option (EN/FR: Ajouter option "Aucune (Auto)")
-            var noneItem = new MenuItem("None (Auto)");
-            noneItem.Checked = string.IsNullOrEmpty(currentPreferred);
-            noneItem.Click += (s, e) => SetPreferredMouse(playerIndex, "");
-            mouseMenu.MenuItems.Add(noneItem);
-            mouseMenu.MenuItems.Add("-");
-
-            // Scan for mice using Interception (EN/FR: Scanner les souris avec Interception)
-            var detectedMice = new System.Collections.Generic.List<(int deviceId, string hardwareId)>();
-            
-            // 1. Manually check for VMulti Mice (SetupAPI) to ensure they are listed even if Interception scan misses them originally
-            // (EN/FR: Vérifier manuellement les souris VMulti (SetupAPI) pour assurer qu'elles sont listées même si le scan Interception les manque)
-            string[] vMultiSuffixes = { "vmultia", "vmultib", "vmultic", "vmultid" };
-            for (int p = 1; p <= 4; p++)
-            {
-                string suffix = vMultiSuffixes[p-1];
-                string uniqueId = WiimoteGun.DeviceHelper.FindVMultiMouseUniqueId(suffix);
-                
-                if (!string.IsNullOrEmpty(uniqueId) && uniqueId != "Unknown")
-                {
-                    // Construct hardware ID compatible with our preferences
-                    string vid = (p == 1) ? "001F" : (p == 2) ? "002F" : (p == 3) ? "003F" : "004F";
-                    string vmultiId = $"HID\\{suffix}&Col03HID\\VID_{vid}&UP:0001_U:0002HID_DEVICE_SYSTEM_MOUSEHID_DEVICE_UP:0001_U:0002HID_DEVICE";
-                    
-                    // Add to detected list with a fake device ID (e.g. 90+p) just for the menu list
-                    // The actual device ID will be resolved at runtime
-                    detectedMice.Add((90 + p, vmultiId));
-                    SimpleLogger.Instance.Info($"[MENU] Added VMulti Mouse P{p} (SetupAPI)");
-                }
-            }
-
-            // Interception scan removed
-
-
-            if (detectedMice.Count == 0)
-            {
-                var noDevItem = new MenuItem("No mice detected");
-                    noDevItem.Enabled = false;
-                mouseMenu.MenuItems.Add(noDevItem);
-                return;
-            }
-
-            // Get currently active mouse for this player (EN/FR: Récupérer souris active pour ce joueur)
-            int activeMouseId = -1;
-            var playerController = _wiiMoteManager?.GetControllers().FirstOrDefault(c => c.PlayerIndex == playerIndex);
-            // Interception logic removed
-
-
-            // Build list of mice already assigned to other players (EN/FR: Liste souris assignées à d'autres joueurs)
-            var assignedMice = new System.Collections.Generic.HashSet<string>();
-            for (int p = 1; p <= 4; p++)
-            {
-                if (p == playerIndex) continue; // Skip current player
-                string otherPreferred = Options.Instance.GetPreferredMouseId(p);
-                if (!string.IsNullOrEmpty(otherPreferred))
-                {
-                    assignedMice.Add(otherPreferred);
-                }
-            }
-
-            // Check for duplicates (same VID/PID) to decide if we need unique Instance Path
-            var vidPidGroups = new System.Collections.Generic.Dictionary<string, int>();
-            foreach (var (deviceId, hardwareId) in detectedMice)
-            {
-                var vidPidResult = DeviceHelper.ExtractVidPid(hardwareId);
-                string vid = vidPidResult.Vid;
-                string pid = vidPidResult.Pid;
-                if (vid != null)
-                {
-                    string vidPidKey = pid != null ? $"VID_{vid}&PID_{pid}" : $"VID_{vid}";
-                    if (!vidPidGroups.ContainsKey(vidPidKey))
-                        vidPidGroups[vidPidKey] = 0;
-                    vidPidGroups[vidPidKey]++;
-                }
-            }
-
-            // Add each detected mouse (EN/FR: Ajouter chaque souris détectée)
-            foreach (var (deviceId, hardwareId) in detectedMice)
-            {
-                SimpleLogger.Instance.Info($"[MOUSE DETECTION] Device {deviceId} - Hardware ID: {hardwareId}");
-                
-                var vidPidResult = DeviceHelper.ExtractVidPid(hardwareId);
-                string vid = vidPidResult.Vid;
-                string pid = vidPidResult.Pid;
-                
-                SimpleLogger.Instance.Info($"[MOUSE DETECTION] Device {deviceId} - Extracted VID: {vid}, PID: {pid}");
-                
-                if (vid == null)
-                {
-                    // Fallback for unrecognized format
-                    var item = new MenuItem($"Mouse {deviceId} (Unknown)");
-                    item.Click += (s, e) => SetPreferredMouse(playerIndex, hardwareId);
-                    mouseMenu.MenuItems.Add(item);
-                    continue;
-                }
-
-                string vidPidKey = pid != null ? $"VID_{vid}&PID_{pid}" : $"VID_{vid}";
-                bool isDuplicate = vidPidGroups.ContainsKey(vidPidKey) && vidPidGroups[vidPidKey] > 1;
-
-                // Get friendly name (EN/FR: Récupérer nom commercial)
-                // Pass hardwareId (full path) to enable robust VMulti detection
-                string friendlyName = DeviceHelper.GetDeviceFriendlyName(vidPidKey, hardwareId);
-                
-                SimpleLogger.Instance.Info($"[MOUSE DETECTION] Device {deviceId} - Friendly name: {friendlyName ?? "NOT FOUND"}");
-                
-                // Build display name (EN/FR: Construire nom d'affichage)
-                string displayName;
-                if (!string.IsNullOrEmpty(friendlyName))
-                {
-                    displayName = $"{friendlyName}";
-                    if (isDuplicate)
-                        displayName += $" #{deviceId}"; // Add ID if duplicate
-                }
-                else
-                {
-                    displayName = $"Mouse {deviceId} ({vidPidKey})";
-                }
-
-                // Add "(Active)" if this is the currently active mouse for this player
-                if (deviceId == activeMouseId)
-                {
-                    displayName += " (Active)";
-                }
-
-                // Determine what to save (EN/FR: Déterminer quoi sauvegarder)
-                string identifierToSave = isDuplicate ? hardwareId : vidPidKey;
-
-                // Check if already assigned to another player
-                bool isAssignedToOther = assignedMice.Contains(identifierToSave) || 
-                                          assignedMice.Any(assigned => hardwareId.IndexOf(assigned, StringComparison.OrdinalIgnoreCase) >= 0);
-
-                var menuItem = new MenuItem(displayName);
-                menuItem.Checked = !string.IsNullOrEmpty(currentPreferred) && 
-                                   (hardwareId.IndexOf(currentPreferred, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                    currentPreferred.IndexOf(vidPidKey, StringComparison.OrdinalIgnoreCase) >= 0);
-                menuItem.Enabled = !isAssignedToOther; // Disable if assigned to another player
-                menuItem.Click += (s, e) => SetPreferredMouse(playerIndex, identifierToSave);
-                mouseMenu.MenuItems.Add(menuItem);
-            }
-        }
-
-        private static void PopulateKeyboardDeviceMenu(MenuItem keyboardMenu, int playerIndex)
-        {
-            // Check if VMulti Auto-Lock is active for this player (EN/FR: Vérifier si Auto-Lock VMulti est actif pour ce joueur)
-            if (VMultiDeviceDetector.ShouldLockPlayerDevices(playerIndex))
-            {
-                var lockItem = new MenuItem($"🔒 Locked to VMulti Player {playerIndex}");
-                lockItem.Enabled = false;
-                keyboardMenu.MenuItems.Add(lockItem);
-                return;
-            }
-
-            string currentPreferred = Options.Instance.GetPreferredKeyboardId(playerIndex);
-
-            // Add "None (Auto)" option (EN/FR: Ajouter option "Aucun (Auto)")
-            var noneItem = new MenuItem("None (Auto)");
-            noneItem.Checked = string.IsNullOrEmpty(currentPreferred);
-            noneItem.Click += (s, e) => SetPreferredKeyboard(playerIndex, "");
-            keyboardMenu.MenuItems.Add(noneItem);
-            keyboardMenu.MenuItems.Add("-");
-
-            // Get all controllers to check which keyboards are currently active (EN/FR: Obtenir tous les contrôleurs pour vérifier quels claviers sont actifs)
-            var controllers = _wiiMoteManager?.GetControllers();
-            if (controllers == null || !controllers.Any())
-            {
-                var noDevItem = new MenuItem("No controllers connected");
-                noDevItem.Enabled = false;
-                keyboardMenu.MenuItems.Add(noDevItem);
-                return;
-            }
-
-            // Get list of keyboards already assigned to other players (EN/FR: Liste des claviers déjà assignés)
-            var assignedKeyboards = new List<string>();
-            foreach (int p in new[] { 1, 2, 3, 4 })
-            {
-                if (p == playerIndex) continue;
-                string otherPreferred = Options.Instance.GetPreferredKeyboardId(p);
-                if (!string.IsNullOrEmpty(otherPreferred))
-                    assignedKeyboards.Add(otherPreferred);
-            }
-
-            // Get available keyboards with names and hardware IDs (EN/FR: Obtenir claviers avec noms et IDs matériels)
-            // Interception keyboard scan removed
-            var availableKeyboards = new System.Collections.Generic.Dictionary<int, string>(); // Empty
-            var hardwareIds = new System.Collections.Generic.Dictionary<int, string>();
-
-            
-            if (availableKeyboards.Count == 0)
-            {
-                var noKbdItem = new MenuItem("No keyboards detected");
-                noKbdItem.Enabled = false;
-                keyboardMenu.MenuItems.Add(noKbdItem);
-            }
-
-            foreach (var kvp in availableKeyboards)
-            {
-                int deviceId = kvp.Key;
-                string displayName = kvp.Value;
-                
-                // Get hardware ID for this keyboard (EN/FR: Récupérer ID matériel pour ce clavier)
-                string hardwareId = hardwareIds.ContainsKey(deviceId) ? hardwareIds[deviceId] : null;
-                if (string.IsNullOrEmpty(hardwareId))
-                    continue; // Skip keyboards without valid hardware ID
-
-                // Check if this keyboard is currently active for this player (EN/FR: Vérifier si ce clavier est actif pour ce joueur)
-                var controller = controllers.FirstOrDefault(c => c.PlayerIndex == playerIndex);
-                bool isActive = false;
-                if (controller != null && controller.VirtualJoy is IVirtualJoy kbd)
-                {
-                     // Interception keyboard check removed
-                }
-                
-                if (isActive)
-                    displayName += " (Active)";
-
-                // Check if assigned to another player (EN/FR: Vérifier si assigné à un autre joueur)
-                bool isAssignedToOther = assignedKeyboards.Contains(hardwareId);
-
-                var menuItem = new MenuItem(displayName);
-                menuItem.Checked = !string.IsNullOrEmpty(currentPreferred) && currentPreferred == hardwareId;
-                menuItem.Enabled = !isAssignedToOther; // Disable if assigned to another player
-                menuItem.Click += (s, e) => SetPreferredKeyboard(playerIndex, hardwareId);
-                keyboardMenu.MenuItems.Add(menuItem);
-            }
-        }
-
-        private static void SetPreferredKeyboard(int playerIndex, string deviceId)
-        {
-            Options.Instance.SetPreferredKeyboardId(playerIndex, deviceId);
-            SimpleLogger.Instance.Info($"Set preferred keyboard for Player {playerIndex}: {(string.IsNullOrEmpty(deviceId) ? "Auto" : deviceId)}");
-            
-            // Refresh keyboard assignment for active controller (EN/FR: Rafraîchir l'assignation clavier pour contrôleur actif)
-            var controllers = _wiiMoteManager.GetControllers();
-            var controller = controllers.FirstOrDefault(c => c.PlayerIndex == playerIndex);
-            if (controller != null && controller.VirtualJoy != null)
-            {
-                // Interception keyboard refresh removed
-            }
-            SimpleLogger.Instance.Info($"Refreshed keyboard device assignment for Player {playerIndex}");
-        }
-
-        private static void SetPreferredMouse(int playerIndex, string hardwareId)
-        {
-            Options.Instance.SetPreferredMouseId(playerIndex, hardwareId);
-            SimpleLogger.Instance.Info($"Set preferred mouse for Player {playerIndex}: {(string.IsNullOrEmpty(hardwareId) ? "Auto" : hardwareId)}");
-            
-            // Refresh mouse assignment for all controllers (EN/FR: Rafraîchir l'assignation souris pour tous les contrôleurs)
-
-            SimpleLogger.Instance.Info($"Refreshed mouse device assignments");
-        }
-
-        private static void PopulateRumbleMenu(MenuItem rumbleMenu, int playerIndex)
-        {
-            // Enable Rumble checkbox (EN/FR: Case à cocher Activer Vibration)
-            var enableItem = new MenuItem("✓ Enable Weapon Rumble");
-            enableItem.Checked = Options.Instance.GetEnableWeaponRumble(playerIndex);
-            enableItem.Click += (s, e) =>
-            {
-                bool newValue = !Options.Instance.GetEnableWeaponRumble(playerIndex);
-                switch (playerIndex)
-                {
-                    case 1: Options.Instance.EnableWeaponRumble_P1 = newValue; break;
-                    case 2: Options.Instance.EnableWeaponRumble_P2 = newValue; break;
-                    case 3: Options.Instance.EnableWeaponRumble_P3 = newValue; break;
-                    case 4: Options.Instance.EnableWeaponRumble_P4 = newValue; break;
-                }
-                Options.Instance.Save();
-            };
-            rumbleMenu.MenuItems.Add(enableItem);
-            
-            // Continuous Fire checkbox (EN/FR: Case à cocher Tir Continu)
-            var continuousItem = new MenuItem("✓ Continuous Fire Rumble");
-            continuousItem.Checked = Options.Instance.GetAllowContinuousRumble(playerIndex);
-            continuousItem.Click += (s, e) =>
-            {
-                bool newValue = !Options.Instance.GetAllowContinuousRumble(playerIndex);
-                switch (playerIndex)
-                {
-                    case 1: Options.Instance.AllowContinuousRumble_P1 = newValue; break;
-                    case 2: Options.Instance.AllowContinuousRumble_P2 = newValue; break;
-                    case 3: Options.Instance.AllowContinuousRumble_P3 = newValue; break;
-                    case 4: Options.Instance.AllowContinuousRumble_P4 = newValue; break;
-                }
-                Options.Instance.Save();
-            };
-            rumbleMenu.MenuItems.Add(continuousItem);
-            
-            rumbleMenu.MenuItems.Add("-");
-            
-            // Intensity submenu (EN/FR: Sous-menu Intensité)
-            var intensityMenu = new MenuItem("🔊 Intensity");
-            int currentIntensity = Options.Instance.GetRumbleIntensity(playerIndex);
-            foreach (int intensity in new[] { 55, 75, 100 })
-            {
-                var item = new MenuItem($"{intensity}%");
-                item.Checked = (currentIntensity == intensity);
-                item.Click += (s, e) =>
-                {
-                    switch (playerIndex)
-                    {
-                        case 1: Options.Instance.RumbleIntensity_P1 = intensity; break;
-                        case 2: Options.Instance.RumbleIntensity_P2 = intensity; break;
-                        case 3: Options.Instance.RumbleIntensity_P3 = intensity; break;
-                        case 4: Options.Instance.RumbleIntensity_P4 = intensity; break;
-                    }
-                    Options.Instance.Save();
-                };
-                intensityMenu.MenuItems.Add(item);
-            }
-            rumbleMenu.MenuItems.Add(intensityMenu);
-            
-            // Duration submenu (EN/FR: Sous-menu Durée)
-            var durationMenu = new MenuItem("⏱️ Duration");
-            int currentDuration = Options.Instance.GetRumbleDurationMs(playerIndex);
-            foreach (int duration in new[] { 40, 60, 80, 100, 150, 200 })
-            {
-                var item = new MenuItem($"{duration}ms");
-                item.Checked = (currentDuration == duration);
-                item.Click += (s, e) =>
-                {
-                    switch (playerIndex)
-                    {
-                        case 1: Options.Instance.RumbleDurationMs_P1 = duration; break;
-                        case 2: Options.Instance.RumbleDurationMs_P2 = duration; break;
-                        case 3: Options.Instance.RumbleDurationMs_P3 = duration; break;
-                        case 4: Options.Instance.RumbleDurationMs_P4 = duration; break;
-                    }
-                    Options.Instance.Save();
-                };
-                durationMenu.MenuItems.Add(item);
-            }
-            rumbleMenu.MenuItems.Add(durationMenu);
-            
-            // Repetition Interval submenu (EN/FR: Sous-menu Intervalle Répétition)
-            var repetitionMenu = new MenuItem("🔄 Repetition Interval");
-            int currentRepetition = Options.Instance.GetRumbleRepetitionMs(playerIndex);
-            foreach (int repetition in new[] { 50, 75, 100, 150, 200, 300 })
-            {
-                var item = new MenuItem($"{repetition}ms");
-                item.Checked = (currentRepetition == repetition);
-                item.Click += (s, e) =>
-                {
-                    switch (playerIndex)
-                    {
-                        case 1: Options.Instance.RumbleRepetitionMs_P1 = repetition; break;
-                        case 2: Options.Instance.RumbleRepetitionMs_P2 = repetition; break;
-                        case 3: Options.Instance.RumbleRepetitionMs_P3 = repetition; break;
-                        case 4: Options.Instance.RumbleRepetitionMs_P4 = repetition; break;
-                    }
-                    Options.Instance.Save();
-                };
-                repetitionMenu.MenuItems.Add(item);
-            }
-            rumbleMenu.MenuItems.Add(repetitionMenu);
-        }
-
-
-        private static void SetPreferredWiimote(int playerIndex, string mac)
-        {
-            switch (playerIndex)
-            {
-                case 1: Options.Instance.PreferredMacP1 = mac; break;
-                case 2: Options.Instance.PreferredMacP2 = mac; break;
-                case 3: Options.Instance.PreferredMacP3 = mac; break;
-                case 4: Options.Instance.PreferredMacP4 = mac; break;
-            }
-            Options.Instance.Save();
-            
-            string msg = string.IsNullOrEmpty(mac) 
-                ? $"Player {playerIndex} preference cleared." 
-                : $"Player {playerIndex} assigned to Wiimote {mac}.";
-            
-            msg += "\n\nChanges will take effect on next connection/restart.";
-            MessageBox.Show(msg, "Wiimote Assignment", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         public static void SetConnectedState(bool connected)
@@ -1155,7 +727,6 @@ namespace WiimoteGun
             Application.Exit();
         }
 
-        private static SynchronizationContext _synchronizationContext;
 
         public static SynchronizationContext SynchronizationContext
         {
@@ -1306,7 +877,7 @@ namespace WiimoteGun
                 // Check for -remap argument (EN/FR: Vérifier argument -remap)
                 if ((args[i].ToLower() == "-remap" || args[i].ToLower() == "/remap") && i < args.Length - 1)
                 {
-                    _activeRemapProfile = args[i + 1];
+                    _activeRemapProfile = args[i + 1]?.Replace('\\', '/');
                     SimpleLogger.Instance.Info($"Remap profile argument detected: {_activeRemapProfile}");
                 }
                 
@@ -1391,6 +962,10 @@ namespace WiimoteGun
                 SimpleLogger.Instance.Info($"Applying remap profile: {profile.ProfileName}");
                 ApplyProfileToOptions(profile);
                 
+                // EN: Always attempt to load default GamePad profile when a remap profile (mouse) is loaded
+                // FR: Toujours essayer de charger le profil GamePad par défaut quand un profil remap (souris) est chargé
+                RevertToDefaultGamePadProfile();
+                
                 // Notify user that profile was loaded (EN/FR: Notifier l'utilisateur du chargement)
                 // Delay notification to avoid overlap with Wiimote connection notifications
                 // (EN/FR: Retarder notification pour éviter chevauchement avec connexion Wiimote)
@@ -1416,9 +991,34 @@ namespace WiimoteGun
             }
             else
             {
-                SimpleLogger.Instance.Info("No remap profile loaded, using settings.cfg mappings");
+                SimpleLogger.Instance.Info("No remap profile found, reverting to Factory Default (Mouse/IR)");
+                
+                // EN: Force factory default mappings if no .remap file exists
+                // FR: Forcer les mappings d'usine si aucun fichier .remap n'existe
+                ApplyProfileToOptions(new RemapProfile { ProfileName = "Factory Default" });
+                
+                // EN: Also try to load default GamePad profile
+                // FR: Essayer aussi de charger le profil GamePad par défaut
+                RevertToDefaultGamePadProfile();
+                
                 return false;
             }
+        }
+
+        /// <summary>
+        /// EN: Apply a GamePad profile to current Options instance.
+        /// FR: Appliquer un profil GamePad à l'instance Options actuelle.
+        /// </summary>
+        public static void ApplyGamePadProfileToOptions(GamePadProfile profile)
+        {
+            if (profile == null) return;
+            
+            Options.Instance.P1GamePadMappings.CopyFrom(profile.P1Mappings);
+            Options.Instance.P2GamePadMappings.CopyFrom(profile.P2Mappings);
+            Options.Instance.P3GamePadMappings.CopyFrom(profile.P3Mappings);
+            Options.Instance.P4GamePadMappings.CopyFrom(profile.P4Mappings);
+            
+            SimpleLogger.Instance.Info($"Applied GamePad profile: {profile.ProfileName}");
         }
 
         /// <summary>
@@ -1479,15 +1079,21 @@ namespace WiimoteGun
         {
             return _activeRemapProfile;
         }
-        // Overlay and Auto-load fields (EN/FR: Champs Overlay et Auto-load)
-        private static ProfileOverlay _profileOverlay;
-        private static System.Threading.Timer _gameDetectionTimer;
-        private static string _lastDetectedGame = null;
 
-        static bool _manualProfileOverride = false; // Flag to prevent auto-load when user manually loaded a profile (EN/FR: Flag pour empêcher auto-load si chargement manuel)
-        static string _autoLoadedGameExe = ""; // Track which game triggered auto-load (EN/FR: Suivre quel jeu a déclenché auto-load)
-        static bool _defaultProfileLoadAttempted = false; // Track if we tried to load default profile (EN/FR: Suivre si tentative chargement profil défaut)
-        private static int _lastDetectedProcessId = 0; // Track process ID instead of just exe name
+        /// <summary>
+        /// Get active gamepad profile name (EN/FR: Obtenir le nom du profil gamepad actif)
+        /// </summary>
+        public static string GetActiveGamePadProfileName()
+        {
+            if (!string.IsNullOrEmpty(_activeGamePadProfile))
+            {
+                return System.IO.Path.GetFileNameWithoutExtension(_activeGamePadProfile);
+            }
+            return "Default";
+        }
+
+        // Overlay and Auto-load fields (EN/FR: Champs Overlay et Auto-load)
+        // Overlay and Auto-load fields are now defined at the top of the class
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
@@ -1550,17 +1156,9 @@ namespace WiimoteGun
                 // Deferred default profile load (EN/FR: Chargement différé profil par défaut)
                 if (string.IsNullOrEmpty(_activeRemapProfile) && !_manualProfileOverride && !_defaultProfileLoadAttempted)
                 {
-                    _defaultProfileLoadAttempted = true;
-                    var profile = RemapProfileManager.LoadDefaultProfile();
-                    if (profile != null)
-                    {
-                        SimpleLogger.Instance.Info("Loading deferred default.remap");
-                        ApplyProfileToOptions(profile);
-                        _activeRemapProfile = "default.remap";
-                        
-                        // Notify user (EN/FR: Notifier utilisateur)
-                        _synchronizationContext.Post(_ => Notify("Default profile loaded"), null);
-                    }
+                    // ApplyRemapProfile handles the logic and connected count check
+                    // (EN/FR: ApplyRemapProfile gère la logique et le check du nombre de connectés)
+                    ApplyRemapProfile();
                 }
 
                 IntPtr hwnd = GetForegroundWindow();
@@ -1676,21 +1274,58 @@ namespace WiimoteGun
                     if (exeName != _lastDetectedGame || _lastDetectedProcessId != processId)
                     {
                         _lastDetectedGame = exeName;
+                        _lastDetectedGamePath = exePath; // Store path (EN/FR: Sauvegarder chemin)
                         _lastDetectedProcessId = (int)processId;
                         
                         // Pass full path for strict matching (EN/FR: Passer chemin complet pour correspondance stricte)
                         string profilePath = GameProfileMappingManager.GetProfileForGame(exeName, exePath);
                         bool hasMapping = !string.IsNullOrEmpty(profilePath);
 
+                        // Prevent auto-load if editing (EN/FR: Empêcher chargement auto si édition en cours)
+                        if (_profileOverlay != null && _profileOverlay.IsEditing)
+                        {
+                            SimpleLogger.Instance.Info($"Checking game: {exeName} - Editing active, skipping profile switch.");
+                            return; 
+                        }
+
                         // Only apply size filters if no mapping exists
                         // (EN/FR: Appliquer filtres taille seulement si aucun mapping n'existe)
                         if (!hasMapping && !isGameLikeSize && !isLargeWindow && !isClassicGameResolution)
                         {
-                            // Not a game-sized window and not mapped, skip (EN/FR: Pas taille jeu et pas mappé, ignorer)
+                            // EN: If focus lost to non-game and we had something auto-loaded, REVERT.
+                            // FR: Si perte de focus vers un non-jeu et qu'on avait un autoload, REVENIR.
+                            if (_autoLoadedGameExe != null || _autoLoadedGamePadExe != null)
+                            {
+                                SimpleLogger.Instance.Info($"Focus lost to non-game/unmapped window: {exeName} (Size: {windowWidth}x{windowHeight}). Reverting profile...");
+                                _synchronizationContext.Post(_ => 
+                                {
+                                     // Reset tracked state before revert (EN/FR: Reset état avant réversion)
+                                    _autoLoadedGameExe = null;
+                                    _autoLoadedGamePadExe = null;
+                                    _lastDetectedGame = exeName;
+                                    _lastDetectedProcessId = (int)processId;
+                                    _lastDetectedGamePath = exePath;
+                                    _manualProfileOverride = false;
+                                    _manualGamePadProfileOverride = false;
+                                    RevertToDefaultProfile();
+                                }, null);
+                            }
+                            else
+                            {
+                                // Just update tracking so we don't spam checking the same non-game window
+                                // (EN/FR: Juste mettre à jour le suivi pour ne pas scanner en boucle la même fenêtre non-jeu)
+                                _lastDetectedGame = exeName;
+                                _lastDetectedGamePath = exePath;
+                                _lastDetectedProcessId = (int)processId;
+                            }
                             return;
                         }
                         
                         SimpleLogger.Instance.Info($"Foreground changed to: {exeName} ({windowWidth}x{windowHeight}, Screen {screenIndex}: {screenWidth}x{screenHeight}, Coverage: {widthCoverage*100:F0}%x{heightCoverage*100:F0}%, Path: {exePath})");
+
+                        // =========================================================================================
+                        // MOUSE REMAP PROFILE LOGIC
+                        // =========================================================================================
 
                         if (hasMapping)
                         {
@@ -1723,6 +1358,30 @@ namespace WiimoteGun
                         {
                             SimpleLogger.Instance.Info($"No profile mapping found for: {exeName} [{exePath}]");
                         }
+
+                        // =========================================================================================
+                        // GAMEPAD PROFILE LOGIC (EN/FR: LOGIQUE PROFIL GAMEPAD)
+                        // =========================================================================================
+                        
+                        string gamePadProfilePath = GameProfileMappingManager.GetGamePadProfileForGame(exeName, exePath);
+                        bool hasGamePadMapping = !string.IsNullOrEmpty(gamePadProfilePath);
+
+                        if (hasGamePadMapping)
+                        {
+                            SimpleLogger.Instance.Info($"Found GamePad mapping: {exeName} -> {gamePadProfilePath}");
+                            
+                            if (!_manualGamePadProfileOverride && _autoLoadedGamePadExe != exeName)
+                            {
+                                 _synchronizationContext.Post(_ => 
+                                {
+                                    SimpleLogger.Instance.Info($"Auto-loading GamePad profile for {exeName}: {gamePadProfilePath}");
+                                    LoadGamePadProfileHot(gamePadProfilePath);
+                                    _autoLoadedGamePadExe = exeName;
+                                    string profileName = System.IO.Path.GetFileNameWithoutExtension(gamePadProfilePath);
+                                    Notify($"GamePad Profile auto-loaded for {exeName}: {profileName}");
+                                }, null);
+                            }
+                        }
                     }
                 }
             }
@@ -1745,16 +1404,30 @@ namespace WiimoteGun
                 catch
                 {
                     // Process has exited, revert to default (EN/FR: Processus terminé, revenir par défaut)
-                    if (_autoLoadedGameExe != null)
+                    if (_autoLoadedGameExe != null || _autoLoadedGamePadExe != null || _lastDetectedProcessId != 0)
                     {
                         _synchronizationContext.Post(_ =>
                         {
-                            SimpleLogger.Instance.Info($"Game {_autoLoadedGameExe} exited, reverting to default profile");
-                            RevertToDefaultProfile();
+                            string oldGame = _lastDetectedGame;
                             _autoLoadedGameExe = null;
+                            _autoLoadedGamePadExe = null;
                             _lastDetectedProcessId = 0;
                             _lastDetectedGame = null;
+                            _lastDetectedGamePath = null;
                             _manualProfileOverride = false; // Reset override for next game
+                            _manualGamePadProfileOverride = false;
+                            
+                            // Only revert if we are NOT editing (EN/FR: Revenir seulement si pas en édition)
+                            if (_profileOverlay != null && _profileOverlay.IsEditing)
+                            {
+                                SimpleLogger.Instance.Info($"Process {oldGame} exited, but Editing active - NOT reverting profile.");
+                            }
+                            else
+                            {
+                                SimpleLogger.Instance.Info($"Process {oldGame} exited, reverting to default profile");
+                                RevertToDefaultProfile();
+                                // RevertToDefaultGamePadProfile is called inside RevertToDefaultProfile
+                            }
                         }, null);
                     }
                 }
@@ -1766,7 +1439,8 @@ namespace WiimoteGun
             try
             {
                 SimpleLogger.Instance.Info($"Hot loading profile: {profilePath} (Manual: {isManualLoad})");
-                _activeRemapProfile = profilePath;
+                // Normalize path to forward slashes for internal consistency (EN/FR: Normaliser pour cohérence interne)
+                _activeRemapProfile = profilePath?.Replace('\\', '/');
                 
                 // Force Apply
                 if (ApplyRemapProfile())
@@ -1793,12 +1467,67 @@ namespace WiimoteGun
             try
             {
                 _activeRemapProfile = null; // Will cause ApplyRemapProfile to load default.remap or settings.cfg
+                
+                // EN: ApplyRemapProfile now handles both Mouse/IR and GamePad default profiles
+                // FR: ApplyRemapProfile gère maintenant les profils par défaut Mouse/IR et GamePad
                 ApplyRemapProfile();
+                
                 Options.Instance.Save();
             }
             catch (Exception ex)
             {
                 SimpleLogger.Instance.Error($"Failed to revert profile: {ex.Message}");
+            }
+        }
+        
+        public static void LoadGamePadProfileHot(string profilePath, bool isManualLoad = false)
+        {
+            try
+            {
+                SimpleLogger.Instance.Info($"Hot loading GamePad profile: {profilePath} (Manual: {isManualLoad})");
+                _activeGamePadProfile = profilePath?.Replace('\\', '/');
+                
+                var profile = RemapProfileManager.LoadGamePadProfile(profilePath);
+                if (profile != null)
+                {
+                    ApplyGamePadProfileToOptions(profile);
+                    
+                    // Note: We don't have a specific "Apply" method for GamePads because they are polled directly from Options
+                    // but we should ensure saving if needed, or just keep in memory until exit?
+                    // Better to save to ensure consistency.
+                    Options.Instance.Save();
+                    
+                    if (isManualLoad) _manualGamePadProfileOverride = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error($"Failed to hot load GamePad profile: {ex.Message}");
+            }
+        }
+
+        public static void RevertToDefaultGamePadProfile()
+        {
+            try
+            {
+                _activeGamePadProfile = null;
+                var profile = RemapProfileManager.LoadDefaultGamePadProfile();
+                if (profile != null)
+                {
+                    SimpleLogger.Instance.Info("Reverting to default GamePad profile from: default.remap");
+                    ApplyGamePadProfileToOptions(profile);
+                    Options.Instance.Save();
+                }
+                else
+                {
+                    SimpleLogger.Instance.Info("No default.remap (GamePad) found, reverting to Factory Default");
+                    ApplyGamePadProfileToOptions(new GamePadProfile { ProfileName = "Factory Default" });
+                    Options.Instance.Save();
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error($"Failed to revert GamePad profile: {ex.Message}");
             }
         }
         

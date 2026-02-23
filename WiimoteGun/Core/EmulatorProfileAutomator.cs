@@ -85,7 +85,7 @@ namespace WiimoteGun.Core
                 {
                     // Filter active gamepads: Only controllers in GamePad mode with a valid DInput index 
                     // (EN/FR: Filtrer gamepads actifs : Uniquement contrôleurs en mode GamePad avec index DInput valide)
-                    if (c.DInputIndex > 0 && (c.Mode == WiiMoteMode.GamePad || c.Mode == WiiMoteMode.GamePad43))
+                    if (c.DInputIndex > 0 && (c.Mode == WiiMoteMode.GamePad || c.Mode == WiiMoteMode.GamePad43 || c.Mode == WiiMoteMode.GamePadFPS))
                     {
                         dinputIndices[c.PlayerIndex] = c.DInputIndex;
                         anyGamePadActive = true;
@@ -408,7 +408,7 @@ namespace WiimoteGun.Core
                     {
                         if (File.Exists(newPath)) File.Delete(newPath);
                         File.Move(file, newPath);
-                        SimpleLogger.Instance.Info(string.Format("[ProfileAutomator] Renamed Dolphin game setting: {0} -> {1}", fileName, Path.GetFileName(newPath)));
+                        SimpleLogger.Instance.Debug(string.Format("[ProfileAutomator] Renamed Dolphin game setting: {0} -> {1}", fileName, Path.GetFileName(newPath)));
                     }
                 }
                 catch (Exception ex)
@@ -817,7 +817,7 @@ EnableMouseMapping = false
                     {
                         if (File.Exists(newPath)) File.Delete(newPath);
                         File.Move(file, newPath);
-                        SimpleLogger.Instance.Info(string.Format("[ProfileAutomator] Renamed {0} game setting: {1} -> {2}", emuName, fileName, Path.GetFileName(newPath)));
+                        SimpleLogger.Instance.Debug(string.Format("[ProfileAutomator] Renamed {0} game setting: {1} -> {2}", emuName, fileName, Path.GetFileName(newPath)));
                     }
                 }
                 catch (Exception ex)

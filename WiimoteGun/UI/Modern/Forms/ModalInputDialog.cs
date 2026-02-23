@@ -38,6 +38,11 @@ namespace WiimoteGun
             this.Text = title;
             _promptLabel.Text = prompt;
         }
+
+        public ModalInputDialog(string title, string prompt, string defaultValue) : this(title, prompt)
+        {
+            _inputTextBox.Text = defaultValue;
+        }
         
 
 

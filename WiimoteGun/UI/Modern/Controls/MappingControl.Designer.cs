@@ -46,7 +46,6 @@ namespace WiimoteGun.Controls
             this.comboBoxSubfolders = new System.Windows.Forms.ComboBox();
             this.comboBoxProfiles = new System.Windows.Forms.ComboBox();
             this.chkAutoLoad = new System.Windows.Forms.CheckBox();
-            this.chkEnableGyro = new System.Windows.Forms.CheckBox();
             this.tabControlPlayers = new System.Windows.Forms.TabControl();
             this.tabPage1 = new System.Windows.Forms.TabPage();
             this.tabPage2 = new System.Windows.Forms.TabPage();
@@ -54,10 +53,11 @@ namespace WiimoteGun.Controls
             this.tabPage4 = new System.Windows.Forms.TabPage();
             this.panelMappingDisplay = new System.Windows.Forms.Panel();
             this.lblAssignStatus = new System.Windows.Forms.Label();
-            this.tabControlPlayers.SuspendLayout();
             this.comboActionSelector = new System.Windows.Forms.ComboBox();
             this.btnConfirmAssign = new System.Windows.Forms.Button();
             this.btnCancelAssign = new System.Windows.Forms.Button();
+            this.btnBack = new System.Windows.Forms.Button();
+            this.tabControlPlayers.SuspendLayout();
             this.SuspendLayout();
             // 
             // lblCurrentGame
@@ -67,7 +67,7 @@ namespace WiimoteGun.Controls
             this.lblCurrentGame.ForeColor = System.Drawing.Color.White;
             this.lblCurrentGame.Location = new System.Drawing.Point(10, 10);
             this.lblCurrentGame.Name = "lblCurrentGame";
-            this.lblCurrentGame.Size = new System.Drawing.Size(120, 15);
+            this.lblCurrentGame.Size = new System.Drawing.Size(116, 15);
             this.lblCurrentGame.TabIndex = 0;
             this.lblCurrentGame.Text = "Current Game: None";
             // 
@@ -78,7 +78,7 @@ namespace WiimoteGun.Controls
             this.lblLinkedExe.ForeColor = System.Drawing.Color.Gray;
             this.lblLinkedExe.Location = new System.Drawing.Point(10, 35);
             this.lblLinkedExe.Name = "lblLinkedExe";
-            this.lblLinkedExe.Size = new System.Drawing.Size(97, 15);
+            this.lblLinkedExe.Size = new System.Drawing.Size(99, 15);
             this.lblLinkedExe.TabIndex = 1;
             this.lblLinkedExe.Text = "Linked EXE: None";
             // 
@@ -89,7 +89,7 @@ namespace WiimoteGun.Controls
             this.lblProfileName.ForeColor = System.Drawing.Color.White;
             this.lblProfileName.Location = new System.Drawing.Point(10, 70);
             this.lblProfileName.Name = "lblProfileName";
-            this.lblProfileName.Size = new System.Drawing.Size(80, 15);
+            this.lblProfileName.Size = new System.Drawing.Size(79, 15);
             this.lblProfileName.TabIndex = 2;
             this.lblProfileName.Text = "Profile Name:";
             // 
@@ -100,7 +100,7 @@ namespace WiimoteGun.Controls
             this.lblSubfolder.ForeColor = System.Drawing.Color.White;
             this.lblSubfolder.Location = new System.Drawing.Point(10, 100);
             this.lblSubfolder.Name = "lblSubfolder";
-            this.lblSubfolder.Size = new System.Drawing.Size(63, 15);
+            this.lblSubfolder.Size = new System.Drawing.Size(61, 15);
             this.lblSubfolder.TabIndex = 3;
             this.lblSubfolder.Text = "Subfolder:";
             // 
@@ -111,7 +111,7 @@ namespace WiimoteGun.Controls
             this.lblLoadProfile.ForeColor = System.Drawing.Color.White;
             this.lblLoadProfile.Location = new System.Drawing.Point(10, 130);
             this.lblLoadProfile.Name = "lblLoadProfile";
-            this.lblLoadProfile.Size = new System.Drawing.Size(75, 15);
+            this.lblLoadProfile.Size = new System.Drawing.Size(73, 15);
             this.lblLoadProfile.TabIndex = 4;
             this.lblLoadProfile.Text = "Load Profile:";
             // 
@@ -122,7 +122,7 @@ namespace WiimoteGun.Controls
             this.lblQuickMappings.ForeColor = System.Drawing.Color.White;
             this.lblQuickMappings.Location = new System.Drawing.Point(10, 170);
             this.lblQuickMappings.Name = "lblQuickMappings";
-            this.lblQuickMappings.Size = new System.Drawing.Size(103, 15);
+            this.lblQuickMappings.Size = new System.Drawing.Size(97, 15);
             this.lblQuickMappings.TabIndex = 5;
             this.lblQuickMappings.Text = "Quick Mappings:";
             // 
@@ -200,7 +200,7 @@ namespace WiimoteGun.Controls
             // 
             this.btnGamePadMapping.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
             this.btnGamePadMapping.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnGamePadMapping.Font = new System.Drawing.Font("Segoe UI", 8F, System.Drawing.FontStyle.Bold);
+            this.btnGamePadMapping.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold);
             this.btnGamePadMapping.ForeColor = System.Drawing.Color.White;
             this.btnGamePadMapping.Location = new System.Drawing.Point(470, 165);
             this.btnGamePadMapping.Name = "btnGamePadMapping";
@@ -245,7 +245,7 @@ namespace WiimoteGun.Controls
             this.txtProfileName.ForeColor = System.Drawing.Color.White;
             this.txtProfileName.Location = new System.Drawing.Point(110, 67);
             this.txtProfileName.Name = "txtProfileName";
-            this.txtProfileName.Size = new System.Drawing.Size(200, 23);
+            this.txtProfileName.Size = new System.Drawing.Size(200, 20);
             this.txtProfileName.TabIndex = 13;
             // 
             // comboBoxSubfolders
@@ -257,7 +257,7 @@ namespace WiimoteGun.Controls
             this.comboBoxSubfolders.FormattingEnabled = true;
             this.comboBoxSubfolders.Location = new System.Drawing.Point(110, 97);
             this.comboBoxSubfolders.Name = "comboBoxSubfolders";
-            this.comboBoxSubfolders.Size = new System.Drawing.Size(200, 23);
+            this.comboBoxSubfolders.Size = new System.Drawing.Size(200, 21);
             this.comboBoxSubfolders.TabIndex = 14;
             this.comboBoxSubfolders.SelectedIndexChanged += new System.EventHandler(this.ComboBoxSubfolders_SelectedIndexChanged);
             // 
@@ -270,7 +270,7 @@ namespace WiimoteGun.Controls
             this.comboBoxProfiles.FormattingEnabled = true;
             this.comboBoxProfiles.Location = new System.Drawing.Point(110, 127);
             this.comboBoxProfiles.Name = "comboBoxProfiles";
-            this.comboBoxProfiles.Size = new System.Drawing.Size(200, 23);
+            this.comboBoxProfiles.Size = new System.Drawing.Size(200, 21);
             this.comboBoxProfiles.TabIndex = 15;
             this.comboBoxProfiles.SelectedIndexChanged += new System.EventHandler(this.ComboBoxProfiles_SelectedIndexChanged);
             // 
@@ -280,23 +280,11 @@ namespace WiimoteGun.Controls
             this.chkAutoLoad.ForeColor = System.Drawing.Color.White;
             this.chkAutoLoad.Location = new System.Drawing.Point(10, 655);
             this.chkAutoLoad.Name = "chkAutoLoad";
-            this.chkAutoLoad.Size = new System.Drawing.Size(151, 19);
+            this.chkAutoLoad.Size = new System.Drawing.Size(134, 17);
             this.chkAutoLoad.TabIndex = 16;
             this.chkAutoLoad.Text = "Auto-load for this game";
             this.chkAutoLoad.UseVisualStyleBackColor = true;
             this.chkAutoLoad.CheckedChanged += new System.EventHandler(this.ChkAutoLoad_CheckedChanged);
-            // 
-            // chkEnableGyro
-            // 
-            this.chkEnableGyro.AutoSize = true;
-            this.chkEnableGyro.ForeColor = System.Drawing.Color.White;
-            this.chkEnableGyro.Location = new System.Drawing.Point(200, 655);
-            this.chkEnableGyro.Name = "chkEnableGyro";
-            this.chkEnableGyro.Size = new System.Drawing.Size(136, 19);
-            this.chkEnableGyro.TabIndex = 17;
-            this.chkEnableGyro.Text = "Enable Gyro Aiming (In Development)";
-            this.chkEnableGyro.UseVisualStyleBackColor = true;
-            this.chkEnableGyro.CheckedChanged += new System.EventHandler(this.ChkEnableGyro_CheckedChanged);
             // 
             // tabControlPlayers
             // 
@@ -314,40 +302,40 @@ namespace WiimoteGun.Controls
             // tabPage1
             // 
             this.tabPage1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(40)))), ((int)(((byte)(40)))), ((int)(((byte)(40)))));
-            this.tabPage1.Location = new System.Drawing.Point(4, 24);
+            this.tabPage1.Location = new System.Drawing.Point(4, 22);
             this.tabPage1.Name = "tabPage1";
             this.tabPage1.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage1.Size = new System.Drawing.Size(532, 2);
+            this.tabPage1.Size = new System.Drawing.Size(532, 4);
             this.tabPage1.TabIndex = 0;
             this.tabPage1.Text = "Player 1";
             // 
             // tabPage2
             // 
             this.tabPage2.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(40)))), ((int)(((byte)(40)))), ((int)(((byte)(40)))));
-            this.tabPage2.Location = new System.Drawing.Point(4, 24);
+            this.tabPage2.Location = new System.Drawing.Point(4, 22);
             this.tabPage2.Name = "tabPage2";
             this.tabPage2.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage2.Size = new System.Drawing.Size(532, 2);
+            this.tabPage2.Size = new System.Drawing.Size(532, 4);
             this.tabPage2.TabIndex = 1;
             this.tabPage2.Text = "Player 2";
             // 
             // tabPage3
             // 
             this.tabPage3.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(40)))), ((int)(((byte)(40)))), ((int)(((byte)(40)))));
-            this.tabPage3.Location = new System.Drawing.Point(4, 24);
+            this.tabPage3.Location = new System.Drawing.Point(4, 22);
             this.tabPage3.Name = "tabPage3";
             this.tabPage3.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage3.Size = new System.Drawing.Size(532, 2);
+            this.tabPage3.Size = new System.Drawing.Size(532, 4);
             this.tabPage3.TabIndex = 2;
             this.tabPage3.Text = "Player 3";
             // 
             // tabPage4
             // 
             this.tabPage4.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(40)))), ((int)(((byte)(40)))), ((int)(((byte)(40)))));
-            this.tabPage4.Location = new System.Drawing.Point(4, 24);
+            this.tabPage4.Location = new System.Drawing.Point(4, 22);
             this.tabPage4.Name = "tabPage4";
             this.tabPage4.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage4.Size = new System.Drawing.Size(532, 2);
+            this.tabPage4.Size = new System.Drawing.Size(532, 4);
             this.tabPage4.TabIndex = 3;
             this.tabPage4.Text = "Player 4";
             // 
@@ -361,7 +349,6 @@ namespace WiimoteGun.Controls
             // 
             // lblAssignStatus
             // 
-            this.lblAssignStatus.AutoSize = false;
             this.lblAssignStatus.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
             this.lblAssignStatus.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.lblAssignStatus.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold);
@@ -383,7 +370,7 @@ namespace WiimoteGun.Controls
             this.comboActionSelector.FormattingEnabled = true;
             this.comboActionSelector.Location = new System.Drawing.Point(150, 460);
             this.comboActionSelector.Name = "comboActionSelector";
-            this.comboActionSelector.Size = new System.Drawing.Size(260, 23);
+            this.comboActionSelector.Size = new System.Drawing.Size(260, 21);
             this.comboActionSelector.TabIndex = 20;
             this.comboActionSelector.Visible = false;
             // 
@@ -419,7 +406,6 @@ namespace WiimoteGun.Controls
             // 
             // btnBack
             // 
-            this.btnBack = new System.Windows.Forms.Button();
             this.btnBack.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(40)))), ((int)(((byte)(40)))), ((int)(((byte)(40)))));
             this.btnBack.FlatAppearance.BorderSize = 0;
             this.btnBack.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
@@ -434,6 +420,7 @@ namespace WiimoteGun.Controls
             // 
             // MappingControl
             // 
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Transparent;
             this.Controls.Add(this.btnBack);
@@ -444,7 +431,6 @@ namespace WiimoteGun.Controls
             this.Controls.Add(this.panelMappingDisplay);
             this.Controls.Add(this.btnGamePadMapping);
             this.Controls.Add(this.tabControlPlayers);
-            this.Controls.Add(this.chkEnableGyro);
             this.Controls.Add(this.chkAutoLoad);
             this.Controls.Add(this.comboBoxProfiles);
             this.Controls.Add(this.comboBoxSubfolders);
@@ -490,7 +476,7 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.ComboBox comboBoxSubfolders;
         private System.Windows.Forms.ComboBox comboBoxProfiles;
         private System.Windows.Forms.CheckBox chkAutoLoad;
-        private System.Windows.Forms.CheckBox chkEnableGyro;
+
         private System.Windows.Forms.Panel panelMappingDisplay;
         private System.Windows.Forms.Label lblAssignStatus;
         private System.Windows.Forms.ComboBox comboActionSelector;

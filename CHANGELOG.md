@@ -4,6 +4,23 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.3.2.0] - 2026-02-23
+
+### Added
+- **FPS Mode (Alpha DEV)** - Unsatisfactory results (low frequency polling/stutter issues with current IR data).
+- **VMulti Resource Management** - Optimized HID handle sharing and fixed race conditions in the shared client pool.
+- **Improved Device Detection** - Faster startup by using static HID enumeration for availability checks.
+- **Hybrid GamePad Mode** - Ability to combine virtual gamepad inputs with mouse reports.
+- **Experimental Motion Gestures** - Support for Wiimote/Nunchuk accelerometer/gyroscope mapping.
+- **GamePad Profile Management** - Save/load and auto-link remap profiles.
+
+## [2.3.1.0] - 2026-02-18
+
+### Fixed
+- **MotionPlus + Nunchuk Hotplug** - Fixed a critical issue where hotplugging a Nunchuk into an active MotionPlus would fail to map the accelerometer or cause erratic joystick input.
+- **Linked Calibration** - Resolved a race condition where the Nunchuk calibration was being overwritten by MotionPlus passthrough garbage data (`0xA40040` remapping).
+- **Passthrough Stability** - Improved the initialization sequence for extensions connected via MotionPlus to ensure correct data parsing pattern (`00 00 00 ...`).
+
 ## [2.3.0.0] - 2026-02-16
 
 ### Added

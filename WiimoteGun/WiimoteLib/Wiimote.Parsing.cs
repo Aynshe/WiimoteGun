@@ -138,9 +138,11 @@ namespace WiimoteLib {
 							// extension connected?
 							Log.Debug($"Extension, Old: {extensionLast}, New: {extensionNew}");
 
-						if (extensionNew != extensionLast || extensionType == 0x04 || extensionType == 0x5) {
+						if (extensionNew != extensionLast || extensionType == 0x04 || extensionType == 0x05) {
 
-							if (wiimoteState.Extension && (extensionNew != extensionLast || wiimoteState.ExtensionType == ExtensionType.None)) {
+							// EN: Always re-initialize if it's a MotionPlus to detect Nunchuk passthrough changes
+							// FR: Toujours réinitialiser si c'est un MotionPlus pour détecter les changements de passthrough Nunchuk
+							if (wiimoteState.Extension && (extensionNew != extensionLast || wiimoteState.ExtensionType == ExtensionType.None || extensionType == 0x04 || extensionType == 0x05)) {
 								InitializeExtension(extensionType);
 								SetReportType(wiimoteState.ReportType,
 									wiimoteState.IRState.Sensitivity,
@@ -192,7 +194,12 @@ namespace WiimoteLib {
 		private void InitializeExtension(byte extensionType) {
 			Log.Debug("InitExtension");
 
-			// only initialize if it's not a MotionPlus
+			// [FIX V15] RESTORE GUARD: Writing 0x55 to 0xA400F0 is the MotionPlus DEACTIVATION command (WiiBrew).
+			// We MUST NOT send it when MP is active (extensionType 0x04/0x05), or it will deactivate the MP
+			// we just activated. V14 removed this guard causing MP to be deactivated immediately.
+			// The Nunchuk is initialized/decrypted BEFORE MP activation in EnableMotionPlus instead.
+			// (EN: Skip init writes when MP is active to avoid deactivating it)
+			// (FR: Ne pas écrire l'init quand le MP est actif pour éviter de le désactiver)
 			if (extensionType != 0x04 && extensionType != 0x05) {
 				WriteByte(Registers.ExtensionInit1, 0x55);
 				WriteByte(Registers.ExtensionInit2, 0x00);
@@ -209,11 +216,24 @@ namespace WiimoteLib {
 				wiimoteState.ExtensionType = ExtensionType.None;
 				return;
 			case ExtensionType.Nunchuk:
+                // [FIX] If we detect a Nunchuk ID, but we know MotionPlus Passthrough is active,
+                // we MUST treat it as MotionPlusNunchuk to ensure correct parsing.
+                if (wiimoteState.MotionPlus.ExtensionType == MotionPlusExtensionType.Nunchuk)
+                {
+                    Log.Info($"[InitializeExtension] Override: Nunchuk ID detected ({type:x12}) but MP Passthrough active -> Force MotionPlusNunchuk");
+                    wiimoteState.ExtensionType = ExtensionType.MotionPlusNunchuk;
+                }
+                else
+                {
+				    wiimoteState.ExtensionType = (ExtensionType) type;
+                }
+				wiimoteState.Extension = true; // Ensure manager sees it (EN/FR: S'assurer que le manager le voit)
+				break;
 			case ExtensionType.ClassicController:
 			case ExtensionType.MotionPlus:
 			case ExtensionType.MotionPlusNunchuk:
 				wiimoteState.ExtensionType = (ExtensionType) type;
-				//this.SetReportType(InputReport.ButtonsExt19, true);
+				wiimoteState.Extension = true; // Ensure manager sees it (EN/FR: S'assurer que le manager le voit)
 				break;
 			default:
 				// Workaround: Treat unknown extensions as Nunchuk (EN/FR: Traiter les extensions inconnues comme Nunchuk)
@@ -228,32 +248,8 @@ namespace WiimoteLib {
 				buff = ReadData(Registers.ExtensionCalibration, 16);
 
 				wiimoteState.Nunchuk.CalibrationInfo.Parse(buff, 0);
-				
-				// Check if calibration data is valid, if not use defaults (EN/FR: Vérifier si la calibration est valide, sinon utiliser les valeurs par défaut)
-				if (wiimoteState.Nunchuk.CalibrationInfo.Max.X == 0 && wiimoteState.Nunchuk.CalibrationInfo.Max.Y == 0 &&
-				    wiimoteState.Nunchuk.CalibrationInfo.Min.X == 0 && wiimoteState.Nunchuk.CalibrationInfo.Min.Y == 0) {
-					Log.Warning("Invalid Nunchuk calibration detected (all zeros), using default values");
-					wiimoteState.Nunchuk.CalibrationInfo.Max.X = 228;
-					wiimoteState.Nunchuk.CalibrationInfo.Max.Y = 228;
-					wiimoteState.Nunchuk.CalibrationInfo.Min.X = 35;
-					wiimoteState.Nunchuk.CalibrationInfo.Min.Y = 35;
-					wiimoteState.Nunchuk.CalibrationInfo.Mid.X = 130;
-					wiimoteState.Nunchuk.CalibrationInfo.Mid.Y = 129;
-				}
+				ValidateNunchukCalibration();
 
-					/*mWiimoteState.Nunchuk.CalibrationInfo.AccelCalibration.X0 = buff[0];
-					mWiimoteState.Nunchuk.CalibrationInfo.AccelCalibration.Y0 = buff[1];
-					mWiimoteState.Nunchuk.CalibrationInfo.AccelCalibration.Z0 = buff[2];
-					mWiimoteState.Nunchuk.CalibrationInfo.AccelCalibration.XG = buff[4];
-					mWiimoteState.Nunchuk.CalibrationInfo.AccelCalibration.YG = buff[5];
-					mWiimoteState.Nunchuk.CalibrationInfo.AccelCalibration.ZG = buff[6];
-					mWiimoteState.Nunchuk.CalibrationInfo.Max.X = buff[8];
-					mWiimoteState.Nunchuk.CalibrationInfo.Min.X = buff[9];
-					mWiimoteState.Nunchuk.CalibrationInfo.Mid.X = buff[10];
-					mWiimoteState.Nunchuk.CalibrationInfo.Max.Y = buff[11];
-					mWiimoteState.Nunchuk.CalibrationInfo.Min.Y = buff[12];
-					mWiimoteState.Nunchuk.CalibrationInfo.Mid.Y = buff[13];
-					mWiimoteState.Nunchuk.CalibrationInfo.Parse(buff, 0);*/
 					Log.Debug("Nunchuk Calibration:");
 				var calib = wiimoteState.Nunchuk.CalibrationInfo;
 					Log.Debug($"Max={calib.Max} Min={calib.Min} Mid={calib.Mid}");
@@ -286,13 +282,19 @@ namespace WiimoteLib {
 				wiimoteState.ClassicController.CalibrationInfo.MaxTriggerR = 31;
 				break;
 			case ExtensionType.MotionPlusOther:
-				//buff = ReadData(Registers.PassthroughCalibration, 16);
-				//mWiimoteState.Nunchuk.CalibrationInfo.Parse(buff, 0);
+                // [FIX V22h] EN: Same issue as MotionPlusNunchuk — 0xA40040 returns MP data when MP is active.
+                // FR: Même problème que MotionPlusNunchuk — 0xA40040 retourne des données MP quand le MP est actif.
+                ApplyDefaultNunchukCalibration();
 
 				goto case ExtensionType.MotionPlus;
 			case ExtensionType.MotionPlusNunchuk:
-				buff = ReadData(Registers.PassthroughCalibration, 16);
-				wiimoteState.Nunchuk.CalibrationInfo.Parse(buff, 0);
+				// [FIX V22h] EN: Cannot read Nunchuk calibration from 0xA40040 (PassthroughCalibration) when MP is active.
+				// The address space 0xA400xx is remapped to MotionPlus — reads return corrupt MP register data.
+				// This was the SECOND code path overwriting the defaults set by EnableMotionPlus.
+				// FR: Impossible de lire la calibration Nunchuk à 0xA40040 quand le MP est actif.
+				// L'espace 0xA400xx est remappé au MP — les lectures retournent des données corrompues.
+				// C'était le SECOND chemin qui écrasait les défauts définis par EnableMotionPlus.
+				ApplyDefaultNunchukCalibration();
 
 				goto case ExtensionType.MotionPlus;
 			case ExtensionType.MotionPlus:
@@ -396,12 +398,33 @@ namespace WiimoteLib {
 		}
 
 		private void ParseMotionPlus(byte[] buff, int off) {
-			bool passthrough = !buff.GetBit(off + 5, 1);
+            // [FIX V16] WiiBrew: "Bit 1 of Byte 5 is used to determine which type of report is received:
+            //   it is 1 when it contains MotionPlus Data and 0 when it contains extension data."
+            // PREVIOUS CODE HAD THIS INVERTED! Bit1=1 was treated as Extension, but it's actually MotionPlus.
+            // This caused ALL gyro frames to be parsed as Nunchuk buttons, resulting in Z/C button flickering.
+            // (EN: Bit1=1 → MotionPlus (gyro), Bit1=0 → Extension (Nunchuk))
+            // (FR: Bit1=1 → MotionPlus (gyro), Bit1=0 → Extension (Nunchuk))
+            bool isMotionPlusData = buff.GetBit(off + 5, 1);  // Bit 1 = 1 -> MotionPlus gyro data
+            bool isExtensionData = !isMotionPlusData;          // Bit 1 = 0 -> Extension (Nunchuk) data
 
-			if (!passthrough) {
-				wiimoteState.MotionPlus.Parse(buff, off);
+            // [DIAGNOSTIC] Log frame type occasionally (limit to avoid flooding)
+            if (DateTime.Now.Millisecond < 10) {
+                if (isExtensionData)
+                    Log.Debug($"[DIAGNOSTIC] Ext Frame (Nunchuk): Byte5={buff[off + 5]:X2} (Bit1=0)");
+                else
+                    Log.Debug($"[DIAGNOSTIC] MP Frame (Gyro): Byte5={buff[off + 5]:X2} (Bit1=1)");
+            }
+
+			if (isMotionPlusData) {
+                // EN: Parse as MotionPlus passthrough format (0x05 reduced resolution)
+                // FR: Parser en format passthrough MotionPlus (0x05 résolution réduite)
+				wiimoteState.MotionPlus.Parse(buff, off, true);
+                // EN: Nunchuk state persists (no reset needed)
+                // FR: L'état du Nunchuk persiste (pas de reset nécessaire)
 			}
 			else {
+				// EN: Extension data frame — parse Nunchuk in passthrough mode
+				// FR: Frame de données extension — parser le Nunchuk en mode passthrough
 				wiimoteState.Nunchuk.Parse(buff, off, true);
 			}
 		}
@@ -423,6 +446,20 @@ namespace WiimoteLib {
 
 		private void ParseIRInterleaved2(byte[] buffA, byte[] buffB, int offA, int offB) {
 
+		}
+
+		private void ValidateNunchukCalibration() {
+			// Check if calibration data is valid, if not use defaults (EN/FR: Vérifier si la calibration est valide, sinon utiliser les valeurs par défaut)
+			if (wiimoteState.Nunchuk.CalibrationInfo.Max.X == 0 && wiimoteState.Nunchuk.CalibrationInfo.Max.Y == 0 &&
+				wiimoteState.Nunchuk.CalibrationInfo.Min.X == 0 && wiimoteState.Nunchuk.CalibrationInfo.Min.Y == 0) {
+				Log.Warning("Invalid Nunchuk calibration detected (all zeros), using default values");
+				wiimoteState.Nunchuk.CalibrationInfo.Max.X = 228;
+				wiimoteState.Nunchuk.CalibrationInfo.Max.Y = 228;
+				wiimoteState.Nunchuk.CalibrationInfo.Min.X = 35;
+				wiimoteState.Nunchuk.CalibrationInfo.Min.Y = 35;
+				wiimoteState.Nunchuk.CalibrationInfo.Mid.X = 130;
+				wiimoteState.Nunchuk.CalibrationInfo.Mid.Y = 129;
+			}
 		}
 	}
 }

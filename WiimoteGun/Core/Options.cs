@@ -40,6 +40,15 @@ namespace WiimoteGun
             Key = key;
         }
 
+        public ButtonAction Clone()
+        {
+            return new ButtonAction
+            {
+                Special = this.Special,
+                Key = this.Key
+            };
+        }
+
         public override string ToString()
         {
             if (Special != SpecialAction.None)
@@ -183,6 +192,14 @@ namespace WiimoteGun
         public float PitchOffset { get; set; }
         public float RollOffset { get; set; }
         public float YawOffset { get; set; }
+        public float AccXOffset { get; set; }
+        public float AccYOffset { get; set; }
+        public float AccZOffset { get; set; }
+        public float NunAccXOffset { get; set; }
+        public float NunAccYOffset { get; set; }
+        public float NunAccZOffset { get; set; }
+        public float NunStickXOffset { get; set; }
+        public float NunStickYOffset { get; set; }
     }
 
     public class Options
@@ -267,7 +284,7 @@ namespace WiimoteGun
                 OffScreenReloadAuto = false;
                 EnableDevGestures = false; // Hidden: Must be manually enabled in XML (EN/FR: Caché : Doit être activé manuellement)
                 EnableShakeReload = false;
-                ShakeSensitivity = 1; // 0=Low, 1=Medium, 2=High
+                ShakeSensitivity = 2; // 0=Very Low, 1=Low, 2=Medium, 3=High (EN/FR: 2=Moyen)
                 ShakeFromNunchuk = false; // false=Wiimote, true=Nunchuk
                 EnableGrenadeGesture = false;
                 GrenadeFromNunchuk = false;
@@ -332,17 +349,15 @@ namespace WiimoteGun
                 VirtualPollingRate = 250;
 
                 DefaultMouseMode = MouseMode.RawInput;
-                GyroSensitivityX = 1.0f;
-                GyroSensitivityY = 1.0f;
-                GyroSmoothingFrames = 3;
+
                 AutoLockVMultiDevices = true;
                 PersistentGamePads = false;
                 EnableGamePadSwapMode = false;
 
-                GamePadMappingsP1 = new GamePadMappings();
-                GamePadMappingsP2 = new GamePadMappings();
-                GamePadMappingsP3 = new GamePadMappings();
-                GamePadMappingsP4 = new GamePadMappings();
+                P1GamePadMappings = new GamePadMappings();
+                P2GamePadMappings = new GamePadMappings();
+                P3GamePadMappings = new GamePadMappings();
+                P4GamePadMappings = new GamePadMappings();
 
                 LoggingLevel = LogLevel.INFO;
 
@@ -352,6 +367,7 @@ namespace WiimoteGun
                 DuckStationPath = "";
                 DolphinPath = "";
                 CemuPath = "";
+                EnableFPSMode = false;
             }
         }
 
@@ -374,7 +390,12 @@ namespace WiimoteGun
                 try
                 {
                     XmlSerializer serializer = new XmlSerializer(typeof(Options));
-                    using (FileStream stream = File.OpenRead(path))
+                    // Read file to memory to allow checking content and saving if needed without lock
+                    // (EN/FR: Lire en mémoire pour vérifier contenu et sauver si besoin sans verrou)
+                    byte[] fileData = File.ReadAllBytes(path);
+                    bool needsPurge = System.Text.Encoding.UTF8.GetString(fileData).Contains("<EnableGyroAiming>");
+
+                    using (MemoryStream stream = new MemoryStream(fileData))
                     {
                         var options = serializer.Deserialize(stream) as Options;
                         
@@ -410,7 +431,15 @@ namespace WiimoteGun
                             SimpleLogger.Instance.Info("Migrated legacy calibration to per-player calibration");
                             options.Save(); // Save migration
                         }
+
+
                         
+                        if (needsPurge)
+                        {
+                            options.Save();
+                            SimpleLogger.Instance.Info("[Options] Auto-purged deprecated <EnableGyroAiming> settings from config.");
+                        }
+
                         return options;
                     }
                 }
@@ -614,6 +643,13 @@ namespace WiimoteGun
                     if (_instance.P2Mappings == null) _instance.P2Mappings = new PlayerMappings();
                     if (_instance.P3Mappings == null) _instance.P3Mappings = new PlayerMappings();
                     if (_instance.P4Mappings == null) _instance.P4Mappings = new PlayerMappings();
+
+                    // Initialize GamePad mappings if missing (e.g. update from old version)
+                    // (EN/FR: Initialiser mappings GamePad si manquants)
+                    if (_instance.P1GamePadMappings == null) _instance.P1GamePadMappings = new GamePadMappings();
+                    if (_instance.P2GamePadMappings == null) _instance.P2GamePadMappings = new GamePadMappings();
+                    if (_instance.P3GamePadMappings == null) _instance.P3GamePadMappings = new GamePadMappings();
+                    if (_instance.P4GamePadMappings == null) _instance.P4GamePadMappings = new GamePadMappings();
 
                     // Apply log level immediately (EN/FR: Appliquer niveau de log immédiatement)
                     SimpleLogger.Instance.Threshold = _instance.LoggingLevel;
@@ -1076,8 +1112,8 @@ namespace WiimoteGun
         [DefaultValue(false)]
         public bool EnableShakeReload { get; set; }
 
-        [DefaultValue(1)]
-        public int ShakeSensitivity { get; set; } // 0=Low, 1=Medium, 2=High
+        [DefaultValue(2)]
+        public int ShakeSensitivity { get; set; } // 0=Very Low, 1=Low, 2=Medium, 3=High (EN/FR: 0=Très Bas)
 
         [DefaultValue(false)]
         public bool ShakeFromNunchuk { get; set; } // false=Wiimote, true=Nunchuk
@@ -1092,15 +1128,7 @@ namespace WiimoteGun
         [DefaultValue(MouseMode.RawInput)]
         public MouseMode DefaultMouseMode { get; set; }
         
-        // Gyroscope Aiming Settings for FPS Mode (EN/FR: Paramètres visée gyroscopique pour mode FPS)
-        [DefaultValue(1.0f)]
-        public float GyroSensitivityX { get; set; }
-        
-        [DefaultValue(1.0f)]
-        public float GyroSensitivityY { get; set; }
-        
-        [DefaultValue(3)]
-        public int GyroSmoothingFrames { get; set; }
+
 
         // Auto-lock VMulti devices to Player 1 and 2 (EN/FR: Verrouiller auto périphériques VMulti aux Player 1 et 2)
         // When enabled, VMulti2 (VID_002F) is locked to P1 and VMulti1 (VID_00FF) is locked to P2
@@ -1126,13 +1154,20 @@ namespace WiimoteGun
         public bool EnableGamePadSwapMode { get; set; }
 
         /// <summary>
+        /// EN: Enable special FPS mode with aggressive IR stretching in the swap cycle.
+        /// FR: Activer le mode FPS spécial avec étirement IR agressif dans le cycle de swap.
+        /// </summary>
+        [DefaultValue(false)]
+        public bool EnableFPSMode { get; set; }
+
+        /// <summary>
         /// EN: GamePad button and axis mappings per player.
         /// FR: Mappings boutons et axes GamePad par joueur.
         /// </summary>
-        public GamePadMappings GamePadMappingsP1 { get; set; }
-        public GamePadMappings GamePadMappingsP2 { get; set; }
-        public GamePadMappings GamePadMappingsP3 { get; set; }
-        public GamePadMappings GamePadMappingsP4 { get; set; }
+        public GamePadMappings P1GamePadMappings { get; set; }
+        public GamePadMappings P2GamePadMappings { get; set; }
+        public GamePadMappings P3GamePadMappings { get; set; }
+        public GamePadMappings P4GamePadMappings { get; set; }
 
         /// <summary>
         /// EN: Enable standalone mode (no RetroBat dependency, local profile folder).
@@ -1177,10 +1212,10 @@ namespace WiimoteGun
         {
             switch (playerIndex)
             {
-                case 1: return GamePadMappingsP1 ?? (GamePadMappingsP1 = new GamePadMappings());
-                case 2: return GamePadMappingsP2 ?? (GamePadMappingsP2 = new GamePadMappings());
-                case 3: return GamePadMappingsP3 ?? (GamePadMappingsP3 = new GamePadMappings());
-                case 4: return GamePadMappingsP4 ?? (GamePadMappingsP4 = new GamePadMappings());
+                case 1: return P1GamePadMappings ?? (P1GamePadMappings = new GamePadMappings());
+                case 2: return P2GamePadMappings ?? (P2GamePadMappings = new GamePadMappings());
+                case 3: return P3GamePadMappings ?? (P3GamePadMappings = new GamePadMappings());
+                case 4: return P4GamePadMappings ?? (P4GamePadMappings = new GamePadMappings());
                 default: return new GamePadMappings();
             }
         }
@@ -1604,7 +1639,10 @@ namespace WiimoteGun
             return SavedCalibrations.Find(c => c.UniqueId == uniqueId);
         }
 
-        public void SetCalibration(string uniqueId, float pitch, float roll, float yaw)
+        public void SetCalibration(string uniqueId, float pitch, float roll, float yaw, 
+            float? accX = null, float? accY = null, float? accZ = null,
+            float? nunX = null, float? nunY = null, float? nunZ = null,
+            float? nunSX = null, float? nunSY = null)
         {
             if (string.IsNullOrEmpty(uniqueId)) return;
 
@@ -1618,6 +1656,18 @@ namespace WiimoteGun
             calib.PitchOffset = pitch;
             calib.RollOffset = roll;
             calib.YawOffset = yaw;
+            
+            if (accX.HasValue) calib.AccXOffset = accX.Value;
+            if (accY.HasValue) calib.AccYOffset = accY.Value;
+            if (accZ.HasValue) calib.AccZOffset = accZ.Value;
+
+            if (nunX.HasValue) calib.NunAccXOffset = nunX.Value;
+            if (nunY.HasValue) calib.NunAccYOffset = nunY.Value;
+            if (nunZ.HasValue) calib.NunAccZOffset = nunZ.Value;
+
+            if (nunSX.HasValue) calib.NunStickXOffset = nunSX.Value;
+            if (nunSY.HasValue) calib.NunStickYOffset = nunSY.Value;
+            
             Save();
         }
         [XmlIgnore]
