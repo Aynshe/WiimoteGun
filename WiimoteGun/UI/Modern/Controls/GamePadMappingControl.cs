@@ -659,6 +659,10 @@ namespace WiimoteGun.Controls
             AddSectionHeader("Nunchuk Buttons");
             AddMappingRow("NunchukC", "C Button", mappings.NunchukC, (val) => mappings.NunchukC = val, mappings.HybridTriggerButton, (val) => { mappings.HybridTriggerButton = val; LoadCurrentMappings(); }, mappings.NunchukCHybrid, (val) => mappings.NunchukCHybrid = val);
             AddMappingRow("NunchukZ", "Z Button", mappings.NunchukZ, (val) => mappings.NunchukZ = val, mappings.HybridTriggerButton, (val) => { mappings.HybridTriggerButton = val; LoadCurrentMappings(); }, mappings.NunchukZHybrid, (val) => mappings.NunchukZHybrid = val);
+            AddMappingRow("NunJoyUp", "Joystick Up", mappings.NunchukUp, (val) => mappings.NunchukUp = val, mappings.HybridTriggerButton, (val) => { mappings.HybridTriggerButton = val; LoadCurrentMappings(); }, mappings.NunchukUpHybrid, (val) => mappings.NunchukUpHybrid = val);
+            AddMappingRow("NunJoyDown", "Joystick Down", mappings.NunchukDown, (val) => mappings.NunchukDown = val, mappings.HybridTriggerButton, (val) => { mappings.HybridTriggerButton = val; LoadCurrentMappings(); }, mappings.NunchukDownHybrid, (val) => mappings.NunchukDownHybrid = val);
+            AddMappingRow("NunJoyLeft", "Joystick Left", mappings.NunchukLeft, (val) => mappings.NunchukLeft = val, mappings.HybridTriggerButton, (val) => { mappings.HybridTriggerButton = val; LoadCurrentMappings(); }, mappings.NunchukLeftHybrid, (val) => mappings.NunchukLeftHybrid = val);
+            AddMappingRow("NunJoyRight", "Joystick Right", mappings.NunchukRight, (val) => mappings.NunchukRight = val, mappings.HybridTriggerButton, (val) => { mappings.HybridTriggerButton = val; LoadCurrentMappings(); }, mappings.NunchukRightHybrid, (val) => mappings.NunchukRightHybrid = val);
 
             AddSectionHeader("Wiimote Motion (Gestures) -Experimental-", true);
             AddGesturalMappingRow("Move Up", mappings.AccelWiimoteUp, (val) => mappings.AccelWiimoteUp = val, mappings.AccelWiimoteUpHybrid, (val) => mappings.AccelWiimoteUpHybrid = val, (axis) => { mappings.AccelWiimoteDown.SetAxisIfNone(axis); mappings.AccelWiimoteLeft.SetAxisIfNone(axis); mappings.AccelWiimoteRight.SetAxisIfNone(axis); LoadCurrentMappings(); });
@@ -705,7 +709,7 @@ namespace WiimoteGun.Controls
                 if (formType != null)
                 {
                     Form form = (Form)Activator.CreateInstance(formType);
-                    form.Show();
+                    form.Show(this.FindForm()); // EN/FR: Assurer le focus au premier plan (Ensure foreground focus)
                 }
                 else 
                 {
@@ -1135,12 +1139,6 @@ namespace WiimoteGun.Controls
             GamePadMappings mappings = Options.Instance.GetGamePadMappingsForPlayer(_currentPlayer);
             if (mappings != null)
             {
-                if (cboIRAxis.SelectedItem is GamePadAxisItem irItem)
-                    mappings.IRSensorAxis = irItem.Value;
-                
-                if (cboNunchukAxis.SelectedItem is GamePadAxisItem nunItem)
-                    mappings.NunchukJoystickAxis = nunItem.Value;
-
                 // IR Calibration update (EN/FR: Mise à jour calibrage IR)
                 mappings.IRLinearity = (float)numLinearity.Value;
                 mappings.IROverscan = (float)numOverscan.Value;

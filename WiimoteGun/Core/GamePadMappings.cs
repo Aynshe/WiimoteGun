@@ -217,6 +217,10 @@ namespace WiimoteGun
         
         public GamePadButton NunchukC { get; set; }
         public GamePadButton NunchukZ { get; set; }
+        public GamePadButton NunchukUp { get; set; }
+        public GamePadButton NunchukDown { get; set; }
+        public GamePadButton NunchukLeft { get; set; }
+        public GamePadButton NunchukRight { get; set; }
 
         // ========== Hybrid Mappings (EN/FR: Mappings Hybrides) ==========
         
@@ -239,6 +243,10 @@ namespace WiimoteGun
         public ButtonAction WiiHomeHybrid { get; set; }
         public ButtonAction NunchukCHybrid { get; set; }
         public ButtonAction NunchukZHybrid { get; set; }
+        public ButtonAction NunchukUpHybrid { get; set; }
+        public ButtonAction NunchukDownHybrid { get; set; }
+        public ButtonAction NunchukLeftHybrid { get; set; }
+        public ButtonAction NunchukRightHybrid { get; set; }
 
         // Motion Gestures Hybrid
         public ButtonAction AccelWiimoteUpHybrid { get; set; }
@@ -326,6 +334,10 @@ namespace WiimoteGun
             WiiHome = GamePadButton.None;
             NunchukC = GamePadButton.Button5;
             NunchukZ = GamePadButton.Button7;
+            NunchukUp = GamePadButton.None;
+            NunchukDown = GamePadButton.None;
+            NunchukLeft = GamePadButton.None;
+            NunchukRight = GamePadButton.None;
             
             // Hybrid defaults (EN/FR: Valeurs par défaut hybrides)
             HybridTriggerButton = "";
@@ -342,6 +354,10 @@ namespace WiimoteGun
             WiiHomeHybrid = new ButtonAction();
             NunchukCHybrid = new ButtonAction();
             NunchukZHybrid = new ButtonAction();
+            NunchukUpHybrid = new ButtonAction();
+            NunchukDownHybrid = new ButtonAction();
+            NunchukLeftHybrid = new ButtonAction();
+            NunchukRightHybrid = new ButtonAction();
 
             AccelWiimoteUpHybrid = new ButtonAction();
             AccelWiimoteDownHybrid = new ButtonAction();
@@ -422,6 +438,10 @@ namespace WiimoteGun
             WiiHome = source.WiiHome;
             NunchukC = source.NunchukC;
             NunchukZ = source.NunchukZ;
+            NunchukUp = source.NunchukUp;
+            NunchukDown = source.NunchukDown;
+            NunchukLeft = source.NunchukLeft;
+            NunchukRight = source.NunchukRight;
             
             HybridTriggerButton = source.HybridTriggerButton;
             WiiAHybrid = source.WiiAHybrid?.Clone() ?? new ButtonAction(SpecialAction.LeftMouse);
@@ -437,6 +457,10 @@ namespace WiimoteGun
             WiiHomeHybrid = source.WiiHomeHybrid?.Clone() ?? new ButtonAction();
             NunchukCHybrid = source.NunchukCHybrid?.Clone() ?? new ButtonAction();
             NunchukZHybrid = source.NunchukZHybrid?.Clone() ?? new ButtonAction();
+            NunchukUpHybrid = source.NunchukUpHybrid?.Clone() ?? new ButtonAction();
+            NunchukDownHybrid = source.NunchukDownHybrid?.Clone() ?? new ButtonAction();
+            NunchukLeftHybrid = source.NunchukLeftHybrid?.Clone() ?? new ButtonAction();
+            NunchukRightHybrid = source.NunchukRightHybrid?.Clone() ?? new ButtonAction();
 
             AccelWiimoteUpHybrid = source.AccelWiimoteUpHybrid?.Clone() ?? new ButtonAction();
             AccelWiimoteDownHybrid = source.AccelWiimoteDownHybrid?.Clone() ?? new ButtonAction();
@@ -482,7 +506,8 @@ namespace WiimoteGun
                    IsMouseAction(Wii2Hybrid) || IsMouseAction(WiiPlusHybrid) || IsMouseAction(WiiMinusHybrid) ||
                    IsMouseAction(WiiUpHybrid) || IsMouseAction(WiiDownHybrid) || IsMouseAction(WiiLeftHybrid) ||
                    IsMouseAction(WiiRightHybrid) || IsMouseAction(WiiHomeHybrid) || IsMouseAction(NunchukCHybrid) ||
-                   IsMouseAction(NunchukZHybrid) ||
+                   IsMouseAction(NunchukZHybrid) || IsMouseAction(NunchukUpHybrid) || IsMouseAction(NunchukDownHybrid) ||
+                   IsMouseAction(NunchukLeftHybrid) || IsMouseAction(NunchukRightHybrid) ||
                    IsMouseAction(AccelWiimoteUpHybrid) || IsMouseAction(AccelWiimoteDownHybrid) ||
                    IsMouseAction(AccelWiimoteLeftHybrid) || IsMouseAction(AccelWiimoteRightHybrid) ||
                    IsMouseAction(AccelWiimoteShakeHybrid) ||

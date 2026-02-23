@@ -56,6 +56,8 @@ namespace WiimoteGun.UI.Modern.Forms
         {
             InitializeComponent();
             
+            this.TopMost = true; // EN/FR: Toujours au premier plan (Always on top)
+            
             // Attach Timer Event manually (not in designer for this)
             refreshTimer.Tick += RefreshTimer_Tick;
             

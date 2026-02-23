@@ -562,7 +562,7 @@ namespace WiimoteGun.Controls
                 if (formType != null)
                 {
                     Form form = (Form)Activator.CreateInstance(formType);
-                    form.Show();
+                    form.Show(this.FindForm()); // EN/FR: Utiliser FindForm() comme propriétaire pour rester au premier plan (Use FindForm() as owner)
                 }
                 else 
                 {

@@ -2583,10 +2583,43 @@ namespace WiimoteGun
                 execHybrid(mappings.WiiRightHybrid, state.Buttons.Right, _lastState.Right, "WiiRight");
                 execHybrid(mappings.WiiHomeHybrid, state.Buttons.Home, _lastState.Home, "WiiHome");
                 
+                float nJoyX = 0, nJoyY = 0;
+                bool nUp = false, nDown = false, nLeft = false, nRight = false;
+                bool lnUp = false, lnDown = false, lnLeft = false, lnRight = false;
+
                 if (hasNunchuk) 
                 {
+                    float nunSXOff = 0, nunSYOff = 0;
+                    var stickCalib = Options.Instance.GetCalibration(Wiimote != null ? Wiimote.UniqueId : "");
+                    if (stickCalib != null) { nunSXOff = stickCalib.NunStickXOffset; nunSYOff = stickCalib.NunStickYOffset; }
+                    
+                    nJoyX = (state.Nunchuk.Joystick.X - nunSXOff) * 2.0f;
+                    nJoyY = (state.Nunchuk.Joystick.Y - nunSYOff) * 2.0f;
+                    if (float.IsNaN(nJoyX) || float.IsInfinity(nJoyX)) nJoyX = 0f;
+                    if (float.IsNaN(nJoyY) || float.IsInfinity(nJoyY)) nJoyY = 0f;
+                    if (Math.Abs(nJoyX) < 0.25f) nJoyX = 0f;
+                    if (Math.Abs(nJoyY) < 0.25f) nJoyY = 0f;
+                    nJoyX = Math.Max(-1.0f, Math.Min(1.0f, nJoyX));
+                    nJoyY = Math.Max(-1.0f, Math.Min(1.0f, nJoyY));
+
+                    float lnJoyX = (_lastNunchukState.Joystick.X - nunSXOff) * 2.0f;
+                    float lnJoyY = (_lastNunchukState.Joystick.Y - nunSYOff) * 2.0f;
+
+                    nUp = (nJoyY > 0.5f);
+                    nDown = (nJoyY < -0.5f);
+                    nLeft = (nJoyX < -0.5f);
+                    nRight = (nJoyX > 0.5f);
+                    lnUp = (lnJoyY > 0.5f);
+                    lnDown = (lnJoyY < -0.5f);
+                    lnLeft = (lnJoyX < -0.5f);
+                    lnRight = (lnJoyX > 0.5f);
+
                     execHybrid(mappings.NunchukCHybrid, state.Nunchuk.C, _lastNunchukState.C, "NunchukC");
                     execHybrid(mappings.NunchukZHybrid, state.Nunchuk.Z, _lastNunchukState.Z, "NunchukZ");
+                    execHybrid(mappings.NunchukUpHybrid, nUp, lnUp, "NunJoyUp");
+                    execHybrid(mappings.NunchukDownHybrid, nDown, lnDown, "NunJoyDown");
+                    execHybrid(mappings.NunchukLeftHybrid, nLeft, lnLeft, "NunJoyLeft");
+                    execHybrid(mappings.NunchukRightHybrid, nRight, lnRight, "NunJoyRight");
                 }
 
                 // EN: Gesture Logic (Shake Reload, Grenade) - also runs in GamePad/Hybrid mode
@@ -2617,39 +2650,20 @@ namespace WiimoteGun
                     _virtualGamepad.SetButton(mappings.NunchukC, !isHybridActive && state.Nunchuk.C && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunC"));
                     _virtualGamepad.SetButton(mappings.NunchukZ, !isHybridActive && state.Nunchuk.Z && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunZ"));
 
-                    // --- Nunchuk Joystick ---
+                    _virtualGamepad.SetButton(mappings.NunchukUp, !isHybridActive && nUp && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunUp"));
+                    _virtualGamepad.SetButton(mappings.NunchukDown, !isHybridActive && nDown && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunDown"));
+                    _virtualGamepad.SetButton(mappings.NunchukLeft, !isHybridActive && nLeft && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunLeft"));
+                    _virtualGamepad.SetButton(mappings.NunchukRight, !isHybridActive && nRight && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunRight"));
+
+                    // --- Nunchuk Joystick Axis / Dpad ---
                     if (mappings.NunchukJoystickAxis != GamePadAxis.None)
                     {
-                        float nunSXOff = 0, nunSYOff = 0;
-                        var stickCalib = Options.Instance.GetCalibration(Wiimote != null ? Wiimote.UniqueId : "");
-                        if (stickCalib != null)
-                        {
-                            nunSXOff = stickCalib.NunStickXOffset;
-                            nunSYOff = stickCalib.NunStickYOffset;
-                        }
-
-                        // Apply calibration offset to raw center
-                        float rawX = state.Nunchuk.Joystick.X - nunSXOff;
-                        float rawY = state.Nunchuk.Joystick.Y - nunSYOff;
-
-                        float joyX = rawX * 2.0f;
-                        float joyY = rawY * 2.0f;
-
-                        if (float.IsNaN(joyX) || float.IsInfinity(joyX)) joyX = 0f;
-                        if (float.IsNaN(joyY) || float.IsInfinity(joyY)) joyY = 0f;
-
-                        if (Math.Abs(joyX) < 0.25f) joyX = 0f;
-                        if (Math.Abs(joyY) < 0.25f) joyY = 0f;
-
-                        joyX = Math.Max(-1.0f, Math.Min(1.0f, joyX));
-                        joyY = Math.Max(-1.0f, Math.Min(1.0f, joyY));
-
                         if (mappings.NunchukJoystickAxis == GamePadAxis.Dpad)
                         {
-                            bool dUp = joyY > 0.5f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunUp");
-                            bool dDown = joyY < -0.5f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunDown");
-                            bool dRight = joyX > 0.5f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunRight");
-                            bool dLeft = joyX < -0.5f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunLeft");
+                            bool dUp = nUp && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunUp");
+                            bool dDown = nDown && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunDown");
+                            bool dRight = nRight && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunRight");
+                            bool dLeft = nLeft && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunLeft");
 
                             _virtualGamepad.SetButton(GamePadButton.DPadUp, dUp);
                             _virtualGamepad.SetButton(GamePadButton.DPadDown, dDown);
@@ -2658,13 +2672,13 @@ namespace WiimoteGun
                         }
                         else
                         {
-                            float finalJoyX = joyX;
-                            float finalJoyY = joyY;
+                            float finalJoyX = nJoyX;
+                            float finalJoyY = nJoyY;
 
-                            if (joyX > 0.3f && HotkeyManager.IsButtonConsumed(PlayerIndex, "NunRight")) finalJoyX = 0f;
-                            if (joyX < -0.3f && HotkeyManager.IsButtonConsumed(PlayerIndex, "NunLeft")) finalJoyX = 0f;
-                            if (joyY > 0.3f && HotkeyManager.IsButtonConsumed(PlayerIndex, "NunUp")) finalJoyY = 0f;
-                            if (joyY < -0.3f && HotkeyManager.IsButtonConsumed(PlayerIndex, "NunDown")) finalJoyY = 0f;
+                            if (nJoyX > 0.3f && HotkeyManager.IsButtonConsumed(PlayerIndex, "NunRight")) finalJoyX = 0f;
+                            if (nJoyX < -0.3f && HotkeyManager.IsButtonConsumed(PlayerIndex, "NunLeft")) finalJoyX = 0f;
+                            if (nJoyY > 0.3f && HotkeyManager.IsButtonConsumed(PlayerIndex, "NunUp")) finalJoyY = 0f;
+                            if (nJoyY < -0.3f && HotkeyManager.IsButtonConsumed(PlayerIndex, "NunDown")) finalJoyY = 0f;
 
                             _virtualGamepad.SetAxis(mappings.NunchukJoystickAxis, finalJoyX, -finalJoyY);
                         }
@@ -2951,25 +2965,25 @@ namespace WiimoteGun
                     float nActDZ = nDeadzone * 1.1f;
                     float nRelDZ = nDeadzone * 0.9f;
 
-                    bool nUp = _lastAccelNunchukUp ? nMotY > nRelDZ : nMotY > nActDZ;
-                    bool nDown = _lastAccelNunchukDown ? nMotY < -nRelDZ : nMotY < -nActDZ;
-                    bool nLeft = _lastAccelNunchukLeft ? nMotX < -nRelDZ : nMotX < -nActDZ;
-                    bool nRight = _lastAccelNunchukRight ? nMotX > nRelDZ : nMotX > nActDZ;
+                    bool nAccUp = _lastAccelNunchukUp ? nMotY > nRelDZ : nMotY > nActDZ;
+                    bool nAccDown = _lastAccelNunchukDown ? nMotY < -nRelDZ : nMotY < -nActDZ;
+                    bool nAccLeft = _lastAccelNunchukLeft ? nMotX < -nRelDZ : nMotX < -nActDZ;
+                    bool nAccRight = _lastAccelNunchukRight ? nMotX > nRelDZ : nMotX > nActDZ;
 
                     // EN: Ensure mutual exclusivity on the same axis (can't be Up and Down)
-                    if (nUp && nDown) { nUp = false; nDown = false; }
-                    if (nLeft && nRight) { nLeft = false; nRight = false; }
+                    if (nAccUp && nAccDown) { nAccUp = false; nAccDown = false; }
+                    if (nAccLeft && nAccRight) { nAccLeft = false; nAccRight = false; }
 
-                    if (nUp) { applyMotionAction(mappings.AccelNunchukUp, nMotX * 3f, nMotY * 3f, nMotZ * 3f, mappings.AccelNunchukSensitivity); execHybrid(mappings.AccelNunchukUpHybrid, true, _lastAccelNunchukUp, "AccelNunchukUp"); }
+                    if (nAccUp) { applyMotionAction(mappings.AccelNunchukUp, nMotX * 3f, nMotY * 3f, nMotZ * 3f, mappings.AccelNunchukSensitivity); execHybrid(mappings.AccelNunchukUpHybrid, true, _lastAccelNunchukUp, "AccelNunchukUp"); }
                     else { execHybrid(mappings.AccelNunchukUpHybrid, false, _lastAccelNunchukUp, "AccelNunchukUp"); }
 
-                    if (nDown) { applyMotionAction(mappings.AccelNunchukDown, nMotX * 3f, nMotY * 3f, nMotZ * 3f, mappings.AccelNunchukSensitivity); execHybrid(mappings.AccelNunchukDownHybrid, true, _lastAccelNunchukDown, "AccelNunchukDown"); }
+                    if (nAccDown) { applyMotionAction(mappings.AccelNunchukDown, nMotX * 3f, nMotY * 3f, nMotZ * 3f, mappings.AccelNunchukSensitivity); execHybrid(mappings.AccelNunchukDownHybrid, true, _lastAccelNunchukDown, "AccelNunchukDown"); }
                     else { execHybrid(mappings.AccelNunchukDownHybrid, false, _lastAccelNunchukDown, "AccelNunchukDown"); }
 
-                    if (nLeft) { applyMotionAction(mappings.AccelNunchukLeft, nMotX * 3f, nMotY * 3f, nMotZ * 3f, mappings.AccelNunchukSensitivity); execHybrid(mappings.AccelNunchukLeftHybrid, true, _lastAccelNunchukLeft, "AccelNunchukLeft"); }
+                    if (nAccLeft) { applyMotionAction(mappings.AccelNunchukLeft, nMotX * 3f, nMotY * 3f, nMotZ * 3f, mappings.AccelNunchukSensitivity); execHybrid(mappings.AccelNunchukLeftHybrid, true, _lastAccelNunchukLeft, "AccelNunchukLeft"); }
                     else { execHybrid(mappings.AccelNunchukLeftHybrid, false, _lastAccelNunchukLeft, "AccelNunchukLeft"); }
 
-                    if (nRight) { applyMotionAction(mappings.AccelNunchukRight, nMotX * 3f, nMotY * 3f, nMotZ * 3f, mappings.AccelNunchukSensitivity); execHybrid(mappings.AccelNunchukRightHybrid, true, _lastAccelNunchukRight, "AccelNunchukRight"); }
+                    if (nAccRight) { applyMotionAction(mappings.AccelNunchukRight, nMotX * 3f, nMotY * 3f, nMotZ * 3f, mappings.AccelNunchukSensitivity); execHybrid(mappings.AccelNunchukRightHybrid, true, _lastAccelNunchukRight, "AccelNunchukRight"); }
                     else { execHybrid(mappings.AccelNunchukRightHybrid, false, _lastAccelNunchukRight, "AccelNunchukRight"); }
 
                     // --- PEAK-TO-PEAK SHAKE DETECTION (Nunchuk) ---

@@ -4,10 +4,20 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.3.2.1] - 2026-02-23
+
+### Fixed
+- **Lost GamePad Mappings** - Fixed a critical bug where Wiimote IR and Nunchuk Joystick axes were reset to 'None' when saving or applying a profile.
+- **VMulti Reconnection Loop** - Resolved an infinite loop in `WiiMoteController.cs` causing log spam and performance issues when switching modes.
+- **Gyro Visualizer Z-Order** - Fixed the 3D visualizer appearing behind the borderless overlay; it is now forced to the foreground.
+- **Variable Shadowing (CS0136)** - Renamed duplicate variables in the Nunchuk accelerometer block to resolve compilation errors.
+- **UI & Code Cleanup** - Removed unused event handlers and simplified object initialization in `OptionsControl.cs`.
+
 ## [2.3.2.0] - 2026-02-23
 
 ### Added
 - **FPS Mode (Alpha DEV)** - Unsatisfactory results (low frequency polling/stutter issues with current IR data).
+- **XInput Player Mode** - Added support for XInput mode via ViGEmBus drivers (driver installation required). Can be enabled per profile; DInput remains the default.
 - **VMulti Resource Management** - Optimized HID handle sharing and fixed race conditions in the shared client pool.
 - **Improved Device Detection** - Faster startup by using static HID enumeration for availability checks.
 - **Hybrid GamePad Mode** - Ability to combine virtual gamepad inputs with mouse reports.

@@ -114,7 +114,6 @@ namespace WiimoteGun.Controls
             this.optEnableFPSMode.TabIndex = 1;
             this.optEnableFPSMode.Text = "FPS Mode  (Alpha DEV)";
             this.optEnableFPSMode.UseVisualStyleBackColor = true;
-            this.optEnableFPSMode.CheckedChanged += new System.EventHandler(this.optEnableFPSMode_CheckedChanged);
             // 
             // lblHelpPersistentGamePads
             // 
@@ -501,7 +500,6 @@ namespace WiimoteGun.Controls
             this.optEnableGamePadSwap.TabIndex = 2;
             this.optEnableGamePadSwap.Text = "Enable GamePad Swap Mode";
             this.optEnableGamePadSwap.UseVisualStyleBackColor = true;
-            this.optEnableGamePadSwap.CheckedChanged += new System.EventHandler(this.optEnableGamePadSwap_CheckedChanged);
             // 
             // optShowNotifications
             // 

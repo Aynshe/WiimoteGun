@@ -321,13 +321,15 @@ namespace WiimoteGun.Controls
                 // EN: Show/Hide lock reason label (FR: Afficher/Masquer label de raison de verrouillage)
                 if (lblGestureLockReason == null)
                 {
-                    lblGestureLockReason = new Label();
-                    lblGestureLockReason.Name = "lblGestureLockReason";
-                    lblGestureLockReason.ForeColor = Color.FromArgb(255, 180, 0); // Orange warning color
-                    lblGestureLockReason.Font = new Font("Segoe UI", 8F, FontStyle.Italic);
-                    lblGestureLockReason.AutoSize = false;
-                    lblGestureLockReason.Size = new Size(340, 40);
-                    lblGestureLockReason.Location = new Point(20, 310);
+                    lblGestureLockReason = new Label
+                    {
+                        Name = "lblGestureLockReason",
+                        ForeColor = Color.FromArgb(255, 180, 0), // Orange warning color
+                        Font = new Font("Segoe UI", 8F, FontStyle.Italic),
+                        AutoSize = false,
+                        Size = new Size(340, 40),
+                        Location = new Point(20, 310)
+                    };
                     tabGestures.Controls.Add(lblGestureLockReason);
                 }
 
@@ -463,19 +465,23 @@ namespace WiimoteGun.Controls
 
         private void BtnConfigureGamePad_Click(object sender, EventArgs e)
         {
-            using (Form form = new Form())
+            using (Form form = new Form
             {
-                form.Text = "GamePad Mapping Configuration";
-                form.Size = new Size(580, 820);
-                form.StartPosition = FormStartPosition.CenterParent;
-                form.ShowIcon = false;
-                form.FormBorderStyle = FormBorderStyle.FixedDialog;
-                form.MaximizeBox = false;
-                form.MinimizeBox = false;
-                form.BackColor = Color.FromArgb(20, 20, 20);
+                Text = "GamePad Mapping Configuration",
+                Size = new Size(580, 820),
+                StartPosition = FormStartPosition.CenterParent,
+                ShowIcon = false,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                BackColor = Color.FromArgb(20, 20, 20)
+            })
+            {
 
-                var control = new GamePadMappingControl();
-                control.Dock = DockStyle.Fill;
+                var control = new GamePadMappingControl
+                {
+                    Dock = DockStyle.Fill
+                };
                 if (control.btnBack != null) control.btnBack.Visible = false;
                 control.BackRequested += (s, args) => form.Close();
                 
@@ -484,14 +490,6 @@ namespace WiimoteGun.Controls
             }
         }
 
-        private void optEnableFPSMode_CheckedChanged(object sender, EventArgs e)
-        {
 
-        }
-
-        private void optEnableGamePadSwap_CheckedChanged(object sender, EventArgs e)
-        {
-
-        }
     }
 }

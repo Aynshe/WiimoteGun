@@ -54,7 +54,7 @@ namespace WiimoteGun.Controls
                     if (formType != null)
                     {
                         Form form = (Form)Activator.CreateInstance(formType);
-                        form.Show(); // Show as independent window to avoid parent constraints
+                        form.Show(this.FindForm()); // EN/FR: Définir le propriétaire pour éviter de passer derrière l'overlay (Set owner)
                     }
                     else 
                     {
