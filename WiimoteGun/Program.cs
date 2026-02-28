@@ -8,6 +8,7 @@ using System.Windows.Forms;
 using System.Linq;
 using System.Text;
 using System.ServiceProcess;
+using System.Drawing;
 using WiimoteGun.Forms;
 using WiimoteGun.UI.Legacy;
 using WiimoteGun.UI;
@@ -58,6 +59,9 @@ namespace WiimoteGun
         static System.Threading.Timer _gameDetectionTimer;
         static ProfileOverlay _profileOverlay;
         static WindowsFormsSynchronizationContext _synchronizationContext;
+        static int _lastActiveScreenIndex = -1; // Last screen aimed by a Wiimote (EN/FR: Dernier écran visé par une Wiimote)
+
+        public static int LastActiveScreenIndex { get { return _lastActiveScreenIndex; } set { _lastActiveScreenIndex = value; } }
 
         public static string LastDetectedGameName { get { return _lastDetectedGame; } }
         public static string LastDetectedGamePath { get { return _lastDetectedGamePath; } }
@@ -339,6 +343,7 @@ namespace WiimoteGun
                         _profileOverlay.Close();
                         _profileOverlay = new ProfileOverlay(windowedMode: false);
                         _profileOverlay.FormClosed += (sender, evtArgs) => _profileOverlay = null;
+                        PositionOverlayOnTargetScreen(_profileOverlay);
                         _profileOverlay.Show();
                     }
                     else if (_profileOverlay != null)
@@ -347,13 +352,17 @@ namespace WiimoteGun
                         if (_profileOverlay.Visible)
                             _profileOverlay.Hide();
                         else
+                        {
+                            PositionOverlayOnTargetScreen(_profileOverlay);
                             _profileOverlay.Show();
+                        }
                     }
                     else
                     {
                         // Create new fullscreen overlay if null (EN/FR: Créer nouvel overlay plein écran si null)
                         _profileOverlay = new ProfileOverlay(windowedMode: false);
                         _profileOverlay.FormClosed += (sender, evtArgs) => _profileOverlay = null;
+                        PositionOverlayOnTargetScreen(_profileOverlay);
                         _profileOverlay.Show();
                     }
                 }, null);
@@ -1554,8 +1563,37 @@ namespace WiimoteGun
             SimpleLogger.Instance.Info("Opening ProfileOverlay in windowed mode");
             _profileOverlay = new ProfileOverlay(windowedMode: true);
             _profileOverlay.FormClosed += (s, e) => _profileOverlay = null;
+            PositionOverlayOnTargetScreen(_profileOverlay);
             _profileOverlay.Show(); // Non-modal show (EN/FR: Affichage non modal)
             _profileOverlay.Activate(); // Bring to front (EN/FR: Mettre au premier plan)
+        }
+
+        /// <summary>
+        /// Centers the form on the last aimed screen or current MonitorId screen.
+        /// (EN/FR: Centre le formulaire sur le dernier écran visé ou celui du MonitorId actuel.)
+        /// </summary>
+        private static void PositionOverlayOnTargetScreen(Form form)
+        {
+            if (form == null) return;
+
+            int targetIndex = _lastActiveScreenIndex;
+            if (targetIndex < 0) targetIndex = Options.Instance.MonitorId;
+
+            if (targetIndex >= 0 && targetIndex < Screen.AllScreens.Length)
+            {
+                Screen target = Screen.AllScreens[targetIndex];
+                SimpleLogger.Instance.Info(string.Format("Positioning overlay on Screen {0} ({1})", targetIndex, target.DeviceName));
+
+                form.StartPosition = FormStartPosition.Manual;
+                form.Location = new Point(
+                    target.Bounds.Left + (target.Bounds.Width - form.Width) / 2,
+                    target.Bounds.Top + (target.Bounds.Height - form.Height) / 2
+                );
+            }
+            else
+            {
+                form.StartPosition = FormStartPosition.CenterScreen;
+            }
         }
 
         private static void OnMenuRequested(object sender, EventArgs e)

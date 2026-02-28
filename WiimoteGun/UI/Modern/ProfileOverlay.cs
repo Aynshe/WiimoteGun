@@ -140,7 +140,7 @@ namespace WiimoteGun.Forms
                 this.Width = targetWidth;
                 this.Height = targetHeight;
 
-                // Re-center (EN/FR: Recentrer)
+                // Re-center maintaining the same center point (EN/FR: Recentrer en maintenant le même point central)
                 this.Left = center.X - targetWidth / 2;
                 this.Top = center.Y - targetHeight / 2;
 

@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using WiimoteLib;
 using WiimoteLib.DataTypes;
+using WiimoteLib.Geometry;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -462,18 +463,70 @@ namespace WiimoteGun.UI.Legacy
                             float cx = rectX + (1.0f - center.X / 1023f) * drawW;
                             float cy = rectY + (center.Y / 767f) * drawH;
                             
-                            // Triangulation lines
-                            for (int p = 0; p < 4; p++)
+                            // Triangulation lines or Double-T
+                            if (Options.Instance.LEDLayout == LEDLayoutType.TwoWiimoteBar)
                             {
-                                var point = ir[p];
-                                if (point.Found)
+                                // Draw Double-T precisely without fallback deformation
+                                float m1X = rectX + (1.0f - centerController.Calculator.DoubleT_M1.X / 1023f) * drawW;
+                                float m1Y = rectY + (centerController.Calculator.DoubleT_M1.Y / 767f) * drawH;
+                                float m2X = rectX + (1.0f - centerController.Calculator.DoubleT_M2.X / 1023f) * drawW;
+                                float m2Y = rectY + (centerController.Calculator.DoubleT_M2.Y / 767f) * drawH;
+                                
+                                // Vertical STEM always connects M1 and M2 securely
+                                g.DrawLine(Pens.Cyan, m1X, m1Y, m2X, m2Y);
+                                
+                                // Draw horizontal bars if pieces are found
+                                var visiblePoints = new List<Point2F>();
+                                for (int p = 0; p < 4; p++)
                                 {
-                                    float px = rectX + (1.0f - point.RawPosition.X / 1023f) * drawW;
-                                    float py = rectY + (point.RawPosition.Y / 767f) * drawH;
-                                    g.DrawLine(Pens.DarkCyan, px, py, cx, cy);
+                                    if (ir[p].Found)
+                                    {
+                                        float px = rectX + (1.0f - ir[p].RawPosition.X / 1023f) * drawW;
+                                        float py = rectY + (ir[p].RawPosition.Y / 767f) * drawH;
+                                        visiblePoints.Add(new Point2F(px, py));
+                                    }
+                                }
+
+                                if (visiblePoints.Count == 4)
+                                {
+                                    var sortedY = visiblePoints.OrderBy(p => p.Y).ToList();
+                                    Point2F topL = sortedY[0], topR = sortedY[1];
+                                    Point2F botL = sortedY[2], botR = sortedY[3];
+                                    g.DrawLine(Pens.DarkCyan, topL.X, topL.Y, topR.X, topR.Y);
+                                    g.DrawLine(Pens.DarkCyan, botL.X, botL.Y, botR.X, botR.Y);
+                                }
+                                else if (visiblePoints.Count == 3 || visiblePoints.Count == 2)
+                                {
+                                    // Draw the remaining bar segments safely without crossed geometry
+                                    var sortedY = visiblePoints.OrderBy(p => p.Y).ToList();
+                                    if (visiblePoints.Count == 3)
+                                    {
+                                        float dy01 = Math.Abs(sortedY[1].Y - sortedY[0].Y);
+                                        float dy12 = Math.Abs(sortedY[2].Y - sortedY[1].Y);
+                                        if (dy01 < dy12) g.DrawLine(Pens.DarkCyan, sortedY[0].X, sortedY[0].Y, sortedY[1].X, sortedY[1].Y);
+                                        else g.DrawLine(Pens.DarkCyan, sortedY[1].X, sortedY[1].Y, sortedY[2].X, sortedY[2].Y);
+                                    }
+                                    else if (visiblePoints.Count == 2)
+                                    {
+                                        // Assume it's one horizontal bar
+                                        g.DrawLine(Pens.DarkCyan, sortedY[0].X, sortedY[0].Y, sortedY[1].X, sortedY[1].Y);
+                                    }
                                 }
                             }
-
+                            else
+                            {
+                                // Normal Cross / Radial lines
+                                for (int p = 0; p < 4; p++)
+                                {
+                                    var point = ir[p];
+                                    if (point.Found)
+                                    {
+                                        float px = rectX + (1.0f - point.RawPosition.X / 1023f) * drawW;
+                                        float py = rectY + (point.RawPosition.Y / 767f) * drawH;
+                                        g.DrawLine(Pens.DarkCyan, px, py, cx, cy);
+                                    }
+                                }
+                            }
                             int crossSize = 10;
                             g.DrawLine(Pens.Cyan, cx - crossSize, cy, cx + crossSize, cy);
                             g.DrawLine(Pens.Cyan, cx, cy - crossSize, cx, cy + crossSize);

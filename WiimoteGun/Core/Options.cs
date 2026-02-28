@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Xml.Serialization;
 using System.Windows.Forms;
+using System.Text;
 using System;
 
 namespace WiimoteGun
@@ -186,6 +187,14 @@ namespace WiimoteGun
         RawInput = 1     // Multi-player mode using VMulti driver (EN/FR: Mode multi-joueur utilisant pilote VMulti)
     }
 
+    // Auto-start options (EN/FR: Options de démarrage automatique)
+    public enum AutoStartMode
+    {
+        None = 0,
+        Windows = 1,
+        RetroBat = 2
+    }
+
     public class WiimoteCalibration
     {
         public string UniqueId { get; set; }
@@ -344,6 +353,7 @@ namespace WiimoteGun
                 EnableHomographyCache = false;
                 UseIRExtrapolation = false;
                 IRExtrapolationStrength = 0.5f;
+                EnableDistanceCompensation = false;
 
                 EnableVirtualPolling = false;
                 VirtualPollingRate = 250;
@@ -368,6 +378,7 @@ namespace WiimoteGun
                 DolphinPath = "";
                 CemuPath = "";
                 EnableFPSMode = false;
+                AutoStart = AutoStartMode.None;
             }
         }
 
@@ -1085,6 +1096,13 @@ namespace WiimoteGun
         [DefaultValue(false)]
         public bool EnableHomographyCache { get; set; } // Cache static homography matrix (EN/FR: Mise en cache matrice homographie statique)
 
+        // Distance compensation for manual calibration modes only (NOT Dynamic/Auto mode)
+        // Corrects cursor drift when player moves closer/farther from screen after calibration
+        // (EN/FR: Compensation de distance pour modes calibration manuelle uniquement (PAS mode Automatique)
+        // Corrige la dérive du curseur si le joueur s'approche/s'éloigne de l'écran après calibration)
+        [DefaultValue(false)]
+        public bool EnableDistanceCompensation { get; set; }
+
         [DefaultValue(false)]
         public bool UseIRExtrapolation { get; set; }
 
@@ -1203,6 +1221,83 @@ namespace WiimoteGun
         /// </summary>
         [DefaultValue("")]
         public string CemuPath { get; set; }
+
+        [DefaultValue(AutoStartMode.None)]
+        public AutoStartMode AutoStart { get; set; }
+
+        /// <summary>
+        /// EN: Apply the current auto-start configuration (Registry or RetroBat script).
+        /// FR: Appliquer la configuration actuelle de démarrage automatique (Registre ou script RetroBat).
+        /// </summary>
+        public void ApplyAutoStart()
+        {
+            // 1. Manage Windows Registry (Run key)
+            try
+            {
+                using (RegistryKey rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true))
+                {
+                    if (rk != null)
+                    {
+                        if (AutoStart == AutoStartMode.Windows)
+                            rk.SetValue("WiimoteGun", typeof(Program).Assembly.Location);
+                        else
+                            rk.DeleteValue("WiimoteGun", false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error("Failed to update Windows Registry for auto-start: " + ex.Message);
+            }
+
+            // 2. Manage RetroBat Startup Script
+            try
+            {
+                string retroBatPath = RemapProfileManager.GetRetroBatPath();
+                if (!string.IsNullOrEmpty(retroBatPath))
+                {
+                    // EN: New requested path: [RetroBatRoot]\emulationstation\.emulationstation\scripts\start
+                    // FR: Nouveau chemin requis : [RetroBatRoot]\emulationstation\.emulationstation\scripts\start
+                    string scriptDir = Path.Combine(retroBatPath, "emulationstation", ".emulationstation", "scripts", "start");
+            string scriptPath = Path.Combine(scriptDir, "Wiimote4Guns.bat");
+
+            // EN: Cleanup old version script if it exists
+            // FR: Nettoyage de l'ancienne version du script si elle existe
+            try
+            {
+                string oldScriptPath = Path.Combine(retroBatPath, "emulationstation", "scripts", "system-startup", "wiimotegun.bat");
+                if (File.Exists(oldScriptPath)) File.Delete(oldScriptPath);
+            }
+            catch { /* Ignore cleanup errors */ }
+
+                    if (AutoStart == AutoStartMode.RetroBat)
+                    {
+                        if (!Directory.Exists(scriptDir))
+                            Directory.CreateDirectory(scriptDir);
+
+                        // EN: Generate script content with correct path and exit /b
+                        // FR: Générer le contenu du script avec le bon chemin et exit /b
+                        string exePath = typeof(Program).Assembly.Location;
+                        string content = string.Format("@echo off{0}start \"\" \"{1}\"{0}exit /b", Environment.NewLine, exePath);
+                        
+                        File.WriteAllText(scriptPath, content, Encoding.UTF8);
+                        SimpleLogger.Instance.Info("Created RetroBat auto-start script: " + scriptPath);
+                    }
+                    else
+                    {
+                        if (File.Exists(scriptPath))
+                        {
+                            File.Delete(scriptPath);
+                            SimpleLogger.Instance.Info("Deleted RetroBat auto-start script: " + scriptPath);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error("Failed to update RetroBat auto-start script: " + ex.Message);
+            }
+        }
 
         /// <summary>
         /// EN: Get GamePad mappings for a specific player (1-4).
@@ -1673,39 +1768,15 @@ namespace WiimoteGun
         [XmlIgnore]
         public bool StartWithWindows
         {
-            get
-            {
-                bool ret = false;
-
-                try
-                {
-                    RegistryKey rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
-                    if (rk != null)
-                    {
-                        ret = rk.GetValue("WiimoteGun") != null;
-                        rk.Close();
-                    }
-                }
-                catch { }
-
-                return ret;
-            }
+            get => AutoStart == AutoStartMode.Windows;
             set
             {
-                try
-                {
-                    RegistryKey rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
-                    if (rk != null)
-                    {
-                        if (value)
-                            rk.SetValue("WiimoteGun", typeof(Program).Assembly.Location);
-                        else
-                            rk.DeleteValue("WiimoteGun", false);
-
-                        rk.Close();
-                    }
-                }
-                catch { }
+                if (value)
+                    AutoStart = AutoStartMode.Windows;
+                else if (AutoStart == AutoStartMode.Windows)
+                    AutoStart = AutoStartMode.None;
+                
+                ApplyAutoStart();
             }
         }
     }

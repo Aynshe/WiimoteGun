@@ -15,13 +15,23 @@ namespace WiimoteGun.UI.Calibrate
         public bool UseDynamicMode { get; private set; }
         public bool SelectionMade { get { return _selectionMade; } }
 
+        private string _modeName;
+        
         public CalibrationModeSelectionForm(int monitorId, string modeName)
         {
             InitializeComponent();
+            _modeName = modeName;
             
             // Set dynamic text
             _lblTitle.Text = string.Format("CHOOSE {0} TRACKING MODE", modeName.ToUpper());
             this.Text = string.Format("{0} - Calibration Mode Selection", modeName);
+            
+            // Hide subtitle and standard button for 4 Corners (EN: Masquer sous-titre et bouton standard)
+            if (_modeName == "4 Corners")
+            {
+                _lblSubtitle.Visible = false;
+                _btnStandard.Visible = false;
+            }
             
             // Set FlatAppearance border sizes (Designer doesn't support this)
             _btnDynamic.FlatAppearance.BorderSize = 3;
@@ -57,12 +67,22 @@ namespace WiimoteGun.UI.Calibrate
             int buttonHeight = Math.Min(400, this.ClientSize.Height - 200);
             int spacing = 50;
             
-            int totalWidth = buttonWidth * 2 + spacing;
-            int startX = (this.ClientSize.Width - totalWidth) / 2;
-            int startY = (this.ClientSize.Height - buttonHeight) / 2 + 80; // +80 for title offset
+            if (_modeName == "4 Corners")
+            {
+                // Center the single Dynamic Button
+                int startX = (this.ClientSize.Width - buttonWidth) / 2;
+                int startY = (this.ClientSize.Height - buttonHeight) / 2 + 80;
+                _btnDynamic.SetBounds(startX, startY, buttonWidth, buttonHeight);
+            }
+            else
+            {
+                int totalWidth = buttonWidth * 2 + spacing;
+                int startX = (this.ClientSize.Width - totalWidth) / 2;
+                int startY = (this.ClientSize.Height - buttonHeight) / 2 + 80; // +80 for title offset
 
-            _btnDynamic.SetBounds(startX, startY, buttonWidth, buttonHeight);
-            _btnStandard.SetBounds(startX + buttonWidth + spacing, startY, buttonWidth, buttonHeight);
+                _btnDynamic.SetBounds(startX, startY, buttonWidth, buttonHeight);
+                _btnStandard.SetBounds(startX + buttonWidth + spacing, startY, buttonWidth, buttonHeight);
+            }
         }
 
         private void PositionOnMonitor(int monitorId)

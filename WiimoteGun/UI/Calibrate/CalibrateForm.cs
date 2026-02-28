@@ -15,11 +15,11 @@ namespace WiimoteGun.UI.Calibrate
         private int _currentCalibrationStep; // Current LED being calibrated (0-N)
         private int _totalCalibrationSteps;  // Total number of LEDs to calibrate
 
-        // 3-Point calibration tracking (EN/FR: Suivi calibration 3-points)
+        // 4-Point calibration tracking (EN/FR: Suivi calibration 4-points)
         private static Point2F? mTopLeft;      // Point 1
         private static Point2F? mTopRight;     // Point 2
         private static Point2F? mBottomRight;  // Point 3
-        private static Point2F? mBottomLeft;   // Point 4 (EN/FR: Point 4)
+        private static Point2F? mBottomLeft;   // Point 4
 
         // Cancel event - raised when user presses ESC to cancel calibration
         // (EN/FR: Événement d'annulation - déclenché quand l'utilisateur appuie sur ESC)
@@ -246,13 +246,30 @@ namespace WiimoteGun.UI.Calibrate
                             DrawLEDMarker(g, bottomRightPoint, "BR", _currentCalibrationStep == 2);
                             DrawLEDMarker(g, bottomLeftPoint, "BL", _currentCalibrationStep == 3);
                         }
-
-                        // Bottom warning
+                        // Draw bottom sensor bar (same width as top, mirrored at bottom)
+                        // (EN/FR: Dessiner la barre capteur BAS - même largeur que le haut, symétrique en bas)
                         int botY = h - margin;
-                        string warningMsg = "BOTTOM SENSOR BAR NOT SUPPORTED";
-                        var warningSize = g.MeasureString(warningMsg, font);
-                        g.DrawString(warningMsg, font, Brushes.Red, w / 2 - warningSize.Width / 2, botY - 40);
+                        g.DrawLine(ledPen, barStart, botY, barEnd, botY);
+                        g.DrawString("SENSOR BAR (BOTTOM)", font, Brushes.Cyan, w / 2 - 85, botY - 25);
+
+                        // Draw "OR" label at screen center to show that TOP and BOTTOM are both compatible
+                        // (EN/FR: Afficher "OR / OU" au centre pour montrer que TOP et BOTTOM sont tous deux compatibles)
+                        using (var orFont = new System.Drawing.Font(System.Drawing.SystemFonts.MessageBoxFont.FontFamily.Name, 22, System.Drawing.FontStyle.Bold))
+                        {
+                            string orText = "OR";
+                            var orSize = g.MeasureString(orText, orFont);
+                            // Draw a subtle dark background behind the text for readability
+                            // (EN/FR: Dessiner un fond sombre derrière le texte pour lisibilité)
+                            var orRect = new RectangleF(
+                                w / 2 - orSize.Width / 2 - 10, centerY - orSize.Height / 2 - 5,
+                                orSize.Width + 20, orSize.Height + 10);
+                            g.FillRectangle(new SolidBrush(Color.FromArgb(160, 0, 0, 0)), orRect);
+                            g.DrawString(orText, orFont, Brushes.Yellow, w / 2 - orSize.Width / 2, centerY - orSize.Height / 2);
+                        }
+
                         break;
+
+
 
                     case LEDLayoutType.Gun4IRDiamond:
                         // Gun4IR: 5-Point Calibration with markers only (no crosshair)

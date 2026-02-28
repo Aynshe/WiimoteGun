@@ -100,12 +100,7 @@ namespace WiimoteGun
         // Gun4IR / 4 Corners Calibration Points (5 points: Center, Top, Right, Bottom, Left)
         private Point2F?[] _gun4irPoints = new Point2F?[5]; // 0=Center, 1=Top, 2=Right, 3=Bottom, 4=Left
         
-        // Dynamic Offset Memory for smooth 1-point tracking (EN/FR: Mémoire offset dynamique pour suivi fluide 1 point)
-        // Stored by Quadrant (TL, TR, BL, BR) to be robust against ID swaps
-        private Point2F? _offsetTL;
-        private Point2F? _offsetTR;
-        private Point2F? _offsetBL;
-        private Point2F? _offsetBR;
+
         
         // OLD: private Dictionary<int, Point2F> _dynamicOffsets = new Dictionary<int, Point2F>();
 
@@ -117,6 +112,11 @@ namespace WiimoteGun
         private float _maxObservedDiagonal = 0f;
         private float _observedHeight = 0f; // Learned height of the rectangle (EN/FR: Hauteur apprise du rectangle)
         private float _observedWidth = 0f;  // Learned width of the rectangle (EN/FR: Largeur apprise du rectangle)
+        // v16: Double-T Tracking Fields (EN/FR: Champs Suivi Double-T)
+        private Point2F _lastM1 = new Point2F(0.5f, 0.5f);
+        private Point2F _lastM2 = new Point2F(0.5f, 0.5f);
+        private bool _doubleTInitialized = false;
+        private float _doubleTRatio = 0.5f;
         private Dictionary<int, Point2F> _lastFramePoints = new Dictionary<int, Point2F>();
         private bool _wasUsingRelativeTracking = false;
         private int _framesSinceTransition = 0;
@@ -127,9 +127,25 @@ namespace WiimoteGun
         private float[] _cachedStaticHomography = null;
 
         private CalibrateForm _calibrateForm;
+        private CalibrationModeSelectionForm _modeSelectionForm; // Reference to mode selection form for cancellation via Home button
         private WiimoteGun.UI.Legacy.IRVisualizerForm _irVisualizer; // (EN/FR: Fenêtre visualisation IR)
 
+        // Distance compensation for manual calibration modes (NOT dynamic/auto mode)
+        // Stores the apparent IR target size at calibration time to detect proximity changes
+        // (EN/FR: Compensation de distance pour modes calibration manuelle (PAS mode auto)
+        // Stocke la taille IR apparente lors de la calibration pour détecter les changements de distance)
+        private float _calibrationIRSpan = 0f; // IR span saved at calibration end (EN/FR: Taille IR sauvegardée en fin de calibration)
+        private float _lastIRSpan        = 0f; // IR span measured at last frame (EN/FR: Taille IR mesurée à la dernière frame)
+        private float _lastValidDistFactor = 1.0f; // Persistent scaling factor for 1-LED tracking (EN/FR: Facteur d'échelle persistant pour suivi 1 point)
+        private List<float> _calibrationSpanSamples = new List<float>(); // IR span samples collected during calibration clicks (EN/FR: Échantillons de taille IR collectés lors des clics de calibration)
+        private const float DistanceCompensationThreshold = 0.04f; // 4% threshold to avoid over-correcting noise (EN/FR: Seuil 4% pour éviter sur-correction du bruit)
+        private const float DistanceFactorSmoothing = 0.15f; // Smoothing factor for distFactor (0-1, lower = smoother)
+
         public bool IsCalibrating { get { return _calibrateForm != null; } }
+        /// <summary>
+        /// True when the auto/manual mode selection form is open (EN/FR: Vrai quand le formulaire de sélection auto/manuel est ouvert)
+        /// </summary>
+        public bool IsSelectingMode { get { return _modeSelectionForm != null; } }
         public bool IsCalibrated 
         { 
             get
@@ -148,12 +164,50 @@ namespace WiimoteGun
                 // Permissive mode: Allow 3 of 4 points for very large screens (EN/FR: Mode permissif : 3 sur 4 points)
                 bool has3Points = Options.Instance.PermissiveWiimoteBarCalibration &&
                                   (_topLeftPt.HasValue && _topRightPt.HasValue && _bottomRightPt.HasValue);
-                
                 return has4Points || has3Points;
             } 
         }
 
+
+        /// <summary>
+        /// Cancel any active calibration or mode selection screen (triggered by Home button).
+        /// Closes both the mode selection form and the calibration form if open.
+        /// (EN/FR: Annuler toute calibration ou écran de sélection actif (déclenché par bouton Home).
+        /// Ferme le formulaire de sélection de mode ET le formulaire de calibration si ouverts.)
+        /// </summary>
+        public void CancelCalibration()
+        {
+            try
+            {
+                // Close mode selection form if open via UI thread (EN/FR: Fermer le formulaire de sélection via thread UI)
+                var modeForm = _modeSelectionForm;
+                if (modeForm != null && !modeForm.IsDisposed)
+                {
+                    Program.PostToUIThread(() =>
+                    {
+                        try { if (!modeForm.IsDisposed) { modeForm.DialogResult = System.Windows.Forms.DialogResult.Cancel; modeForm.Close(); } }
+                        catch { }
+                    });
+                }
+
+                // Cancel calibration form if open (EN/FR: Annuler le formulaire de calibration si ouvert)
+                if (_calibrateForm != null)
+                {
+                    SimpleLogger.Instance.Info(string.Format("[P{0}] Calibration cancelled via Home button", _playerIndex));
+                    ResetCalibration();
+                    EndCalibrate();
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Warning(string.Format("[P{0}] CancelCalibration error: {1}", _playerIndex, ex.Message));
+            }
+        }
+
         // Expose the calculated center for visualization (EN/FR: Exposer le centre calculé pour la visualisation)
+        public Point2F DoubleT_M1 { get { return _lastM1; } }
+        public Point2F DoubleT_M2 { get { return _lastM2; } }
+
         // Convert from normalized (0-1) to raw (0-1023, 0-767) for visualizer display
         public Point2F LastCalculatedCenter 
         { 
@@ -201,7 +255,7 @@ namespace WiimoteGun
             // Gun4IR / 4 Corners: Ask user for mode (Dynamic vs Standard)
             if (_ledLayout == LEDLayoutType.Gun4IRDiamond || _ledLayout == LEDLayoutType.FourCorners)
             {
-                // Reset calibration immediately on entry (User request)
+                // Reset calibration immediately and SYNCHRONOUSLY on entry (User request v6)
                 ResetCalibration();
 
                 // Show full-screen mode selection form (EN/FR: Afficher le formulaire plein écran de sélection)
@@ -211,6 +265,9 @@ namespace WiimoteGun
                     
                     using (var selectionForm = new CalibrationModeSelectionForm(Options.Instance.MonitorId, modeName))
                     {
+                        // Store reference so CancelCalibration() can close it via Home button
+                        // (EN/FR: Stocker référence pour que CancelCalibration() puisse la fermer via Home)
+                        _modeSelectionForm = selectionForm;
                         DialogResult result = selectionForm.ShowDialog();
 
                         if (!selectionForm.SelectionMade || result == DialogResult.Cancel)
@@ -234,6 +291,7 @@ namespace WiimoteGun
                             Options.Instance.SetUseDynamicPerspective(_playerIndex, false);
                             StartCalibrationForm();
                         }
+                        _modeSelectionForm = null; // Clear reference once closed
                     }
                 });
             }
@@ -246,6 +304,7 @@ namespace WiimoteGun
 
         private void StartCalibrationForm()
         {
+            // Reset calibration immediately and SYNCHRONOUSLY (User request v6)
             ResetCalibration();
             
             // OPEN IR VISUALIZER (EN/FR: Ouvrir IR Visualizer) - Requested by User to be behind CalibrateForm
@@ -321,6 +380,37 @@ namespace WiimoteGun
             Options.Instance.Save();
             _cachedStaticHomography = null; // Invalidate cache after new calibration (EN/FR: Invalider cache après nouvelle calibration)
 
+            // Memorize IR span at calibration time for distance compensation
+            // Only applies to manual calibration modes (NOT dynamic/auto)
+            // (EN/FR: Mémoriser la taille IR en fin de calibration pour compensation de distance
+            // Uniquement pour modes calibration manuelle (PAS mode auto))
+
+            // Calculate average calibration IR span from collected samples
+            // (EN/FR: Calculer la moyenne de la taille IR de calibration à partir des échantillons collectés)
+            if (_calibrationSpanSamples.Count > 0)
+            {
+                _calibrationIRSpan = _calibrationSpanSamples.Average();
+                SimpleLogger.Instance.Info(string.Format("[P{0}] Calibration: Reference IR span finalized = {1:F4} (from {2} clicks)", _playerIndex, _calibrationIRSpan, _calibrationSpanSamples.Count));
+            }
+            else
+            {
+                _calibrationIRSpan = 0f;
+                SimpleLogger.Instance.Warning(string.Format("[P{0}] Calibration: No IR span captured! Distance compensation will be inactive.", _playerIndex));
+            }
+            if (_calibrationIRSpan > 0f)
+            {
+                SimpleLogger.Instance.Info(string.Format("[P{0}] Distance Compensation: Calibration IR span memorized = {1:F4}", _playerIndex, _calibrationIRSpan));
+                // Initialize _lastIRSpan to calibration reference so compensation starts neutral (factor = 1.0)
+                // This ensures the corrective factor is preserved even when only 1 LED is visible (edge aiming),
+                // because _lastIRSpan is only updated when 2 sensors are found, and keeps its value otherwise.
+                // (EN/FR: Initialiser _lastIRSpan à la référence de calibration pour que la compensation démarre neutre (facteur = 1.0)
+                // Ainsi le facteur est conservé même quand 1 seul LED est visible (vise bord), car _lastIRSpan
+                // n'est mis à jour que quand 2 capteurs sont visibles, et conserve sa valeur sinon.)
+                _lastIRSpan = _calibrationIRSpan;
+            }
+
+
+
             var frm = _calibrateForm;
             _calibrateForm = null;
 
@@ -345,6 +435,10 @@ namespace WiimoteGun
             _bottomRightPt = null;
             _bottomLeftPt = null; // NEW: Reset 4th point (EN/FR: Réinitialiser 4e point)
             for(int i=0; i<5; i++) _gun4irPoints[i] = null; // Reset Gun4IR points
+            _calibrationSpanSamples.Clear(); // Clear calibration samples (EN/FR: Effacer les échantillons de calibration)
+            _calibrationIRSpan = 0f; // Reset reference span during calibration (EN/FR: Réinitialiser le span de référence pendant la calibration)
+            _lastIRSpan = 0f;
+            _lastValidDistFactor = 1.0f; // Reset persistent factor (EN/FR: Réinitialiser facteur persistant)
             _cachedStaticHomography = null; // Invalidate homography cache (EN/FR: Invalider cache homographie)
         }
 
@@ -352,6 +446,42 @@ namespace WiimoteGun
         {
             Point2F relativePosition = new Point2F();
             bool hasSensor = true;
+
+            // --- GLOBAL IR NORMALIZATION (DISTANCE COMPENSATION v4) ---
+            // 1. Always update raw _lastIRSpan if possible (using all found sensors for stability)
+            // (EN/FR: Toujours mettre à jour le span brut si possible en utilisant tous les capteurs trouvés)
+            _lastIRSpan = GetLayoutAwareSpan(ir);
+
+            // 2. Apply normalization if enabled and criteria met
+            // (EN/FR: Appliquer la normalisation si activé et critères remplis)
+            // CRITICAL: Skip if calibrating, selecting mode, OR using dynamic auto-homography
+            // NEW (v7): Explicitly restricted to Single Sensor Bar (WiimoteBar) by User request
+            if (Options.Instance.EnableDistanceCompensation && _ledLayout == LEDLayoutType.WiimoteBar && !IsCalibrating && !IsSelectingMode && !UseDynamicPerspective && _calibrationIRSpan > 0f)
+            {
+                if (_lastIRSpan > 0f)
+                {
+                    float instantFactor = _lastIRSpan / _calibrationIRSpan;
+                    
+                    // Apply smoothing to prevent jitter (EN/FR: Appliquer lissage pour éviter les tremblements)
+                    _lastValidDistFactor = (_lastValidDistFactor * (1.0f - DistanceFactorSmoothing)) + (instantFactor * DistanceFactorSmoothing);
+                }
+
+                // Apply persistent factor even if _lastIRSpan is 0 (LED lost at edge)
+                // (EN/FR: Appliquer le facteur persistant même si _lastIRSpan est 0 (LED perdue au bord))
+                float distFactor = _lastValidDistFactor;
+                
+                if (Math.Abs(distFactor - 1.0f) >= DistanceCompensationThreshold)
+                {
+                    // Normalize sensor points around camera center (0.5, 0.5)
+                    if (ir.IRSensor0.Found) ir.IRSensor0.Position = NormalizePoint(ir.IRSensor0.Position, distFactor);
+                    if (ir.IRSensor1.Found) ir.IRSensor1.Position = NormalizePoint(ir.IRSensor1.Position, distFactor);
+                    if (ir.IRSensor2.Found) ir.IRSensor2.Position = NormalizePoint(ir.IRSensor2.Position, distFactor);
+                    if (ir.IRSensor3.Found) ir.IRSensor3.Position = NormalizePoint(ir.IRSensor3.Position, distFactor);
+                    
+                    // Normalize midpoint
+                    ir.Midpoint = NormalizePoint(ir.Midpoint, distFactor);
+                }
+            }
 
             // Calculate position based on LED layout (EN/FR: Calculer position selon layout LED)
             switch (_ledLayout)
@@ -388,6 +518,9 @@ namespace WiimoteGun
             // Calibration Step Logic - 3-POINT SYSTEM (EN/FR: Logique de calibration - SYSTÈME 3-POINTS)
             if (_calibrateForm != null && ((buttons.A && !lastState.A) || (buttons.B && !lastState.B)))
             {
+                // Capture current IR span sample if valid (EN/FR: Capturer l'échantillon de taille IR actuel si valide)
+                if (_lastIRSpan > 0f) _calibrationSpanSamples.Add(_lastIRSpan);
+
                 if (_ledLayout == LEDLayoutType.WiimoteBar)
                 {
                     // Capture 4 points sequentially: TopLeft → TopRight → BottomRight → BottomLeft
@@ -441,49 +574,23 @@ namespace WiimoteGun
                 }
             }
 
-                // Wiimote Bar Logic - 4-POINT HOMOGRAPHY MAPPING (EN/FR: Logique WiimoteBar - MAPPING HOMOGRAPHIE 4-POINTS)
+                // Wiimote Bar Logic - 4-POINT BILINEAR MAPPING (EN/FR: Logique WiimoteBar - MAPPING BILINÉAIRE 4-POINTS)
                 if (_ledLayout == LEDLayoutType.WiimoteBar)
                 {
                     if (_topLeftPt.HasValue && _topRightPt.HasValue && _bottomRightPt.HasValue && _bottomLeftPt.HasValue)
                     {
-                        // Use 4-corner homography mapping (same as TwoWiimoteBar)
-                        // (EN/FR: Utiliser mapping homographie 4 coins - identique à TwoWiimoteBar)
-                        Point2F[] src = new Point2F[4];
-                        Point2F[] dst = new Point2F[4];
+                        // Use 2D Bilinear Trapezoid mapping instead of perspective Homography
+                        // This prevents the edges from being warped/curved by perspective simulation.
+                        // (EN/FR: Utiliser mapping trapézoïdal bilinéaire 2D au lieu de l'homographie de perspective)
+                        
+                        float rawX = relativePosition.X;
+                        float rawY = relativePosition.Y;
 
-                        src[0] = _topLeftPt.Value;     // TL
-                        src[1] = _topRightPt.Value;    // TR
-                        src[2] = _bottomRightPt.Value; // BR
-                        src[3] = _bottomLeftPt.Value;  // BL
+                        relativePosition.X = InterpolateX(rawX, rawY, _topLeftPt.Value, _topRightPt.Value, _bottomLeftPt.Value, _bottomRightPt.Value);
+                        relativePosition.Y = InterpolateY(rawX, rawY, _topLeftPt.Value, _topRightPt.Value, _bottomLeftPt.Value, _bottomRightPt.Value);
 
-                        dst[0] = new Point2F(0.0f, 0.0f); // TL
-                        dst[1] = new Point2F(1.0f, 0.0f); // TR
-                        dst[2] = new Point2F(1.0f, 1.0f); // BR
-                        dst[3] = new Point2F(0.0f, 1.0f); // BL
-
-                        // Compute or use cached Homography Matrix (EN/FR: Calculer ou utiliser matrice homographie en cache)
-                        float[] H;
-                        if (Options.Instance.EnableHomographyCache && _cachedStaticHomography != null)
-                        {
-                            H = _cachedStaticHomography;
-                        }
-                        else
-                        {
-                            H = ComputeHomography(src, dst);
-                            if (Options.Instance.EnableHomographyCache)
-                                _cachedStaticHomography = H;
-                        }
-
-                        // Apply Homography to Current Position (EN/FR: Appliquer homographie à position actuelle)
-                        float x = relativePosition.X;
-                        float y = relativePosition.Y;
-                        float w = H[6] * x + H[7] * y + 1.0f;
-
-                        if (Math.Abs(w) > 0.0001f)
-                        {
-                            relativePosition.X = (H[0] * x + H[1] * y + H[2]) / w;
-                            relativePosition.Y = (H[3] * x + H[4] * y + H[5]) / w;
-                        }
+                        // Distance Compensation: logic removed from here and moved to local LED extrapolation
+                        // to preserve iron-sight aim consistency (scaling around center was problematic).
 
                         // Clamp with limited extrapolation (±5%) for edge cases
                         // (EN/FR: Limiter avec extrapolation limitée (±5%) pour cas limites)
@@ -709,11 +816,14 @@ namespace WiimoteGun
                                     relativePosition.X = (H[0] * x + H[1] * y + H[2]) / w;
                                     relativePosition.Y = (H[3] * x + H[4] * y + H[5]) / w;
                                 }
+
+                                // Distance Compensation: logic removed from here and moved to local LED extrapolation
+                                // to preserve iron-sight aim consistency.
                             }
                         }
-                        else if (_ledLayout == LEDLayoutType.FourCorners || _ledLayout == LEDLayoutType.TwoWiimoteBar)
+                        else if (_ledLayout == LEDLayoutType.FourCorners)
                         {
-                            // FourCorners / TwoWiimoteBar (5 pts captured): Use indices 1-4 (TL, TR, BR, BL) - Ignore 0 (Center)
+                            // FourCorners (5 pts captured): Use indices 1-4 (TL, TR, BR, BL) - Ignore 0 (Center)
                             // (EN/FR: Utiliser indices 1-4 (HG, HD, BD, BG) - Ignorer 0 (Centre))
                             if (_gun4irPoints[1].HasValue && _gun4irPoints[2].HasValue && 
                                 _gun4irPoints[3].HasValue && _gun4irPoints[4].HasValue)
@@ -754,6 +864,37 @@ namespace WiimoteGun
                                     relativePosition.X = (H[0] * x + H[1] * y + H[2]) / w;
                                     relativePosition.Y = (H[3] * x + H[4] * y + H[5]) / w;
                                 }
+
+                                // Distance Compensation: manual mode only (NOT dynamic)
+                                // (EN/FR: Compensation de distance : mode manuel uniquement (PAS mode dynamique))
+                                /* REPLACED by Global IR Normalization v4 at start of method (EN/FR: Remplacé par Normalisation Globale v4 au début)
+                if (Options.Instance.EnableDistanceCompensation && !UseDynamicPerspective)
+                {
+                    relativePosition = ApplyDistanceCompensation(relativePosition, _lastIRSpan);
+                }
+                */
+                            }
+                        }
+                        else if (_ledLayout == LEDLayoutType.TwoWiimoteBar)
+                        {
+                            // v18 Double-T: Do not use Homography perspective warping or bounding box.
+                            // Use pure 2D Bilinear Trapezoid mapping to strictly obey the calibration edges without 3D perspective distortion.
+                            // (EN/FR: Double-T : Utiliser mapping trapézoïdal bilinéaire absolu 2D pour respecter les bords sans distorsion 3D)
+                            if (_gun4irPoints[1].HasValue && _gun4irPoints[2].HasValue && 
+                                _gun4irPoints[3].HasValue && _gun4irPoints[4].HasValue)
+                            {
+                                float rawX = relativePosition.X;
+                                float rawY = relativePosition.Y;
+
+                                // gun4irPoints: 1=TL, 2=TR, 3=BR, 4=BL
+                                // Interpolate takes: TL, TR, BL, BR
+                                relativePosition.X = InterpolateX(rawX, rawY, 
+                                    _gun4irPoints[1].Value, _gun4irPoints[2].Value, 
+                                    _gun4irPoints[4].Value, _gun4irPoints[3].Value);
+                                    
+                                relativePosition.Y = InterpolateY(rawX, rawY, 
+                                    _gun4irPoints[1].Value, _gun4irPoints[2].Value, 
+                                    _gun4irPoints[4].Value, _gun4irPoints[3].Value);
                             }
                         }
                         else // Final Fallback (Should be unreachable if all handled)
@@ -838,6 +979,7 @@ namespace WiimoteGun
             }
             else if (ir.IRSensor0.Found)
             {
+                // Standard extrapolation (normalized points provide compensation automatically)
                 relativePosition.X = _midSensorPos.X + (ir.IRSensor0.Position.X - _firstSensorPos.X);
                 relativePosition.Y = _midSensorPos.Y + (ir.IRSensor0.Position.Y - _firstSensorPos.Y);
             }
@@ -865,6 +1007,150 @@ namespace WiimoteGun
         private int _idBottomLeft = -1;
         private int _idBottomRight = -1;
 
+        // v20: Restored Double-T Tracking Method (1D Horizontal Bars)
+        // Mathematically predicts M1/M2 avoiding visual jumping or inverted axes.
+        // (EN/FR: Méthode de suivi Double-T restaurée. Prédit M1/M2 évitant les sauts.)
+        private bool TryCalculateDoubleTCenter(List<Point2F> pts, out Point2F center)
+        {
+            center = new Point2F(0.5f, 0.5f);
+            if (pts.Count == 0) return false;
+            
+            // 1 point: Return false to fallback to relative delta tracking
+            if (pts.Count == 1) return false;
+
+            if (pts.Count == 4)
+            {
+                // Find the two horizontal bars by pairing closest Y coordinates
+                var sorted = pts.OrderBy(p => p.Y).ToList();
+                Point2F m1 = new Point2F((sorted[0].X + sorted[1].X) / 2.0f, (sorted[0].Y + sorted[1].Y) / 2.0f);
+                Point2F m2 = new Point2F((sorted[2].X + sorted[3].X) / 2.0f, (sorted[2].Y + sorted[3].Y) / 2.0f);
+
+                float w1 = GetDistance(sorted[0], sorted[1]);
+                float w2 = GetDistance(sorted[2], sorted[3]);
+                float avgW = (w1 + w2) / 2.0f;
+                float dist = GetDistance(m1, m2);
+
+                if (avgW > 0.001f)
+                {
+                    _doubleTRatio = dist / avgW;
+                }
+
+                _lastM1 = m1;
+                _lastM2 = m2;
+                _doubleTInitialized = true;
+
+                center = new Point2F((m1.X + m2.X) / 2.0f, (m1.Y + m2.Y) / 2.0f);
+                return true;
+            }
+
+            if (!_doubleTInitialized)
+            {
+                // Fallback if not initialized
+                float cx = 0, cy = 0;
+                foreach (var p in pts) { cx += p.X; cy += p.Y; }
+                center = new Point2F(cx / pts.Count, cy / pts.Count);
+                return true;
+            }
+
+            if (pts.Count == 3)
+            {
+                // 3 points: Find the intact bar (the two points with smallest Y difference)
+                var sortedByY = pts.OrderBy(p => p.Y).ToList();
+                float dy01 = Math.Abs(sortedByY[1].Y - sortedByY[0].Y);
+                float dy12 = Math.Abs(sortedByY[2].Y - sortedByY[1].Y);
+
+                Point2F intactM;
+                bool isM1;
+                Point2F pA, pB;
+
+                if (dy01 < dy12)
+                {
+                    // Bar is points 0 and 1
+                    pA = sortedByY[0]; pB = sortedByY[1];
+                }
+                else
+                {
+                    // Bar is points 1 and 2
+                    pA = sortedByY[1]; pB = sortedByY[2];
+                }
+                intactM = new Point2F((pA.X + pB.X) / 2.0f, (pA.Y + pB.Y) / 2.0f);
+
+                // Which bar is it? M1 or M2? Compare to memory
+                if (GetDistance(intactM, _lastM1) < GetDistance(intactM, _lastM2))
+                {
+                    _lastM1 = intactM;
+                    isM1 = true;
+                }
+                else
+                {
+                    _lastM2 = intactM;
+                    isM1 = false;
+                }
+
+                // Predict the missing bar's midpoint
+                float w = GetDistance(pA, pB);
+                float expectedDist = w * _doubleTRatio;
+
+                // Perpendicular vector
+                float dx = pB.X - pA.X;
+                float dy = pB.Y - pA.Y;
+                float len = (float)Math.Sqrt(dx*dx + dy*dy);
+                if (len < 0.001f) len = 0.001f;
+                float nx = -dy / len;
+                float ny = dx / len;
+
+                // Ensure normal points from M1 to M2
+                float oldDx = _lastM2.X - _lastM1.X;
+                float oldDy = _lastM2.Y - _lastM1.Y;
+                if (nx * oldDx + ny * oldDy < 0)
+                {
+                    nx = -nx; ny = -ny;
+                }
+
+                if (isM1)
+                    _lastM2 = new Point2F(_lastM1.X + nx * expectedDist, _lastM1.Y + ny * expectedDist);
+                else
+                    _lastM1 = new Point2F(_lastM2.X - nx * expectedDist, _lastM2.Y - ny * expectedDist);
+
+                center = new Point2F((_lastM1.X + _lastM2.X) / 2.0f, (_lastM1.Y + _lastM2.Y) / 2.0f);
+                return true;
+            }
+
+            if (pts.Count == 2)
+            {
+                // 2 points: Assume it's an intact horizontal bar
+                Point2F m = new Point2F((pts[0].X + pts[1].X) / 2.0f, (pts[0].Y + pts[1].Y) / 2.0f);
+                
+                // Which bar is it?
+                bool isM1 = GetDistance(m, _lastM1) < GetDistance(m, _lastM2);
+                if (isM1) _lastM1 = m; else _lastM2 = m;
+
+                float w = GetDistance(pts[0], pts[1]);
+                float expectedDist = w * _doubleTRatio;
+
+                float dx = pts[1].X - pts[0].X;
+                float dy = pts[1].Y - pts[0].Y;
+                float len = (float)Math.Sqrt(dx*dx + dy*dy);
+                if (len < 0.001f) len = 0.001f;
+                float nx = -dy / len;
+                float ny = dx / len;
+
+                float oldDx = _lastM2.X - _lastM1.X;
+                float oldDy = _lastM2.Y - _lastM1.Y;
+                if (nx * oldDx + ny * oldDy < 0) { nx = -nx; ny = -ny; }
+
+                if (isM1)
+                    _lastM2 = new Point2F(_lastM1.X + nx * expectedDist, _lastM1.Y + ny * expectedDist);
+                else
+                    _lastM1 = new Point2F(_lastM2.X - nx * expectedDist, _lastM2.Y - ny * expectedDist);
+
+                center = new Point2F((_lastM1.X + _lastM2.X) / 2.0f, (_lastM1.Y + _lastM2.Y) / 2.0f);
+                return true;
+            }
+
+            return false;
+        }
+
         private Point2F CalculateMultiLEDPosition(IRState ir, ref bool hasSensor)
         {
             // Gun4IR & 4-Corners: Robust Hybrid Tracking
@@ -883,6 +1169,33 @@ namespace WiimoteGun
             bool useAbsolute = false;
             Point2F absoluteCenter = new Point2F();
 
+            // v16: Early Intercept for TwoWiimoteBar and FourCorners
+            if ((_ledLayout == LEDLayoutType.TwoWiimoteBar || _ledLayout == LEDLayoutType.FourCorners) && count > 0)
+            {
+                if (TryCalculateDoubleTCenter(currentPoints.Values.ToList(), out absoluteCenter))
+                {
+                    // Update max observed diagonal for distance compensation
+                    if (count == 4)
+                    {
+                        var ptsList = currentPoints.Values.ToList();
+                        float maxDist = 0;
+                        for (int i = 0; i < ptsList.Count; i++)
+                            for (int j = i + 1; j < ptsList.Count; j++)
+                            {
+                                float d = GetDistance(ptsList[i], ptsList[j]);
+                                if (d > maxDist) maxDist = d;
+                            }
+                        if (maxDist > _maxObservedDiagonal) _maxObservedDiagonal = maxDist;
+                    }
+
+                    _lastValidCenter = absoluteCenter;
+                    _wasUsingRelativeTracking = false;
+                    _framesSinceTransition = 0;
+                    hasSensor = true;
+                    return absoluteCenter; // Early return!
+                }
+            }
+
             // Update Max Diagonal and Dimensions if 4 points
             if (count == 4)
             {
@@ -897,145 +1210,43 @@ namespace WiimoteGun
                     }
                 if (maxDist > _maxObservedDiagonal) _maxObservedDiagonal = maxDist;
 
-                // Learn dimensions for 2-Bar reconstruction (EN/FR: Apprendre dimensions pour reconstruction 2-Bar)
                 if (_ledLayout == LEDLayoutType.TwoWiimoteBar || _ledLayout == LEDLayoutType.FourCorners)
                 {
-                    // Sort by Y to separate Top/Bottom
-                    var sortedByY = currentPoints.OrderBy(kvp => kvp.Value.Y).ToList();
-                    // Top 2 are sortedByY[0] and [1]
-                    // Bottom 2 are sortedByY[2] and [3]
+                    // Calculate Centroid (EN/FR: Calculer le centroïde)
+                    float cx = 0, cy = 0;
+                    foreach (var p in pts) { cx += p.X; cy += p.Y; }
+                    cx /= 4; cy /= 4;
+
+                    // v10: Robust Angle-Based Identification
+                    var sortedByAngle = currentPoints.OrderBy(kvp => Math.Atan2(kvp.Value.Y - cy, kvp.Value.X - cx)).ToList();
                     
-                    float topY = (sortedByY[0].Value.Y + sortedByY[1].Value.Y) / 2;
-                    float bottomY = (sortedByY[2].Value.Y + sortedByY[3].Value.Y) / 2;
-                    _observedHeight = Math.Abs(bottomY - topY);
+                    // Order: index 0: BR (~ -135), index 1: BL (~ -45), index 2: TL (~ +45), index 3: TR (~ +135)
+                    _idBottomRight = sortedByAngle[0].Key;
+                    _idBottomLeft = sortedByAngle[1].Key;
+                    _idTopLeft = sortedByAngle[2].Key;
+                    _idTopRight = sortedByAngle[3].Key;
 
-                    // Sort Top 2 by X to get TL/TR
-                    // CAMERA VIEW: X increases from Right to Left (Mirror)
-                    // So Lowest X is Top-Right, Highest X is Top-Left
-                    var topPts = new[] { sortedByY[0], sortedByY[1] }.OrderBy(kvp => kvp.Value.X).ToList();
-                    _idTopRight = topPts[0].Key; // Low X
-                    _idTopLeft = topPts[1].Key;  // High X
+                    // v10: Scalable Dimension & Ratio Learning
+                    float wTop = GetDistance(currentPoints[_idTopLeft], currentPoints[_idTopRight]);
+                    float wBottom = GetDistance(currentPoints[_idBottomLeft], currentPoints[_idBottomRight]);
+                    float hLeft = GetDistance(currentPoints[_idTopLeft], currentPoints[_idBottomLeft]);
+                    float hRight = GetDistance(currentPoints[_idTopRight], currentPoints[_idBottomRight]);
 
-                    // Sort Bottom 2 by X to get BL/BR
-                    var bottomPts = new[] { sortedByY[2], sortedByY[3] }.OrderBy(kvp => kvp.Value.X).ToList();
-                    _idBottomRight = bottomPts[0].Key; // Low X
-                    _idBottomLeft = bottomPts[1].Key;  // High X
+                    _observedWidth = (wTop + wBottom) / 2.0f;
+                    _observedHeight = (hLeft + hRight) / 2.0f;
+                    // _refRatio completely removed in v16
 
-                    SimpleLogger.Instance.Info(string.Format("[P{0}] Learned IDs: TL={1} TR={2} BL={3} BR={4} Dims:{5:F3}x{6:F3}", _playerIndex, _idTopLeft, _idTopRight, _idBottomLeft, _idBottomRight, _observedWidth, _observedHeight));
-
-                    // Sort by X to separate Left/Right (for width calculation)
-                    var sortedByX = currentPoints.Values.OrderBy(p => p.X).ToList();
-                    float leftX = (sortedByX[0].X + sortedByX[1].X) / 2;
-                    float rightX = (sortedByX[2].X + sortedByX[3].X) / 2;
-                    _observedWidth = Math.Abs(rightX - leftX);
+                    // SimpleLogger.Instance.Info(...)
                 }
+
+                // NOTE: _lastIRSpan clobbering removed (v5) - We now exclusively use GetLayoutAwareSpan(ir)
+                // calculated at the beginning of GetScaledPosition for consistency across all modes.
+                // (EN/FR: Écrasement de _lastIRSpan supprimé - Utilisation exclusive de GetLayoutAwareSpan(ir))
             }
 
             // ... (Rest of the file) ...
 
-            // ---------------------------------------------------------
-            // 1 POINT VISIBLE (EN/FR: 1 POINT VISIBLE)
-            // ---------------------------------------------------------
-            if (count == 1)
-            {
-                // We need to know WHICH point it is to apply offset
-                // (EN/FR: On doit savoir QUEL point c'est pour appliquer l'offset)
-                var ptList = currentPoints.ToList();
-                int id = ptList[0].Key;
-                var p = ptList[0].Value;
-
-                // Default to center if unknown (EN/FR: Défaut au centre si inconnu)
-                float finalX = p.X;
-                float finalY = p.Y;
-
-                // Apply Geometric Offset based on ID (EN/FR: Appliquer décalage géométrique selon ID)
-                // Logic:
-                // TL (Top-Left)     -> We are aiming Top-Left. Camera sees it at Bottom-Right relative to center.
-                //                      To get Center, we must move LEFT (-W/2) and DOWN (+H/2)? 
-                //                      WAIT. Let's think in Screen Coordinates (0,0 is Top-Left).
-                //                      If we see TL LED, the "Screen Center" is to the RIGHT (+W/2) and DOWN (+H/2) of that LED.
-                
-                // CORRECTION:
-                // The "Point" p is the LED position in Camera Normalized Coords (0-1).
-                // Camera 0,0 is Top-Left.
-                // If we point at TL of screen, the TL LED is in the CENTER of the camera (0.5, 0.5).
-                // If we point at CENTER of screen, the TL LED moves to the Top-Right of camera image? No.
-                
-                // Let's use the standard "Offset from Center" logic.
-                // Center = Point + Offset
-                
-                // 1-Point Tracking Logic (FourCorners)
-                // (EN/FR: Logique de suivi à 1 point)
-
-                // 1-Point Tracking Logic (FourCorners)
-                // (EN/FR: Logique de suivi à 1 point)
-
-                // Use Quadrant-Based Dynamic Offsets (Robust against ID swaps)
-                // (EN/FR: Offsets dynamiques basés sur quadrants (Robuste contre échange ID))
-                
-                Point2F? selectedOffset = null;
-                
-                // Determine Corner based on Camera Quadrant
-                // Camera 0,0 is Top-Left.
-                // TL LED appears in Bottom-Right (High X, High Y)
-                // TR LED appears in Bottom-Left (Low X, High Y)
-                // BL LED appears in Top-Right (High X, Low Y)
-                // BR LED appears in Top-Left (Low X, Low Y)
-                
-                if (p.X > 0.5f && p.Y > 0.5f)
-                {
-                    // Bottom-Right of Camera -> Top-Left LED
-                    selectedOffset = _offsetTL;
-                    // Fallback Heuristic if no offset
-                    if (selectedOffset == null) 
-                    {
-                        float halfW = _observedWidth / 2f; if (halfW < 0.01f) halfW = 0.2f;
-                        float halfH = _observedHeight / 2f; if (halfH < 0.01f) halfH = 0.2f;
-                        selectedOffset = new Point2F(-halfW, -halfH);
-                    }
-                }
-                else if (p.X <= 0.5f && p.Y > 0.5f)
-                {
-                    // Bottom-Left of Camera -> Top-Right LED
-                    selectedOffset = _offsetTR;
-                    if (selectedOffset == null) 
-                    {
-                        float halfW = _observedWidth / 2f; if (halfW < 0.01f) halfW = 0.2f;
-                        float halfH = _observedHeight / 2f; if (halfH < 0.01f) halfH = 0.2f;
-                        selectedOffset = new Point2F(halfW, -halfH);
-                    }
-                }
-                else if (p.X > 0.5f && p.Y <= 0.5f)
-                {
-                    // Top-Right of Camera -> Bottom-Left LED
-                    selectedOffset = _offsetBL;
-                    if (selectedOffset == null) 
-                    {
-                        float halfW = _observedWidth / 2f; if (halfW < 0.01f) halfW = 0.2f;
-                        float halfH = _observedHeight / 2f; if (halfH < 0.01f) halfH = 0.2f;
-                        selectedOffset = new Point2F(-halfW, halfH);
-                    }
-                }
-                else // p.X <= 0.5f && p.Y <= 0.5f
-                {
-                    // Top-Left of Camera -> Bottom-Right LED
-                    selectedOffset = _offsetBR;
-                    if (selectedOffset == null) 
-                    {
-                        float halfW = _observedWidth / 2f; if (halfW < 0.01f) halfW = 0.2f;
-                        float halfH = _observedHeight / 2f; if (halfH < 0.01f) halfH = 0.2f;
-                        selectedOffset = new Point2F(halfW, halfH);
-                    }
-                }
-
-                if (selectedOffset.HasValue)
-                {
-                    absoluteCenter.X = p.X + selectedOffset.Value.X;
-                    absoluteCenter.Y = p.Y + selectedOffset.Value.Y;
-                    useAbsolute = true;
-                }
-            }
-
+            // 1-Point tracking falls back to relative movement.
             if (count == 4)
             {
                 // ... (Homography Logic) ...
@@ -1050,49 +1261,6 @@ namespace WiimoteGun
                 _framesSinceTransition = 0;
                 hasSensor = true;
                 
-                // Update Quadrant Offsets when 4 points are visible (Sorted & Identified)
-                // (EN/FR: Mettre à jour offsets quadrants quand 4 points visibles (Triés & Identifiés))
-                if (count == 4 && (_ledLayout == LEDLayoutType.TwoWiimoteBar || _ledLayout == LEDLayoutType.FourCorners))
-                {
-                    // We need the sorted points from the Homography block.
-                    // Since we are outside that block, we need to re-sort or capture them.
-                    // Actually, let's just use the current points and sort them here for offset update.
-                    var pts = currentPoints.Values.ToList();
-                    float cx = 0, cy = 0;
-                    foreach (var pt in pts) { cx += pt.X; cy += pt.Y; }
-                    cx /= 4; cy /= 4;
-                    
-                    // Sort by Angle to identify TL, TR, BR, BL
-                    // 0=TL, 1=TR, 2=BR, 3=BL (Clockwise from Top-Left?)
-                    // Wait, standard sort is:
-                    // TL (Low X, Low Y in Screen) -> But here we are in Camera Coords.
-                    // Camera: TL LED is Bottom-Right (High X, High Y).
-                    // TR LED is Bottom-Left (Low X, High Y).
-                    // BR LED is Top-Left (Low X, Low Y).
-                    // BL LED is Top-Right (High X, Low Y).
-                    
-                    // Let's use the same sort as Homography:
-                    // sortedPts = pts.OrderBy(p => Math.Atan2(p.Y - cy, p.X - cx)).ToList();
-                    // Angles (Y is Down):
-                    // BR (Low X, Low Y) -> (-,-) -> -135 deg
-                    // TR (Low X, High Y) -> (-,+) -> +135 deg
-                    // TL (High X, High Y) -> (+,+) -> +45 deg
-                    // BL (High X, Low Y) -> (+,-) -> -45 deg
-                    
-                    // Order: -135 (BR), -45 (BL), +45 (TL), +135 (TR)
-                    // Index 0: BR
-                    // Index 1: BL
-                    // Index 2: TL
-                    // Index 3: TR
-                    
-                    var sortedPts = pts.OrderBy(p => Math.Atan2(p.Y - cy, p.X - cx)).ToList();
-                    
-                    // Update Offsets: Offset = Center - Point
-                    _offsetBR = new Point2F(absoluteCenter.X - sortedPts[0].X, absoluteCenter.Y - sortedPts[0].Y);
-                    _offsetBL = new Point2F(absoluteCenter.X - sortedPts[1].X, absoluteCenter.Y - sortedPts[1].Y);
-                    _offsetTL = new Point2F(absoluteCenter.X - sortedPts[2].X, absoluteCenter.Y - sortedPts[2].Y);
-                    _offsetTR = new Point2F(absoluteCenter.X - sortedPts[3].X, absoluteCenter.Y - sortedPts[3].Y);
-                }
             }
             else if (count > 0)
             {
@@ -1100,13 +1268,7 @@ namespace WiimoteGun
             }
             else
             {
-                // No points visible -> Clear Offsets? 
-                // No, keep them for a bit? 
-                // Better to clear to avoid stale data if user moves significantly.
-                _offsetTL = null;
-                _offsetTR = null;
-                _offsetBL = null;
-                _offsetBR = null;
+                // No points visible
             }
 
 
@@ -1117,48 +1279,21 @@ namespace WiimoteGun
                 foreach (var p in pts) { cx += p.X; cy += p.Y; }
                 cx /= 4; cy /= 4;
 
-                // Debug Log (disabled by default, uncomment to enable)
-                // SimpleLogger.Instance.Info($"[4pt] Centroid: ({cx:F3}, {cy:F3}). Layout: {_ledLayout}");
-
-                // CRITICAL: Different tracking for Diamond vs Rectangle layouts
-                // IMPROVED (EN/FR): All multi-LED configurations now use diagonal intersection 
-                // for better stability against perspective distortion.
-                if (_ledLayout == LEDLayoutType.Gun4IRDiamond || _ledLayout == LEDLayoutType.TwoWiimoteBar || _ledLayout == LEDLayoutType.FourCorners)
+                if (_ledLayout == LEDLayoutType.Gun4IRDiamond)
                 {
-                    // Gun4IR (Diamond) and Rectangular Layouts: Use Intersection of Diagonals (Projective Center)
-                    // This is the only point invariant under perspective distortion.
-                    
-                    // Sort points to identify opposing pairs
+                    // Projective Center (Intersection of Diagonals)
                     var sortedPts = pts.OrderBy(p => Math.Atan2(p.Y - cy, p.X - cx)).ToList();
-                    
-                    // Identify opposing pairs for intersection
-                    // (EN/FR: Identifier paires opposées pour intersection)
-                    Point2F p1 = sortedPts[0];
-                    Point2F p2 = sortedPts[2];
-                    Point2F p3 = sortedPts[1];
-                    Point2F p4 = sortedPts[3];
-
-                    // Intersect the two lines
+                    Point2F p1 = sortedPts[0]; Point2F p2 = sortedPts[2]; Point2F p3 = sortedPts[1]; Point2F p4 = sortedPts[3];
                     Point2F? intersection = GetLineIntersection(p1, p2, p3, p4);
 
-                    if (intersection.HasValue)
-                    {
-                        absoluteCenter = intersection.Value;
-                        useAbsolute = true;
-                    }
-                    else
-                    {
-                        // Fallback to centroid if parallel (unlikely)
-                        absoluteCenter.X = cx;
-                        absoluteCenter.Y = cy;
-                        useAbsolute = true;
-                    }
+                    if (intersection.HasValue) absoluteCenter = intersection.Value;
+                    else absoluteCenter = new Point2F(cx, cy);
+                    
+                    useAbsolute = true;
                 }
                 else
                 {
-                    // Fallback to average
-                    absoluteCenter.X = cx;
-                    absoluteCenter.Y = cy;
+                    absoluteCenter = new Point2F(cx, cy);
                     useAbsolute = true;
                 }
             }
@@ -1166,83 +1301,7 @@ namespace WiimoteGun
             {
                 var pts = currentPoints.Values.ToList();
                 
-                if (_ledLayout == LEDLayoutType.TwoWiimoteBar || _ledLayout == LEDLayoutType.FourCorners)
-                {
-                    // 2-Bar / Rectangle: Robust Reconstruction
-                    // (EN/FR: 2-Bar / Rectangle : Reconstruction robuste)
-                    
-                    // OPTIMIZATION: Use Max Distance to find Diagonal
-                    // (EN/FR: OPTIMISATION : Utiliser la distance max pour trouver la diagonale)
-                    // The two points furthest apart are the diagonal (A and C).
-                    // The third point is the corner B (opposite to missing D).
-                    // Center = Midpoint of Diagonal (A+C)/2.
-                    
-                    float d01 = GetDistance(pts[0], pts[1]);
-                    float d12 = GetDistance(pts[1], pts[2]);
-                    float d02 = GetDistance(pts[0], pts[2]);
-                    
-                    Point2F diag1, diag2;
-                    
-                    if (d01 > d12 && d01 > d02)
-                    {
-                        // P0 and P1 are diagonal
-                        diag1 = pts[0]; diag2 = pts[1];
-                    }
-                    else if (d12 > d01 && d12 > d02)
-                    {
-                        // P1 and P2 are diagonal
-                        diag1 = pts[1]; diag2 = pts[2];
-                    }
-                    else
-                    {
-                        // P0 and P2 are diagonal
-                        diag1 = pts[0]; diag2 = pts[2];
-                    }
-                    
-                    // Center is midpoint of diagonal
-                    absoluteCenter.X = (diag1.X + diag2.X) / 2.0f;
-                    absoluteCenter.Y = (diag1.Y + diag2.Y) / 2.0f;
-                    useAbsolute = true;                
-                    // Update Dimensions (Width/Height) from 3 points
-                    // (EN/FR: Mettre à jour dimensions depuis 3 points)
-                    // Determine which adjacent point forms Width vs Height
-                    // We need to identify the 'opposite' point (the one not part of the diagonal)
-                    Point2F opposite;
-                    if ((diag1.X == pts[0].X && diag1.Y == pts[0].Y && diag2.X == pts[1].X && diag2.Y == pts[1].Y) ||
-                        (diag1.X == pts[1].X && diag1.Y == pts[1].Y && diag2.X == pts[0].X && diag2.Y == pts[0].Y))
-                    {
-                        opposite = pts[2];
-                    }
-                    else if ((diag1.X == pts[1].X && diag1.Y == pts[1].Y && diag2.X == pts[2].X && diag2.Y == pts[2].Y) ||
-                             (diag1.X == pts[2].X && diag1.Y == pts[2].Y && diag2.X == pts[1].X && diag2.Y == pts[1].Y))
-                    {
-                        opposite = pts[0];
-                    }
-                    else
-                    {
-                        opposite = pts[1];
-                    }
-
-                    Point2F adj1 = diag1; // One of the diagonal points is adjacent to 'opposite'
-                    Point2F adj2 = diag2; // The other diagonal point is also adjacent to 'opposite'
-                    
-                    float dist1 = GetDistance(opposite, adj1);
-                    float dist2 = GetDistance(opposite, adj2);
-
-                    float dx1 = Math.Abs(opposite.X - adj1.X);
-                    float dy1 = Math.Abs(opposite.Y - adj1.Y);
-                    
-                    float dx2 = Math.Abs(opposite.X - adj2.X);
-                    float dy2 = Math.Abs(opposite.Y - adj2.Y);
-                    
-                    // Heuristic: Width is horizontal (dx > dy), Height is vertical (dy > dx)
-                    if (dx1 > dy1) _observedWidth = dist1;
-                    else _observedHeight = dist1;
-                    
-                    if (dx2 > dy2) _observedWidth = dist2;
-                    else _observedHeight = dist2;
-                }
-                else
+                if (_ledLayout == LEDLayoutType.Gun4IRDiamond)
                 {
                     // Gun4IR (Diamond): Robust 3-Point Logic
                     // (EN/FR: Gun4IR (Diamant) : Logique 3 points robuste)
@@ -1322,159 +1381,7 @@ namespace WiimoteGun
                 var pts = currentPoints.ToList(); 
                 float dist = GetDistance(pts[0].Value, pts[1].Value);
 
-                // CRITICAL: FourCorners (2-Bar) should ALWAYS use absolute tracking
-                if (_ledLayout == LEDLayoutType.TwoWiimoteBar || _ledLayout == LEDLayoutType.FourCorners)
-                {
-                    // 2-Bar / Rectangle: 2-Point Reconstruction
-                    // (EN/FR: 2-Bar / Rectangle : Reconstruction 2 points)
-                    
-                    // Calculate Midpoint
-                    Point2F mid = new Point2F((pts[0].Value.X + pts[1].Value.X) / 2, (pts[0].Value.Y + pts[1].Value.Y) / 2);
-                    
-                    float dx = pts[1].Value.X - pts[0].Value.X;
-                    float dy = pts[1].Value.Y - pts[0].Value.Y;
-                    
-                    // Determine orientation: Horizontal or Vertical?
-                    bool isHorizontal = Math.Abs(dx) > Math.Abs(dy);
-                    
-                    if (isHorizontal)
-                    {
-                        // HORIZONTAL BAR (Top or Bottom)
-                        bool isTopBar;
-
-                        // Check IDs if available
-                        int id1 = pts[0].Key;
-                        int id2 = pts[1].Key;
-                        
-                        if (_idTopLeft != -1 && 
-                           ((id1 == _idTopLeft && id2 == _idTopRight) || (id1 == _idTopRight && id2 == _idTopLeft)))
-                        {
-                            isTopBar = true;
-                            // SimpleLogger.Instance.Info($"[P{_playerIndex}] 2-Point ID Match: Top Bar");
-                        }
-                        else if (_idBottomLeft != -1 && 
-                                ((id1 == _idBottomLeft && id2 == _idBottomRight) || (id1 == _idBottomRight && id2 == _idBottomLeft)))
-                        {
-                            isTopBar = false;
-                            // SimpleLogger.Instance.Info($"[P{_playerIndex}] 2-Point ID Match: Bottom Bar");
-                        }
-                        else
-                        {
-                            // Fallback Heuristic: If Y > 0.5 (Bottom of image), we are pointing UP -> Top Bar is visible
-                            isTopBar = mid.Y > 0.5f;
-                            SimpleLogger.Instance.Info(string.Format("[P{0}] 2-Point Fallback: TopBar={1} (MidY={2:F2}) IDs:({3},{4}) KnownTL:{5}", _playerIndex, isTopBar, mid.Y, id1, id2, _idTopLeft));
-                        }
-                        
-                        if (_observedHeight > 0)
-                        {
-                            // Calculate perpendicular vector for offset
-                            float len = (float)Math.Sqrt(dx*dx + dy*dy);
-                            if (len > 0.001f)
-                            {
-                                float ndx = dx / len;
-                                float ndy = dy / len;
-                                
-                                // Normal vector (rotated 90 deg) pointing "Down" (Y+)
-                                // If bar is horizontal (dx=1, dy=0), Normal should be (0, 1)
-                                // (-dy, dx) -> (0, 1) Correct.
-                                float nx = -ndy;
-                                float ny = ndx;
-                                
-                                // Ensure Normal points Down (Y+)
-                                if (ny < 0) { nx = -nx; ny = -ny; }
-                                
-                                // Offset distance (Half Height)
-                                float offset = _observedHeight / 2.0f;
-                                
-                                if (isTopBar)
-                                {
-                                    // If Top Bar, Center is BELOW (Y+)
-                                    absoluteCenter.X = mid.X + nx * offset;
-                                    absoluteCenter.Y = mid.Y + ny * offset;
-                                }
-                                else
-                                {
-                                    // If Bottom Bar, Center is ABOVE (Y-)
-                                    absoluteCenter.X = mid.X - nx * offset;
-                                    absoluteCenter.Y = mid.Y - ny * offset;
-                                }
-                            }
-                            else { absoluteCenter = mid; }
-                        }
-                        else { absoluteCenter = mid; }
-                    }
-                    else
-                    {
-                        // VERTICAL BAR (Left or Right)
-                        bool isLeftBar;
-
-                        // ID Check removed to prevent "Bounce" due to swapped IDs.
-                        // Geometric Heuristic is robust for edge tracking.
-                        // (EN/FR: Vérification ID supprimée pour éviter le "Rebond". L'heuristique géométrique est robuste.)
-                        
-                        // Fallback Heuristic: If X > 0.5 (Right of image), we are pointing LEFT -> Left Bar is visible
-                        isLeftBar = mid.X > 0.5f;
-                        
-                        /* 
-                        // OLD ID LOGIC (Caused Bounce if IDs swapped)
-                        if (_idTopLeft != -1 && 
-                           ((id1 == _idTopLeft && id2 == _idBottomLeft) || (id1 == _idBottomLeft && id2 == _idTopLeft)))
-                        {
-                            isLeftBar = true;
-                        }
-                        else if (_idTopRight != -1 && 
-                                ((id1 == _idTopRight && id2 == _idBottomRight) || (id1 == _idBottomRight && id2 == _idTopRight)))
-                        {
-                            isLeftBar = false;
-                        }
-                        else
-                        {
-                            isLeftBar = mid.X > 0.5f;
-                        }
-                        */
-                        
-                        if (_observedWidth > 0)
-                        {
-                             // Calculate perpendicular vector for offset
-                            float len = (float)Math.Sqrt(dx*dx + dy*dy);
-                            if (len > 0.001f)
-                            {
-                                float ndx = dx / len;
-                                float ndy = dy / len;
-                                
-                                // Normal vector (rotated 90 deg) pointing "Right" (X+)
-                                // If bar is vertical (dx=0, dy=1), Normal should be (1, 0)
-                                // (dy, -dx) -> (1, 0) Correct.
-                                float nx = ndy;
-                                float ny = -ndx;
-                                
-                                // Ensure Normal points Right (X+)
-                                if (nx < 0) { nx = -nx; ny = -ny; }
-                                
-                                // Offset distance (Half Width)
-                                float offset = _observedWidth / 2.0f;
-                                
-                                if (isLeftBar)
-                                {
-                                    // If Left Bar, Center is to the RIGHT (X+)
-                                    absoluteCenter.X = mid.X + nx * offset;
-                                    absoluteCenter.Y = mid.Y + ny * offset;
-                                }
-                                else
-                                {
-                                    // If Right Bar, Center is to the LEFT (X-)
-                                    absoluteCenter.X = mid.X - nx * offset;
-                                    absoluteCenter.Y = mid.Y - ny * offset;
-                                }
-                            }
-                            else { absoluteCenter = mid; }
-                        }
-                        else { absoluteCenter = mid; }
-                    }
-                    
-                    useAbsolute = true;
-                }
-                else if (_ledLayout == LEDLayoutType.Gun4IRDiamond)
+                if (_ledLayout == LEDLayoutType.Gun4IRDiamond)
                 {
                     // Gun4IR (Diamond): Check for Vertical or Horizontal pairs
                     // (EN/FR: Gun4IR (Diamant) : Vérifier paires Verticales ou Horizontales)
@@ -1742,6 +1649,74 @@ namespace WiimoteGun
             return relativePosition;
         }
 
+        // Apply distance compensation to a mapped position (manual calibration modes ONLY)
+        // When the player moves closer/farther from the screen after calibration, the IR repere
+        // appears larger/smaller. We scale the cursor position around the center to compensate.
+        // (EN/FR: Appliquer compensation de distance à une position mappée (modes calibration manuelle UNIQUEMENT)
+        // Quand le joueur s'approche/s'éloigne après calibration, le repère IR paraît plus grand/petit.
+        // On redimensionne la position du curseur autour du centre pour compenser.)
+        private Point2F ApplyDistanceCompensation(Point2F mappedPos, float currentSpan)
+        {
+            // Guard: need valid calibration reference and current measurement
+            // (EN/FR: Garde : il faut une référence de calibration valide et une mesure courante)
+            if (_calibrationIRSpan <= 0f || currentSpan <= 0f)
+                return mappedPos;
+
+            float distanceFactor = currentSpan / _calibrationIRSpan;
+
+            // Only apply when change is above threshold to prevent noise amplification
+            // (EN/FR: Appliquer uniquement si le changement dépasse le seuil pour éviter d'amplifier le bruit)
+            if (Math.Abs(distanceFactor - 1.0f) < DistanceCompensationThreshold)
+                return mappedPos;
+
+            // Scale around center (0.5, 0.5): closer = larger span = compress; farther = smaller span = expand
+            // (EN/FR: Mise à l'échelle autour du centre (0.5, 0.5) : plus proche = repère plus grand = compression; plus loin = expansion)
+            float cx = mappedPos.X - 0.5f;
+            float cy = mappedPos.Y - 0.5f;
+
+            Point2F compensated = new Point2F(
+                cx / distanceFactor + 0.5f,
+                cy / distanceFactor + 0.5f
+            );
+
+            SimpleLogger.Instance.Info(string.Format(
+                "[P{0}] DistComp: CalibSpan={1:F3} CurSpan={2:F3} Factor={3:F3} ({4:F3},{5:F3})->({6:F3},{7:F3})",
+                _playerIndex, _calibrationIRSpan, currentSpan, distanceFactor,
+                mappedPos.X, mappedPos.Y, compensated.X, compensated.Y));
+
+            return compensated;
+        }
+
+        private Point2F NormalizePoint(Point2F p, float factor)
+        {
+            if (factor <= 0.001f) return p;
+            return new Point2F(0.5f + (p.X - 0.5f) / factor, 0.5f + (p.Y - 0.5f) / factor);
+        }
+
+        /// <summary>
+        /// Robustly calculates the "scale" of the IR constellation using mean distance to centroid.
+        /// (EN/FR: Calcule de manière robuste l'échelle de la constellation IR via la distance moyenne au centroïde.)
+        /// </summary>
+        private float GetLayoutAwareSpan(IRState ir)
+        {
+            List<Point2F> pts = new List<Point2F>();
+            if (ir.IRSensor0.Found) pts.Add((Point2F)ir.IRSensor0.RawPosition);
+            if (ir.IRSensor1.Found) pts.Add((Point2F)ir.IRSensor1.RawPosition);
+            if (ir.IRSensor2.Found) pts.Add((Point2F)ir.IRSensor2.RawPosition);
+            if (ir.IRSensor3.Found) pts.Add((Point2F)ir.IRSensor3.RawPosition);
+
+            if (pts.Count < 2) return 0f;
+
+            // Centroid (average position)
+            float cx = pts.Average(p => p.X);
+            float cy = pts.Average(p => p.Y);
+            Point2F centroid = new Point2F(cx, cy);
+
+            // Mean distance of all points to their common centroid
+            float totalDist = pts.Sum(p => GetDistance(p, centroid));
+            return (totalDist / pts.Count) / 1024f; // Normalize to 0-1 range
+        }
+
         private float GetDistance(Point2F p1, Point2F p2)
         {
             return (float)Math.Sqrt(Math.Pow(p1.X - p2.X, 2) + Math.Pow(p1.Y - p2.Y, 2));
@@ -1969,6 +1944,30 @@ namespace WiimoteGun
             float y = (A1 * C2 - A2 * C1) / det;
 
             return new Point2F(x, y);
+        }
+
+        private float InterpolateX(float rawX, float rawY, Point2F TL, Point2F TR, Point2F BL, Point2F BR)
+        {
+            float pctLeft = (BL.Y - TL.Y == 0) ? 0 : (rawY - TL.Y) / (BL.Y - TL.Y);
+            float leftX = TL.X + pctLeft * (BL.X - TL.X);
+
+            float pctRight = (BR.Y - TR.Y == 0) ? 0 : (rawY - TR.Y) / (BR.Y - TR.Y);
+            float rightX = TR.X + pctRight * (BR.X - TR.X);
+
+            if (rightX == leftX) return 0.5f;
+            return (rawX - leftX) / (rightX - leftX);
+        }
+
+        private float InterpolateY(float rawX, float rawY, Point2F TL, Point2F TR, Point2F BL, Point2F BR)
+        {
+            float pctTop = (TR.X - TL.X == 0) ? 0 : (rawX - TL.X) / (TR.X - TL.X);
+            float topY = TL.Y + pctTop * (TR.Y - TL.Y);
+
+            float pctBot = (BR.X - BL.X == 0) ? 0 : (rawX - BL.X) / (BR.X - BL.X);
+            float botY = BL.Y + pctBot * (BR.Y - BL.Y);
+
+            if (botY == topY) return 0.5f;
+            return (rawY - topY) / (botY - topY);
         }
     }
 }

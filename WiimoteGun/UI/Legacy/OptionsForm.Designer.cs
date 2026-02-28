@@ -33,7 +33,8 @@ namespace WiimoteGun
             this.btnOk = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
             this.numericUpDown1 = new System.Windows.Forms.NumericUpDown();
-            this.cbStartWithWindows = new System.Windows.Forms.CheckBox();
+            this.cboAutoStart = new System.Windows.Forms.ComboBox();
+            this.lblAutoStartLegacy = new System.Windows.Forms.Label();
             this.rbBoth = new System.Windows.Forms.RadioButton();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.cboLogLevel = new System.Windows.Forms.ComboBox();
@@ -129,15 +130,27 @@ namespace WiimoteGun
             this.numericUpDown1.TabIndex = 3;
             this.numericUpDown1.TextAlign = System.Windows.Forms.HorizontalAlignment.Right;
             // 
-            // cbStartWithWindows
+            // cboAutoStart
             // 
-            this.cbStartWithWindows.AutoSize = true;
-            this.cbStartWithWindows.Location = new System.Drawing.Point(13, 30);
-            this.cbStartWithWindows.Name = "cbStartWithWindows";
-            this.cbStartWithWindows.Size = new System.Drawing.Size(117, 17);
-            this.cbStartWithWindows.TabIndex = 4;
-            this.cbStartWithWindows.Text = "Start with Windows";
-            this.cbStartWithWindows.UseVisualStyleBackColor = true;
+            this.cboAutoStart.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboAutoStart.FormattingEnabled = true;
+            this.cboAutoStart.Items.AddRange(new object[] {
+            "None",
+            "Windows Startup",
+            "RetroBat Startup"});
+            this.cboAutoStart.Location = new System.Drawing.Point(200, 26);
+            this.cboAutoStart.Name = "cboAutoStart";
+            this.cboAutoStart.Size = new System.Drawing.Size(154, 21);
+            this.cboAutoStart.TabIndex = 4;
+            // 
+            // lblAutoStartLegacy
+            // 
+            this.lblAutoStartLegacy.AutoSize = true;
+            this.lblAutoStartLegacy.Location = new System.Drawing.Point(13, 30);
+            this.lblAutoStartLegacy.Name = "lblAutoStartLegacy";
+            this.lblAutoStartLegacy.Size = new System.Drawing.Size(58, 13);
+            this.lblAutoStartLegacy.TabIndex = 0;
+            this.lblAutoStartLegacy.Text = "Auto-Start:";
             // 
             // rbBoth
             // 
@@ -161,7 +174,8 @@ namespace WiimoteGun
             this.groupBox1.Controls.Add(this.chkEnableGamePadSwap);
             this.groupBox1.Controls.Add(this.chkPersistentGamePads);
             this.groupBox1.Controls.Add(this.chkNotifications);
-            this.groupBox1.Controls.Add(this.cbStartWithWindows);
+            this.groupBox1.Controls.Add(this.cboAutoStart);
+            this.groupBox1.Controls.Add(this.lblAutoStartLegacy);
             this.groupBox1.Location = new System.Drawing.Point(410, 153);
             this.groupBox1.Name = "groupBox1";
             this.groupBox1.Size = new System.Drawing.Size(384, 155);
@@ -705,7 +719,8 @@ namespace WiimoteGun
         private System.Windows.Forms.Button btnOk;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.NumericUpDown numericUpDown1;
-        private System.Windows.Forms.CheckBox cbStartWithWindows;
+        private System.Windows.Forms.ComboBox cboAutoStart;
+        private System.Windows.Forms.Label lblAutoStartLegacy;
         private System.Windows.Forms.RadioButton rbBoth;
         private System.Windows.Forms.GroupBox groupBox1;
         private System.Windows.Forms.GroupBox groupBox2;

@@ -19,7 +19,7 @@ namespace WiimoteGun
             numericUpDown1.Maximum = Screen.AllScreens.Length - 1;
             numericUpDown1.DataBindings.Add("Value", Options.Instance, "MonitorId");
             
-            cbStartWithWindows.DataBindings.Add("Checked", Options.Instance, "StartWithWindows");
+            cboAutoStart.SelectedIndex = (int)Options.Instance.AutoStart;
             chkNotifications.DataBindings.Add("Checked", Options.Instance, "ShowNotifications");
             chkEnableGamePadSwap.DataBindings.Add("Checked", Options.Instance, "EnableGamePadSwapMode");
             chkPersistentGamePads.DataBindings.Add("Checked", Options.Instance, "PersistentGamePads");
@@ -120,7 +120,8 @@ namespace WiimoteGun
         {
             Options.Instance.DetectDolphinbar = rbBoth.Checked || rbDolphinbar.Checked;
             Options.Instance.DetectBlueTooth = rbBoth.Checked || rbBlueTooth.Checked;
-            Options.Instance.StartWithWindows = cbStartWithWindows.Checked;
+            Options.Instance.AutoStart = (AutoStartMode)cboAutoStart.SelectedIndex;
+            Options.Instance.ApplyAutoStart();
             Options.Instance.ShowNotifications = chkNotifications.Checked;
             Options.Instance.EnableGamePadSwapMode = chkEnableGamePadSwap.Checked;
             Options.Instance.PersistentGamePads = chkPersistentGamePads.Checked;

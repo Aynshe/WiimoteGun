@@ -1297,6 +1297,10 @@ namespace WiimoteGun
                             _lastY = finalY;
                             _lastIRSeenTime = GetNow();
 
+                            // Update global tracking of which screen is being aimed at
+                            // (EN/FR: Mettre à jour le suivi global de l'écran visé)
+                            Program.LastActiveScreenIndex = this.ScreenIndex;
+
                             // Virtual Polling Storage
                             _lastX_Raw = finalX;
                             _lastY_Raw = finalY;
@@ -1953,11 +1957,16 @@ namespace WiimoteGun
 
         public static event EventHandler OverlayRequested;
         private bool _overlayTriggered = false;
+        /// <summary>
+        /// Blocks SwitchMode for a short period after calibration is opened or cancelled.
+        /// Prevents accidental mode switch when Home is used to cancel calibration.
+        /// (EN/FR: Bloque SwitchMode pendant une courte période après ouverture/annulation calibration.
+        /// Empêche le changement de mode accidentel quand Home ferme la calibration.)
+        /// </summary>
+        private DateTime _modeSwitchBlockedUntil = DateTime.MinValue;
 
         private void ManageCalibration(Wiimote wiimote, ButtonState buttons, ButtonState lastState, Point2F? scaledPos)
         {
-            if (_calculator.IsCalibrating)
-                return;
 
             // Check for Home + D-pad or Minus + D-pad combo for IN-GAME offset adjustment 
     // (EN/FR: Vérifier combo Home/Minus + D-pad pour ajustement offset EN JEU)
@@ -2093,12 +2102,24 @@ namespace WiimoteGun
             if (lastState.Home != buttons.Home)
             {
                 if (buttons.Home && ticks < 0)
+                {
                     ticks = Environment.TickCount;
+                }
                 else if (!buttons.Home && ticks > 0)
                 {
-                    // Only switch mode if overlay wasn't triggered (EN/FR: Changer mode seulement si overlay non déclenché)
-                    if (!_overlayTriggered)
+                    // Block SwitchMode if calibration was recently opened or cancelled (500ms cooldown)
+                    // (EN/FR: Bloquer SwitchMode si calibration récemment ouverte ou annulée - cooldown 500ms)
+                    bool modeSwitchBlocked = DateTime.Now < _modeSwitchBlockedUntil;
+
+                    if (_calculator.IsCalibrating || _calculator.IsSelectingMode)
                     {
+                        // Close calibration / mode selection (EN/FR: Fermer calibration / sélection mode)
+                        _calculator.CancelCalibration();
+                        _modeSwitchBlockedUntil = DateTime.Now.AddMilliseconds(500); // Block SwitchMode for 500ms
+                    }
+                    else if (!modeSwitchBlocked && !_overlayTriggered)
+                    {
+                        // Normal case: switch mode (EN/FR: Cas normal : changer de mode)
                         SwitchMode(wiimote);
                     }
                     ticks = -1;
@@ -2110,11 +2131,15 @@ namespace WiimoteGun
                 if (!_overlayTriggered)
                 {
                     ticks = -1;
- 
                     if (_mode == WiiMoteMode.Mouse)
+                    {
+                        // Block SwitchMode after calibration opens (async form creation via PostToUIThread)
+                        // (EN/FR: Bloquer SwitchMode après ouverture calibration - création form async via PostToUIThread)
+                        _modeSwitchBlockedUntil = DateTime.Now.AddMilliseconds(5000); // Block until calibration confirmed open or cancelled
                         _calculator.Calibrate();
+                    }
                 }
-            }                        
+            }
         }
 
         private Process GetDolphinProcess(out bool locks)

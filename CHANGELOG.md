@@ -4,7 +4,21 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.3.3.0] - 2026-02-28
+
+### Added
+- **Auto-Start with RetroBat** - Added support for automatically launching WiimoteGun at RetroBat startup via a generated script in the EmulationStation start scripts folder.
+
+### Changed
+- **Four Corners Tracking Logic** - Four Corners now only uses Automatic (Dynamic) mode for calibration. This method is more reliable but requires a sufficient distance to maintain tracking for all four LEDs across the whole screen. Using a fisheye lens is recommended for close-range setups.
+
+### Removed
+- **Manual Calibration for Four Corners** - Disabled manual calibration mode for the 4 Corners layout due to tracking stability issues at close range.
+- **Two Wiimote Sensor Bar Layout** - removed the "Two Wiimote Bars" option from the selection menu. This configuration proved too difficult to track accurately at short distances.
+
+
 ## [2.3.2.2] - 2026-02-23
+
 ### Added
 - Service Update Automation: Implemented `UpdateService.ps1` for automated service maintenance.
 - Service Log Rotation: Added 1.5MB limit for `WiimoteGunService.log` with automatic backup to `.bak`.

@@ -164,6 +164,12 @@ namespace WiimoteGun.Controls
             // Log Level
             optLogLevel.SelectedItem = Options.Instance.LoggingLevel.ToString();
 
+            // Auto-Start
+            optAutoStart.Items.Clear();
+            optAutoStart.Items.Add("None");
+            optAutoStart.Items.Add("Windows Startup");
+            optAutoStart.Items.Add("RetroBat Startup");
+            optAutoStart.SelectedIndex = (int)Options.Instance.AutoStart;
 
 
             // Detection
@@ -193,6 +199,7 @@ namespace WiimoteGun.Controls
             optIRSmoothingStrength.Value = Math.Min(Math.Max(Options.Instance.IRSmoothingStrength, optIRSmoothingStrength.Minimum), optIRSmoothingStrength.Maximum);
             optUseHighPerfTimers.Checked = Options.Instance.UseHighPerfTimers;
             optEnableHomographyCache.Checked = Options.Instance.EnableHomographyCache;
+            optEnableDistanceCompensation.Checked = Options.Instance.EnableDistanceCompensation;
             optUseIRExtrapolation.Checked = Options.Instance.UseIRExtrapolation;
             optIRExtrapolationStrength.Value = (decimal)Math.Min(Math.Max(Options.Instance.IRExtrapolationStrength, (float)optIRExtrapolationStrength.Minimum), (float)optIRExtrapolationStrength.Maximum);
             optEnableVirtualPolling.Checked = Options.Instance.EnableVirtualPolling;
@@ -370,6 +377,10 @@ namespace WiimoteGun.Controls
                     SimpleLogger.Instance.Threshold = Options.Instance.LoggingLevel;
                 }
 
+                // Auto-Start
+                Options.Instance.AutoStart = (AutoStartMode)optAutoStart.SelectedIndex;
+                Options.Instance.ApplyAutoStart();
+
 
 
                 // Detection
@@ -401,6 +412,7 @@ namespace WiimoteGun.Controls
                 Options.Instance.IRSmoothingStrength = (int)optIRSmoothingStrength.Value;
                 Options.Instance.UseHighPerfTimers = optUseHighPerfTimers.Checked;
                 Options.Instance.EnableHomographyCache = optEnableHomographyCache.Checked;
+                Options.Instance.EnableDistanceCompensation = optEnableDistanceCompensation.Checked;
                 Options.Instance.UseIRExtrapolation = optUseIRExtrapolation.Checked;
                 Options.Instance.IRExtrapolationStrength = (float)optIRExtrapolationStrength.Value;
                 Options.Instance.EnableVirtualPolling = optEnableVirtualPolling.Checked;
