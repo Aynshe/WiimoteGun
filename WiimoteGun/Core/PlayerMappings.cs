@@ -130,11 +130,11 @@ namespace WiimoteGun
                     mappings.WiiMinus = new ButtonAction(Keys.D2);
                     break;
                 case 3:
-                    mappings.WiiPlus = new ButtonAction(Keys.D8);
+                    mappings.WiiPlus = new ButtonAction(Keys.D7);
                     mappings.WiiMinus = new ButtonAction(Keys.D3);
                     break;
                 case 4:
-                    mappings.WiiPlus = new ButtonAction(Keys.D5);
+                    mappings.WiiPlus = new ButtonAction(Keys.D8);
                     mappings.WiiMinus = new ButtonAction(Keys.D4);
                     break;
             }

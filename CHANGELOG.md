@@ -8,7 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - **Default Remap Generation** - Fixed an issue where `default.remap` could be auto-generated with "polluted" settings from the current session. It now always uses Factory Default values.
-- **Initial Mapping Logic** - Re-implemented the default button mapping (5, 6, 8, etc.) using a centralized `PlayerMappings.CreateDefault(index)` method to ensure consistency when `settings.cfg` or `default.remap` are missing.
+- **Initial Mapping Logic** - Re-implemented the default button mapping (P1=5, P2=6, P3=7, P4=8) using a centralized `PlayerMappings.CreateDefault(index)` method to ensure consistency. Corrected P3/P4 mapping errors (was 8/5, now 7/8).
+- **Startup Logging** - Added explicit logging of WiimoteGun version and installed Service version in `WiimoteGun.log` at every startup for easier diagnostics.
 
 ## [2.3.3.1] - 2026-03-08
 
