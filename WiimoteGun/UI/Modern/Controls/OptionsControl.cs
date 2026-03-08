@@ -444,6 +444,7 @@ namespace WiimoteGun.Controls
                     WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory
                 };
                 Process.Start(psi);
+                Program.IsRestarting = true;
                 Application.Exit();
             }
             catch (Exception ex)

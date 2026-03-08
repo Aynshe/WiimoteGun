@@ -31,8 +31,9 @@ namespace WiimoteGun
                     {
                         using (NamedPipeClientStream pipeClient = new NamedPipeClientStream(".", PIPE_NAME, PipeDirection.InOut))
                         {
-                            // Increased timeout to 3000ms to avoid flaky connection failures
-                            pipeClient.Connect(3000); 
+                            // EN: Increased timeout to 10000ms. Service DEVCON commands (ex: CLEANUP_VMULTI) can take ~3-4 seconds
+                            // FR: Augmentation du timeout à 10000ms. Les commandes DEVCON du Service (ex: CLEANUP_VMULTI) peuvent prendre ~3-4 secondes
+                            pipeClient.Connect(10000); 
                             using (StreamWriter sw = new StreamWriter(pipeClient))
                             {
                                 sw.AutoFlush = true;
@@ -96,7 +97,14 @@ namespace WiimoteGun
         /// EN: Unregister the current process from the service (called on clean shutdown).
         /// FR: Désenregistrer le processus actuel du service (appelé lors d'un arrêt propre).
         /// </summary>
-        public static void UnregisterClient() { SendCommand("UNREGISTER_CLIENT"); }
+        /// <param name="isRestarting">EN: True if the app is restarting / FR: Vrai si l'app redémarre</param>
+        public static void UnregisterClient(bool isRestarting = false) 
+        { 
+            if (isRestarting)
+                SendCommand("UNREGISTER_CLIENT:RESTART");
+            else
+                SendCommand("UNREGISTER_CLIENT"); 
+        }
 
         // ========== GamePad Mode Col06 Commands (EN/FR: Commandes GamePad Mode Col06) ==========
 

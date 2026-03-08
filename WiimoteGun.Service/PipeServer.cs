@@ -172,15 +172,27 @@ namespace WiimoteGun.Service
                 
                 // EN: Handle UNREGISTER_CLIENT command (clean shutdown)
                 // FR: Gérer la commande UNREGISTER_CLIENT (arrêt propre)
-                if (string.Equals(command, "UNREGISTER_CLIENT", StringComparison.OrdinalIgnoreCase))
+                if (command.StartsWith("UNREGISTER_CLIENT", StringComparison.OrdinalIgnoreCase))
                 {
+                    bool isRestart = command.Contains(":RESTART");
                     int previousPid;
                     lock (_clientLock)
                     {
                         previousPid = _registeredClientPid;
                         _registeredClientPid = 0;
                     }
-                    DriverController.Log($"[ClientWatcher] Unregistered client PID: {previousPid} (clean shutdown requested)");
+                    
+                    DriverController.Log($"[ClientWatcher] Unregistered client PID: {previousPid} (clean shutdown requested, restart={isRestart})");
+                    
+                    // EN: If it's a real exit (not a restart), trigger immediate cleanup
+                    // FR: S'il s'agit d'une sortie réelle (pas d'un redémarrage), déclencher le nettoyage immédiat
+                    if (!isRestart)
+                    {
+                        DriverController.Log("[ClientWatcher] Real exit detected. Cleaning up all virtual devices...");
+                        DriverController.RemoveMouseForAllPlayers();
+                        DriverController.RemoveGamepadForAllPlayers();
+                    }
+                    
                     return;
                 }
                 

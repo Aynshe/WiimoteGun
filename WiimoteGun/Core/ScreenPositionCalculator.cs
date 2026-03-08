@@ -1954,8 +1954,9 @@ namespace WiimoteGun
             float pctRight = (BR.Y - TR.Y == 0) ? 0 : (rawY - TR.Y) / (BR.Y - TR.Y);
             float rightX = TR.X + pctRight * (BR.X - TR.X);
 
-            if (rightX == leftX) return 0.5f;
-            return (rawX - leftX) / (rightX - leftX);
+            if (Math.Abs(rightX - leftX) < 0.0001f) return rawX;
+            float val = (rawX - leftX) / (rightX - leftX);
+            return float.IsNaN(val) || float.IsInfinity(val) ? rawX : val;
         }
 
         private float InterpolateY(float rawX, float rawY, Point2F TL, Point2F TR, Point2F BL, Point2F BR)
@@ -1966,8 +1967,9 @@ namespace WiimoteGun
             float pctBot = (BR.X - BL.X == 0) ? 0 : (rawX - BL.X) / (BR.X - BL.X);
             float botY = BL.Y + pctBot * (BR.Y - BL.Y);
 
-            if (botY == topY) return 0.5f;
-            return (rawY - topY) / (botY - topY);
+            if (Math.Abs(botY - topY) < 0.0001f) return rawY;
+            float val = (rawY - topY) / (botY - topY);
+            return float.IsNaN(val) || float.IsInfinity(val) ? rawY : val;
         }
     }
 }

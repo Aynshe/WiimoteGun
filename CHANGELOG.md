@@ -4,6 +4,12 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.3.3.1] - 2026-03-08
+
+### Fixed
+- **Cursor Tracking Freeze** - Fixed a bug where the cursor would freeze or block during calibration/re-connection in `WiimoteBar` mode due to invalid interpolation states.
+- **Apply/Restart Driver Activation** - Resolved a critical issue where Wiimote drivers were not re-activated after an "Apply/Restart" action. Fixed by adding `UnregisterClient` on exit and increasing IPC timeout to 10s to handle heavy service cleanup.
+
 ## [2.3.3.0] - 2026-02-28
 
 ### Added

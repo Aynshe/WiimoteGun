@@ -62,6 +62,7 @@ namespace WiimoteGun
         static int _lastActiveScreenIndex = -1; // Last screen aimed by a Wiimote (EN/FR: Dernier écran visé par une Wiimote)
 
         public static int LastActiveScreenIndex { get { return _lastActiveScreenIndex; } set { _lastActiveScreenIndex = value; } }
+        public static bool IsRestarting = false; // Flag to distinguish between exit and restart (EN/FR: Flag pour distinguer sortie et redémarrage)
 
         public static string LastDetectedGameName { get { return _lastDetectedGame; } }
         public static string LastDetectedGamePath { get { return _lastDetectedGamePath; } }
@@ -468,6 +469,8 @@ namespace WiimoteGun
                     menuTimer?.Dispose();
                 }, null, 500, System.Threading.Timeout.Infinite);
             }
+            // Ensure cleanup happens on any application exit (EN/FR: Assurer le nettoyage lors de toute sortie de l'application)
+            Application.ApplicationExit += OnApplicationExit;
            
             Application.Run(_appContext);
         }
@@ -723,6 +726,22 @@ namespace WiimoteGun
          
         private static void OnExitClicked(object sender, EventArgs e)
         {
+            Application.Exit();
+        }
+
+        private static void OnApplicationExit(object sender, EventArgs e)
+        {
+            // EN: Unregister client to prevent Service from accidentally cleaning up devices on slow exit/restart
+            // FR: Désinscrire le client pour éviter que le Service ne nettoie accidentellement les pilotes lors d'une fermeture lente ou d'un redémarrage
+            try
+            {
+                ServiceClient.UnregisterClient(IsRestarting);
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error($"Error unregistering IPC client: {ex.Message}");
+            }
+
             if (_trayIcon != null)
             {
                 _trayIcon.Visible = false;
@@ -735,9 +754,6 @@ namespace WiimoteGun
                 _wiiMoteManager.Dispose();
                 _wiiMoteManager = null;
             }
-
-
-            Application.Exit();
         }
 
 
