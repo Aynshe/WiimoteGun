@@ -197,21 +197,16 @@ namespace WiimoteGun
             {
                 try
                 {
-                    // Create default.remap from current Options settings (EN/FR: Créer default.remap depuis les options actuelles)
-                    RemapProfile defaultProfile = new RemapProfile
-                    {
-                        ProfileName = "Default",
-                        P1Mappings = Options.Instance.P1Mappings?.Clone() ?? new PlayerMappings(),
-                        P2Mappings = Options.Instance.P2Mappings?.Clone() ?? new PlayerMappings(),
-                        P3Mappings = Options.Instance.P3Mappings?.Clone() ?? new PlayerMappings(),
-                        P4Mappings = Options.Instance.P4Mappings?.Clone() ?? new PlayerMappings(),
-                        
-                        // Capture current hotkeys for default profile (EN/FR: Capturer hotkeys actuelles pour profil par défaut)
-                        P1Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(1).Hotkeys.Select(h => h.Clone())),
-                        P2Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(2).Hotkeys.Select(h => h.Clone())),
-                        P3Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(3).Hotkeys.Select(h => h.Clone())),
-                        P4Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(4).Hotkeys.Select(h => h.Clone()))
-                    };
+                    // Create default.remap from Factory Default instead of potentially 'polluted' Options
+                    // (EN/FR: Créer default.remap depuis les valeurs d'usine plutôt que des options potentiellement corrompues)
+                    RemapProfile defaultProfile = RemapProfile.GetFactoryDefault();
+                    defaultProfile.ProfileName = "Default";
+
+                    // Capture current hotkeys for default profile (EN/FR: Capturer hotkeys actuelles pour profil par défaut)
+                    defaultProfile.P1Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(1).Hotkeys.Select(h => h.Clone()));
+                    defaultProfile.P2Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(2).Hotkeys.Select(h => h.Clone()));
+                    defaultProfile.P3Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(3).Hotkeys.Select(h => h.Clone()));
+                    defaultProfile.P4Hotkeys = new List<Hotkey>(HotkeyManager.GetRawProfile(4).Hotkeys.Select(h => h.Clone()));
 
                     // FIX V25e: Sanitize default profile to ensure Gyro is DISABLED.
                     // This prevents 'dirty' gyro state from the current session (e.g. loaded from another profile) 
@@ -611,6 +606,22 @@ namespace WiimoteGun
             P2Hotkeys = new List<Hotkey>();
             P3Hotkeys = new List<Hotkey>();
             P4Hotkeys = new List<Hotkey>();
+        }
+
+        /// <summary>
+        /// EN: Create a factory default profile (mouse mode)
+        /// FR: Créer un profil d'usine (mode souris)
+        /// </summary>
+        public static RemapProfile GetFactoryDefault()
+        {
+            return new RemapProfile
+            {
+                ProfileName = "Factory Default",
+                P1Mappings = PlayerMappings.CreateDefault(1),
+                P2Mappings = PlayerMappings.CreateDefault(2),
+                P3Mappings = PlayerMappings.CreateDefault(3),
+                P4Mappings = PlayerMappings.CreateDefault(4)
+            };
         }
     }
 }

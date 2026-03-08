@@ -267,26 +267,10 @@ namespace WiimoteGun
                 RestartOnCemu = true;
 
                 // Initialize player mappings (EN/FR: Initialiser les mappings par joueur)
-                // Initialize player mappings (EN/FR: Initialiser les mappings par joueur)
-                // P1 Defaults (Plus=D5, Minus=D1)
-                P1Mappings = new PlayerMappings();
-                P1Mappings.WiiPlus = new ButtonAction(Keys.D5);
-                P1Mappings.WiiMinus = new ButtonAction(Keys.D1);
-
-                // P2 Defaults (Plus=D6, Minus=D2)
-                P2Mappings = new PlayerMappings();
-                P2Mappings.WiiPlus = new ButtonAction(Keys.D6);
-                P2Mappings.WiiMinus = new ButtonAction(Keys.D2);
-
-                // P3 Defaults (Plus=D8, Minus=D3)
-                P3Mappings = new PlayerMappings();
-                P3Mappings.WiiPlus = new ButtonAction(Keys.D8);
-                P3Mappings.WiiMinus = new ButtonAction(Keys.D3);
-
-                // P4 Defaults (Plus=D5, Minus=D4)
-                P4Mappings = new PlayerMappings();
-                P4Mappings.WiiPlus = new ButtonAction(Keys.D5);
-                P4Mappings.WiiMinus = new ButtonAction(Keys.D4);
+                P1Mappings = PlayerMappings.CreateDefault(1);
+                P2Mappings = PlayerMappings.CreateDefault(2);
+                P3Mappings = PlayerMappings.CreateDefault(3);
+                P4Mappings = PlayerMappings.CreateDefault(4);
                 
                 // Gesture defaults (EN/FR: Valeurs par défaut pour les gestes)
                 EnableOffScreenReload = false;
@@ -739,7 +723,7 @@ namespace WiimoteGun
 
         public void ResetPlayerMappings(int playerIndex)
         {
-            var defaultMappings = new PlayerMappings();
+            var defaultMappings = PlayerMappings.CreateDefault(playerIndex);
             GetMappingsForPlayer(playerIndex).CopyFrom(defaultMappings);
         }
 

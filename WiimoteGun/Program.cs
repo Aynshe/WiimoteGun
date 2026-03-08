@@ -1024,7 +1024,7 @@ namespace WiimoteGun
                 
                 // EN: Force factory default mappings if no .remap file exists
                 // FR: Forcer les mappings d'usine si aucun fichier .remap n'existe
-                ApplyProfileToOptions(new RemapProfile { ProfileName = "Factory Default" });
+                ApplyProfileToOptions(RemapProfile.GetFactoryDefault());
                 
                 // EN: Also try to load default GamePad profile
                 // FR: Essayer aussi de charger le profil GamePad par défaut

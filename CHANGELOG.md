@@ -4,6 +4,12 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.3.3.2] - 2026-03-08
+
+### Fixed
+- **Default Remap Generation** - Fixed an issue where `default.remap` could be auto-generated with "polluted" settings from the current session. It now always uses Factory Default values.
+- **Initial Mapping Logic** - Re-implemented the default button mapping (5, 6, 8, etc.) using a centralized `PlayerMappings.CreateDefault(index)` method to ensure consistency when `settings.cfg` or `default.remap` are missing.
+
 ## [2.3.3.1] - 2026-03-08
 
 ### Fixed

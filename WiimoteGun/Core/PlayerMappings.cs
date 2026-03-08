@@ -110,6 +110,39 @@ namespace WiimoteGun
         }
 
         /// <summary>
+        /// EN: Create a default mapping for a specific player (1-4).
+        /// FR: Créer un mapping par défaut pour un joueur spécifique (1-4).
+        /// </summary>
+        public static PlayerMappings CreateDefault(int playerIndex)
+        {
+            PlayerMappings mappings = new PlayerMappings();
+
+            // Apply specific overrides for Plus/Minus to avoid conflicts in emulators (start/credits)
+            // (EN/FR: Appliquer surcharges Plus/Minus pour éviter conflits émulateurs)
+            switch (playerIndex)
+            {
+                case 1:
+                    mappings.WiiPlus = new ButtonAction(Keys.D5);
+                    mappings.WiiMinus = new ButtonAction(Keys.D1);
+                    break;
+                case 2:
+                    mappings.WiiPlus = new ButtonAction(Keys.D6);
+                    mappings.WiiMinus = new ButtonAction(Keys.D2);
+                    break;
+                case 3:
+                    mappings.WiiPlus = new ButtonAction(Keys.D8);
+                    mappings.WiiMinus = new ButtonAction(Keys.D3);
+                    break;
+                case 4:
+                    mappings.WiiPlus = new ButtonAction(Keys.D5);
+                    mappings.WiiMinus = new ButtonAction(Keys.D4);
+                    break;
+            }
+
+            return mappings;
+        }
+
+        /// <summary>
         /// Copy mappings from another PlayerMappings instance (EN/FR: Copier les mappings depuis une autre instance)
         /// </summary>
         public void CopyFrom(PlayerMappings source)

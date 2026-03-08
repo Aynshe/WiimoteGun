@@ -45,7 +45,7 @@ namespace WiimoteGun.Service
                         }
                         break;
                     default:
-                        Console.WriteLine("WiimoteGun Helper Service");
+                        Console.WriteLine("WiimoteGun Helper Service v" + Assembly.GetExecutingAssembly().GetName().Version.ToString());
                         Console.WriteLine("Usage: /install or /uninstall");
                         break;
                 }
