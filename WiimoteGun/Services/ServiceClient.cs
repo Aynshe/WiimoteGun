@@ -141,6 +141,7 @@ namespace WiimoteGun
                 }
 
                 FileVersionInfo installedVersion = FileVersionInfo.GetVersionInfo(installedServicePath);
+                SimpleLogger.Instance.Info(string.Format("Service Version (Installed): {0}", installedVersion.FileVersion));
                 
                 // Get packaged version (relative to main app)
                 string appDir = AppDomain.CurrentDomain.BaseDirectory;

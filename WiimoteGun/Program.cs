@@ -261,7 +261,7 @@ namespace WiimoteGun
                 return;
 
             SimpleLogger.Instance.Info("---------------------------------------------------------------");
-            SimpleLogger.Instance.Info("WiimoteGun startup");
+            SimpleLogger.Instance.Info(string.Format("WiimoteGun startup (v{0})", System.Reflection.Assembly.GetExecutingAssembly().GetName().Version));
 
             // EN: Register this process with the service for crash/exit monitoring EARLY
             // FR: Enregistrer ce processus auprès du service pour la surveillance crash/sortie PRÉCOCEMENT
