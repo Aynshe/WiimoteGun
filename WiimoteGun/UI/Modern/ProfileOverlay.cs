@@ -265,7 +265,7 @@ namespace WiimoteGun.Forms
             
             lblTitleBarText = new Label
             {
-                Text = "WiimoteGun - Overlay",
+                Text = "Wiimote4Guns - Overlay",
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                 AutoSize = true,

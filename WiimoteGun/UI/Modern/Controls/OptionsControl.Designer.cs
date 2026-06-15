@@ -1066,7 +1066,7 @@ namespace WiimoteGun.Controls
             this.optStandaloneMode.Name = "optStandaloneMode";
             this.optStandaloneMode.Size = new System.Drawing.Size(300, 25);
             this.optStandaloneMode.TabIndex = 2;
-            this.optStandaloneMode.Text = "Standalone / Portable Mode (No RetroBat)";
+            this.optStandaloneMode.Text = "Standalone / Gamepad multiplayer";
             this.optStandaloneMode.UseVisualStyleBackColor = true;
             // 
             // optRestartOnCemu

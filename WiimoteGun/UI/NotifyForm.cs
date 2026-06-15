@@ -100,7 +100,7 @@ namespace WiimoteGun.UI
             // Draw app name in top right corner (EN/FR: Dessiner nom app coin haut droit)
             using (Font smallFont = new Font(SystemFonts.MessageBoxFont.FontFamily, 8, FontStyle.Regular))
             {
-                string appName = "(WiimoteGun)";
+                string appName = "(Wiimote4Guns)";
                 Size size = TextRenderer.MeasureText(appName, smallFont);
                 Point location = new Point(this.ClientRectangle.Right - size.Width - 5, 2);
                 

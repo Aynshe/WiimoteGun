@@ -36,7 +36,7 @@ namespace WiimoteGun.Forms
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(600, 840);
             this.Name = "ProfileOverlay";
-            this.Text = "WiimoteGun Overlay";
+            this.Text = "Wiimote4Guns Overlay";
             this.Load += new System.EventHandler(this.ProfileOverlay_Load);
             this.ResumeLayout(false);
 

@@ -281,12 +281,17 @@ namespace WiimoteGun
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
+            bool showOptionsAfterSetup = false;
             // First Run / Setup Checker
             if (WiimoteGun.Options.Instance.ShowSetupWizard)
             {
                 using (var wizard = new Forms.SetupWizard())
                 {
-                    wizard.ShowDialog();
+                    DialogResult res = wizard.ShowDialog();
+                    if (res == DialogResult.OK || res == DialogResult.Ignore)
+                    {
+                        showOptionsAfterSetup = true;
+                    }
                 }
             }
 
@@ -455,14 +460,15 @@ namespace WiimoteGun
             var offsetOverlay = WiimoteGun.UI.Modern.Forms.OffsetAdjustmentOverlay.Instance;
             offsetOverlay.Initialize(); // Subscribe to events on UI thread (EN/FR: S'abonner aux événements sur thread UI)
 
-            // Open windowed overlay if requested via -menu argument (EN/FR: Ouvrir overlay fenêtré si demandé via argument -menu)
-            if (_menuMode)
+            // Open windowed overlay if requested via -menu argument or after SetupWizard
+            // (EN/FR: Ouvrir l'overlay fenêtré si demandé via argument -menu ou après le SetupWizard)
+            if (_menuMode || showOptionsAfterSetup)
             {
                 // Use timer to allow message loop to start first (EN/FR: Utiliser timer pour laisser boucle message démarrer)
                 System.Threading.Timer menuTimer = null;
                 menuTimer = new System.Threading.Timer(_ => 
                 {
-                    _appContext.MainForm?.Invoke((MethodInvoker)delegate
+                    PostToUIThread(() =>
                     {
                         OpenWindowedOverlay();
                     });
@@ -508,13 +514,12 @@ namespace WiimoteGun
             _trayIcon = new NotifyIcon();
             _trayIcon.Icon = Properties.Resources.gray;
             _trayIcon.Visible = true;
-            _trayIcon.Text = "Wiimote Gun";
+            _trayIcon.Text = "Wiimote4Guns";
             _trayIcon.DoubleClick += (s, e) => OpenWindowedOverlay();
 
             var menuItems = new MenuItem[]
             {
                 new MenuItem("&Options", (s, e) => OpenWindowedOverlay()),
-                new MenuItem("Options (&legacy)", OnShowOptions),
                 new MenuItem("-"),
                 new MenuItem("&About", OnShowAbout),
                 new MenuItem("-"),

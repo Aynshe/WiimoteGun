@@ -1,4 +1,8 @@
 using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32;
 
 namespace WiimoteGun
 {
@@ -10,6 +14,44 @@ namespace WiimoteGun
     /// </summary>
     public static class VMultiDeviceDetector
     {
+        // SetupAPI imports for non-present device enumeration
+        // (EN/FR: Imports SetupAPI pour l'énumération des périphériques non présents)
+        [DllImport("setupapi.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern IntPtr SetupDiGetClassDevs(
+            ref Guid ClassGuid,
+            IntPtr Enumerator,
+            IntPtr hwndParent,
+            int Flags);
+
+        [DllImport("setupapi.dll", SetLastError = true)]
+        private static extern bool SetupDiEnumDeviceInfo(
+            IntPtr DeviceInfoSet,
+            int MemberIndex,
+            ref SP_DEVINFO_DATA DeviceInfoData);
+
+        [DllImport("setupapi.dll", SetLastError = true)]
+        private static extern bool SetupDiDestroyDeviceInfoList(IntPtr DeviceInfoSet);
+
+        [DllImport("setupapi.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern bool SetupDiGetDeviceInstanceId(
+            IntPtr DeviceInfoSet,
+            ref SP_DEVINFO_DATA DeviceInfoData,
+            StringBuilder DeviceInstanceId,
+            int DeviceInstanceIdSize,
+            out int RequiredSize);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct SP_DEVINFO_DATA
+        {
+            public int cbSize;
+            public Guid ClassGuid;
+            public int DevInst;
+            public IntPtr Reserved;
+        }
+
+        // HID Class GUID: {745a17a0-74d3-11d0-b6fe-00a0c90f57da}
+        private static readonly Guid HidClassGuid = new Guid("745a17a0-74d3-11d0-b6fe-00a0c90f57da");
+
         public struct PlayerDevices
         {
             public string MouseId;
@@ -127,11 +169,59 @@ namespace WiimoteGun
         /// </summary>
         public static bool IsAnyVMultiInstalled()
         {
+            // 1. Check if any VMulti device is currently active/available
+            // (EN/FR: 1. Vérifier si un périphérique VMulti est actuellement actif/disponible)
             for (int i = 1; i <= 4; i++)
             {
                 if (VMultiClient.IsDeviceAvailable(i))
+                {
+                    SimpleLogger.Instance.Info(string.Format("[VMulti Detector] Driver detected via active VMultiClient (Player {0})", i));
                     return true;
+                }
             }
+
+            // 2. Enumerate HIDClass devices (including non-present/disabled ones) via SetupAPI
+            // (EN/FR: 2. Énumérer les périphériques HIDClass (y compris non présents/désactivés) via SetupAPI)
+            try
+            {
+                Guid hidGuid = HidClassGuid;
+                IntPtr deviceInfoSet = SetupDiGetClassDevs(ref hidGuid, IntPtr.Zero, IntPtr.Zero, 0x00000010); // DIGCF_DEVICEINTERFACE only (all present & non-present)
+                if (deviceInfoSet != IntPtr.Zero && deviceInfoSet.ToInt64() != -1)
+                {
+                    try
+                    {
+                        SP_DEVINFO_DATA devInfo = new SP_DEVINFO_DATA();
+                        devInfo.cbSize = Marshal.SizeOf(typeof(SP_DEVINFO_DATA));
+
+                        for (int i = 0; SetupDiEnumDeviceInfo(deviceInfoSet, i, ref devInfo); i++)
+                        {
+                            StringBuilder instanceIdSb = new StringBuilder(1024);
+                            if (SetupDiGetDeviceInstanceId(deviceInfoSet, ref devInfo, instanceIdSb, instanceIdSb.Capacity, out _))
+                            {
+                                string instanceId = instanceIdSb.ToString();
+                                foreach (string suffix in VMultiSuffixes)
+                                {
+                                    if (instanceId.IndexOf(suffix, StringComparison.OrdinalIgnoreCase) >= 0)
+                                    {
+                                        SimpleLogger.Instance.Info(string.Format("[VMulti Detector] Driver detected via SetupAPI device instance: {0}", instanceId));
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        SetupDiDestroyDeviceInfoList(deviceInfoSet);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Warning(string.Format("[VMulti Detector] SetupAPI check failed: {0}", ex.Message));
+            }
+
+            SimpleLogger.Instance.Debug("[VMulti Detector] No VMulti drivers detected.");
             return false;
         }
 

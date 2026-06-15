@@ -36,8 +36,8 @@ namespace WiimoteGun
             
             // DRIVER INSTALLATION
             AppendColoredTitle("⚠️ DRIVER & SERVICE INSTALLATION REQ. / INSTALLATION PILOTES ET SERVICE REQUISE\n", Color.FromArgb(220, 50, 50));
-            AppendText("Before using Wiimote4Guns, you MUST install the WiimoteGun Drivers AND the WiimoteGun Service:\n");
-            AppendText("Avant d'utiliser Wiimote4Guns, vous DEVEZ installer les pilotes WiimoteGun ET le Service WiimoteGun :\n\n");
+            AppendText("Before using Wiimote4Guns, you MUST install the Wiimote4Guns Drivers AND the Wiimote4Guns Service:\n");
+            AppendText("Avant d'utiliser Wiimote4Guns, vous DEVEZ installer les pilotes Wiimote4Guns ET le Service Wiimote4Guns :\n\n");
             
             AppendText("If you just installed drivers, you MUST restart Windows:\n");
             AppendText("Si vous venez d'installer les pilotes, vous DEVEZ redémarrer Windows :\n\n");

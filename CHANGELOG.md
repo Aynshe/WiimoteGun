@@ -4,6 +4,18 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.3.4.0] - 2026-06-15
+
+### Added
+- **Native Options Launch** - The options menu now opens automatically after clicking 'Start Wiimote4Guns' on the first launch, and as long as the 'Don't show this wizard on startup' checkbox is not checked.
+
+### Changed
+- **Tray Menu Cleanup** - Removed the deprecated "Options (legacy)" entry from the system tray context menu.
+
+### Fixed
+- **Driver Detection Setup Wizard** - Replaced the blocked external `devcon.exe` check with a robust, native C# detection using SetupAPI to verify VMulti driver installation without running external processes.
+- **Uninstall State Accuracy** - Fixed a false positive issue where uninstalled drivers were still detected as installed due to lingering `.sys` files or Driver Store registry keys.
+
 ## [2.3.3.2] - 2026-03-08
 
 ### Fixed

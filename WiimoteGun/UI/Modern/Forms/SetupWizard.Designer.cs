@@ -63,7 +63,7 @@ namespace WiimoteGun.Forms
             this.lblDescription.Name = "lblDescription";
             this.lblDescription.Size = new System.Drawing.Size(610, 30);
             this.lblDescription.TabIndex = 1;
-            this.lblDescription.Text = "The following components are required for WiimoteGun to function correctly.";
+            this.lblDescription.Text = "The following components are required for Wiimote4Guns to function correctly.";
             // 
             // 
             // lblServiceTitle
@@ -74,7 +74,7 @@ namespace WiimoteGun.Forms
             this.lblServiceTitle.Name = "lblServiceTitle";
             this.lblServiceTitle.Size = new System.Drawing.Size(195, 20);
             this.lblServiceTitle.TabIndex = 2;
-            this.lblServiceTitle.Text = "1. WiimoteGun Service:";
+            this.lblServiceTitle.Text = "1. Wiimote4Guns Service:";
             // 
             // lblServiceStatus
             // 
@@ -121,7 +121,7 @@ namespace WiimoteGun.Forms
             this.lblVMultiTitle.Name = "lblVMultiTitle";
             this.lblVMultiTitle.Size = new System.Drawing.Size(250, 20);
             this.lblVMultiTitle.TabIndex = 6;
-            this.lblVMultiTitle.Text = "2. WiimoteGun Driver:";
+            this.lblVMultiTitle.Text = "2. Wiimote4Guns Driver:";
             // 
             // lblVMultiStatus
             // 
@@ -171,7 +171,7 @@ namespace WiimoteGun.Forms
             this.btnContinue.Name = "btnContinue";
             this.btnContinue.Size = new System.Drawing.Size(200, 40);
             this.btnContinue.TabIndex = 10;
-            this.btnContinue.Text = "Start WiimoteGun";
+            this.btnContinue.Text = "Start Wiimote4Guns";
             this.btnContinue.UseVisualStyleBackColor = false;
             this.btnContinue.Click += new System.EventHandler(this.btnContinue_Click);
             // 
@@ -239,7 +239,7 @@ namespace WiimoteGun.Forms
             this.MinimizeBox = false;
             this.Name = "SetupWizard";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "WiimoteGun Setup Wizard";
+            this.Text = "Wiimote4Guns Setup Wizard";
             this.ResumeLayout(false);
             this.PerformLayout();
 

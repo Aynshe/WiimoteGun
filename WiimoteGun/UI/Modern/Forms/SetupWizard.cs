@@ -154,31 +154,9 @@ namespace WiimoteGun.Forms
 
         private bool IsVMultiInstalled()
         {
-            // Check if ANY vmulti device exists (same logic as Service uses)
-            try {
-                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                string devconPath = Path.Combine(baseDir, "WiimoteGun.Service", "WiimoteGunDriver", "virtual1", "devcon.exe");
-                if (!File.Exists(devconPath))
-                     devconPath = Path.Combine(baseDir, "WiimoteGunDriver", "virtual1", "devcon.exe"); // Fallback
-
-                if (!File.Exists(devconPath)) return false; 
-
-                ProcessStartInfo psi = new ProcessStartInfo
-                {
-                    FileName = devconPath,
-                    Arguments = "find \"*vmulti*\"",
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true
-                };
-                
-                var p = Process.Start(psi);
-                string output = p.StandardOutput.ReadToEnd();
-                p.WaitForExit(2000);
-                
-                // At least one vmulti device found means drivers are installed
-                return output.Contains("matching device(s) found");
-            } catch { return false; }
+            // EN/FR: Natively detect if any vmulti driver is installed without devcon.exe
+            // (EN/FR: Détecter nativement si un pilote vmulti est installé sans devcon.exe)
+            return VMultiDeviceDetector.IsAnyVMultiInstalled();
         }
 
         private void ManageVMulti(bool install)

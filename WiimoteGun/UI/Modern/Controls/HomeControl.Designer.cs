@@ -34,6 +34,8 @@ namespace WiimoteGun.Controls
             this.btnNavMapping = new System.Windows.Forms.Button();
             this.btnNavAssign = new System.Windows.Forms.Button();
             this.btnNavIRViz = new System.Windows.Forms.Button();
+            this.btnOpenSetupWizard = new System.Windows.Forms.Button();
+            this.lblVersion = new System.Windows.Forms.Label();
             this.SuspendLayout();
             // 
             // lblHomeTitle
@@ -43,27 +45,26 @@ namespace WiimoteGun.Controls
             this.lblHomeTitle.ForeColor = System.Drawing.Color.White;
             this.lblHomeTitle.Location = new System.Drawing.Point(80, 50);
             this.lblHomeTitle.Name = "lblHomeTitle";
-            this.lblHomeTitle.Size = new System.Drawing.Size(390, 45);
+            this.lblHomeTitle.Size = new System.Drawing.Size(404, 45);
             this.lblHomeTitle.TabIndex = 0;
-            this.lblHomeTitle.Text = "WiimoteGun - RetroBat";
+            this.lblHomeTitle.Text = "Wiimote4Guns - RetroBat";
             // 
             // lblHomeDescription
             // 
-            this.lblHomeDescription.AutoSize = false;
             this.lblHomeDescription.Font = new System.Drawing.Font("Segoe UI", 10F);
             this.lblHomeDescription.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(180)))), ((int)(((byte)(180)))), ((int)(((byte)(180)))));
             this.lblHomeDescription.Location = new System.Drawing.Point(80, 110);
             this.lblHomeDescription.Name = "lblHomeDescription";
             this.lblHomeDescription.Size = new System.Drawing.Size(400, 50);
             this.lblHomeDescription.TabIndex = 1;
-            this.lblHomeDescription.Text = "Lightgun gaming solution for RetroBat" + System.Environment.NewLine + "Choose a menu to configure your Wiimotes";
-            this.lblHomeDescription.TextAlign = System.Drawing.ContentAlignment.TopLeft;
+            this.lblHomeDescription.Text = "Lightgun gaming solution for RetroBat\r\nChoose a menu to configure your Wiimotes";
+            this.lblHomeDescription.TextAlign = System.Drawing.ContentAlignment.TopCenter;
             // 
             // btnNavOptions
             // 
             this.btnNavOptions.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(204)))));
             this.btnNavOptions.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnNavOptions.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold);
+            this.btnNavOptions.Font = new System.Drawing.Font("Segoe UI", 14F, System.Drawing.FontStyle.Bold);
             this.btnNavOptions.ForeColor = System.Drawing.Color.White;
             this.btnNavOptions.Location = new System.Drawing.Point(160, 200);
             this.btnNavOptions.Name = "btnNavOptions";
@@ -81,7 +82,7 @@ namespace WiimoteGun.Controls
             // 
             this.btnNavMapping.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(204)))));
             this.btnNavMapping.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnNavMapping.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold);
+            this.btnNavMapping.Font = new System.Drawing.Font("Segoe UI", 14F, System.Drawing.FontStyle.Bold);
             this.btnNavMapping.ForeColor = System.Drawing.Color.White;
             this.btnNavMapping.Location = new System.Drawing.Point(160, 300);
             this.btnNavMapping.Name = "btnNavMapping";
@@ -99,7 +100,7 @@ namespace WiimoteGun.Controls
             // 
             this.btnNavAssign.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(204)))));
             this.btnNavAssign.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnNavAssign.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold);
+            this.btnNavAssign.Font = new System.Drawing.Font("Segoe UI", 14F, System.Drawing.FontStyle.Bold);
             this.btnNavAssign.ForeColor = System.Drawing.Color.White;
             this.btnNavAssign.Location = new System.Drawing.Point(160, 400);
             this.btnNavAssign.Name = "btnNavAssign";
@@ -117,7 +118,7 @@ namespace WiimoteGun.Controls
             // 
             this.btnNavIRViz.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(204)))));
             this.btnNavIRViz.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnNavIRViz.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold);
+            this.btnNavIRViz.Font = new System.Drawing.Font("Segoe UI", 14F, System.Drawing.FontStyle.Bold);
             this.btnNavIRViz.ForeColor = System.Drawing.Color.White;
             this.btnNavIRViz.Location = new System.Drawing.Point(160, 500);
             this.btnNavIRViz.Name = "btnNavIRViz";
@@ -131,14 +132,44 @@ namespace WiimoteGun.Controls
             this.btnNavIRViz.MouseEnter += new System.EventHandler(this.Btn_MouseEnter);
             this.btnNavIRViz.MouseLeave += new System.EventHandler(this.Btn_MouseLeave);
             // 
+            // btnOpenSetupWizard
+            // 
+            this.btnOpenSetupWizard.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
+            this.btnOpenSetupWizard.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnOpenSetupWizard.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold);
+            this.btnOpenSetupWizard.ForeColor = System.Drawing.Color.White;
+            this.btnOpenSetupWizard.Location = new System.Drawing.Point(180, 620);
+            this.btnOpenSetupWizard.Name = "btnOpenSetupWizard";
+            this.btnOpenSetupWizard.Size = new System.Drawing.Size(200, 45);
+            this.btnOpenSetupWizard.TabIndex = 6;
+            this.btnOpenSetupWizard.Text = "🔧 Open Setup Wizard";
+            this.btnOpenSetupWizard.UseVisualStyleBackColor = false;
+            this.btnOpenSetupWizard.Click += new System.EventHandler(this.BtnOpenSetupWizard_Click);
+            this.btnOpenSetupWizard.MouseEnter += new System.EventHandler(this.BtnSetup_MouseEnter);
+            this.btnOpenSetupWizard.MouseLeave += new System.EventHandler(this.BtnSetup_MouseLeave);
+            // 
+            // lblVersion
+            // 
+            this.lblVersion.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular);
+            this.lblVersion.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(120)))), ((int)(((byte)(120)))), ((int)(((byte)(120)))));
+            this.lblVersion.Location = new System.Drawing.Point(0, 680);
+            this.lblVersion.Name = "lblVersion";
+            this.lblVersion.Size = new System.Drawing.Size(560, 25);
+            this.lblVersion.TabIndex = 7;
+            this.lblVersion.Text = "v0.0.0";
+            this.lblVersion.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            // 
             // HomeControl
             // 
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Transparent;
             this.Controls.Add(this.btnNavIRViz);
             this.Controls.Add(this.btnNavAssign);
             this.Controls.Add(this.btnNavMapping);
             this.Controls.Add(this.btnNavOptions);
+            this.Controls.Add(this.btnOpenSetupWizard);
+            this.Controls.Add(this.lblVersion);
             this.Controls.Add(this.lblHomeDescription);
             this.Controls.Add(this.lblHomeTitle);
             this.Name = "HomeControl";
@@ -156,5 +187,7 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.Button btnNavMapping;
         private System.Windows.Forms.Button btnNavAssign;
         private System.Windows.Forms.Button btnNavIRViz;
+        private System.Windows.Forms.Button btnOpenSetupWizard;
+        private System.Windows.Forms.Label lblVersion;
     }
 }
