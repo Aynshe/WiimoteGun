@@ -119,10 +119,16 @@ namespace WiimoteGun
             if (key == Keys.None || _client == null || _disposed)
                 return;
 
-            // Update modifiers (EN/FR: Mettre à jour les modificateurs)
-            bool isModifier = UpdateModifiers(key, pressed);
+            // EN/FR: Extraire les modificateurs de la touche (Extract modifiers from key)
+            bool hasShift = (key & Keys.Shift) == Keys.Shift;
+            bool hasCtrl = (key & Keys.Control) == Keys.Control;
+            bool hasAlt = (key & Keys.Alt) == Keys.Alt;
+            Keys pureKey = key & Keys.KeyCode;
 
-            byte hidKeyCode = ConvertKeysToHidKeyCode(key);
+            // Update modifiers (EN/FR: Mettre à jour les modificateurs)
+            bool isModifier = UpdateModifiers(pureKey, pressed);
+
+            byte hidKeyCode = ConvertKeysToHidKeyCode(pureKey);
             
             // Allow processing if it's a modifier OR has a valid HID code
             // (EN/FR: Autoriser si c'est un modificateur OU s'il y a un code HID valide)
@@ -142,8 +148,20 @@ namespace WiimoteGun
                 }
             }
 
+            // EN/FR: Combiner les modificateurs globaux et ceux de la touche (Combine global modifiers and key modifiers)
+            VMultiKeyboardModifier extraMods = VMultiKeyboardModifier.None;
+            if (hasShift) extraMods |= VMultiKeyboardModifier.LeftShift;
+            if (hasCtrl) extraMods |= VMultiKeyboardModifier.LeftControl;
+            if (hasAlt) extraMods |= VMultiKeyboardModifier.LeftAlt;
+
+            VMultiKeyboardModifier finalModifiers = _currentModifiers;
+            if (pressed)
+            {
+                finalModifiers |= extraMods;
+            }
+
             // Send keyboard report with all pressed keys (EN/FR: Envoyer le rapport clavier avec toutes les touches pressées)
-            SendKeyboardReport();
+            SendKeyboardReport(finalModifiers);
 
             // Debug logging if enabled (EN/FR: Logs de débogage si activé)
             if (Options.Instance.KeyboardDebugMode)
@@ -211,7 +229,7 @@ namespace WiimoteGun
         /// Send the current keyboard state to VMulti
         /// (EN/FR: Envoyer l'état actuel du clavier à VMulti)
         /// </summary>
-        private void SendKeyboardReport()
+        private void SendKeyboardReport(VMultiKeyboardModifier modifiers)
         {
             if (_client == null)
                 return;
@@ -227,7 +245,7 @@ namespace WiimoteGun
                 keyCodes[index++] = keyCode;
             }
 
-            _client.UpdateKeyboard(_currentModifiers, keyCodes);
+            _client.UpdateKeyboard(modifiers, keyCodes);
         }
 
         /// <summary>
@@ -238,7 +256,7 @@ namespace WiimoteGun
         {
             // USB HID keyboard scan codes (EN/FR: Codes de scan clavier USB HID)
             // Reference: USB HID Usage Tables, Section 10 (Keyboard/Keypad Page 0x07)
-            switch (key)
+            switch (key & Keys.KeyCode)
             {
                 // Letters (EN/FR: Lettres)
                 case Keys.A: return 0x04;
@@ -387,7 +405,7 @@ namespace WiimoteGun
             {
                 _pressedKeys.Clear();
                 _currentModifiers = VMultiKeyboardModifier.None;
-                SendKeyboardReport();
+                SendKeyboardReport(VMultiKeyboardModifier.None);
             }
 
             if (_client != null)

@@ -4,6 +4,14 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.3.5.0] - 2026-06-15
+
+### Added
+- **AZERTY Shifted Key Mapping** - Added support for selecting shifted AZERTY layout keys (digits/OEM) separately in key list (depending on emulator compatibility).
+
+### Fixed
+- **Input Simulation Compatibility** - Fixed keyboard simulation compatibility by sending proper hardware scan codes and supporting modifier key simulation.
+
 ## [2.3.4.0] - 2026-06-15
 
 ### Added

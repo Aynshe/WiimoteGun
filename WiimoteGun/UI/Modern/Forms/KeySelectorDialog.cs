@@ -46,15 +46,43 @@ namespace WiimoteGun
             this.Close();
         }
         
+        private static bool IsDigitOrOemKey(Keys key)
+        {
+            // EN/FR: Détecter les touches de chiffres et OEM pour ajouter leur variante Shiftée
+            return (key >= Keys.D0 && key <= Keys.D9) ||
+                   key == Keys.Oemtilde ||
+                   key == Keys.OemMinus ||
+                   key == Keys.Oemplus ||
+                   key == Keys.OemOpenBrackets ||
+                   key == Keys.OemCloseBrackets ||
+                   key == Keys.OemPipe ||
+                   key == Keys.OemSemicolon ||
+                   key == Keys.OemQuotes ||
+                   key == Keys.Oemcomma ||
+                   key == Keys.OemPeriod ||
+                   key == Keys.OemQuestion ||
+                   key == Keys.Oem102;
+        }
+
         private void PopulateKeys()
         {
             // Get all Keys enum values wrapped with AZERTY display names (EN/FR: Obtenir toutes valeurs Keys avec noms AZERTY)
-            var keys = Enum.GetValues(typeof(Keys))
+            var baseKeys = Enum.GetValues(typeof(Keys))
                 .Cast<Keys>()
                 .Where(k => k != Keys.None && k != Keys.Menu) // Exclude None and Menu
-                .Select(k => new KeyDisplayItem(k))
-                .OrderBy(k => k.DisplayName)
                 .ToArray();
+
+            var list = new System.Collections.Generic.List<KeyDisplayItem>();
+            foreach (var k in baseKeys)
+            {
+                list.Add(new KeyDisplayItem(k));
+                if (IsDigitOrOemKey(k))
+                {
+                    list.Add(new KeyDisplayItem(k | Keys.Shift));
+                }
+            }
+
+            var keys = list.OrderBy(k => k.DisplayName).ToArray();
             
             listBoxKeys.Items.Clear();
             foreach (var key in keys)
@@ -75,10 +103,22 @@ namespace WiimoteGun
                 return;
             }
             
-            var filteredKeys = Enum.GetValues(typeof(Keys))
+            var baseKeys = Enum.GetValues(typeof(Keys))
                 .Cast<Keys>()
                 .Where(k => k != Keys.None && k != Keys.Menu)
-                .Select(k => new KeyDisplayItem(k))
+                .ToArray();
+
+            var list = new System.Collections.Generic.List<KeyDisplayItem>();
+            foreach (var k in baseKeys)
+            {
+                list.Add(new KeyDisplayItem(k));
+                if (IsDigitOrOemKey(k))
+                {
+                    list.Add(new KeyDisplayItem(k | Keys.Shift));
+                }
+            }
+
+            var filteredKeys = list
                 .Where(k => k.DisplayName.ToLower().Contains(searchText) || k.Key.ToString().ToLower().Contains(searchText))
                 .OrderBy(k => k.DisplayName)
                 .ToArray();

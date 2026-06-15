@@ -577,23 +577,29 @@ namespace WiimoteGun.Controls
         {
             if (mapping == null) return "None";
             
+            string text = "";
             if (mapping.Special != SpecialAction.None)
             {
                 switch (mapping.Special)
                 {
-                    case SpecialAction.LeftMouse: return "🖱 Left Click";
-                    case SpecialAction.RightMouse: return "🖱 Right Click";
-                    case SpecialAction.MiddleMouse: return "🖱 Middle Click";
-                    default: return mapping.Special.ToString();
+                    case SpecialAction.LeftMouse: text = "🖱 Left Click"; break;
+                    case SpecialAction.RightMouse: text = "🖱 Right Click"; break;
+                    case SpecialAction.MiddleMouse: text = "🖱 Middle Click"; break;
+                    default: text = mapping.Special.ToString(); break;
                 }
             }
-            
-            if (mapping.Key != Keys.None)
+            else if (mapping.Key != Keys.None)
             {
-                return $"⌨ {mapping.Key}";
+                text = $"⌨ {mapping}";
             }
-            
-            return "None";
+            else
+            {
+                text = "None";
+            }
+
+            // Double the ampersand so it renders correctly in WinForms Label (UseMnemonic fallback)
+            // (EN/FR: Doubler l'esperluette pour affichage correct dans le Label WinForms)
+            return text.Replace("&", "&&");
         }
 
         // ============================================

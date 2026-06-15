@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using System.ComponentModel;
 using System.IO;
 using System.Xml.Serialization;
@@ -65,37 +65,40 @@ namespace WiimoteGun
         /// Get AZERTY-friendly display name for a key
         /// (EN/FR: Obtenir nom d'affichage AZERTY pour une touche)
         /// </summary>
-        private static string GetAzertyKeyName(Keys key)
+        public static string GetAzertyKeyName(Keys key)
         {
             // AZERTY-specific key names showing both characters (normal/Shift)
             // (EN/FR: Noms de touches spécifiques AZERTY montrant les deux caractères)
-            switch (key)
+            bool hasShift = (key & Keys.Shift) == Keys.Shift;
+            Keys pureKey = key & Keys.KeyCode;
+
+            switch (pureKey)
             {
                 // Number row with AZERTY characters (EN/FR: Rangée chiffres avec caractères AZERTY)
-                case Keys.D1: return "1 (&)";
-                case Keys.D2: return "2 (é)";
-                case Keys.D3: return "3 (\")";
-                case Keys.D4: return "4 (')";
-                case Keys.D5: return "5 (()";
-                case Keys.D6: return "6 (-)";
-                case Keys.D7: return "7 (è)";
-                case Keys.D8: return "8 (_)";
-                case Keys.D9: return "9 (ç)";
-                case Keys.D0: return "0 (à)";
+                case Keys.D1: return hasShift ? "1 (Shift)" : "1 (&)";
+                case Keys.D2: return hasShift ? "2 (Shift)" : "2 (é)";
+                case Keys.D3: return hasShift ? "3 (Shift)" : "3 (\")";
+                case Keys.D4: return hasShift ? "4 (Shift)" : "4 (')";
+                case Keys.D5: return hasShift ? "5 (Shift)" : "5 (()";
+                case Keys.D6: return hasShift ? "6 (Shift)" : "6 (-)";
+                case Keys.D7: return hasShift ? "7 (Shift)" : "7 (è)";
+                case Keys.D8: return hasShift ? "8 (Shift)" : "8 (_)";
+                case Keys.D9: return hasShift ? "9 (Shift)" : "9 (ç)";
+                case Keys.D0: return hasShift ? "0 (Shift)" : "0 (à)";
                 
                 // OEM keys with AZERTY mapping (EN/FR: Touches OEM avec mapping AZERTY)
-                case Keys.Oemtilde: return "² (Tilde)";
-                case Keys.OemMinus: return ") (°)"; // Right of 0
-                case Keys.Oemplus: return "= (+)";  // Right of )
-                case Keys.OemOpenBrackets: return "^ (¨)"; // Dead key
-                case Keys.OemCloseBrackets: return "$ (£)";
-                case Keys.OemPipe: return "* (µ)"; // Backslash position
-                case Keys.OemSemicolon: return "ù (%)"; // Oem1 = OemSemicolon
-                case Keys.OemQuotes: return "' (²)"; // Oem7 = OemQuotes
-                case Keys.Oemcomma: return ", (?)";
-                case Keys.OemPeriod: return "; (.)";
-                case Keys.OemQuestion: return ": (/)"; // Oem2 = OemQuestion
-                case Keys.Oem102: return "< (>)"; // Extra key left of Z on AZERTY
+                case Keys.Oemtilde: return hasShift ? "Tilde (Shift)" : "² (Tilde)";
+                case Keys.OemMinus: return hasShift ? "° (Shift)" : ") (°)"; // Right of 0
+                case Keys.Oemplus: return hasShift ? "+ (Shift)" : "= (+)";  // Right of )
+                case Keys.OemOpenBrackets: return hasShift ? "¨ (Shift)" : "^ (¨)"; // Dead key
+                case Keys.OemCloseBrackets: return hasShift ? "£ (Shift)" : "$ (£)";
+                case Keys.OemPipe: return hasShift ? "µ (Shift)" : "* (µ)"; // Backslash position
+                case Keys.OemSemicolon: return hasShift ? "% (Shift)" : "ù (%)"; // Oem1 = OemSemicolon
+                case Keys.OemQuotes: return hasShift ? "² (Shift)" : "' (²)"; // Oem7 = OemQuotes
+                case Keys.Oemcomma: return hasShift ? "? (Shift)" : ", (?)";
+                case Keys.OemPeriod: return hasShift ? ". (Shift)" : "; (.)";
+                case Keys.OemQuestion: return hasShift ? "/ (Shift)" : ": (/)"; // Oem2 = OemQuestion
+                case Keys.Oem102: return hasShift ? "> (Shift)" : "< (>)"; // Extra key left of Z on AZERTY
                 
                 // Modified display for common keys (EN/FR: Affichage modifié pour touches courantes)
                 case Keys.Return: return "Enter ↵";
@@ -151,7 +154,7 @@ namespace WiimoteGun
                 
                 // Function keys stay the same (EN/FR: Touches fonction restent identiques)
                 default:
-                    return key.ToString();
+                    return pureKey.ToString() + (hasShift ? " (Shift)" : "");
             }
         }
 

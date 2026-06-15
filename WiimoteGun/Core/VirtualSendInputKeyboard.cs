@@ -15,6 +15,9 @@ namespace WiimoteGun
         [DllImport("user32.dll")]
         private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 
+        [DllImport("user32.dll", EntryPoint = "MapVirtualKeyA")]
+        private static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
         private const uint KEYEVENTF_KEYDOWN = 0x0000;
         private const uint KEYEVENTF_KEYUP = 0x0002;
         private const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
@@ -47,16 +50,39 @@ namespace WiimoteGun
 
             try
             {
-                byte vkCode = (byte)key;
+                // EN/FR: Extraire les modificateurs de la touche (Extract modifiers from key)
+                bool hasShift = (key & Keys.Shift) == Keys.Shift;
+                bool hasCtrl = (key & Keys.Control) == Keys.Control;
+                bool hasAlt = (key & Keys.Alt) == Keys.Alt;
+                Keys pureKey = key & Keys.KeyCode;
+
+                byte vkCode = (byte)pureKey;
+                byte scanCode = (byte)MapVirtualKey(vkCode, 0);
                 uint flags = pressed ? KEYEVENTF_KEYDOWN : KEYEVENTF_KEYUP;
 
+                // EN/FR: Simuler l'appui sur les modificateurs si nécessaire (Simulate modifier presses if necessary)
+                if (pressed)
+                {
+                    if (hasShift) keybd_event((byte)Keys.LShiftKey, (byte)MapVirtualKey((uint)Keys.LShiftKey, 0), KEYEVENTF_KEYDOWN, UIntPtr.Zero);
+                    if (hasCtrl) keybd_event((byte)Keys.LControlKey, (byte)MapVirtualKey((uint)Keys.LControlKey, 0), KEYEVENTF_KEYDOWN, UIntPtr.Zero);
+                    if (hasAlt) keybd_event((byte)Keys.LMenu, (byte)MapVirtualKey((uint)Keys.LMenu, 0), KEYEVENTF_KEYDOWN, UIntPtr.Zero);
+                }
+
                 // Check if extended key (EN/FR: Vérifier si touche étendue)
-                if (IsExtendedKey(key))
+                if (IsExtendedKey(pureKey))
                 {
                     flags |= KEYEVENTF_EXTENDEDKEY;
                 }
 
-                keybd_event(vkCode, 0, flags, UIntPtr.Zero);
+                keybd_event(vkCode, scanCode, flags, UIntPtr.Zero);
+
+                // EN/FR: Simuler le relâchement des modificateurs si nécessaire (Simulate modifier releases if necessary)
+                if (!pressed)
+                {
+                    if (hasAlt) keybd_event((byte)Keys.LMenu, (byte)MapVirtualKey((uint)Keys.LMenu, 0), KEYEVENTF_KEYUP, UIntPtr.Zero);
+                    if (hasCtrl) keybd_event((byte)Keys.LControlKey, (byte)MapVirtualKey((uint)Keys.LControlKey, 0), KEYEVENTF_KEYUP, UIntPtr.Zero);
+                    if (hasShift) keybd_event((byte)Keys.LShiftKey, (byte)MapVirtualKey((uint)Keys.LShiftKey, 0), KEYEVENTF_KEYUP, UIntPtr.Zero);
+                }
             }
             catch (Exception ex)
             {
