@@ -30,7 +30,7 @@ namespace WiimoteGun.Controls
             }
             catch
             {
-                lblVersion.Text = "v2.3.4.0";
+                lblVersion.Text = "v2.3.5.1";
             }
         }
 
