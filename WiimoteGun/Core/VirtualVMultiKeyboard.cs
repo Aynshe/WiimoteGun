@@ -391,6 +391,20 @@ namespace WiimoteGun
             }
         }
 
+        /// <summary>
+        /// EN: Release all pressed keys and reset modifiers immediately.
+        /// FR: Relâcher toutes les touches pressées et réinitialiser les modificateurs immédiatement.
+        /// </summary>
+        public void ResetAll()
+        {
+            if (_client != null && _client.IsConnected)
+            {
+                _pressedKeys.Clear();
+                _currentModifiers = VMultiKeyboardModifier.None;
+                SendKeyboardReport(VMultiKeyboardModifier.None);
+            }
+        }
+
         public void Dispose()
         {
             if (_disposed)
@@ -401,12 +415,7 @@ namespace WiimoteGun
             SimpleLogger.Instance.Info($"[VMultiKeyboard] Disconnecting VMulti keyboard for player {_playerIndex}.");
 
             // Release all keys before disconnecting (EN/FR: Relâcher toutes les touches avant déconnexion)
-            if (_client != null && _client.IsConnected)
-            {
-                _pressedKeys.Clear();
-                _currentModifiers = VMultiKeyboardModifier.None;
-                SendKeyboardReport(VMultiKeyboardModifier.None);
-            }
+            ResetAll();
 
             if (_client != null)
             {

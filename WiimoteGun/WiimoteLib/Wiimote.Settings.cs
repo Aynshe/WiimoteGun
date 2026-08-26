@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -14,7 +14,9 @@ namespace WiimoteLib {
 		public void EnableMotionPlus(MotionPlusExtensionType extension = MotionPlusExtensionType.NoExtension) {
 			// EN: Only update if mode changes to avoid disruptive init writes
 			// FR: Ne mettre à jour que si le mode change pour éviter les écritures init disruptives
-			if (wiimoteState.MotionPlus.ExtensionType == extension && extension != MotionPlusExtensionType.NoExtension)
+			if (wiimoteState.MotionPlus.ExtensionType == extension && extension != MotionPlusExtensionType.NoExtension &&
+			    ((extension == MotionPlusExtensionType.Nunchuk && wiimoteState.ExtensionType == ExtensionType.MotionPlusNunchuk) ||
+			     (extension == MotionPlusExtensionType.ClassicController && wiimoteState.ExtensionType == ExtensionType.MotionPlusOther)))
 				return;
 
 			Log.Debug("InitializeMotionPlus: " + extension);
@@ -57,40 +59,41 @@ namespace WiimoteLib {
             System.Threading.Thread.Sleep(50); // Wait for state change (EN/FR: Attendre le changement d'état)
             byte[] idBuff = ReadData(Registers.ExtensionType1, 6);
             long id = ((long)idBuff[0] << 40) | ((long)idBuff[1] << 32) | ((long)idBuff[2] << 24) | ((long)idBuff[3] << 16) | ((long)idBuff[4] << 8) | idBuff[5];
+            // EN: Mask out byte 0 (bits 40-47) which can differ on TR models (0x01 prefix instead of 0x00)
+            // FR: Masquer l'octet 0 (bits 40-47) qui peut différer sur les modèles TR (préfixe 0x01 au lieu de 0x00)
+            long cleanId = id & 0x000000FFFFFFFFFFL;
             
             bool activationFailed = false;
             
-            if (id == 0x0000A4200000)
+            if (cleanId == 0x0000A4200000L)
             {
                 // EN: ID is still Nunchuk — MP did not activate
                 // FR: L'ID est toujours Nunchuk — le MP ne s'est pas activé
                 Log.Warning($"[EnableMotionPlus] Activation Failed: ID is still Nunchuk (0x{id:X12}). Reverting to Nunchuk mode.");
                 activationFailed = true;
             }
-            else if (extension == MotionPlusExtensionType.Nunchuk && id == (long)ExtensionType.MotionPlusNunchuk)
+            else if (extension == MotionPlusExtensionType.Nunchuk && cleanId == (long)ExtensionType.MotionPlusNunchuk)
             {
                 // EN: Expected ID for Nunchuk passthrough — perfect!
                 // FR: ID attendu pour le passthrough Nunchuk — parfait !
                 Log.Info($"[EnableMotionPlus] Activation Success! ID: 0x{id:X12} (MotionPlusNunchuk passthrough)");
             }
-            else if (extension == MotionPlusExtensionType.NoExtension && id == (long)ExtensionType.MotionPlus)
+            else if (extension == MotionPlusExtensionType.NoExtension && cleanId == (long)ExtensionType.MotionPlus)
             {
                 // EN: Expected ID for MP only — perfect!
                 // FR: ID attendu pour le MP seul — parfait !
                 Log.Info($"[EnableMotionPlus] Activation Success! ID: 0x{id:X12} (MotionPlus only)");
             }
-            else if (id == (long)ExtensionType.MotionPlusNunchuk)
+            else if (cleanId == (long)ExtensionType.MotionPlusNunchuk && extension != MotionPlusExtensionType.NoExtension)
             {
                 // [FIX V22c] EN: Hardware is in Nunchuk passthrough mode (0x0000A4200505).
-                // This happens when a concurrent AutoEnableMotionPlus call activated passthrough
-                // between our write and our ID read. Accept the hardware state to stay in sync.
-                // FR: Le hardware est en mode passthrough Nunchuk. Cela arrive quand un appel
-                // concurrent a activé le passthrough entre notre écriture et notre lecture d'ID.
-                // Accepter l'état hardware pour rester synchronisé.
+                // Accept the hardware state only if passthrough was requested.
+                // FR: Le hardware est en mode passthrough Nunchuk.
+                // N'accepter l'état hardware que si le passthrough était demandé.
                 extension = MotionPlusExtensionType.Nunchuk;
                 Log.Info($"[EnableMotionPlus] Hardware in Nunchuk passthrough (0x{id:X12}). Syncing state to passthrough.");
             }
-            else if (id == (long)ExtensionType.MotionPlus && extension != MotionPlusExtensionType.NoExtension)
+            else if (cleanId == (long)ExtensionType.MotionPlus && extension != MotionPlusExtensionType.NoExtension)
             {
                 // [FIX V22c] EN: Hardware is in standalone mode (0x0000A4200405) but we asked
                 // for passthrough. A concurrent call may have switched back to standalone.
@@ -158,6 +161,9 @@ namespace WiimoteLib {
                         // FR: Impossible de lire la calibration Nunchuk quand le MP est actif (espace 0xA400xx remappé).
                         // V22g lisait Mid=(39,48) au lieu de ~(128,128), déclenchant des inputs fantômes.
                         ApplyDefaultNunchukCalibration();
+                        // EN: Notify listeners that a Nunchuk is now active via MP passthrough
+                        // FR: Notifier les listeners qu'un Nunchuk est actif via le passthrough MP
+                        RaiseExtensionChanged(ExtensionType.MotionPlusNunchuk, true);
                         break;
                     case MotionPlusExtensionType.ClassicController:
                         wiimoteState.ExtensionType = ExtensionType.MotionPlusOther;

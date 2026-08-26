@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -79,6 +79,15 @@ namespace WiimoteLib.Devices {
 				Guid uuid = Uuids.HumanInterfaceDeviceServiceClass;
 				NativeMethods.BluetoothEnumerateInstalledServices(IntPtr.Zero, ref DeviceInfo, ref serviceCount, services);
 				int res = NativeMethods.BluetoothSetServiceState(IntPtr.Zero, ref DeviceInfo, ref uuid, BluetoothServiceFlags.Enable);
+				
+				// EN: If standard HID enable fails (typical for RVL-CNT-01-TR with SSP), attempt PIN-less authentication
+				// FR: Si l'activation HID standard échoue (typique pour RVL-CNT-01-TR avec SSP), tenter authentification sans PIN
+				if (res != 0) {
+					Log.Debug($"BluetoothSetServiceState returned {res}, attempting PIN-less BluetoothAuthenticateDevice for {this}...");
+					NativeMethods.BluetoothAuthenticateDevice(IntPtr.Zero, IntPtr.Zero, ref DeviceInfo, "", 0);
+					res = NativeMethods.BluetoothSetServiceState(IntPtr.Zero, ref DeviceInfo, ref uuid, BluetoothServiceFlags.Enable);
+				}
+
 				serviceCount = services.Length;
 				NativeMethods.BluetoothEnumerateInstalledServices(IntPtr.Zero, ref DeviceInfo, ref serviceCount, services);
 				if (res == 0) {

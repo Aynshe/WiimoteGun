@@ -1,8 +1,9 @@
-﻿using System.Windows.Forms;
+using System;
+using System.Windows.Forms;
 
 namespace WiimoteGun
 {
-    public interface IVirtualJoy
+    public interface IVirtualJoy : IDisposable
     {
         bool IsEnabled { get; }
 
@@ -10,5 +11,6 @@ namespace WiimoteGun
         void SetButton(uint nButton, bool value);
         void SendKeyEvent(Keys key, bool pressed);
         void CommitChanges();
+        void ResetAll();
     }
 }

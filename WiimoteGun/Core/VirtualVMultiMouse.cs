@@ -167,6 +167,24 @@ namespace WiimoteGun
             }
         }
 
+        /// <summary>
+        /// EN: Release all mouse buttons immediately.
+        /// FR: Relâcher tous les boutons de la souris immédiatement.
+        /// </summary>
+        public void ResetAll()
+        {
+            if (_client != null && _client.IsConnected)
+            {
+                if (_leftButtonPressed || _rightButtonPressed || _middleButtonPressed)
+                {
+                    _leftButtonPressed = false;
+                    _rightButtonPressed = false;
+                    _middleButtonPressed = false;
+                    _client.UpdateMouse(0, 0, VMultiMouseButton.None, 0);
+                }
+            }
+        }
+
         public void Dispose()
         {
             if (_disposed)
@@ -175,6 +193,9 @@ namespace WiimoteGun
             _disposed = true;
 
             SimpleLogger.Instance.Info($"[VMultiMouse] Disconnecting VMulti mouse for player {_playerIndex}.");
+
+            // Release all buttons before disconnecting (EN/FR: Relâcher tous les boutons avant déconnexion)
+            ResetAll();
 
             if (_client != null)
             {

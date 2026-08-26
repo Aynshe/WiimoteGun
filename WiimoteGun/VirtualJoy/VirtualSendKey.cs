@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -228,6 +228,45 @@ namespace WiimoteGun
                 key.Value.Changed = false;
                 Send(key.Key, key.Value.State);
             }
+        }
+
+        /// <summary>
+        /// EN: Release all pressed keys immediately.
+        /// FR: Relâcher toutes les touches pressées immédiatement.
+        /// </summary>
+        public void ResetAll()
+        {
+            try
+            {
+                foreach (var key in _states)
+                {
+                    if (key.Value.State)
+                    {
+                        key.Value.State = false;
+                        key.Value.Changed = false;
+                        SendButtonState(key.Key, false);
+                    }
+                }
+
+                foreach (var key in _keyStates)
+                {
+                    if (key.Value.State)
+                    {
+                        key.Value.State = false;
+                        key.Value.Changed = false;
+                        Send(key.Key, false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error($"VirtualSendKey ResetAll error: {ex.Message}");
+            }
+        }
+
+        public void Dispose()
+        {
+            ResetAll();
         }
 
         /* cf. SDL_Scancode

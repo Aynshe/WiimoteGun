@@ -159,8 +159,42 @@ namespace WiimoteGun
             }
         }
 
+        /// <summary>
+        /// EN: Release all mouse buttons immediately.
+        /// FR: Relâcher tous les boutons de la souris immédiatement.
+        /// </summary>
+        public void ResetAll()
+        {
+            try
+            {
+                uint releaseFlags = 0;
+                if (_lastLeftButton) { releaseFlags |= MOUSEEVENTF_LEFTUP; _lastLeftButton = false; }
+                if (_lastRightButton) { releaseFlags |= MOUSEEVENTF_RIGHTUP; _lastRightButton = false; }
+                if (_lastMiddleButton) { releaseFlags |= MOUSEEVENTF_MIDDLEUP; _lastMiddleButton = false; }
+
+                if (releaseFlags != 0)
+                {
+                    INPUT[] inputs = new INPUT[1];
+                    inputs[0].type = INPUT_MOUSE;
+                    inputs[0].mi.dx = 0;
+                    inputs[0].mi.dy = 0;
+                    inputs[0].mi.mouseData = 0;
+                    inputs[0].mi.dwFlags = releaseFlags;
+                    inputs[0].mi.time = 0;
+                    inputs[0].mi.dwExtraInfo = IntPtr.Zero;
+
+                    SendInput(1, inputs, Marshal.SizeOf(typeof(INPUT)));
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error($"VirtualSendInputMouse ResetAll error: {ex.Message}");
+            }
+        }
+
         public void Dispose()
         {
+            ResetAll();
             SimpleLogger.Instance.Info("VirtualSendInputMouse disposed");
         }
     }

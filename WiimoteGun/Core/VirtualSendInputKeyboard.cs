@@ -24,12 +24,14 @@ namespace WiimoteGun
 
         // State tracking for buttons (EN/FR: Suivi d'état des boutons)
         private Dictionary<InputKey, bool> _buttonStates;
+        private HashSet<Keys> _currentlyPressedKeys;
 
         public bool IsEnabled => true;
 
         public VirtualSendInputKeyboard()
         {
             _buttonStates = new Dictionary<InputKey, bool>();
+            _currentlyPressedKeys = new HashSet<Keys>();
             SimpleLogger.Instance.Info("VirtualSendInputKeyboard initialized (keybd_event mode - single player)");
         }
 
@@ -50,6 +52,11 @@ namespace WiimoteGun
 
             try
             {
+                if (pressed)
+                    _currentlyPressedKeys.Add(key);
+                else
+                    _currentlyPressedKeys.Remove(key);
+
                 // EN/FR: Extraire les modificateurs de la touche (Extract modifiers from key)
                 bool hasShift = (key & Keys.Shift) == Keys.Shift;
                 bool hasCtrl = (key & Keys.Control) == Keys.Control;
@@ -101,6 +108,38 @@ namespace WiimoteGun
         public void CommitChanges()
         {
             // No batch commit needed for keybd_event (EN/FR: Pas de commit par lot nécessaire)
+        }
+
+        /// <summary>
+        /// EN: Release all pressed keys immediately.
+        /// FR: Relâcher toutes les touches pressées immédiatement.
+        /// </summary>
+        public void ResetAll()
+        {
+            try
+            {
+                var keysToRelease = new List<Keys>(_currentlyPressedKeys);
+                foreach (var k in keysToRelease)
+                {
+                    SendKeyEvent(k, false);
+                }
+                _currentlyPressedKeys.Clear();
+
+                // Safety release for global modifiers (EN/FR: Relâchement de sécurité pour les modificateurs)
+                keybd_event((byte)Keys.LMenu, (byte)MapVirtualKey((uint)Keys.LMenu, 0), KEYEVENTF_KEYUP, UIntPtr.Zero);
+                keybd_event((byte)Keys.LControlKey, (byte)MapVirtualKey((uint)Keys.LControlKey, 0), KEYEVENTF_KEYUP, UIntPtr.Zero);
+                keybd_event((byte)Keys.LShiftKey, (byte)MapVirtualKey((uint)Keys.LShiftKey, 0), KEYEVENTF_KEYUP, UIntPtr.Zero);
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error($"VirtualSendInputKeyboard ResetAll error: {ex.Message}");
+            }
+        }
+
+        public void Dispose()
+        {
+            ResetAll();
+            SimpleLogger.Instance.Info("VirtualSendInputKeyboard disposed");
         }
     }
 }

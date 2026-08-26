@@ -64,10 +64,15 @@ namespace WiimoteGun
         private bool _manualDisableTriggered = false;
         
         // Off-screen Reload state tracking (EN/FR: Suivi d'état rechargement hors écran)
-        private bool _wasOnScreen = true;
-        private int _offScreenReloadClickSequence = 0; // 0=idle, 1-4=sending 2 clicks
+        private bool _wasOnScreen = false;
+        private bool _hasAimedAtScreenOnce = false; // Must aim at screen first before reload can trigger (EN/FR: Doit viser l'écran avant autorisation reload)
+        private bool _offScreenReloadPerformed = false; // Only 1 reload allowed per off-screen session (EN/FR: 1 seul reload par session hors écran)
+        private int _offScreenReloadClickSequence = 0; // 0=idle, 1-3=holding right click, -1=done
+        private DateTime _lastAutoReloadTime = DateTime.MinValue; // Cooldown for auto-reload (EN/FR: Cooldown pour rechargement auto)
+        private int _onScreenConsecutiveFrames = 0; // Stability counter for on-screen (EN/FR: Compteur de stabilité sur l'écran)
+        private int _offScreenConsecutiveFrames = 0; // Stability counter for off-screen (EN/FR: Compteur de stabilité hors écran)
         
-        // Gesture Click Frame Counters (EN/FR: Compteurs de frames pour clics gestuels)
+        
         private int _gestureRightClickFrameCount = 0;
         private int _gestureMiddleClickFrameCount = 0;
         private const int GESTURE_CLICK_DURATION_FRAMES = 6; // Reverted to ~100ms (6 frames) for reliability
@@ -122,6 +127,7 @@ namespace WiimoteGun
         private bool _lastHybridLeft = false;
         private bool _lastHybridRight = false;
         private bool _lastHybridMiddle = false;
+        private bool _suppressLeftClickUntilRelease = false;
 
         private bool _lastAccelWiimoteUp = false;
         private bool _lastAccelWiimoteDown = false;
@@ -174,6 +180,10 @@ namespace WiimoteGun
 
         private bool CheckShake(WiimoteState state)
         {
+            // EN: Inhibit shake reload if MotionPlus/accelerometer is disabled via settings
+            // FR: Inhiber le rechargement par secousse si MP/accéléromètre est désactivé via les paramètres
+            if (Options.Instance.DisableMotionPlusAndAccelerometer) return false;
+
             if (!Options.Instance.EnableShakeReload) return false;
 
             // Ignore gestures during startup grace period (EN/FR: Ignorer gestes pendant période de grâce)
@@ -392,7 +402,7 @@ namespace WiimoteGun
                 if (_mode != WiiMoteMode.Disabled && (GetNow() - _lastReportTime).TotalMilliseconds > HID_TIMEOUT_MS)
                 {
                     SimpleLogger.Instance.Debug(string.Format("[P{0}] HID communication timeout ({1}ms). Attempting report mode recovery...", PlayerIndex, HID_TIMEOUT_MS));
-                    
+
                     // Update timer to avoid spamming recovery
                     _lastReportTime = GetNow();
 
@@ -402,13 +412,14 @@ namespace WiimoteGun
                         {
                             IRSensitivity sensitivity = (IRSensitivity)Options.Instance.IRSensitivity;
                             Wiimote.SetReportType(ReportType.ButtonsAccelIR10Ext6, sensitivity, true);
-                            
+
                             // Try to enable MotionPlus again as it might have been reset
+                            // (EN/FR: Réactiver MotionPlus car il a pu être réinitialisé)
                             if (Wiimote.WiimoteState.ExtensionType == ExtensionType.Nunchuk)
                                 Wiimote.EnableMotionPlus(MotionPlusExtensionType.Nunchuk);
                             else
                                 Wiimote.EnableMotionPlus(MotionPlusExtensionType.NoExtension);
-                                
+
                             SimpleLogger.Instance.Debug(string.Format("[P{0}] Report mode recovery command sent.", PlayerIndex));
                         }
                         catch (Exception ex)
@@ -701,6 +712,13 @@ namespace WiimoteGun
                 _virtualMouse = null;
             }
 
+            if (_joy != null)
+            {
+                _joy.ResetAll();
+                _joy.Dispose();
+                _joy = null;
+            }
+
             if (_virtualGamepad != null)
             {
                 _virtualGamepad.ResetAll();
@@ -812,6 +830,12 @@ namespace WiimoteGun
         /// </summary>
         private void ProcessGyroscopeData(WiimoteState state)
         {
+            // EN: Check if Motion Plus and Accelerometer are disabled via settings
+            // FR: Vérifier si MP et Accel sont désactivés via les paramètres
+            if (Options.Instance.DisableMotionPlusAndAccelerometer)
+            {
+                return; // Skip all gyroscope/accelerometer processing
+            }
 
 
             // Detect available motion tracking method (EN/FR: Détecter méthode de tracking disponible)
@@ -964,46 +988,39 @@ namespace WiimoteGun
                         Thread.Sleep(200);
 
                         ExtensionType ext = Wiimote.WiimoteState.ExtensionType;
-                        
-                        if (ext == ExtensionType.Nunchuk || ext == ExtensionType.MotionPlusNunchuk)
-                        {
-                            Wiimote.EnableMotionPlus(MotionPlusExtensionType.Nunchuk);
-                            SimpleLogger.Instance.Info(string.Format("[P{0}] MotionPlus enabled with Nunchuk Passthrough (Type: {1})", PlayerIndex, ext));
-                            
-                            // [FIX V22d] Stop probing if Nunchuk detected
-                            StopMpNunchukProbe();
-                        }
-                        else if (ext == ExtensionType.ClassicController)
+
+                        // EN: Decision based ONLY on detected ExtensionType — do NOT use Status.Extension here.
+                        // On V2 TR Wiimotes, Status.Extension is ALWAYS true (built-in MP shows as extension),
+                        // so it cannot be used to detect Nunchuk presence. The bit-0 detection in ParseMotionPlus
+                        // handles hot-plug reliably once in standalone mode.
+                        // FR: Décision basée UNIQUEMENT sur l'ExtensionType détecté — ne PAS utiliser Status.Extension ici.
+                        // Sur les V2 TR, Status.Extension est TOUJOURS true (le MP intégré occupe le port extension),
+                        // donc on ne peut pas l'utiliser pour détecter la présence du Nunchuk.
+                        if (ext == ExtensionType.ClassicController || ext == ExtensionType.MotionPlusOther)
                         {
                             Wiimote.EnableMotionPlus(MotionPlusExtensionType.ClassicController);
                             SimpleLogger.Instance.Info(string.Format("[P{0}] MotionPlus enabled with Classic Passthrough", PlayerIndex));
-                            
-                            // [FIX V22d] Stop probing if Classic detected
                             StopMpNunchukProbe();
                         }
-                        else if (ext == ExtensionType.MotionPlus)
+                        else if (ext == ExtensionType.Nunchuk || ext == ExtensionType.MotionPlusNunchuk)
                         {
-                            // [FIX V22] EN: MP is active in standalone mode (0x04). A status report with MotionPlus type
-                            // could mean a Nunchuk was just hot-plugged into the pass-through port.
-                            // Try enabling passthrough Nunchuk (0x05) — EnableMotionPlus will verify via extension ID.
-                            // If no Nunchuk is present, Fix V21 handles the fallback gracefully.
-                            // FR: MP actif en standalone (0x04). Un status report avec type MotionPlus peut signifier
-                            // qu'un Nunchuk vient d'être branché dans le port pass-through.
-                            // Tenter le passthrough Nunchuk (0x05) — EnableMotionPlus vérifie via l'ID extension.
-                            // Si pas de Nunchuk, le Fix V21 gère le fallback proprement.
+                            // EN: Real Nunchuk detected (not just MP showing as extension)
+                            // FR: Vrai Nunchuk détecté (pas juste le MP qui occupe le port extension)
                             Wiimote.EnableMotionPlus(MotionPlusExtensionType.Nunchuk);
-                            SimpleLogger.Instance.Info(string.Format("[P{0}] MotionPlus: attempting Nunchuk passthrough after extension change", PlayerIndex));
-                            
-                            // [FIX V22d] Start probing for Nunchuk behind MP (in case passthrough attempt failed/sync'd back to MP)
-                            StartMpNunchukProbe();
+                            SimpleLogger.Instance.Info(string.Format("[P{0}] MotionPlus enabled with Nunchuk Passthrough (ExtType: {1})", PlayerIndex, ext));
+                            StopMpNunchukProbe();
                         }
                         else
                         {
+                            // EN: MotionPlus detected (standalone, ext == MotionPlus or None).
+                            // Always start in standalone mode (0x04). ParseMotionPlus bit-0 detection
+                            // will fire GetStatus() when a Nunchuk is hot-plugged, then switch to passthrough.
+                            // FR: MotionPlus détecté (standalone, ext == MotionPlus ou None).
+                            // Toujours démarrer en mode standalone (0x04). La détection bit-0 dans ParseMotionPlus
+                            // déclenchera GetStatus() quand un Nunchuk sera branché, puis basculera en passthrough.
                             Wiimote.EnableMotionPlus(MotionPlusExtensionType.NoExtension);
-                            SimpleLogger.Instance.Info(string.Format("[P{0}] MotionPlus enabled (No extension / Standalone)", PlayerIndex));
-                            
-                            // [FIX V22d] Start probing for Nunchuk behind MP if we enabled MP standalone
-                            StartMpNunchukProbe();
+                            SimpleLogger.Instance.Info(string.Format("[P{0}] MotionPlus enabled standalone (No extension / ExtType: {1})", PlayerIndex, ext));
+                            StopMpNunchukProbe();
                         }
                         
                         // Ensure report type is maintained (MotionPlus activation can reset it)
@@ -1187,8 +1204,11 @@ namespace WiimoteGun
 
                 ManageCalibration(e.Wiimote, buttons, _lastState, scaledPos);
 
+                bool isOnScreen = scaledPos.HasValue;
+
                 bool mLeft = false, mRight = false, mMiddle = false;
                 int finalX = _lastX, finalY = _lastY;
+                bool reloadTriggered = false; // Define here to be accessible in processMouseMotion
 
                 if (_mode == WiiMoteMode.Mouse || _mode == WiiMoteMode.Mouse43 || _mode == WiiMoteMode.MouseFPS)
                 {
@@ -1205,7 +1225,7 @@ namespace WiimoteGun
 
                     // 2. Gesture Logic (Shake, Grenade) (EN/FR: Logique des gestes)
                     bool shakeDetected = CheckShake(e.WiimoteState);
-                    
+
                     // --- SHAKE INHIBITION FOR RELOAD ---
                     // EN: Check if shake is already mapped to a keyboard/mouse action to avoid double-firing reload
                     // FR: Vérifier si le shake est déjà mappé pour éviter un double déclenchement du rechargement
@@ -1221,32 +1241,117 @@ namespace WiimoteGun
 
                     if (shakeDetected && !isShakeInhibited) _gestureRightClickFrameCount = GESTURE_CLICK_DURATION_FRAMES;
                     if (CheckGrenadeGesture(e.WiimoteState)) _gestureMiddleClickFrameCount = GESTURE_CLICK_DURATION_FRAMES;
-                    
+
                     if (_gestureRightClickFrameCount > 0) { mRight = true; _gestureRightClickFrameCount--; }
                     if (_gestureMiddleClickFrameCount > 0) { mMiddle = true; _gestureMiddleClickFrameCount--; }
 
                     // 3. Off-screen Reload Logic (EN/FR: Logique Rechargement Hors-écran)
-                    bool isOnScreen = scaledPos.HasValue;
+                    DateTime now = GetNow();
+
+                    if (isOnScreen)
+                    {
+                        _onScreenConsecutiveFrames++;
+                        _offScreenConsecutiveFrames = 0;
+                    }
+                    else
+                    {
+                        _offScreenConsecutiveFrames++;
+                        _onScreenConsecutiveFrames = 0;
+                    }
+
                     if (Options.Instance.EnableOffScreenReload && !isOnScreen)
                     {
-                        if (Options.Instance.OffScreenReloadAuto)
+                        // Capture requested inputs before clearing
+                        // (EN/FR: Capturer les entrées demandées avant de tout verrouiller)
+                        bool rawTrigger = mLeft;
+                        bool rawReload = mRight;
+
+                        // Default all mouse outputs to false while off-screen (strictly locked)
+                        // (EN/FR: Par défaut, tous les clics souris sont verrouillés hors écran)
+                        mLeft = false;
+                        mMiddle = false;
+                        mRight = false;
+
+                        // Startup protection: No reload allowed if the Wiimote hasn't aimed at the screen at least once
+                        // (EN/FR: Protection démarrage: Pas de reload si la Wiimote n'a pas encore visé l'écran au moins une fois)
+                        if (_hasAimedAtScreenOnce)
                         {
-                            if (_wasOnScreen) _offScreenReloadClickSequence = 1;
-                            if (_offScreenReloadClickSequence > 0)
+                            if (Options.Instance.OffScreenReloadAuto)
                             {
-                                switch (_offScreenReloadClickSequence)
+                                // Auto-reload: trigger a single right-click when going off-screen (1x)
+                                // Only 1 reload per off-screen session is allowed
+                                // Cooldown of 250ms prevents rapid re-triggering / bounce at the screen edge
+                                // (EN/FR: Rechargement auto: 1 seul clic droit par session hors écran avec délai 250ms anti-rebond)
+                                if (!_offScreenReloadPerformed && _wasOnScreen && _offScreenReloadClickSequence == 0 && (now - _lastAutoReloadTime).TotalMilliseconds >= 250)
                                 {
-                                    case 1: mRight = true; break;
-                                    case 2: mRight = false; break;
-                                    case 3: mRight = true; break;
-                                    case 4: mRight = false; _offScreenReloadClickSequence = -1; break;
+                                    _offScreenReloadClickSequence = 1;
+                                    _lastAutoReloadTime = now;
+                                    _offScreenReloadPerformed = true;
+                                    reloadTriggered = true;
+                                    SimpleLogger.Instance.Info($"[P{PlayerIndex}] Auto-reload sequence started (1x mRight)");
                                 }
-                                _offScreenReloadClickSequence++;
+
+                                if (_offScreenReloadClickSequence > 0)
+                                {
+                                    if (_offScreenReloadClickSequence <= 3) // Hold right-click for 3 frames to ensure game registers it
+                                    {
+                                        mRight = true;
+                                        _offScreenReloadClickSequence++;
+                                    }
+                                    else
+                                    {
+                                        _offScreenReloadClickSequence = -1; // Sequence finished
+                                    }
+                                }
+                            }
+                            
+                            // Manual reload: The logical shoot button (mLeft) or reload button (mRight) triggers reload (mRight).
+                            // We DO NOT hardcode buttons.B here to respect user mapping.
+                            // Only 1 reload allowed per off-screen session until re-aiming at the screen. All spamming is blocked.
+                            // (EN/FR: Rechargement manuel: déclenche 1 seul clic droit par session hors écran. Tout spam est bloqué)
+                            if (rawTrigger || rawReload)
+                            {
+                                if (rawTrigger) _suppressLeftClickUntilRelease = true; // Prevent accidental shot when returning on-screen
+
+                                if (!_offScreenReloadPerformed)
+                                {
+                                    mRight = true;
+                                    reloadTriggered = true;
+                                    _offScreenReloadPerformed = true;
+                                    SimpleLogger.Instance.Info($"[P{PlayerIndex}] Manual reload performed (1x mRight)");
+                                }
                             }
                         }
-                        else if (mLeft) { mLeft = false; mRight = true; }
+                    }
+                    else if (isOnScreen)
+                    {
+                        // Debounce logic: If user was holding the trigger off-screen, suppress the shot on-screen until they release it
+                        // (EN/FR: Logique anti-rebond: Si le joueur maintenait la gâchette hors écran, on bloque le tir jusqu'au relâchement)
+                        if (_suppressLeftClickUntilRelease)
+                        {
+                            if (mLeft) mLeft = false; // Suppress the shot
+                            else _suppressLeftClickUntilRelease = false; // Trigger released, allow next shot
+                        }
+
+                        // Re-arm off-screen reload ONLY when tracking is stable on-screen (at least 3 consecutive frames)
+                        // (EN/FR: Réarmer le reload hors écran UNIQUEMENT si le tracking est stable sur l'écran >= 3 frames)
+                        if (_onScreenConsecutiveFrames >= 3)
+                        {
+                            _hasAimedAtScreenOnce = true;
+                            _offScreenReloadPerformed = false; // Reset reload authorization for next off-screen session
+                            if (_offScreenReloadClickSequence != 0)
+                            {
+                                _offScreenReloadClickSequence = 0;
+                            }
+                        }
                     }
                     _wasOnScreen = isOnScreen;
+
+                    // Trigger rumble on reload if enabled (EN/FR: Déclencher vibration au rechargement si activé)
+                    if (reloadTriggered && Options.Instance.GetEnableWeaponRumble(PlayerIndex))
+                    {
+                        TriggerWeaponRumble();
+                    }
 
                     // 4. Update Tracking (Pure Gyro or Absolute IR) (EN/FR: Mise à jour du tracking)
                     if (wasCalibrating || _calculator.IsCalibrating)
@@ -1332,9 +1437,12 @@ namespace WiimoteGun
 
                 if ((_mode == WiiMoteMode.Mouse || _mode == WiiMoteMode.Mouse43 || _mode == WiiMoteMode.MouseFPS || _mode == WiiMoteMode.Keyboardpad) && _joy != null && _joy.IsEnabled && !_calculator.IsCalibrating)
                 {
+                    // Lock keyboard shooting/reloading inputs while off-screen (EN/FR: Bloquer inputs clavier tir/recharge hors écran)
+                    bool lockOffscreenShooting = Options.Instance.EnableOffScreenReload && !isOnScreen;
+
                     // Mask inputs if specific button is consumed by hotkey (EN/FR: Masquer inputs si bouton consommé par hotkey)
-                    SendKeyEvent(_playerMappings.WiiA, buttons.A && !HotkeyManager.IsButtonConsumed(PlayerIndex, "A"), _lastState.A);
-                    SendKeyEvent(_playerMappings.WiiB, buttons.B && !HotkeyManager.IsButtonConsumed(PlayerIndex, "B"), _lastState.B);
+                    SendKeyEvent(_playerMappings.WiiA, !lockOffscreenShooting && buttons.A && !HotkeyManager.IsButtonConsumed(PlayerIndex, "A"), _lastState.A);
+                    SendKeyEvent(_playerMappings.WiiB, !lockOffscreenShooting && buttons.B && !HotkeyManager.IsButtonConsumed(PlayerIndex, "B"), _lastState.B);
                     SendKeyEvent(_playerMappings.WiiUp, buttons.Up && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Up") && !_isOffsetAdjustmentActive, _lastState.Up);
                     SendKeyEvent(_playerMappings.WiiDown, buttons.Down && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Down") && !_isOffsetAdjustmentActive, _lastState.Down);
                     SendKeyEvent(_playerMappings.WiiLeft, buttons.Left && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Left") && !_isOffsetAdjustmentActive, _lastState.Left);
@@ -1346,8 +1454,8 @@ namespace WiimoteGun
 
                     if (hasNunchuk)
                     {
-                        SendKeyEvent(_playerMappings.NunC, nunchuk.C && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunC"), _lastNunchukState.C);
-                        SendKeyEvent(_playerMappings.NunZ, nunchuk.Z && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunZ"), _lastNunchukState.Z);
+                        SendKeyEvent(_playerMappings.NunC, !lockOffscreenShooting && nunchuk.C && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunC"), _lastNunchukState.C);
+                        SendKeyEvent(_playerMappings.NunZ, !lockOffscreenShooting && nunchuk.Z && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunZ"), _lastNunchukState.Z);
                         SendKeyEvent(_playerMappings.NunUp, nunchuk.Joystick.Y > 0.3f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunUp"), _lastNunchukState.Joystick.Y > 0.3f);
                         SendKeyEvent(_playerMappings.NunDown, nunchuk.Joystick.Y < -0.3f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunDown"), _lastNunchukState.Joystick.Y < -0.3f);
                         SendKeyEvent(_playerMappings.NunLeft, nunchuk.Joystick.X < -0.3f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunLeft"), _lastNunchukState.Joystick.X < -0.3f);
@@ -1355,136 +1463,147 @@ namespace WiimoteGun
                     }
 
                     // --- Keyboard/Mouse Motion Action Processor (EN/FR: Traitement Actions Souris via Mouvement) ---
-                    Action<ButtonAction, bool, bool> processMouseMotion = (action, isPressed, wasPressed) => 
+                    Action<ButtonAction, bool, bool> processMouseMotion = (action, isPressed, wasPressed) =>
                     {
                         if (action == null) return;
                         if (action.Key != System.Windows.Forms.Keys.None) SendKeyEvent(action, isPressed, wasPressed);
-                        if (action.Special == SpecialAction.LeftMouse && isPressed) mLeft = true;
-                        if (action.Special == SpecialAction.RightMouse && isPressed) mRight = true;
-                        if (action.Special == SpecialAction.MiddleMouse && isPressed) mMiddle = true;
+                        // Don't override mouse buttons if off-screen reload is active (EN/FR: Ne pas écraser les boutons souris si reload hors écran actif)
+                        if (!reloadTriggered)
+                        {
+                            if (action.Special == SpecialAction.LeftMouse && isPressed) mLeft = true;
+                            if (action.Special == SpecialAction.RightMouse && isPressed) mRight = true;
+                            if (action.Special == SpecialAction.MiddleMouse && isPressed) mMiddle = true;
+                        }
                     };
 
-                    float accXOff = 0, accYOff = 0, accZOff = 0;
-                    float nunXOff = 0, nunYOff = 0, nunZOff = 0;
-                    var calib = Options.Instance.GetCalibration(Wiimote != null ? Wiimote.UniqueId : "");
-                    if (calib != null)
+                    // --- Accel & Gyro Motion Actions Processing (EN/FR: Traitement des actions de mouvement Accel & Gyro) ---
+                    // EN: Skip all accelerometer and gyro motion actions if disabled via settings
+                    // FR: Ignorer toutes les actions de mouvement accéléromètre et gyro si désactivé dans les options
+                    if (!Options.Instance.DisableMotionPlusAndAccelerometer)
                     {
-                        accXOff = calib.AccXOffset; accYOff = calib.AccYOffset; accZOff = calib.AccZOffset;
-                        nunXOff = calib.NunAccXOffset; nunYOff = calib.NunAccYOffset; nunZOff = calib.NunAccZOffset;
-                    }
-
-                    // 1. Accel Wiimote
-                    float wRawX = e.WiimoteState.Accel.Values.X;
-                    float wRawY = e.WiimoteState.Accel.Values.Y;
-                    float wRawZ = e.WiimoteState.Accel.Values.Z;
-                    float wMotX = (wRawX - accXOff) * 6f * _playerMappings.AccelWiimoteSensitivity; // Default 0.5 sens = 3.0x multiplier
-                    float wMotY = (wRawY - accYOff) * 6f * _playerMappings.AccelWiimoteSensitivity;
-                    float wMotZ = (wRawZ - accZOff) * 6f * _playerMappings.AccelWiimoteSensitivity;
-                    
-                    float wDeadzone = _playerMappings.AccelWiimoteDeadzone;
-                    bool wUp = wMotY > wDeadzone;
-                    bool wDown = wMotY < -wDeadzone;
-                    bool wLeft = wMotX < -wDeadzone;
-                    bool wRight = wMotX > wDeadzone;
-                    
-                    float wDeltaX = Math.Abs(wMotX - _lastWMotX);
-                    float wDeltaY = Math.Abs(wMotY - _lastWMotY);
-                    float wDeltaZ = Math.Abs(wMotZ - _lastWMotZ);
-                    float wDeltaTotal = wDeltaX + wDeltaY + wDeltaZ;
-                    
-                    _lastWMotX = wMotX;
-                    _lastWMotY = wMotY;
-                    _lastWMotZ = wMotZ;
-
-                    // (EN/FR: Utiliser le delta pour détecter un vrai shake brusque et pas juste une inclinaison)
-                    bool wShake = wDeltaTotal > (wDeadzone * 1.5f);
-
-                    processMouseMotion(_playerMappings.AccelWiimoteUp, wUp && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelWiimoteUp"), _lastAccelWiimoteUp);
-                    processMouseMotion(_playerMappings.AccelWiimoteDown, wDown && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelWiimoteDown"), _lastAccelWiimoteDown);
-                    processMouseMotion(_playerMappings.AccelWiimoteLeft, wLeft && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelWiimoteLeft"), _lastAccelWiimoteLeft);
-                    processMouseMotion(_playerMappings.AccelWiimoteRight, wRight && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelWiimoteRight"), _lastAccelWiimoteRight);
-                    processMouseMotion(_playerMappings.AccelWiimoteShake, wShake && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelWiimoteShake"), _lastAccelWiimoteShake);
-                    
-                    _lastAccelWiimoteUp = wUp; _lastAccelWiimoteDown = wDown; _lastAccelWiimoteLeft = wLeft; _lastAccelWiimoteRight = wRight; _lastAccelWiimoteShake = wShake;
-
-                    // 2. Accel Nunchuk
-                    if (hasNunchuk)
-                    {
-                        float nRawX = nunchuk.Accel.Values.X;
-                        float nRawY = nunchuk.Accel.Values.Y;
-                        float nRawZ = nunchuk.Accel.Values.Z;
-                        float nMotX = (nRawX - nunXOff) * 6f * _playerMappings.AccelNunchukSensitivity;
-                        float nMotY = (nRawY - nunYOff) * 6f * _playerMappings.AccelNunchukSensitivity;
-                        float nMotZ = (nRawZ - nunZOff) * 6f * _playerMappings.AccelNunchukSensitivity;
-
-                        float nDeadzone = _playerMappings.AccelNunchukDeadzone;
-                        bool nUp = nMotY > nDeadzone;
-                        bool nDown = nMotY < -nDeadzone;
-                        bool nLeft = nMotX < -nDeadzone;
-                        bool nRight = nMotX > nDeadzone;
-
-                        float nDeltaX = Math.Abs(nMotX - _lastNMotX);
-                        float nDeltaY = Math.Abs(nMotY - _lastNMotY);
-                        float nDeltaZ = Math.Abs(nMotZ - _lastNMotZ);
-                        float nDeltaTotal = nDeltaX + nDeltaY + nDeltaZ;
-                        
-                        _lastNMotX = nMotX;
-                        _lastNMotY = nMotY;
-                        _lastNMotZ = nMotZ;
-
-                        bool nShake = nDeltaTotal > (nDeadzone * 1.5f);
-
-                        processMouseMotion(_playerMappings.AccelNunchukUp, nUp && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelNunchukUp"), _lastAccelNunchukUp);
-                        processMouseMotion(_playerMappings.AccelNunchukDown, nDown && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelNunchukDown"), _lastAccelNunchukDown);
-                        processMouseMotion(_playerMappings.AccelNunchukLeft, nLeft && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelNunchukLeft"), _lastAccelNunchukLeft);
-                        processMouseMotion(_playerMappings.AccelNunchukRight, nRight && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelNunchukRight"), _lastAccelNunchukRight);
-                        processMouseMotion(_playerMappings.AccelNunchukShake, nShake && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelNunchukShake"), _lastAccelNunchukShake);
-
-                        _lastAccelNunchukUp = nUp; _lastAccelNunchukDown = nDown; _lastAccelNunchukLeft = nLeft; _lastAccelNunchukRight = nRight; _lastAccelNunchukShake = nShake;
-                    }
-
-                    // 3. Gyro Motion Plus
-                    if (e.WiimoteState.ExtensionType == ExtensionType.MotionPlus || e.WiimoteState.ExtensionType == ExtensionType.MotionPlusNunchuk)
-                    {
-                        float gSensMult = _playerMappings.GyroSensitivity * 2.0f; // Default 0.5 sens = 1.0x multiplier
-                        float gMotX = (e.WiimoteState.MotionPlus.Values.Yaw / 500.0f) * gSensMult;
-                        float gMotY = (e.WiimoteState.MotionPlus.Values.Pitch / 500.0f) * gSensMult;
-                        float gMotZ = (e.WiimoteState.MotionPlus.Values.Roll / 500.0f) * gSensMult;
-
-                        float gDeadzone = _playerMappings.GyroDeadzone;
-                        bool gUp = gMotY < -gDeadzone;
-                        bool gDown = gMotY > gDeadzone;
-                        bool gLeft = gMotX < -gDeadzone;
-                        bool gRight = gMotX > gDeadzone;
-                        
-                        float rollCooldownMs = 150f;
-                        bool gRollLeft = gMotZ < -gDeadzone;
-                        bool gRollRight = gMotZ > gDeadzone;
-
-                        // Anti-wobble logic (EN/FR: Empêche le rebond physique du roll dans le sens inverse)
-                        if (gRollLeft)
+                        float accXOff = 0, accYOff = 0, accZOff = 0;
+                        float nunXOff = 0, nunYOff = 0, nunZOff = 0;
+                        var calib = Options.Instance.GetCalibration(Wiimote != null ? Wiimote.UniqueId : "");
+                        if (calib != null)
                         {
-                            if ((GetNow() - _lastRollRightTime).TotalMilliseconds < rollCooldownMs)
-                                gRollLeft = false;
-                            else
-                                _lastRollLeftTime = GetNow();
-                        }
-                        if (gRollRight)
-                        {
-                            if ((GetNow() - _lastRollLeftTime).TotalMilliseconds < rollCooldownMs)
-                                gRollRight = false;
-                            else
-                                _lastRollRightTime = GetNow();
+                            accXOff = calib.AccXOffset; accYOff = calib.AccYOffset; accZOff = calib.AccZOffset;
+                            nunXOff = calib.NunAccXOffset; nunYOff = calib.NunAccYOffset; nunZOff = calib.NunAccZOffset;
                         }
 
-                        processMouseMotion(_playerMappings.GyroMotionPlusUp, gUp && !HotkeyManager.IsButtonConsumed(PlayerIndex, "GyroMotionPlusUp"), _lastGyroMotionPlusUp);
-                        processMouseMotion(_playerMappings.GyroMotionPlusDown, gDown && !HotkeyManager.IsButtonConsumed(PlayerIndex, "GyroMotionPlusDown"), _lastGyroMotionPlusDown);
-                        processMouseMotion(_playerMappings.GyroMotionPlusLeft, gLeft && !HotkeyManager.IsButtonConsumed(PlayerIndex, "GyroMotionPlusLeft"), _lastGyroMotionPlusLeft);
-                        processMouseMotion(_playerMappings.GyroMotionPlusRight, gRight && !HotkeyManager.IsButtonConsumed(PlayerIndex, "GyroMotionPlusRight"), _lastGyroMotionPlusRight);
-                        processMouseMotion(_playerMappings.GyroMotionPlusRollLeft, gRollLeft && !HotkeyManager.IsButtonConsumed(PlayerIndex, "GyroMotionPlusRollLeft"), _lastGyroMotionPlusRollLeft);
-                        processMouseMotion(_playerMappings.GyroMotionPlusRollRight, gRollRight && !HotkeyManager.IsButtonConsumed(PlayerIndex, "GyroMotionPlusRollRight"), _lastGyroMotionPlusRollRight);
+                        // 1. Accel Wiimote
+                        float wRawX = e.WiimoteState.Accel.Values.X;
+                        float wRawY = e.WiimoteState.Accel.Values.Y;
+                        float wRawZ = e.WiimoteState.Accel.Values.Z;
+                        float wMotX = (wRawX - accXOff) * 6f * _playerMappings.AccelWiimoteSensitivity; // Default 0.5 sens = 3.0x multiplier
+                        float wMotY = (wRawY - accYOff) * 6f * _playerMappings.AccelWiimoteSensitivity;
+                        float wMotZ = (wRawZ - accZOff) * 6f * _playerMappings.AccelWiimoteSensitivity;
+                        
+                        float wDeadzone = _playerMappings.AccelWiimoteDeadzone;
+                        bool wUp = wMotY > wDeadzone;
+                        bool wDown = wMotY < -wDeadzone;
+                        bool wLeft = wMotX < -wDeadzone;
+                        bool wRight = wMotX > wDeadzone;
+                        
+                        float wDeltaX = Math.Abs(wMotX - _lastWMotX);
+                        float wDeltaY = Math.Abs(wMotY - _lastWMotY);
+                        float wDeltaZ = Math.Abs(wMotZ - _lastWMotZ);
+                        float wDeltaTotal = wDeltaX + wDeltaY + wDeltaZ;
+                        
+                        _lastWMotX = wMotX;
+                        _lastWMotY = wMotY;
+                        _lastWMotZ = wMotZ;
 
-                        _lastGyroMotionPlusUp = gUp; _lastGyroMotionPlusDown = gDown; _lastGyroMotionPlusLeft = gLeft; _lastGyroMotionPlusRight = gRight; _lastGyroMotionPlusRollLeft = gRollLeft; _lastGyroMotionPlusRollRight = gRollRight;
+                        // (EN/FR: Utiliser le delta pour détecter un vrai shake brusque et pas juste une inclinaison)
+                        bool wShake = wDeltaTotal > (wDeadzone * 1.5f);
+
+                        processMouseMotion(_playerMappings.AccelWiimoteUp, wUp && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelWiimoteUp"), _lastAccelWiimoteUp);
+                        processMouseMotion(_playerMappings.AccelWiimoteDown, wDown && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelWiimoteDown"), _lastAccelWiimoteDown);
+                        processMouseMotion(_playerMappings.AccelWiimoteLeft, wLeft && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelWiimoteLeft"), _lastAccelWiimoteLeft);
+                        processMouseMotion(_playerMappings.AccelWiimoteRight, wRight && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelWiimoteRight"), _lastAccelWiimoteRight);
+                        processMouseMotion(_playerMappings.AccelWiimoteShake, wShake && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelWiimoteShake"), _lastAccelWiimoteShake);
+                        
+                        _lastAccelWiimoteUp = wUp; _lastAccelWiimoteDown = wDown; _lastAccelWiimoteLeft = wLeft; _lastAccelWiimoteRight = wRight; _lastAccelWiimoteShake = wShake;
+
+                        // 2. Accel Nunchuk
+                        if (hasNunchuk)
+                        {
+                            float nRawX = nunchuk.Accel.Values.X;
+                            float nRawY = nunchuk.Accel.Values.Y;
+                            float nRawZ = nunchuk.Accel.Values.Z;
+                            float nMotX = (nRawX - nunXOff) * 6f * _playerMappings.AccelNunchukSensitivity;
+                            float nMotY = (nRawY - nunYOff) * 6f * _playerMappings.AccelNunchukSensitivity;
+                            float nMotZ = (nRawZ - nunZOff) * 6f * _playerMappings.AccelNunchukSensitivity;
+
+                            float nDeadzone = _playerMappings.AccelNunchukDeadzone;
+                            bool nUp = nMotY > nDeadzone;
+                            bool nDown = nMotY < -nDeadzone;
+                            bool nLeft = nMotX < -nDeadzone;
+                            bool nRight = nMotX > nDeadzone;
+
+                            float nDeltaX = Math.Abs(nMotX - _lastNMotX);
+                            float nDeltaY = Math.Abs(nMotY - _lastNMotY);
+                            float nDeltaZ = Math.Abs(nMotZ - _lastNMotZ);
+                            float nDeltaTotal = nDeltaX + nDeltaY + nDeltaZ;
+                            
+                            _lastNMotX = nMotX;
+                            _lastNMotY = nMotY;
+                            _lastNMotZ = nMotZ;
+
+                            bool nShake = nDeltaTotal > (nDeadzone * 1.5f);
+
+                            processMouseMotion(_playerMappings.AccelNunchukUp, nUp && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelNunchukUp"), _lastAccelNunchukUp);
+                            processMouseMotion(_playerMappings.AccelNunchukDown, nDown && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelNunchukDown"), _lastAccelNunchukDown);
+                            processMouseMotion(_playerMappings.AccelNunchukLeft, nLeft && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelNunchukLeft"), _lastAccelNunchukLeft);
+                            processMouseMotion(_playerMappings.AccelNunchukRight, nRight && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelNunchukRight"), _lastAccelNunchukRight);
+                            processMouseMotion(_playerMappings.AccelNunchukShake, nShake && !HotkeyManager.IsButtonConsumed(PlayerIndex, "AccelNunchukShake"), _lastAccelNunchukShake);
+
+                            _lastAccelNunchukUp = nUp; _lastAccelNunchukDown = nDown; _lastAccelNunchukLeft = nLeft; _lastAccelNunchukRight = nRight; _lastAccelNunchukShake = nShake;
+                        }
+
+                        // 3. Gyro Motion Plus
+                        if (e.WiimoteState.ExtensionType == ExtensionType.MotionPlus || e.WiimoteState.ExtensionType == ExtensionType.MotionPlusNunchuk)
+                        {
+                            float gSensMult = _playerMappings.GyroSensitivity * 2.0f; // Default 0.5 sens = 1.0x multiplier
+                            float gMotX = (e.WiimoteState.MotionPlus.Values.Yaw / 500.0f) * gSensMult;
+                            float gMotY = (e.WiimoteState.MotionPlus.Values.Pitch / 500.0f) * gSensMult;
+                            float gMotZ = (e.WiimoteState.MotionPlus.Values.Roll / 500.0f) * gSensMult;
+
+                            float gDeadzone = _playerMappings.GyroDeadzone;
+                            bool gUp = gMotY < -gDeadzone;
+                            bool gDown = gMotY > gDeadzone;
+                            bool gLeft = gMotX < -gDeadzone;
+                            bool gRight = gMotX > gDeadzone;
+                            
+                            float rollCooldownMs = 150f;
+                            bool gRollLeft = gMotZ < -gDeadzone;
+                            bool gRollRight = gMotZ > gDeadzone;
+
+                            // Anti-wobble logic (EN/FR: Empêche le rebond physique du roll dans le sens inverse)
+                            if (gRollLeft)
+                            {
+                                if ((GetNow() - _lastRollRightTime).TotalMilliseconds < rollCooldownMs)
+                                    gRollLeft = false;
+                                else
+                                    _lastRollLeftTime = GetNow();
+                            }
+                            if (gRollRight)
+                            {
+                                if ((GetNow() - _lastRollLeftTime).TotalMilliseconds < rollCooldownMs)
+                                    gRollRight = false;
+                                else
+                                    _lastRollRightTime = GetNow();
+                            }
+
+                            processMouseMotion(_playerMappings.GyroMotionPlusUp, gUp && !HotkeyManager.IsButtonConsumed(PlayerIndex, "GyroMotionPlusUp"), _lastGyroMotionPlusUp);
+                            processMouseMotion(_playerMappings.GyroMotionPlusDown, gDown && !HotkeyManager.IsButtonConsumed(PlayerIndex, "GyroMotionPlusDown"), _lastGyroMotionPlusDown);
+                            processMouseMotion(_playerMappings.GyroMotionPlusLeft, gLeft && !HotkeyManager.IsButtonConsumed(PlayerIndex, "GyroMotionPlusLeft"), _lastGyroMotionPlusLeft);
+                            processMouseMotion(_playerMappings.GyroMotionPlusRight, gRight && !HotkeyManager.IsButtonConsumed(PlayerIndex, "GyroMotionPlusRight"), _lastGyroMotionPlusRight);
+                            processMouseMotion(_playerMappings.GyroMotionPlusRollLeft, gRollLeft && !HotkeyManager.IsButtonConsumed(PlayerIndex, "GyroMotionPlusRollLeft"), _lastGyroMotionPlusRollLeft);
+                            processMouseMotion(_playerMappings.GyroMotionPlusRollRight, gRollRight && !HotkeyManager.IsButtonConsumed(PlayerIndex, "GyroMotionPlusRollRight"), _lastGyroMotionPlusRollRight);
+
+                            _lastGyroMotionPlusUp = gUp; _lastGyroMotionPlusDown = gDown; _lastGyroMotionPlusLeft = gLeft; _lastGyroMotionPlusRight = gRight;
+                            _lastGyroMotionPlusRollLeft = gRollLeft; _lastGyroMotionPlusRollRight = gRollRight;
+                        }
                     }
 
                     _joy.CommitChanges();
@@ -1492,20 +1611,28 @@ namespace WiimoteGun
                     // --- FINALLY: Send Mouse State (EN/FR: ENFIN : Envoyer l'état de la souris) ---
                     if (_virtualMouse != null)
                     {
-
                         if (Options.Instance.EnableVirtualPolling)
                         {
+                            // Real thread only sends clicks, Virtual Polling thread handles cursor movement
+                            // We MUST pass isAbsolute=true and _lastX_Raw/_lastY_Raw so VMulti uses the absolute digitizer for clicks
                             if (_lastMoveCursor_Raw)
-                                _virtualMouse.UpdateMouse(_lastX_Raw, _lastY_Raw, mLeft, mRight, mMiddle, false, false);
+                                _virtualMouse.UpdateMouse(_lastX_Raw, _lastY_Raw, mLeft, mRight, mMiddle, false, true);
                             else
-                                _virtualMouse.UpdateMouse(0, 0, mLeft, mRight, mMiddle, false, false);
+                                _virtualMouse.UpdateMouse(_lastX_Raw, _lastY_Raw, mLeft, mRight, mMiddle, false, true);
                         }
                         else
                         {
+                            // Standard polling handles both cursor movement and clicks
                             if (_lastMoveCursor_Raw)
                                 _virtualMouse.UpdateMouse(_lastX_Raw, _lastY_Raw, mLeft, mRight, mMiddle, true, true);
                             else
-                                _virtualMouse.UpdateMouse(0, 0, mLeft, mRight, mMiddle, false, false);
+                            {
+                                // EN: When off-screen, only send button states without moving/locking the cursor,
+                                // allowing the physical PC mouse to retain control freely.
+                                // FR: Hors écran, envoyer uniquement l'état des boutons sans déplacer/bloquer le curseur,
+                                // laissant la souris physique du PC totalement libre.
+                                _virtualMouse.UpdateMouse(_lastX_Raw, _lastY_Raw, mLeft, mRight, mMiddle, false, true);
+                            }
                         }
                     }
                 }
@@ -1601,6 +1728,10 @@ namespace WiimoteGun
 
         private bool CheckGrenadeGesture(WiimoteState state)
         {
+            // EN: Inhibit grenade gesture if MotionPlus/accelerometer is disabled via settings
+            // FR: Inhiber le geste grenade si MP/accéléromètre est désactivé via les paramètres
+            if (Options.Instance.DisableMotionPlusAndAccelerometer) return false;
+
             if (!Options.Instance.EnableGrenadeGesture) return false;
             if ((DateTime.Now - _lastGrenadeTime).TotalMilliseconds < GRENADE_COOLDOWN_MS) return false;
 

@@ -276,6 +276,12 @@ namespace WiimoteGun.UI.Modern.Forms
 
         private void DrawWireframeCube(Graphics g, int cx, int cy, int size, float pitch, float yaw, float roll, string label, Color color)
         {
+            // EN: Guard against NaN or Infinity values (e.g. on disconnect/reconnect) causing GDI+ OverflowException
+            // FR: Protection contre les valeurs NaN ou Infinity provoquant un OverflowException dans GDI+
+            if (float.IsNaN(pitch) || float.IsInfinity(pitch)) pitch = 0f;
+            if (float.IsNaN(yaw) || float.IsInfinity(yaw)) yaw = 0f;
+            if (float.IsNaN(roll) || float.IsInfinity(roll)) roll = 0f;
+
             // Define cube vertices
             float s = size / 2f;
             float[,] vertices = {
@@ -307,9 +313,9 @@ namespace WiimoteGun.UI.Modern.Forms
                 float x3 = x2 * (float)Math.Cos(rollRad) - y1 * (float)Math.Sin(rollRad);
                 float y3 = x2 * (float)Math.Sin(rollRad) + y1 * (float)Math.Cos(rollRad);
 
-                rotated[i, 0] = x3;
-                rotated[i, 1] = y3;
-                rotated[i, 2] = z2;
+                rotated[i, 0] = float.IsNaN(x3) ? 0f : Math.Max(-2000f, Math.Min(2000f, x3));
+                rotated[i, 1] = float.IsNaN(y3) ? 0f : Math.Max(-2000f, Math.Min(2000f, y3));
+                rotated[i, 2] = float.IsNaN(z2) ? 0f : Math.Max(-2000f, Math.Min(2000f, z2));
             }
 
             // Draw edges

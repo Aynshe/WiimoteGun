@@ -47,6 +47,9 @@ namespace WiimoteLib.Native {
 		[DllImport("irprops.cpl", SetLastError = true)]
 		public static extern int BluetoothSetServiceState(IntPtr hRadio, ref BLUETOOTH_DEVICE_INFO pbtdi, ref Guid pGuidService, BluetoothServiceFlags dwServiceFlags);
 
+		[DllImport("irprops.cpl", SetLastError = true, CharSet = CharSet.Unicode)]
+		public static extern int BluetoothAuthenticateDevice(IntPtr hwndParent, IntPtr hRadio, ref BLUETOOTH_DEVICE_INFO pbtdi, [MarshalAs(UnmanagedType.LPWStr)] string pszPasskey, ulong ulPasskeyLength);
+
 		[DllImport("hid.dll", CharSet = CharSet.Auto, SetLastError = true)]
 		public static extern void HidD_GetHidGuid(out Guid gHid);
 

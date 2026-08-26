@@ -366,6 +366,13 @@ namespace WiimoteGun
                 CemuPath = "";
                 EnableFPSMode = false;
                 AutoStart = AutoStartMode.None;
+
+                // Motion Plus/Accelerometer disable for problematic Wiimote models (EN/FR: Désactivation MP/Accel pour modèles problématiques)
+                DisableMotionPlusAndAccelerometer = true; // Default to True to disable MP/accelerometer (EN/FR: True par défaut pour désactiver MP/accel)
+
+                // EN: One-time migration flag: null/empty = not yet migrated, "2.3.5.26" = already migrated
+                // FR: Flag de migration unique : null/vide = pas encore migré, "2.3.5.26" = déjà migré
+                MpDisableMigratedVersion = null;
             }
         }
 
@@ -391,7 +398,14 @@ namespace WiimoteGun
                     // Read file to memory to allow checking content and saving if needed without lock
                     // (EN/FR: Lire en mémoire pour vérifier contenu et sauver si besoin sans verrou)
                     byte[] fileData = File.ReadAllBytes(path);
-                    bool needsPurge = System.Text.Encoding.UTF8.GetString(fileData).Contains("<EnableGyroAiming>");
+                    string fileContent = System.Text.Encoding.UTF8.GetString(fileData);
+                    bool needsPurge = fileContent.Contains("<EnableGyroAiming>");
+                    // EN: needsMpDisableUpdate kept for backward compat (XML tag missing = very old config)
+                    // FR: needsMpDisableUpdate conservé pour rétrocompatibilité (tag XML absent = config très ancienne)
+                    bool needsMpDisableUpdate = !fileContent.Contains("<DisableMotionPlusAndAccelerometer>");
+                    // EN: needsMpV2326Migration = true if config does NOT yet contain the v2.3.5.26 migration flag
+                    // FR: needsMpV2326Migration = true si le config ne contient pas encore le flag de migration v2.3.5.26
+                    bool needsMpV2326Migration = !fileContent.Contains("<MpDisableMigratedToV2326>");
 
                     using (MemoryStream stream = new MemoryStream(fileData))
                     {
@@ -431,11 +445,39 @@ namespace WiimoteGun
                         }
 
 
-                        
+
                         if (needsPurge)
                         {
                             options.Save();
                             SimpleLogger.Instance.Info("[Options] Auto-purged deprecated <EnableGyroAiming> settings from config.");
+                        }
+
+                        // EN: Auto-add DisableMotionPlusAndAccelerometer for very old configs (XML tag missing)
+                        // FR: Auto-ajouter DisableMotionPlusAndAccelerometer pour les très anciens configs (tag XML absent)
+                        if (needsMpDisableUpdate)
+                        {
+                            options.DisableMotionPlusAndAccelerometer = false;
+                            options.MpDisableMigratedVersion = "2.3.5.26"; // EN: Mark as migrated / FR: Marquer comme migré
+                            options.MpDisableMigratedToV2326 = true; // EN: Legacy compat / FR: Compat legacy
+                            options.Save();
+                            SimpleLogger.Instance.Info("[Options] Auto-added DisableMotionPlusAndAccelerometer setting (default=False) + migration stamp to config.");
+                        }
+                        // EN: One-time migration for v2.3.5.26: runs if MpDisableMigratedVersion is not "2.3.5.26".
+                        // Detects old configs regardless of what MpDisableMigratedToV2326 (bool) contained.
+                        // Forces DisableMotionPlusAndAccelerometer = false ONCE, then stamps version so it never runs again.
+                        // FR: Migration unique pour v2.3.5.26 : s’exécute si MpDisableMigratedVersion n’est pas "2.3.5.26".
+                        // Détecte les anciens configs quelle que soit la valeur de MpDisableMigratedToV2326 (bool).
+                        // Force DisableMotionPlusAndAccelerometer = false UNE FOIS, puis tampon de version pour ne jamais répéter.
+                        else if (options.MpDisableMigratedVersion != "2.3.5.26")
+                        {
+                            bool wasPreviouslyDisabled = options.DisableMotionPlusAndAccelerometer;
+                            options.DisableMotionPlusAndAccelerometer = false; // EN: Force enable MotionPlus / FR: Forcer l'activation du MotionPlus
+                            options.MpDisableMigratedVersion = "2.3.5.26"; // EN: Stamp version / FR: Tamponner la version
+                            options.MpDisableMigratedToV2326 = true; // EN: Legacy compat / FR: Compat legacy
+                            options.Save();
+                            SimpleLogger.Instance.Info(string.Format(
+                                "[Options] v2.3.5.26 migration: DisableMotionPlusAndAccelerometer was {0}, reset to False. Version stamp set. User can re-enable manually from now on.",
+                                wasPreviouslyDisabled));
                         }
 
                         return options;
@@ -928,6 +970,23 @@ namespace WiimoteGun
         // Enable verbose keyboard debug logging for troubleshooting (EN/FR: Activer les logs détaillés clavier pour dépannage)
         [DefaultValue(false)]
         public bool KeyboardDebugMode { get; set; }
+
+        // Disable Motion Plus and Accelerometer for problematic Wiimote models (EN/FR: Désactiver MP et Accel pour modèles problématiques)
+        // When True, disables Motion Plus activation and accelerometer processing to prevent phantom inputs
+        // (EN/FR: Quand True, désactive l'activation MP et le traitement accel pour éviter les inputs fantômes)
+        // No DefaultValue to force serialization in XML for migration (EN/FR: Pas de DefaultValue pour forcer la sérialisation XML)
+        public bool DisableMotionPlusAndAccelerometer { get; set; }
+
+        // EN: One-time migration version stamp introduced in v2.3.5.26.
+        // Null/empty = migration not yet done (old config). "2.3.5.26" = migration done, never auto-modify again.
+        // This replaces the former MpDisableMigratedToV2326 bool (kept in XML for compat but ignored).
+        // FR: Tampon de version de migration unique introduit en v2.3.5.26.
+        // Null/vide = migration pas encore faite (ancien config). "2.3.5.26" = migration faite, jamais réauto-modifié.
+        public string MpDisableMigratedVersion { get; set; }
+
+        // EN: Legacy bool flag kept for XML backward compatibility (ignored in logic - superseded by MpDisableMigratedVersion)
+        // FR: Ancien flag bool conservé pour compatibilité XML (ignoré en logique - remplacé par MpDisableMigratedVersion)
+        public bool MpDisableMigratedToV2326 { get; set; }
 
         // LED layout type for calibration (EN/FR: Type de disposition LED pour calibration)
         // Determines how IR sensors are positioned and how position is calculated

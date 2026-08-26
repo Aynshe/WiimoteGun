@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -225,13 +225,21 @@ namespace WiimoteLib {
 		
 		/// <summary>Matches the Bluetooth device to the allowed Wiimote types.</summary>
 		private static bool MatchBluetooth(BluetoothDeviceInfo device) {
-
-			bool isJoystick = (device.DeviceInfo.ulClassofDevice & 0x504) == 0x504;
-			if (!isJoystick)
+			// EN: Accept both Gamepad (0x504) and Pointing Device (0x508) peripheral classes (V1 vs V2 TR)
+			// FR: Accepter les classes périphériques Gamepad (0x504) et Pointing Device (0x508) (V1 vs V2 TR)
+			bool isPeripheral = (device.DeviceInfo.ulClassofDevice & 0x500) == 0x500 || device.DeviceInfo.ulClassofDevice == 0;
+			if (!isPeripheral)
 				return false;
 
+			// EN: If name is empty during inquiry, refresh device info to resolve szName
+			// FR: Si le nom est vide pendant l'inquiry, rafraîchir les infos pour résoudre szName
+			if (string.IsNullOrEmpty(device.Name)) {
+				device.Refresh();
+			}
+
 			lock (allowedDeviceNames) {
-				return allowedDeviceNames.Any(n => n == device.Name);
+				return allowedDeviceNames.Any(n => n == device.Name) ||
+				       (!string.IsNullOrEmpty(device.Name) && (device.Name.Contains("Nintendo") || device.Name.Contains("RVL-CNT")));
 			}
 		}
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -13,6 +13,7 @@ namespace WiimoteLib {
 	public partial class Wiimote : IDisposable {
 		private byte[] interleavedBufferA;
 		private DataReportAttribute interleavedReportA;
+		private volatile bool _extensionChangePending = false;
 
 		/// <summary>
 		/// Parse a report sent by the Wiimote
@@ -138,17 +139,32 @@ namespace WiimoteLib {
 							// extension connected?
 							Log.Debug($"Extension, Old: {extensionLast}, New: {extensionNew}");
 
-						if (extensionNew != extensionLast || extensionType == 0x04 || extensionType == 0x05) {
-
-							// EN: Always re-initialize if it's a MotionPlus to detect Nunchuk passthrough changes
-							// FR: Toujours réinitialiser si c'est un MotionPlus pour détecter les changements de passthrough Nunchuk
-							if (wiimoteState.Extension && (extensionNew != extensionLast || wiimoteState.ExtensionType == ExtensionType.None || extensionType == 0x04 || extensionType == 0x05)) {
-								InitializeExtension(extensionType);
+						// EN: Only initialize if extension connection state changed or if not yet initialized
+						// FR: N'initialiser que si l'état de connexion de l'extension a changé ou si pas encore initialisé
+						if (extensionNew != extensionLast || (extensionNew && (wiimoteState.ExtensionType == ExtensionType.None || wiimoteState.ExtensionType == ExtensionType.MotionPlus || wiimoteState.ExtensionType == ExtensionType.MotionPlusNunchuk))) {
+							if (extensionNew) {
+								// EN: If in standalone MotionPlus mode and extension just appeared, try passthrough directly
+								// instead of generic InitializeExtension (which can't reliably read ID in MP mode)
+								// FR: Si en mode MotionPlus standalone et extension détectée, tenter le passthrough directement
+								// plutôt que InitializeExtension générique (qui ne peut pas lire l'ID fiablement en mode MP)
+								if (wiimoteState.ExtensionType == ExtensionType.MotionPlus) {
+									Log.Info("[ParseInputReport] Extension change detected while in MotionPlus standalone. Triggering passthrough probe.");
+									System.Threading.Tasks.Task.Run(() => {
+										try {
+											System.Threading.Thread.Sleep(150);
+											EnableMotionPlus(MotionPlusExtensionType.Nunchuk);
+										}
+										catch { }
+									});
+								}
+								else {
+									InitializeExtension(extensionType);
+								}
 								SetReportType(wiimoteState.ReportType,
 									wiimoteState.IRState.Sensitivity,
 									wiimoteState.ContinuousReport);
 							}
-							else if (!extensionNew && extensionLast) {
+							else if (extensionLast) {
 								wiimoteState.ExtensionType = ExtensionType.None;
 								wiimoteState.Nunchuk = new NunchukState();
 								wiimoteState.ClassicController = new ClassicControllerState();
@@ -208,36 +224,48 @@ namespace WiimoteLib {
 			// start reading again
 			byte[] buff = ReadData(Registers.ExtensionType1, 6);
 			long type = ((long) buff[0] << 40) | ((long) buff[1] << 32) | ((long) buff[2]) << 24 | ((long) buff[3]) << 16 | ((long) buff[4]) << 8 | buff[5];
+			// EN: Mask out byte 0 (bits 40-47) which can differ on TR models (0x01 prefix instead of 0x00)
+			// FR: Masquer l'octet 0 (bits 40-47) qui peut différer sur les modèles TR (préfixe 0x01 au lieu de 0x00)
+			long cleanType = type & 0x000000FFFFFFFFFFL;
 
-			switch ((ExtensionType) type) {
+			switch ((ExtensionType) cleanType) {
 			case ExtensionType.None:
 			case ExtensionType.ParitallyInserted:
 				wiimoteState.Extension = false;
 				wiimoteState.ExtensionType = ExtensionType.None;
 				return;
 			case ExtensionType.Nunchuk:
-                // [FIX] If we detect a Nunchuk ID, but we know MotionPlus Passthrough is active,
+                // [FIX] If we detect a Nunchuk ID, but we know MotionPlus Passthrough is active or MP hardware is detected (extensionType 0x05)
                 // we MUST treat it as MotionPlusNunchuk to ensure correct parsing.
-                if (wiimoteState.MotionPlus.ExtensionType == MotionPlusExtensionType.Nunchuk)
+                if (wiimoteState.MotionPlus.ExtensionType == MotionPlusExtensionType.Nunchuk || extensionType == 0x05)
                 {
                     Log.Info($"[InitializeExtension] Override: Nunchuk ID detected ({type:x12}) but MP Passthrough active -> Force MotionPlusNunchuk");
                     wiimoteState.ExtensionType = ExtensionType.MotionPlusNunchuk;
                 }
                 else
                 {
-				    wiimoteState.ExtensionType = (ExtensionType) type;
+				    wiimoteState.ExtensionType = (ExtensionType) cleanType;
                 }
 				wiimoteState.Extension = true; // Ensure manager sees it (EN/FR: S'assurer que le manager le voit)
 				break;
 			case ExtensionType.ClassicController:
 			case ExtensionType.MotionPlus:
 			case ExtensionType.MotionPlusNunchuk:
-				wiimoteState.ExtensionType = (ExtensionType) type;
+				wiimoteState.ExtensionType = (ExtensionType) cleanType;
 				wiimoteState.Extension = true; // Ensure manager sees it (EN/FR: S'assurer que le manager le voit)
 				break;
 			default:
-				// Workaround: Treat unknown extensions as Nunchuk (EN/FR: Traiter les extensions inconnues comme Nunchuk)
-				// This fixes ff00a4200000 errors which are often Nunchuks with corrupted IDs
+				// EN: If no physical extension is attached according to status, set None
+				// FR: Si aucune extension physique n'est attachée selon le statut, mettre None
+				if (!wiimoteState.Status.Extension)
+				{
+					Log.Info($"[InitializeExtension] Unknown extension ID: {type:x12}, but Status.Extension is false -> ExtensionType.None");
+					wiimoteState.Extension = false;
+					wiimoteState.ExtensionType = ExtensionType.None;
+					return;
+				}
+				// Workaround: Treat unknown extensions as Nunchuk ONLY if an extension is physically connected
+				// (EN/FR: Traiter les extensions inconnues comme Nunchuk UNIQUEMENT si une extension est physiquement branchée)
 				Log.Warning($"Unknown extension controller found: {type:x12}, treating as Nunchuk");
 				wiimoteState.ExtensionType = ExtensionType.Nunchuk;
 				break;
@@ -398,10 +426,31 @@ namespace WiimoteLib {
 		}
 
 		private void ParseMotionPlus(byte[] buff, int off) {
+			if (wiimoteState.ExtensionType == ExtensionType.MotionPlus) {
+				// EN: Standalone MotionPlus mode (0x04) — parse full resolution gyro
+				// FR: Mode MotionPlus standalone (0x04) — parser le gyro pleine résolution
+				wiimoteState.MotionPlus.Parse(buff, off, false);
+
+				// EN: WiiBrew: Byte 5 bit 0 is 1 if an extension is plugged into the MotionPlus
+				// FR: WiiBrew: L'octet 5 bit 0 vaut 1 si une extension est branchée dans le MotionPlus
+				if (buff.GetBit(off + 5, 0)) {
+					if (!_extensionChangePending) {
+						_extensionChangePending = true;
+						System.Threading.Tasks.Task.Run(() => {
+							try {
+								System.Threading.Thread.Sleep(100);
+								GetStatus();
+							}
+							catch { }
+							finally { _extensionChangePending = false; }
+						});
+					}
+				}
+				return;
+			}
+
             // [FIX V16] WiiBrew: "Bit 1 of Byte 5 is used to determine which type of report is received:
             //   it is 1 when it contains MotionPlus Data and 0 when it contains extension data."
-            // PREVIOUS CODE HAD THIS INVERTED! Bit1=1 was treated as Extension, but it's actually MotionPlus.
-            // This caused ALL gyro frames to be parsed as Nunchuk buttons, resulting in Z/C button flickering.
             // (EN: Bit1=1 → MotionPlus (gyro), Bit1=0 → Extension (Nunchuk))
             // (FR: Bit1=1 → MotionPlus (gyro), Bit1=0 → Extension (Nunchuk))
             bool isMotionPlusData = buff.GetBit(off + 5, 1);  // Bit 1 = 1 -> MotionPlus gyro data
@@ -439,6 +488,7 @@ namespace WiimoteLib {
 				break;
 			case ExtensionType.MotionPlus:
 			case ExtensionType.MotionPlusNunchuk:
+			case ExtensionType.MotionPlusOther:
 				ParseMotionPlus(buff, off);
 				break;
 			}
