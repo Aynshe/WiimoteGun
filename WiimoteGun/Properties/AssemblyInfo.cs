@@ -8,10 +8,11 @@ using System.Windows;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("Wiimote4Guns")]
-[assembly: AssemblyDescription("Instructions :\r\nPress 'Home' To Toggle Mode\r\nLong press 'Home' to calibrate\r\n\r\nInspired from the WiiCursor project\r\nhttps://github.com/Jeern/WiiCursor )\r\n\r\nWiiMote.Net library by Robert Jordan\r\nhttps://github.com/trigger-segfault/WiimoteLib.Net")]
+[assembly: AssemblyDescription("Instructions :\r\nPress 'Home' To Toggle Mode\r\nLong press 'Home' to calibrate\r\nHome + Plus to open overlay menu\r\n\r\nGitHub Releases :\r\nhttps://github.com/Aynshe/WiimoteGun/releases\r\n\r\nInspired from the WiiCursor project\r\nhttps://github.com/Jeern/WiiCursor )\r\n\r\nWiiMote.Net library by Robert Jordan\r\nhttps://github.com/trigger-segfault/WiimoteLib.Net")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("f.caruso | Aynshe - RetroBat Team")]
 [assembly: AssemblyProduct("Wiimote4Guns")]
+[assembly: AssemblyMetadata("Repository", "https://github.com/Aynshe/WiimoteGun/releases")]
 [assembly: AssemblyCopyright("Copyright © f.caruso 2022-2023\r\nAynshe - RetroBat Team 2025-2026")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
