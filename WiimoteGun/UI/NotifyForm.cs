@@ -8,7 +8,21 @@ namespace WiimoteGun.UI
 {
     class NotifyForm : Form
     {
-        public NotifyForm()
+        // [V56e] Active notifications: tiles STACK downward when several show at the
+        // same moment (the update tile goes lower if another one shows simultaneously).
+        // (EN/FR: Notifications actives : les tuiles S'EMPILENT vers le bas quand
+        // plusieurs s'affichent au même moment - la tuile mise à jour descend plus bas
+        // si une autre s'affiche simultanément.)
+        private static readonly System.Collections.Generic.List<NotifyForm> _activeForms =
+            new System.Collections.Generic.List<NotifyForm>();
+
+        private const int StackGap = 8;
+
+        public NotifyForm() : this(5000)
+        {
+        }
+
+        public NotifyForm(int durationMs)
         {
             SetStyle(ControlStyles.OptimizedDoubleBuffer, true);
             SetStyle(ControlStyles.AllPaintingInWmPaint, true);
@@ -20,7 +34,7 @@ namespace WiimoteGun.UI
             BackColor = System.Drawing.Color.FromArgb(16, 16, 48);
             FormBorderStyle = FormBorderStyle.FixedSingle;
             AutoScaleMode = AutoScaleMode.Dpi;
-            ShowInTaskbar = false;            
+            ShowInTaskbar = false;
             ControlBox = false;
             MaximizeBox = false;
             MinimizeBox = false;
@@ -29,12 +43,18 @@ namespace WiimoteGun.UI
             Width = 350; // Increased from 250 to avoid text truncation (EN/FR: Augmenté pour éviter troncature)
             Height = 80; // Increased from 60 for multi-line support (EN/FR: Augmenté pour multi-lignes)
 
-            Location = new System.Drawing.Point(bounds.Right - Width - 16, bounds.Top + 16);
+            // [V56e] Stack below the notifications currently on screen (tile effect)
+            // (EN/FR: S'empiler sous les notifications actuellement à l'écran - effet tuile)
+            int activeCount;
+            lock (_activeForms) { activeCount = _activeForms.Count; }
+            int stackOffset = activeCount * (Height + StackGap);
+
+            Location = new System.Drawing.Point(bounds.Right - Width - 16, bounds.Top + 16 + stackOffset);
 
             StartPosition = FormStartPosition.Manual;
 
             _timer = new Timer();
-            _timer.Interval = 5000; // Increased from 3000ms to 5000ms for better readability (EN/FR: Augmenté pour meilleure lisibilité)
+            _timer.Interval = durationMs > 0 ? durationMs : 5000; // [V56e] Configurable display time (EN/FR: Durée d'affichage paramétrable)
             _timer.Tick += (a, b) =>
                 {
                     Close();
@@ -60,12 +80,30 @@ namespace WiimoteGun.UI
         {
             base.OnShown(e);
 
+            // [V56e] Register in the active tile list (stacking reference)
+            // (EN/FR: S'enregistrer dans la liste des tuiles actives - référence d'empilement)
+            lock (_activeForms)
+            {
+                if (!_activeForms.Contains(this)) _activeForms.Add(this);
+            }
+
             User32.SetWindowPos(Handle, User32.HWND_TOP, 0, 0, 0, 0, /*SWP.NOACTIVATE | */SWP.NOMOVE | SWP.NOSIZE);
             User32.SetWindowPos(Handle, User32.HWND_TOPMOST, 0, 0, 0, 0, /*SWP.NOACTIVATE | */SWP.NOMOVE | SWP.NOSIZE);
             User32.SetForegroundWindow(Handle);
             User32.SetActiveWindow(Handle);
 
             Opacity = 0.9;
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            // [V56e] Unregister from the active tile list
+            // (EN/FR: Se désenregistrer de la liste des tuiles actives)
+            lock (_activeForms)
+            {
+                _activeForms.Remove(this);
+            }
+            base.OnFormClosed(e);
         }
 
         protected override void WndProc(ref Message m)

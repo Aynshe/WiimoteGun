@@ -68,6 +68,7 @@ namespace WiimoteLib {
 		}
 
 		private HashSet<IAsyncResult> readStates = new HashSet<IAsyncResult>();
+		private long _diagLastRawEndTicks = 0;
 
 		private int ReadThreads => readStates.Count;
 
@@ -108,8 +109,14 @@ namespace WiimoteLib {
 					device.Stream.EndRead(ar);
 				}*/
 
+				// [DIAG] Measure raw HID report arrival cadence and ParseInputReport cost.
+				long diagRawStart = TimingDiagnostics.BeginRaw();
+				byte diagReportId = state.Buffer != null && state.Buffer.Length > 0 ? state.Buffer[0] : (byte)0;
+
 				// parse it
 				bool newInput = ParseInputReport(state.Buffer);
+				TimingDiagnostics.RawReport(diagRawStart, diagReportId, newInput, _diagLastRawEndTicks);
+				_diagLastRawEndTicks = Stopwatch.GetTimestamp();
 				// post an event
 				//Log.WriteLine("State Changed Start");
 				//Log.WriteLine("State Changed End");

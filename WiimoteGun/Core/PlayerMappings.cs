@@ -18,6 +18,88 @@ namespace WiimoteGun
         public ButtonAction WiiTwo { get; set; }
         public ButtonAction WiiPlus { get; set; }
         public ButtonAction WiiMinus { get; set; }
+
+        // ========== [V54] Off-Screen Reload / TC Cover (EN/FR: Rechargement hors-écran / planque TC) ==========
+
+        /// <summary>
+        /// EN: Per-profile override of the global Off-Screen Reload option:
+        /// -1 = follow Options > Gestures (default), 0 = force OFF, 1 = force ON.
+        /// FR: Override par profil de l'option globale Off-Screen Reload :
+        /// -1 = suivre Options > Gestures (défaut), 0 = forcer DÉSACTIVÉ, 1 = forcer ACTIVÉ.
+        /// </summary>
+        public int OffScreenReloadOverride { get; set; } = -1;
+
+        /// <summary>
+        /// EN: [V55] Per-profile override for the Off-Screen Auto-Reload mode (mouse side):
+        /// null/-1 = follow Options > Gestures global setting, false = manual (Trigger),
+        /// true = automatic (send one reload when going off-screen without button press).
+        /// FR: [V55] Override par profil du mode Auto Off-Screen Reload (côté souris) :
+        /// null/-1 = suivre le global Options > Gestures, false = manuel (Trigger),
+        /// true = automatique (envoi recharge à la sortie de l'écran sans bouton).
+        /// </summary>
+        public int OffScreenAutoOverride { get; set; } = -1; // -1=global, 0=Trigger(manual), 1=Auto
+
+        // ========== [V55y] Reload rumble override (EN/FR: Override vibration rechargement) ==========
+
+        /// <summary>
+        /// EN: [V55y] Per-profile override of the global Reload Rumble option:
+        /// -1 = follow Options > Gestures (default), 0 = force OFF, 1 = force ON.
+        /// FR: [V55y] Override par profil de l'option globale vibration rechargement :
+        /// -1 = suivre Options > Gestures (défaut), 0 = forcer DÉSACTIVÉ, 1 = forcer ACTIVÉ.
+        /// </summary>
+        public int ReloadRumbleOverride { get; set; } = -1;
+
+        /// <summary>
+        /// EN: [V55y] Per-profile intensity override (0-100): -1 = follow the global setting.
+        /// FR: [V55y] Override d'intensité par profil (0-100) : -1 = suivre le réglage global.
+        /// </summary>
+        public int ReloadRumbleIntensityOverride { get; set; } = -1;
+
+        /// <summary>
+        /// EN: [V55y] Per-profile style override: -1 = global, 0 = CriqueClique (mechanical),
+        /// 1 = Court (single pulse), 2 = Long (continuous).
+        /// FR: [V55y] Override de style par profil : -1 = global, 0 = Crique-Clique (mécanique),
+        /// 1 = Court (impulsion unique), 2 = Long (continu).
+        /// </summary>
+        public int ReloadRumbleStyleOverride { get; set; } = -1;
+
+        /// <summary>
+        /// EN: TC Cover auto-reload (Time Crisis): while aiming OFF-screen, HOLD the TC
+        /// button's action (cover/hide); aiming back ON-screen releases it. Inhibits the
+        /// two global off-screen reload functions for this profile.
+        /// FR: Planque TC (Time Crisis) : en visant HORS écran, MAINTENIR l'action du
+        /// bouton TC (planque) ; viser à nouveau l'écran la relâche. Inhibe les deux
+        /// fonctions globales de rechargement hors-écran pour ce profil.
+        /// </summary>
+        public bool TCCoverReload { get; set; } = false;
+
+        /// <summary>
+        /// EN: Physical Wiimote/Nunchuk button used by the TC cover action:
+        /// "auto" = right-click mapping (existing behavior), or WiiA/WiiB/WiiOne/WiiTwo/
+        /// WiiPlus/WiiMinus/NunC/NunZ.
+        /// FR: Bouton physique Wiimote/Nunchuk utilisé par la planque TC :
+        /// "auto" = mapping clic droit (comportement existant), ou WiiA/WiiB/WiiOne/
+        /// WiiTwo/WiiPlus/WiiMinus/NunC/NunZ.
+        /// </summary>
+        public string TCCoverButton { get; set; } = "auto";
+
+        /// <summary>
+        /// EN: [V55] TC Bi-directional Pedal mode (TC3/TC4/TC5): Two pedals configured for movement/cover.
+        /// FR: [V55] Mode pédale TC bi-directionnelle (TC3/TC4/TC5) : Deux pédales configurées.
+        /// </summary>
+        public bool TCBiPedal { get; set; } = false;
+
+        /// <summary>
+        /// EN: [V55] Physical Wiimote/Nunchuk button used as the LEFT TC pedal (default: WiiLeft).
+        /// FR: [V55] Bouton physique Wiimote/Nunchuk utilisé comme pédale TC GAUCHE (défaut: DPad Gauche).
+        /// </summary>
+        public string TCBiPedalLeftButton { get; set; } = "WiiLeft";
+
+        /// <summary>
+        /// EN: [V55] Physical Wiimote/Nunchuk button used as the RIGHT TC pedal (default: WiiRight).
+        /// FR: [V55] Bouton physique Wiimote/Nunchuk utilisé comme pédale TC DROITE (défaut: DPad Droit).
+        /// </summary>
+        public string TCBiPedalRightButton { get; set; } = "WiiRight";
         public ButtonAction NunC { get; set; }
         public ButtonAction NunZ { get; set; }
         public ButtonAction NunUp { get; set; }
@@ -179,6 +261,20 @@ namespace WiimoteGun
             GyroMotionPlusRight = source.GyroMotionPlusRight;
             GyroMotionPlusRollLeft = source.GyroMotionPlusRollLeft;
             GyroMotionPlusRollRight = source.GyroMotionPlusRollRight;
+
+            // [V54] Off-Screen Reload / TC Cover (EN/FR: Rechargement hors-écran / planque TC)
+            OffScreenReloadOverride = source.OffScreenReloadOverride;
+            OffScreenAutoOverride = source.OffScreenAutoOverride;
+            TCCoverReload = source.TCCoverReload;
+            TCCoverButton = source.TCCoverButton;
+            TCBiPedal = source.TCBiPedal;
+            TCBiPedalLeftButton = source.TCBiPedalLeftButton;
+            TCBiPedalRightButton = source.TCBiPedalRightButton;
+
+            // [V55y] Reload rumble overrides (EN/FR: Overrides vibration rechargement)
+            ReloadRumbleOverride = source.ReloadRumbleOverride;
+            ReloadRumbleIntensityOverride = source.ReloadRumbleIntensityOverride;
+            ReloadRumbleStyleOverride = source.ReloadRumbleStyleOverride;
 
             AccelWiimoteSensitivity = source.AccelWiimoteSensitivity;
             AccelNunchukSensitivity = source.AccelNunchukSensitivity;

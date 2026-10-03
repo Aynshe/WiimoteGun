@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -96,10 +96,13 @@
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
     <Reference Include="System.ServiceProcess" />
-    <Reference Include="Nefarius.ViGEm.Client">
-      <HintPath>lib\Nefarius.ViGEm.Client.dll</HintPath>
-    </Reference>
-  </ItemGroup>
+<Reference Include="Nefarius.ViGEm.Client">
+<HintPath>lib\Nefarius.ViGEm.Client.dll</HintPath>
+</Reference>
+<Reference Include="System.Resources.Extensions">
+<HintPath>..\packages\System.Resources.Extensions.8.0.0\lib\net462\System.Resources.Extensions.dll</HintPath>
+</Reference>
+</ItemGroup>
   <ItemGroup>
   </ItemGroup>
   <ItemGroup>
@@ -110,6 +113,26 @@
       <DependentUpon>AboutBox.cs</DependentUpon>
     </Compile>
     <Compile Include="Common\SimpleLogger.cs" />
+    <Compile Include="Core\EsScriptIntegration.cs" />
+    <Compile Include="UI\Modern\Forms\EsProfileTileDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\EsProfileTileDialog.Designer.cs">
+      <DependentUpon>EsProfileTileDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\FolderBrowserExForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\FolderBrowserExForm.Designer.cs">
+      <DependentUpon>FolderBrowserExForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\EsSystemPickerForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\EsSystemPickerForm.Designer.cs">
+      <DependentUpon>EsSystemPickerForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="WiimoteLib\TimingDiagnostics.cs" />
     <Compile Include="Common\Win32.cs" />
     <Compile Include="UI\Legacy\MappingForm.cs">
       <SubType>Form</SubType>
@@ -155,6 +178,11 @@
     <Compile Include="Core\ViGEmClientManager.cs" />
     <Compile Include="Core\DirectInputHelper.cs" />
     <Compile Include="Core\EmulatorProfileAutomator.cs" />
+    <Compile Include="Core\JsonLite.cs" />
+    <Compile Include="Core\TagMemoryStore.cs" />
+    <Compile Include="Core\AppHeartbeat.cs" />
+    <Compile Include="Core\AppUpdateChecker.cs" />
+    <Compile Include="Services\AppUpdateLauncher.cs" />
     <Compile Include="Core\Options.cs" />
     <Compile Include="UI\Legacy\OptionsForm.cs">
       <SubType>Form</SubType>
@@ -205,6 +233,7 @@
     <Compile Include="UI\Modern\Controls\MappingControl.Designer.cs">
       <DependentUpon>MappingControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="UI\Modern\Controls\TransientToast.cs" />
     <Compile Include="UI\Modern\Controls\GamePadMappingControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -431,8 +460,7 @@
   <ItemGroup>
   </ItemGroup>
   <ItemGroup>
-    <None Include="gray.ico" />
-  </ItemGroup>
+    <None Include="gray.ico" />  </ItemGroup>
   <ItemGroup>
     <None Include="green.ico" />
   </ItemGroup>
@@ -442,6 +470,17 @@
   <!-- VMultiDllWrapper reference removed - replaced by Interception -->
   <ItemGroup>
     <Content Include="WiimoteGunDriver\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <!-- [V56e] Self-update script shipped with the app (updatable by future releases) -->
+  <ItemGroup>
+    <Content Include="WiimoteUpdate.ps1">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- [V56g] Standalone 7-Zip extractor shipped with the app: the update script works
+         even when 7-Zip is NOT installed (updatable by future releases via the rename trick). -->
+    <Content Include="7za.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

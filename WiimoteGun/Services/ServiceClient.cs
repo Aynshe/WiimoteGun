@@ -120,6 +120,20 @@ namespace WiimoteGun
         /// </summary>
         public static void RemoveGamepad(int playerIndex) { SendCommand(string.Format("REMOVE_GAMEPAD_P{0}", playerIndex)); }
 
+        /// <summary>
+        /// EN: [V55] Ask the service to reset the Windows Bluetooth adapter (disable then re-enable).
+        /// This is used when the BT stack hangs and Wiimotes cannot reconnect.
+        /// The service handles the 30-second cooldown internally.
+        /// FR: [V55] Demander au service de réinitialiser l'adaptateur Bluetooth Windows (disable/enable).
+        /// Utilisé quand la pile BT se bloque et que les Wiimotes ne peuvent pas se reconnecter.
+        /// Le service gère le cooldown de 30s en interne.
+        /// </summary>
+        public static void RequestBtReset()
+        {
+            SimpleLogger.Instance.Info("[BT-Reset] Sending BT_RESET to service...");
+            SendCommand("BT_RESET");
+        }
+
         // ========== Service Version Management (EN/FR: Gestion Version Service) ==========
 
         private const string SERVICE_NAME = "WiimoteGunHelper";

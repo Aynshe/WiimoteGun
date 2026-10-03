@@ -238,6 +238,10 @@ namespace WiimoteGun.Core
                         File.WriteAllText(userFilePath, content, Encoding.UTF8);
                         SimpleLogger.Instance.Info(string.Format("[ProfileAutomator] Generated GameSettings for: {0} (ID: {1})", gamePrefix, gameId));
 
+                        // EN/FR: [V55p] Register the generated file in the tag memory:
+                        // managed from birth (mask in Mouse mode, unmask in GamePad mode).
+                        TagMemoryStore.Register("Dolphin", settingsDir, gameId + ".ini", TagMemoryStore.StateActive);
+
                         // EN: Generate game-specific profiles
                         // FR: Générer les profils spécifiques au jeu
                         CreateDolphinWiimoteProfiles(profilesDir, gamePrefix);
@@ -369,52 +373,176 @@ namespace WiimoteGun.Core
         {
             if (!Directory.Exists(settingsDir)) return;
 
+            // EN/FR: [V55q] Memory-driven mask/unmask: only profiles REGISTERED in the
+            // tag memory (detected tagged at least once) are managed. Everything
+            // else — including untagged files with valid wiimotegun content — is
+            // ignored forever.
             var files = Directory.GetFiles(settingsDir, "*.in*")
                 .Where(f => f.EndsWith(".ini") || f.EndsWith(".ini-wiimotegun"));
 
             foreach (var file in files)
             {
-                try
+                ProcessGameSettingsFile(file, anyGamePadActive, "Dolphin", IsValidDolphinGameSettingsContent);
+            }
+
+            // EN/FR: [V55p] Prune memory entries whose file was deleted by the user (scanned dir only)
+            TagMemoryStore.PruneDirectory("Dolphin", settingsDir);
+        }
+
+        /// <summary>
+        /// EN: [V55p] Validates a Dolphin GameSettings content: must have [Controls]
+        /// and reference a -wiimotegun profile.
+        /// FR: [V55p] Valide le contenu d'un GameSettings Dolphin : doit avoir
+        /// [Controls] et référencer un profil -wiimotegun.
+        /// </summary>
+        private static bool IsValidDolphinGameSettingsContent(string content)
+        {
+            if (string.IsNullOrEmpty(content)) return false;
+            if (!content.Contains("[Controls]")) return false;
+            return content.Contains("-wiimotegun");
+        }
+
+        /// <summary>
+        /// EN: [V55p] Validates a PCSX2/DuckStation game settings content: must
+        /// reference an input profile and a -wiimotegun profile.
+        /// FR: [V55p] Valide le contenu d'un paramètre de jeu PCSX2/DuckStation :
+        /// doit référencer un profil d'entrée et un profil -wiimotegun.
+        /// </summary>
+        private static bool IsValidPcsxDuckStationGameSettingsContent(string content)
+        {
+            if (string.IsNullOrEmpty(content)) return false;
+            if (!content.Contains("InputProfileName") && !content.Contains("InputProfile")) return false;
+            return content.Contains("-wiimotegun");
+        }
+
+        /// <summary>
+        /// EN: [V55p] Computes the ACTIVE (untagged) file name from any current
+        /// state: plain ".ini", masked ".ini-wiimotegun", or the corrupted ".in"
+        /// / ".in-wiimotegun" variants produced by earlier builds (fallback repair kept).
+        /// FR: [V55p] Calcule le nom de fichier ACTIF (sans tag) depuis n'importe
+        /// quel état courant : ".ini" simple, masqué ".ini-wiimotegun", ou les
+        /// variantes corrompues ".in" / ".in-wiimotegun" des builds précédents
+        /// (réparation de repli conservée).
+        /// </summary>
+        private static string ComputeActiveGameSettingsName(string fileName)
+        {
+            string name = fileName;
+            if (name.EndsWith("-wiimotegun", StringComparison.OrdinalIgnoreCase))
+            {
+                name = name.Substring(0, name.Length - "-wiimotegun".Length);
+            }
+            if (name.EndsWith(".in", StringComparison.OrdinalIgnoreCase))
+            {
+                name += "i"; // Repair corrupted ".in" -> ".ini" (EN/FR: Réparer ".in" corrompu -> ".ini")
+            }
+            return name;
+        }
+
+        /// <summary>
+        /// EN: [V55p/V55q] Masks/unmasks ONE game settings file, driven by the persistent
+        /// tag memory (TagMemoryStore):
+        /// 1. Registered profile -> managed WITHOUT content check (the memory is
+        ///    the source of truth, robust to content edits/rewrites). This is the
+        ///    startup crash-safety: a managed file left untagged by a crash while
+        ///    in GamePad mode is re-masked in Wiimote/Mouse mode.
+        /// 2. Unregistered profile -> enters the memory ONLY when DETECTED TAGGED
+        ///    (it received the tag at least once: from WiimoteGun's own mask cycle
+        ///    of a previous build, or manually by the user), after a content
+        ///    safety check.
+        /// 3. Anything else (untagged, never registered) -> IGNORED FOREVER: no
+        ///    tag added, no removal attempted, whatever its content.
+        /// GamePad mode active -> unmask (rename to ".ini") so the emulator loads
+        /// the profile for the launched game automatically. Wiimote/Mouse mode ->
+        /// mask (rename to ".ini-wiimotegun") to hide it from the emulator.
+        /// FR: [V55p/V55q] Masque/démasque UN fichier de paramètres de jeu, piloté
+        /// par la mémoire persistante des tags (TagMemoryStore) :
+        /// 1. Profil enregistré -> géré SANS vérification de contenu (la mémoire
+        ///    est la source de vérité, robuste aux éditions/réécritures). C'est la
+        ///    sécurité anti-crash au démarrage : un fichier géré laissé sans tag
+        ///    par un crash en mode GamePad est re-masqué en mode Wiimote/Souris.
+        /// 2. Profil non enregistré -> entre en mémoire UNIQUEMENT s'il est
+        ///    DÉTECTÉ TAGGÉ (il a reçu le tag au moins une fois : d'un cycle de
+        ///    masquage WiimoteGun d'une version précédente, ou manuellement par
+        ///    l'utilisateur), après une vérification de sécurité du contenu.
+        /// 3. Tout le reste (non taggé, jamais enregistré) -> IGNORÉ POUR
+        ///    TOUJOURS : aucun tag ajouté, aucun retrait tenté, quel que soit
+        ///    son contenu.
+        /// Mode GamePad actif -> démasquer (renommage en ".ini") pour que
+        /// l'émulateur charge le profil du jeu lancé automatiquement. Mode
+        /// Wiimote/Souris -> masquer (renommage en ".ini-wiimotegun") pour le
+        /// cacher à l'émulateur.
+        /// </summary>
+        private static void ProcessGameSettingsFile(string file, bool anyGamePadActive, string emulatorKey, Func<string, bool> contentValidator)
+        {
+            try
+            {
+                // EN/FR: Vanished between enumeration and processing -> nothing to do
+                if (!File.Exists(file)) return;
+
+                string fileName = Path.GetFileName(file);
+                string dir = Path.GetDirectoryName(file);
+                string activeName = ComputeActiveGameSettingsName(fileName);
+                string maskedName = activeName + "-wiimotegun";
+                bool isTagged = fileName.EndsWith("-wiimotegun", StringComparison.OrdinalIgnoreCase);
+
+                // EN/FR: [V55p] STEP 1 - Managed check from the persistent memory
+                bool managed = TagMemoryStore.IsRegistered(emulatorKey, dir, activeName);
+
+                if (!managed)
                 {
-                    string content = File.ReadAllText(file);
-                    // EN: Only touch files that have [Controls] and reference our wiimotegun profiles
-                    // FR: Uniquement toucher les fichiers qui ont [Controls] et référencent nos profils wiimotegun
-                    if (!content.Contains("[Controls]") || !content.Contains("-wiimotegun")) continue;
+                    // EN/FR: [V55q] STEP 2 - Registration gate: ONLY a file DETECTED
+                    // TAGGED enters the memory (it received the tag at least once:
+                    // from WiimoteGun's own mask cycle of a previous build, or
+                    // manually by the user), after a content safety check.
+                    // An UNTAGGED file is NEVER registered and NEVER touched,
+                    // whatever its content: no tag added, no removal attempted.
+                    // It stays ignored until it has received the tag at least once.
+                    if (!isTagged) return;
 
-                    string fileName = Path.GetFileName(file);
-                    string dir = Path.GetDirectoryName(file);
-                    string newPath = null;
+                    string content;
+                    try { content = File.ReadAllText(file); }
+                    catch { return; } // Unreadable -> leave untouched (fallback safety)
+                    if (!contentValidator(content)) return;
 
-                    if (anyGamePadActive)
-                    {
-                        // EN: GamePad mode active -> Unmask our custom settings (Reveals them to Dolphin)
-                        // FR: Mode GamePad actif -> Démasquer nos paramètres (Rend le fichier visible par Dolphin)
-                        if (fileName.EndsWith("-wiimotegun"))
-                        {
-                            newPath = Path.Combine(dir, fileName.Replace("-wiimotegun", ""));
-                        }
-                    }
-                    else
-                    {
-                        // EN: Wiimote mode active -> Mask our custom settings (Hides them from Dolphin)
-                        // FR: Mode Wiimote actif -> Masquer nos paramètres (Cache le fichier pour Dolphin)
-                        if (fileName.EndsWith(".ini"))
-                        {
-                            newPath = file + "-wiimotegun";
-                        }
-                    }
+                    // EN/FR: A detected-tagged file is by definition in its MASKED state
+                    managed = TagMemoryStore.Register(emulatorKey, dir, activeName, TagMemoryStore.StateMasked);
+                }
 
-                    if (newPath != null)
+                // EN/FR: [V55p] STEP 3 - Enforce the target state. The memory is
+                // authoritative: managed files are masked/unmasked WITHOUT re-reading
+                // their content, so an edited/rewritten file keeps being managed.
+                string newPath = null;
+                if (anyGamePadActive)
+                {
+                    // EN/FR: GamePad mode -> unmask (also repairs corrupted ".in")
+                    if (!fileName.Equals(activeName, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (File.Exists(newPath)) File.Delete(newPath);
-                        File.Move(file, newPath);
-                        SimpleLogger.Instance.Debug(string.Format("[ProfileAutomator] Renamed Dolphin game setting: {0} -> {1}", fileName, Path.GetFileName(newPath)));
+                        newPath = Path.Combine(dir, activeName);
                     }
                 }
-                catch (Exception ex)
+                else
                 {
-                    SimpleLogger.Instance.Error(string.Format("[ProfileAutomator] Error managing Dolphin game setting {0}: {1}", file, ex.Message));
+                    // EN/FR: Wiimote/Mouse mode -> mask (also masks a corrupted ".in")
+                    if (!fileName.Equals(maskedName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        newPath = Path.Combine(dir, maskedName);
+                    }
                 }
+
+                if (newPath != null)
+                {
+                    if (File.Exists(newPath)) File.Delete(newPath);
+                    File.Move(file, newPath);
+                    SimpleLogger.Instance.Debug(string.Format("[ProfileAutomator] Renamed {0} game setting: {1} -> {2}", emulatorKey, fileName, Path.GetFileName(newPath)));
+                }
+
+                // EN/FR: [V55p] Keep the recorded state coherent (no-op when unchanged)
+                TagMemoryStore.SetState(emulatorKey, dir, activeName,
+                    anyGamePadActive ? TagMemoryStore.StateActive : TagMemoryStore.StateMasked);
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error(string.Format("[ProfileAutomator] Error managing {0} game setting {1}: {2}", emulatorKey, file, ex.Message));
             }
         }
 
@@ -777,54 +905,18 @@ EnableMouseMapping = false
         {
             if (!Directory.Exists(settingsDir)) return;
 
-            // Search for all relevant variants including corrupted ones (EN/FR: Chercher toutes les variantes incluant celles corrompues)
+            // EN/FR: [V55p] Search for all relevant variants including corrupted ones
             var files = Directory.GetFiles(settingsDir, "*.in*")
                 .Where(f => f.EndsWith(".ini") || f.EndsWith(".ini-wiimotegun") || f.EndsWith(".in") || f.EndsWith(".in-wiimotegun"));
 
             foreach (var file in files)
             {
-                try
-                {
-                    string content = File.ReadAllText(file);
-                    if (!content.Contains("InputProfileName") && !content.Contains("InputProfile")) continue;
-                    if (!content.Contains("-wiimotegun")) continue;
-
-                    // Identify the base name and extension (fix previous .in bug)
-                    string fileName = Path.GetFileName(file);
-                    string dir = Path.GetDirectoryName(file);
-                    string newPath = null;
-
-                    if (anyGamePadActive)
-                    {
-                        // PCSX2/DuckStation: Restore (Unmask) to .ini in GamePad mode
-                        if (fileName.EndsWith("-wiimotegun") || fileName.EndsWith(".in"))
-                        {
-                            string restoredName = fileName.Replace("-wiimotegun", "");
-                            if (restoredName.EndsWith(".in")) restoredName += "i"; // Fix corrupted .in -> .ini
-                            newPath = Path.Combine(dir, restoredName);
-                        }
-                    }
-                    else
-                    {
-                        // PCSX2/DuckStation: Mask with -wiimotegun in Wiimote/Mouse mode
-                        if (fileName.EndsWith(".ini"))
-                        {
-                            newPath = file + "-wiimotegun";
-                        }
-                    }
-
-                    if (newPath != null)
-                    {
-                        if (File.Exists(newPath)) File.Delete(newPath);
-                        File.Move(file, newPath);
-                        SimpleLogger.Instance.Debug(string.Format("[ProfileAutomator] Renamed {0} game setting: {1} -> {2}", emuName, fileName, Path.GetFileName(newPath)));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    SimpleLogger.Instance.Error(string.Format("[ProfileAutomator] Error managing {0} game setting {1}: {2}", emuName, file, ex.Message));
-                }
+                // EN/FR: [V55p] Memory-driven mask/unmask (see ProcessGameSettingsFile)
+                ProcessGameSettingsFile(file, anyGamePadActive, emuName, IsValidPcsxDuckStationGameSettingsContent);
             }
+
+            // EN/FR: [V55p] Prune memory entries whose file was deleted by the user (scanned dir only)
+            TagMemoryStore.PruneDirectory(emuName, settingsDir);
         }
 
         private static string UpdateIniContent(string content, string emulator, Dictionary<int, int> dinputIndices)

@@ -4,6 +4,39 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [3.0.0.21] - 2026-10-03
+
+### Added
+- **Reload Rumble** — A dedicated, fully configurable rumble engine for every reload: off-screen Auto sequence, off-screen trigger redirect, physical reload button, shake reload and GamePad off-screen reloads — whether Off-Screen Reload is enabled or not. Options > Gestures: enable (ON by default), intensity (0-100%) and styles: **Ratchet** (mechanical), **Short**, **Long** and **Custom** (build your own pattern: 1-10 tics with adjustable Tic ON/OFF durations). Per-profile overrides (enable, style, intensity) on the Mouse AND GamePad mapping pages.
+- **GamePad rumble sources** — New "Fire Button" (default B) triggers the weapon rumble on-screen with full parity with the mouse trigger rumble (Assign intensity/duration + continuous repetition while held); new "Reload Button" (default 2) triggers the reload rumble on- and off-screen. TC Cover and TC Bi-Pedal rumble when entering cover (= the TC reload moment).
+- **Automatic app updates (GitHub)** — Checks the GitHub releases once per session in the background (never blocks; distinct Offline state). When an update is available: red clickable indicator on the Home page ("Update available: vX" — menu: open the release page / update now; green "Up to date", orange "Offline") and a 6-second tile notification 20s after the first Wiimote connects (never shown during a game; tiles stack downward). The direct update runs with the current user account (never admin): it downloads the release archive, extracts it with the bundled 7za.exe (no 7-Zip installation needed), updates the app files, stages the service files through the existing `update_service` mechanism (the running service is never overwritten) and restarts the app.
+- **Crash & hang watchdog (service)** — The service monitors the app via a UI-thread heartbeat: crash or frozen UI ("not responding") → automatic restart as the interactive console user (never admin); voluntary exits and service-driven restarts are never "rescued". Full WER crash dumps are captured inside the app folder (`CrashDumps`) for diagnosis.
+- **Persistent tag memory for emulator game settings** — `wiimotegun_memory.json` remembers every `-wiimotegun` gamesettings profile, separated per emulator (PCSX2 / Dolphin / DuckStation) and extensible per service: a profile detected once is managed for life (masked in Wiimote/Mouse mode, active in GamePad mode) even if its content is later rewritten by the emulator; unknown files are never tagged or touched.
+- **Off-Screen Reload modes** — **Trigger** (press the fire button off-screen to reload — each press counts) and **Auto** (one automatic reload when leaving the screen), selectable globally and per Mouse/GamePad profile. Off-screen, only the trigger is locked: the physical reload button always stays free.
+- **TC Bi-directional pedal** — Two configurable pedal buttons (default D-Pad Left/Right): hold a direction while aiming on-screen, release when off-screen, switch from one pedal to the other — Mouse and GamePad.
+- **Lock mode on game launch** — Option in ES Scripts: locks the active mode (Mouse/GamePad) at game-start and unlocks at game-end, preventing accidental Home swaps in game.
+- **BT Auto-Reset (service)** — Optional automatic Bluetooth adapter reset when a Wiimote fails to connect. Evidence-gated (a real failed pairing attempt, a Wiimote in pairing mode or a wedged radio — never fires when the Wiimote is simply off), radio-only disable/enable cycle with automatic repair passes, growing retry grace and a 3-attempt cap.
+
+---
+
+## [2.3.5.3] - 2026-08-26
+
+### Added
+- **Bluetooth pairing (V2 Wiimote / RVL-CNT-01-TR)** — Support for the red sync button, PIN-less SSP authentication and device name refresh. Automatic pairing of the V2 Wiimote works exclusively via the red sync button (**required on every use** — the 1+2 connection method does not work on this hardware; DolphinBar / Mayflash connection: OK).
+- **Off-Screen Reload rumble & input locking** — Keyboard/mouse actions are locked while off-screen and vibration/rumble feedback is implemented for reloads.
+
+### Fixed
+- **Continuous/Erratic inputs** — Data flow issues resolved: no more fake Nunchuks or continuous inputs on the V2 Wiimote.
+- **Nunchuk hotplug** — The Nunchuk can be unplugged/plugged hot during a session. Connection is mandatory right from pairing when using Motion Plus (unlike V1 without Motion Plus).
+- **Off-Screen Reload** — The off-screen reload feature (both manual and automatic modes) was broken and now works, helping bypass games and emulators that do not natively support off-screen reloading. Auto/manual off-screen reload handling rewritten.
+- **ID masking & flow** — Corrected the binary mask (`0x000000FFFFFFFFFFL`) to ignore the high `0x01` byte on TR models and eliminate phantom Nunchuks.
+- **Hotplug management** — Restored handling via standalone mode `0x04` and the extension insertion bit.
+- **Motion Plus configuration migration** — Added a migration version to properly reinitialize the Motion Plus configuration if needed.
+
+Validated: off-screen reload (manual and automatic) verified and working; erratic inputs eliminated on the standalone V2 Wiimote (fully functional without Nunchuk); automatic pairing of the V2 Wiimote via the red sync button (required on every use, 1+2 method non-operational); DolphinBar / Mayflash OK; Nunchuk hotplug operational (required upon pairing with MP, or before/after on V1 without MP).
+
+---
+
 ## [2.3.5.0] - 2026-06-15
 
 ### Added

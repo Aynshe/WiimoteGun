@@ -62,6 +62,319 @@ namespace WiimoteGun.Controls
         private int _assignCountdownSeconds = 8;
         private bool _updatingCheckbox = false;
 
+        // [V34] Transient non-blocking toast (EN/FR: Bandeau transitoire non bloquant)
+        private TransientToast _toast;
+
+        // [V48] Association currently displayed for the loaded/selected profile.
+        // The checkboxes reflect THIS association (per-profile), not only the foreground exe.
+        // (EN/FR: Association actuellement affichée pour le profil chargé/sélectionné.
+        // Les cases reflètent CETTE association (par profil), pas seulement l'exe au premier plan.)
+        private GameProfileMapping _linkedMapping;
+
+        // [V50] Remembered manual selection (advanced association) - avoids double prompts
+        // (EN/FR: Sélection manuelle mémorisée (association avancée) - évite les demandes en double)
+        private string _manualGameName;
+        private bool _manualIsFolder;
+        private string _manualSystemName;
+
+        // [V42] Emulator link: profile bound per GAME (from EmulationStation)
+        // [V45] chkIsEmulator / chkIsFolder are Designer controls now (visible/editable in VS)
+        // (EN/FR: Lien émulateur : profil lié par JEU. Les cases sont des contrôles Designer.)
+        private ToolTip _esToolTips = new ToolTip();
+
+        private void WireEmulatorCheckboxes()
+        {
+            if (chkIsEmulator == null || chkIsFolder == null) return;
+
+            _esToolTips.SetToolTip(chkIsEmulator,
+                "Check when the selected EXE is an EMULATOR.\r\n" +
+                "WiimoteGun will then use the GAME (file or folder) launched by this emulator\r\n" +
+                "to link and auto-load this profile for that specific game.\r\n" +
+                "When no game is running, you will be asked to select the game file/folder in advance.");
+
+            _esToolTips.SetToolTip(chkIsFolder,
+                "Check when the game is launched through a FOLDER with extension (.pc/.game/.win...).\r\n" +
+                "The folder name will be used as the game identity for linking and auto-load.");
+
+            chkIsEmulator.CheckedChanged += (s, e) =>
+            {
+                chkIsFolder.Enabled = chkIsEmulator.Checked;
+                if (!chkIsEmulator.Checked) chkIsFolder.Checked = false;
+                UpdateCurrentGameLabel();
+            };
+            chkIsFolder.CheckedChanged += (s, e) =>
+            {
+                // [V50] Changing the folder expectation resets the remembered selection
+                // (EN/FR: Changer l'attente dossier réinitialise la sélection mémorisée)
+                _manualGameName = null;
+                _manualSystemName = null;
+                UpdateCurrentGameLabel();
+            };
+
+            // [V50] System name: auto-checked during an ES game-start when Emulator is on;
+            // manually checked outside a session, it UNLOCKS the advanced association
+            // (system -> game file/folder) without a game in progress.
+            // (EN/FR: System name : auto-cochée pendant un game-start ES quand Emulator est
+            // coché ; cochée manuellement hors session, elle DÉVERROUILLE l'association
+            // avancée (système -> fichier/dossier jeu) sans jeu en cours.)
+            _esToolTips.SetToolTip(chkIsSystem,
+                "Advanced association outside a game session: pick the system first, then the game file/folder.\r\n" +
+                "Automatically checked during an ES game-start when 'Emulator' is checked.");
+            chkIsSystem.CheckedChanged += (s, e) =>
+            {
+                if (_updatingCheckbox) return;
+
+                if (chkIsSystem.Checked)
+                {
+                    // [V55l] If no system is remembered and not in active ES session, prompt user with EsSystemPickerForm
+                    if (string.IsNullOrEmpty(_manualSystemName) && !EsScriptIntegration.HasCurrentGame)
+                    {
+                        string defaultSys = DetectSystemFromPath(_currentExecutablePath ?? _linkedMapping?.ExecutablePath) ?? EsScriptIntegration.LastSystem;
+                        string picked = UI.Modern.Forms.EsSystemPickerForm.Show(this.FindForm(), "Select the game system", defaultSys);
+                        if (!string.IsNullOrEmpty(picked))
+                        {
+                            _manualSystemName = picked;
+                            UpdateExistingMappingSystem(picked);
+                        }
+                        else
+                        {
+                            // User cancelled picker -> uncheck without re-triggering handler
+                            _updatingCheckbox = true;
+                            chkIsSystem.Checked = false;
+                            _updatingCheckbox = false;
+                            return;
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(_manualSystemName))
+                    {
+                        UpdateExistingMappingSystem(_manualSystemName);
+                    }
+                }
+                else
+                {
+                    _manualGameName = null; // [V50] Reset remembered selection
+                    _manualSystemName = null;
+                    UpdateExistingMappingSystem(null);
+                }
+                UpdateAutoLoadCheckbox();
+            };
+        }
+
+        /// <summary>
+        /// EN: [V55l] Try detecting the system name from the executable path (e.g. \roms\<system>\...).
+        /// FR: [V55l] Tente de détecter le nom de système depuis le chemin de l'exe (ex: \roms\<system>\...).
+        /// </summary>
+        private static string DetectSystemFromPath(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return null;
+            try
+            {
+                string norm = path.Replace('/', '\\');
+                int romsIdx = norm.IndexOf(@"\roms\", StringComparison.OrdinalIgnoreCase);
+                if (romsIdx >= 0)
+                {
+                    string sub = norm.Substring(romsIdx + 6);
+                    int nextSlash = sub.IndexOf('\\');
+                    if (nextSlash > 0)
+                    {
+                        return sub.Substring(0, nextSlash).Trim();
+                    }
+                    return sub.Trim();
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// EN: [V55l] Update the system name on an existing mapping for the active profile.
+        /// FR: [V55l] Met à jour le nom de système sur le mapping existant du profil actif.
+        /// </summary>
+        private void UpdateExistingMappingSystem(string systemName)
+        {
+            string currentProfile = Program.GetActiveRemapProfile();
+            if (string.IsNullOrEmpty(currentProfile) || GameProfileMappingManager.IsRootDefaultProfilePath(currentProfile))
+                return;
+
+            var existing = ResolveLinkedMapping(currentProfile);
+            if (existing != null)
+            {
+                GameProfileMappingManager.AddMapping(existing.ExecutableName, existing.ProfilePath, existing.ExecutablePath, null,
+                    existing.IsEmulator, existing.GameName, existing.GameIsFolder, systemName);
+                UpdateCurrentGameLabel();
+                _toast?.Show(string.IsNullOrEmpty(systemName)
+                    ? $"System removed from association: {existing.ExecutableName}"
+                    : $"System updated: {existing.ExecutableName} [{systemName}]");
+            }
+            else if (!string.IsNullOrEmpty(_currentExecutable) && chkAutoLoad != null && chkAutoLoad.Checked)
+            {
+                GameProfileMappingManager.AddMapping(_currentExecutable, currentProfile, _currentExecutablePath, null,
+                    chkIsEmulator?.Checked == true, null, false, systemName);
+                UpdateCurrentGameLabel();
+            }
+        }
+
+        /// <summary>
+        /// EN: [V50] Resolve the association to create (game name, folder flag, system name).
+        /// In an ES game session: fully automatic. Outside: advanced flow with MEMORY
+        /// (no double prompt) - system picker then game file/folder, remembered for reuse.
+        /// FR: [V50] Résout l'association à créer (nom de jeu, dossier, nom de système).
+        /// En session de jeu ES : entièrement automatique. Hors : flux avancé avec MÉMOIRE
+        /// (pas de double demande) - sélecteur de système puis fichier/dossier, mémorisé.
+        /// </summary>
+        private bool TryResolveAssociationForLink(out string gameName, out bool isFolder, out string systemName)
+        {
+            gameName = null;
+            isFolder = false;
+            systemName = null;
+
+            if (chkIsEmulator == null || !chkIsEmulator.Checked)
+            {
+                // [V55l] Direct executable link (non-emulator):
+                // 1) ES game session: system comes automatically from scripts
+                if (EsScriptIntegration.HasCurrentGame)
+                {
+                    systemName = EsScriptIntegration.LastSystem;
+                    if (chkIsSystem != null && !string.IsNullOrEmpty(systemName))
+                    {
+                        _updatingCheckbox = true;
+                        chkIsSystem.Checked = true;
+                        _updatingCheckbox = false;
+                    }
+                    return true;
+                }
+
+                // 2) Outside session: if system already remembered, reuse it
+                if (!string.IsNullOrEmpty(_manualSystemName))
+                {
+                    systemName = _manualSystemName;
+                    if (chkIsSystem != null)
+                    {
+                        _updatingCheckbox = true;
+                        chkIsSystem.Checked = true;
+                        _updatingCheckbox = false;
+                    }
+                    return true;
+                }
+
+                // 3) Outside session: prompt user with system picker (for EsProfileTileDialog filter)
+                string defaultSys = DetectSystemFromPath(_currentExecutablePath) ?? EsScriptIntegration.LastSystem;
+                string picked = UI.Modern.Forms.EsSystemPickerForm.Show(this.FindForm(),
+                    "Select the game system", defaultSys);
+                if (!string.IsNullOrEmpty(picked))
+                {
+                    systemName = picked;
+                    _manualSystemName = picked;
+                    if (chkIsSystem != null)
+                    {
+                        _updatingCheckbox = true;
+                        chkIsSystem.Checked = true;
+                        _updatingCheckbox = false;
+                    }
+                }
+                else
+                {
+                    // User canceled system picker: allow link without system
+                    if (chkIsSystem != null)
+                    {
+                        _updatingCheckbox = true;
+                        chkIsSystem.Checked = false;
+                        _updatingCheckbox = false;
+                    }
+                }
+                return true;
+            }
+
+            bool folderExpected = chkIsFolder != null && chkIsFolder.Checked;
+
+            // 1) ES game session: everything comes from the scripts (auto)
+            // (EN/FR: Session de jeu ES : tout vient des scripts (auto))
+            if (EsScriptIntegration.HasCurrentGame)
+            {
+                if (chkIsSystem != null && chkIsEmulator.Checked) chkIsSystem.Checked = true; // auto-check
+                if (folderExpected)
+                {
+                    if (!EsScriptIntegration.LastGameIsFolder)
+                    {
+                        MessageBox.Show(this.FindForm(),
+                            "The game received from EmulationStation is a FILE, not a folder.\r\nUncheck 'This is a folder' or launch a folder-based game first.",
+                            "Not a folder", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return false;
+                    }
+                    gameName = EsScriptIntegration.LastGameNameRaw;
+                    isFolder = true;
+                }
+                else
+                {
+                    gameName = EsScriptIntegration.LastGameName;
+                }
+                return !string.IsNullOrEmpty(gameName);
+            }
+
+            // 2) Outside a session: advanced association with MEMORY
+            // (EN/FR: Hors session : association avancée avec MÉMOIRE)
+            if (!string.IsNullOrEmpty(_manualGameName))
+            {
+                // Reuse the remembered selection - no double prompt
+                // (EN/FR: Réutiliser la sélection mémorisée - pas de double demande)
+                gameName = _manualGameName;
+                isFolder = _manualIsFolder;
+                systemName = _manualSystemName;
+                return true;
+            }
+
+            // 2a) System first (EN/FR: Le système d'abord)
+            systemName = UI.Modern.Forms.EsSystemPickerForm.Show(this.FindForm(),
+                "Select the game system", EsScriptIntegration.LastSystem);
+            if (string.IsNullOrEmpty(systemName)) return false;
+
+            // 2b) Then the game file/folder (EN/FR: Puis le fichier/dossier du jeu)
+            if (!EsScriptIntegration.TryResolveGameName(folderExpected, this.FindForm(), out gameName, out isFolder))
+                return false;
+
+            // 2c) Remember (EN/FR: Mémoriser)
+            _manualGameName = gameName;
+            _manualIsFolder = isFolder;
+            _manualSystemName = systemName;
+            SimpleLogger.Instance.Info($"[ES Advanced] Remembered manual association: system='{systemName}', game='{gameName}' (folder: {isFolder})");
+            return true;
+        }
+
+        /// <summary>
+        /// EN: [V44] Resolve the game to bind. Game running -> ES value (automatic);
+        /// no game running -> manual selection in advance (file or folder).
+        /// FR: [V44] Résout le jeu à lier. Jeu en cours -> valeur ES (automatique) ;
+        /// pas de jeu en cours -> sélection manuelle à l'avance (fichier ou dossier).
+        /// </summary>
+        private bool TryResolveGameNameForLink(out string gameName, out bool isFolder)
+        {
+            gameName = null;
+            isFolder = false;
+
+            if (chkIsEmulator == null || !chkIsEmulator.Checked) return true; // Not an emulator link
+
+            bool folderExpected = chkIsFolder != null && chkIsFolder.Checked;
+
+            if (EsScriptIntegration.TryResolveGameName(folderExpected, this.FindForm(), out gameName, out isFolder))
+                return true;
+
+            if (EsScriptIntegration.HasCurrentGame && folderExpected)
+            {
+                MessageBox.Show(this.FindForm(),
+                    "The game received from EmulationStation is a FILE, not a folder.\r\nUncheck 'This is a folder' or launch a folder-based game first.",
+                    "Not a folder", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            return false;
+        }
+
+        /// <summary>EN: [V44] Game name for REMOVAL (never prompts). FR: [V44] Nom de jeu pour le RETRAIT (jamais de dialogue).</summary>
+        private string GetEsGameNameForRemoval()
+        {
+            if (chkIsEmulator == null || !chkIsEmulator.Checked || !EsScriptIntegration.HasCurrentGame)
+                return null;
+            return (chkIsFolder != null && chkIsFolder.Checked) ? EsScriptIntegration.LastGameNameRaw : EsScriptIntegration.LastGameName;
+        }
+
         // Colors (EN/FR: Couleurs)
         private static readonly Color ColorAccent = Color.FromArgb(0, 122, 204);
         private static readonly Color ColorText = Color.FromArgb(224, 224, 224);
@@ -69,7 +382,9 @@ namespace WiimoteGun.Controls
         public MappingControl()
         {
             InitializeComponent();
+            _toast = new TransientToast(this);
             if (txtProfileName != null) txtProfileName.Click += (s, e) => ShowVirtualKeyboard(txtProfileName);
+            WireEmulatorCheckboxes();
             
             // Set FlatAppearance properties (Designer doesn't support all)
             // (EN/FR: Définir propriétés d'apparence)
@@ -116,8 +431,17 @@ namespace WiimoteGun.Controls
 
         public void SetCurrentGame(string exeName, string exePath = null)
         {
+            // [V47] Never wipe an already-detected game with an empty update
+            // (EN/FR: Ne jamais écraser un jeu déjà détecté par une mise à jour vide)
+            if (string.IsNullOrEmpty(exeName) && !string.IsNullOrEmpty(_currentExecutable))
+            {
+                UpdateCurrentGameLabel();
+                UpdateAutoLoadCheckbox();
+                return;
+            }
+
             _currentExecutable = exeName;
-            _currentExecutablePath = exePath ?? "";
+            _currentExecutablePath = string.IsNullOrEmpty(exePath) ? null : exePath;
             
             lblCurrentGame.Text = $"Current Game: {_currentExecutable ?? "None"}";
             UpdateCurrentGameLabel();
@@ -143,8 +467,16 @@ namespace WiimoteGun.Controls
             RefreshProfileList();
         }
 
-        private void RefreshProfileList()
+        private void RefreshProfileList(string profileToSelect = null)
         {
+            // [V41] Remember the current selection so a refresh (e.g. after a Save) does not
+            // silently jump to the first profile and overwrite txtProfileName — the next
+            // Save would then write to the WRONG profile.
+            // (EN/FR: Mémoriser la sélection courante pour qu'un refresh (ex: après un Save)
+            // ne saute pas silencieusement au premier profil et n'écrase txtProfileName —
+            // le Save suivant écrirait alors le MAUVAIS profil.)
+            string previousSelection = comboBoxProfiles.SelectedItem?.ToString();
+
             comboBoxProfiles.Items.Clear();
             
             string selectedFolder = comboBoxSubfolders.SelectedItem?.ToString();
@@ -158,72 +490,211 @@ namespace WiimoteGun.Controls
             }
             
             if (comboBoxProfiles.Items.Count > 0)
-                comboBoxProfiles.SelectedIndex = 0;
+            {
+                // Selection priority (EN/FR: Priorité de sélection) :
+                // 1. Explicit target (e.g. profile just saved)
+                // 2. Previously selected profile (if still in the list)
+                // 3. Active/loaded profile (if present in this folder)
+                // 4. First profile (last resort)
+                string target = profileToSelect;
+                if (!string.IsNullOrEmpty(target) && !target.EndsWith(".remap", StringComparison.OrdinalIgnoreCase))
+                    target += ".remap";
+
+                int idx = -1;
+                if (!string.IsNullOrEmpty(target))
+                    idx = comboBoxProfiles.FindStringExact(target);
+
+                if (idx == -1 && !string.IsNullOrEmpty(previousSelection))
+                    idx = comboBoxProfiles.FindStringExact(previousSelection);
+
+                if (idx == -1)
+                {
+                    string activeProfile = Program.GetActiveRemapProfile();
+                    if (!string.IsNullOrEmpty(activeProfile))
+                    {
+                        string activeName = Path.GetFileName(activeProfile.Replace('\\', '/'));
+                        if (!string.IsNullOrEmpty(activeName))
+                            idx = comboBoxProfiles.FindStringExact(activeName);
+                    }
+                }
+
+                comboBoxProfiles.SelectedIndex = idx != -1 ? idx : 0;
+            }
         }
 
         private void UpdateCurrentGameLabel()
         {
             string statusText = "";
             bool hasLink = false;
+            GameProfileMapping linkMap = null;
 
-            // 1. Status of Current Game (EN/FR: Statut du jeu actuel)
-            if (!string.IsNullOrEmpty(_currentExecutable) && _currentExecutable != "Unknown")
+            // [V51] Unified display: when the ACTIVE profile carries an association,
+            // show ONLY that association (no more double segment
+            // "Current Game ... (not mapped) | Profile linked to ...").
+            // (EN/FR: Affichage unifié : quand le profil ACTIF porte une association,
+            // n'afficher QUE cette association (plus de double segment).)
+            string currentProfile = Program.GetActiveRemapProfile();
+            if (!string.IsNullOrEmpty(currentProfile))
+                linkMap = ResolveLinkedMapping(currentProfile);
+
+            if (linkMap != null)
             {
-                string mappedProfile = GameProfileMappingManager.GetProfileForGame(_currentExecutable, _currentExecutablePath);
-                if (!string.IsNullOrEmpty(mappedProfile))
-                {
-                    statusText = $"Current Game '{_currentExecutable}' -> '{mappedProfile}'";
-                    hasLink = true;
-                }
-                else
-                {
-                    statusText = $"Current Game '{_currentExecutable}' (not mapped)";
-                }
+                statusText = $"Profile linked to: {linkMap.ExecutableName}";
+                if (!string.IsNullOrEmpty(linkMap.GameName))
+                    statusText += $" [game: {linkMap.GameName}{(linkMap.GameIsFolder ? ", folder" : "")}]";
+                else if (!string.IsNullOrEmpty(linkMap.SystemName))
+                    statusText += $" [{linkMap.SystemName}]";
+                hasLink = true;
             }
             else
             {
-                statusText = "No Game Detected";
-            }
-
-            // 2. Status of Loaded Profile (EN/FR: Statut du profil chargé)
-            string currentProfile = Program.GetActiveRemapProfile();
-            if (!string.IsNullOrEmpty(currentProfile))
-            {
-                // We use the relative path (e.g. "fps/gear5.remap")
-                string linkedExe = GameProfileMappingManager.GetExecutableForProfile(currentProfile);
-                if (!string.IsNullOrEmpty(linkedExe))
+                // 1. Status of Current Game only when the profile has no association
+                // (EN/FR: Statut du jeu actuel seulement si le profil n'a pas d'association)
+                if (!string.IsNullOrEmpty(_currentExecutable) && _currentExecutable != "Unknown")
                 {
-                    // Append info (EN/FR: Ajouter info)
-                    statusText += $" | Profile linked to: {linkedExe}";
-                    hasLink = true;
+                    string mappedProfile = GameProfileMappingManager.GetProfileForGame(_currentExecutable, _currentExecutablePath,
+                        EsScriptIntegration.LastGameName, EsScriptIntegration.LastGameNameRaw); // [V46] both name variants
+                    if (!string.IsNullOrEmpty(mappedProfile))
+                    {
+                        statusText = $"Current Game '{_currentExecutable}' -> '{mappedProfile}'";
+                        hasLink = true;
+                        linkMap = GameProfileMappingManager.GetBestMapping(_currentExecutable, _currentExecutablePath,
+                            EsScriptIntegration.LastGameName, EsScriptIntegration.LastGameNameRaw);
+                    }
+                    else
+                    {
+                        statusText = $"Current Game '{_currentExecutable}' (not mapped)";
+                    }
+                }
+                else
+                {
+                    statusText = "No Game Detected";
                 }
             }
 
             lblLinkedExe.Text = statusText;
-            lblLinkedExe.ForeColor = hasLink ? ColorAccent : Color.Gray;
+
+            // [V46+V50+V51] Same colors on both mapping pages: amber when the link
+            // carries a game, accent blue when linked without game, gray otherwise.
+            // (EN/FR: Mêmes couleurs sur les 2 pages : ambre si le lien porte un jeu,
+            // bleu accent si lié sans jeu, gris sinon.)
+            bool gameScoped = linkMap != null && !string.IsNullOrEmpty(linkMap.GameName);
+            lblLinkedExe.ForeColor = !hasLink ? Color.Gray
+                : (gameScoped ? Color.FromArgb(255, 170, 40) : ColorAccent);
+            _esToolTips.SetToolTip(lblLinkedExe, gameScoped && linkMap != null
+                ? $"Linked game: {linkMap.GameName}" + (linkMap.GameIsFolder ? " (folder)" : "") +
+                  (linkMap.IsEmulator ? $" | Emulator: {linkMap.ExecutableName}" : "")
+                : "");
+        }
+
+        /// <summary>
+        /// EN: [V48] Resolve the association of the ACTIVE profile (per-profile sync):
+        /// the current-exe mapping when it matches, otherwise the JSON association of the
+        /// profile itself (e.g. an emulator/game link while browsing the frontend).
+        /// FR: [V48] Résout l'association du profil ACTIF (synchronisation par profil) :
+        /// le mapping de l'exe courant s'il correspond, sinon l'association JSON du profil
+        /// lui-même (ex: lien émulateur/jeu pendant qu'on navigue le frontend).
+        /// </summary>
+        private GameProfileMapping ResolveLinkedMapping(string currentProfile)
+        {
+            if (string.IsNullOrEmpty(currentProfile)) return null;
+
+            // 1. Mapping of the current exe (with BOTH ES game name variants)
+            var byExe = GameProfileMappingManager.GetBestMapping(_currentExecutable, _currentExecutablePath,
+                EsScriptIntegration.LastGameName, EsScriptIntegration.LastGameNameRaw);
+            if (byExe != null && SameProfilePath(byExe.ProfilePath, currentProfile))
+                return byExe;
+
+            // 2. Association carried by the profile itself (any exe)
+            return GameProfileMappingManager.GetMappingByProfilePath(currentProfile, false);
+        }
+
+        private static bool SameProfilePath(string a, string b)
+        {
+            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
+            return a.Replace('\\', '/').Equals(b.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase);
         }
 
         private void UpdateAutoLoadCheckbox()
         {
             _updatingCheckbox = true;
-            
-            if (!string.IsNullOrEmpty(_currentExecutable) && _currentExecutable != "Unknown")
+             
+            try
             {
-                string mappedProfile = GameProfileMappingManager.GetProfileForGame(_currentExecutable, _currentExecutablePath);
                 string currentProfile = Program.GetActiveRemapProfile();
-                
-                chkAutoLoad.Checked = !string.IsNullOrEmpty(mappedProfile) && 
-                                      !string.IsNullOrEmpty(currentProfile) &&
-                                      mappedProfile.Replace('\\', '/').Equals(currentProfile.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase);
-                chkAutoLoad.Enabled = true;
+
+                // [V52b] The ROOT default.remap can be EDITED but NEVER associated: it is
+                // the base fallback mapping. Auto-Load stays grayed and unchecked for it.
+                // (EN/FR: Le default.remap RACINE peut être MODIFIÉ mais JAMAIS associé :
+                // c'est le mapping de base. Auto-Load reste grisé et décoché pour lui.)
+                if (GameProfileMappingManager.IsRootDefaultProfilePath(currentProfile))
+                {
+                    _linkedMapping = null;
+                    chkAutoLoad.Checked = false;
+                    chkAutoLoad.Enabled = false;
+                    _esToolTips.SetToolTip(chkAutoLoad,
+                        "The root default.remap is the base mapping: it cannot be associated to an executable.");
+                    return;
+                }
+
+                _linkedMapping = ResolveLinkedMapping(currentProfile);
+
+                chkAutoLoad.Checked = _linkedMapping != null &&
+                                     SameProfilePath(_linkedMapping.ProfilePath, currentProfile);
+
+                // [V50] Auto-load is DISABLED (grayed) outside an ES game session, UNLESS:
+                // - the profile already carries an association (so it can be unchecked), or
+                // - the advanced 'System name' flow is armed (chkIsSystem checked).
+                // game-end ends the session capability.
+                // (EN/FR: Auto-load est DÉSACTIVÉ (grisé) hors session de jeu ES, SAUF si :
+                // - le profil porte déjà une association (pour pouvoir la décocher), ou
+                // - le flux avancé 'System name' est armé (chkIsSystem coché).
+                // Le game-end met fin à cette capacité.)
+                bool sessionActive = EsScriptIntegration.HasCurrentGame;
+                bool advancedArmed = chkIsSystem != null && chkIsSystem.Checked;
+                bool hasAssociation = _linkedMapping != null;
+                chkAutoLoad.Enabled = (sessionActive || advancedArmed || hasAssociation);
+                _esToolTips.SetToolTip(chkAutoLoad,
+                    !chkAutoLoad.Enabled
+                        ? "Requires an active game (ES game-start) - or check 'System name' for an advanced association"
+                        : (sessionActive ? "Auto-Load for the current game session" : "Auto-Load (existing association or advanced mode)"));
+
+                // [V46+V48+V51c] Sync 'Emulator' and 'This is a folder' ONLY when the
+                // association actually carries an emulator link (or when there is NO
+                // association, which clears them). A PLAIN exe association must NOT touch
+                // the boxes: the user may be building the advanced association right now —
+                // checking 'System name' after 'Emulator' previously RESET 'Emulator' from
+                // the bare JSON link (IsEmulator=false).
+                // (EN/FR: Synchroniser 'Emulator'/'This is a folder' SEULEMENT si
+                // l'association porte un lien émulateur (ou s'il n'y a AUCUNE association,
+                // ce qui les nettoie). Une association d'exe SIMPLE ne touche PAS les
+                // cases : cocher 'System name' après 'Emulator' réinitialisait avant
+                // 'Emulator' depuis le lien nu du json (IsEmulator=false).)
+                if (_linkedMapping != null)
+                {
+                    if (_linkedMapping.IsEmulator)
+                    {
+                        chkIsEmulator.Checked = true;
+                        chkIsFolder.Enabled = true;
+                        chkIsFolder.Checked = _linkedMapping.GameIsFolder;
+                    }
+                    if (chkIsSystem != null)
+                        chkIsSystem.Checked = !string.IsNullOrEmpty(_linkedMapping.SystemName);
+                }
+                else if (_linkedMapping == null)
+                {
+                    chkIsEmulator.Checked = false;
+                    chkIsFolder.Enabled = false;
+                    chkIsFolder.Checked = false;
+                    if (chkIsSystem != null)
+                        chkIsSystem.Checked = false;
+                }
+                // else: plain exe association -> leave the user's boxes untouched
             }
-            else
+            finally
             {
-                chkAutoLoad.Checked = false;
-                chkAutoLoad.Enabled = false;
+                _updatingCheckbox = false;
             }
-            
-            _updatingCheckbox = false;
         }
 
         // Load and display current mappings for selected player (EN/FR: Charger et afficher mappings joueur sélectionné)
@@ -246,7 +717,6 @@ namespace WiimoteGun.Controls
             panel.Controls.Clear();
             
             int panelWidth = panel.Width;
-            int yPos = 15;
             int labelWidth = 95;
             int valueWidth = 120;
             int spacing = 22;
@@ -256,20 +726,467 @@ namespace WiimoteGun.Controls
             int column2Width = labelWidth + valueWidth;
             int totalWidth = column1Width + columnSpacing + column2Width;
             int startX = (panelWidth - totalWidth) / 2;
-            
+
+            // ===== [V55] Off-Screen Reload / TC Cover section (per profile) — TOP of page =====
+            // (EN/FR: Section Rechargement hors-écran / Planque TC — en début de page)
+            int tcY = 12;
+            Label lblOsHeader = new Label
+            {
+                Text = "━━ Off-Screen Reload / TC Cover (per profile) ━━",
+                ForeColor = ColorAccent,
+                Font = new Font("Segoe UI", 9.0F, FontStyle.Bold),
+                Location = new Point(startX, tcY),
+                Size = new Size(totalWidth, 18),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            panel.Controls.Add(lblOsHeader);
+            tcY += 24;
+
+            PlayerMappings osMappings = Options.Instance.GetMappingsForPlayer(_currentPlayer);
+            ToolTip ttOs = new ToolTip();
+
+            // 1) Off-Screen Reload (per-profile override of the global option)
+            //    (EN/FR: Override par profil de l'option globale - déverrouillé et compact [V55g])
+            CheckBox chkOsReload = new CheckBox
+            {
+                Text = "Off-Screen Reload",
+                ForeColor = ColorText,
+                Font = new Font("Segoe UI", 8.5F),
+                Location = new Point(startX, tcY),
+                Size = new Size(130, 20),
+                UseVisualStyleBackColor = true
+            };
+
+            bool isDefault = IsDefaultProfileActive();
+            if (isDefault)
+            {
+                chkOsReload.Checked = Options.Instance.EnableOffScreenReload;
+            }
+            else if (osMappings != null)
+            {
+                chkOsReload.Checked = osMappings.OffScreenReloadOverride == 1 ||
+                                      (osMappings.OffScreenReloadOverride == -1 && Options.Instance.EnableOffScreenReload);
+            }
+            else
+            {
+                chkOsReload.Checked = Options.Instance.EnableOffScreenReload;
+            }
+
+            // EN/FR: Always unlocked and accessible (Toujours accessible et déverrouillé)
+            chkOsReload.Enabled = true;
+
+            chkOsReload.CheckedChanged += (s, e) =>
+            {
+                if (IsDefaultProfileActive())
+                {
+                    Options.Instance.EnableOffScreenReload = chkOsReload.Checked;
+                }
+                if (osMappings != null)
+                {
+                    osMappings.OffScreenReloadOverride = chkOsReload.Checked ? 1 : 0;
+                }
+            };
+
+            ttOs.SetToolTip(chkOsReload,
+                "Off-screen reload ON/OFF for this profile.\r\n" +
+                "Aim off-screen and pull the trigger to send the reload action (right-click).\r\n" +
+                "FR : Reload hors-écran ON/OFF pour ce profil.\r\n" +
+                "Viser hors écran et presser la gâchette envoie l'action recharge (clic droit).");
+            panel.Controls.Add(chkOsReload);
+
+            // [V55] ComboBox Trigger/Auto next to Off-Screen Reload checkbox
+            // (EN/FR: ComboBox Trigger/Auto rapprochée immédiatement de la case Off-Screen Reload [V55g])
+            string[] osAutoNames = { "Trigger", "Auto" };
+            ComboBox cboOsAuto = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(45, 45, 48),
+                ForeColor = Color.White,
+                Location = new Point(startX + 138, tcY - 1),
+                Size = new Size(85, 22),
+                Enabled = chkOsReload.Checked
+            };
+            cboOsAuto.Items.AddRange(osAutoNames);
+
+            int osAutoIdx = 0; // default Trigger
+            if (osMappings != null)
+            {
+                if (osMappings.OffScreenAutoOverride == 1) osAutoIdx = 1;
+                else if (osMappings.OffScreenAutoOverride == 0) osAutoIdx = 0;
+                else osAutoIdx = Options.Instance.OffScreenReloadAuto ? 1 : 0; // follow global
+            }
+            else
+            {
+                osAutoIdx = Options.Instance.OffScreenReloadAuto ? 1 : 0;
+            }
+            cboOsAuto.SelectedIndex = osAutoIdx;
+
+            cboOsAuto.SelectedIndexChanged += (s, e) =>
+            {
+                if (IsDefaultProfileActive())
+                {
+                    Options.Instance.OffScreenReloadAuto = (cboOsAuto.SelectedIndex == 1);
+                }
+                if (osMappings != null)
+                {
+                    osMappings.OffScreenAutoOverride = cboOsAuto.SelectedIndex; // 0=Trigger, 1=Auto
+                }
+            };
+            chkOsReload.CheckedChanged += (s, e) =>
+            {
+                cboOsAuto.Enabled = chkOsReload.Checked;
+            };
+
+            ttOs.SetToolTip(cboOsAuto,
+                "Trigger = press the fire button off-screen to reload once (manual).\r\n" +
+                "Auto    = one reload is sent automatically when going off-screen.\r\n" +
+                "FR : Trigger = presser le bouton de tir hors écran pour recharger (manuel).\r\n" +
+                "Auto    = une recharge automatique est envoyée à la sortie de l'écran.");
+            panel.Controls.Add(cboOsAuto);
+            tcY += 26;
+
+            // [V55y] Reload Rumble override (per-profile override of the global option)
+            // (EN/FR: Override par profil de la vibration rechargement)
+            CheckBox chkReloadRumble = new CheckBox
+            {
+                Text = "Reload Rumble",
+                ForeColor = ColorText,
+                Font = new Font("Segoe UI", 8.5F),
+                Location = new Point(startX, tcY),
+                Size = new Size(130, 20),
+                UseVisualStyleBackColor = true
+            };
+
+            if (IsDefaultProfileActive())
+            {
+                chkReloadRumble.Checked = Options.Instance.ReloadRumbleEnabled;
+            }
+            else if (osMappings != null)
+            {
+                chkReloadRumble.Checked = osMappings.ReloadRumbleOverride == 1 ||
+                                          (osMappings.ReloadRumbleOverride == -1 && Options.Instance.ReloadRumbleEnabled);
+            }
+            else
+            {
+                chkReloadRumble.Checked = Options.Instance.ReloadRumbleEnabled;
+            }
+
+            chkReloadRumble.CheckedChanged += (s, e) =>
+            {
+                if (IsDefaultProfileActive())
+                {
+                    Options.Instance.ReloadRumbleEnabled = chkReloadRumble.Checked;
+                }
+                if (osMappings != null)
+                {
+                    osMappings.ReloadRumbleOverride = chkReloadRumble.Checked ? 1 : 0;
+                }
+            };
+
+            ttOs.SetToolTip(chkReloadRumble,
+                "Reload rumble ON/OFF for this profile (overrides Options > Gestures).\r\n" +
+                "Plays a rumble pattern on every reload (off-screen auto/trigger, physical\r\n" +
+                "reload button, shake reload, GamePad off-screen reloads).\r\n" +
+                "FR : Vibration recharge ON/OFF pour ce profil (surcharge Options > Gestures).\r\n" +
+                "Joue un motif de vibration à chaque recharge (auto/gâchette hors écran,\r\n" +
+                "bouton reload physique, shake, recharges GamePad hors écran).");
+            panel.Controls.Add(chkReloadRumble);
+
+            // [V55y] Reload rumble STYLE combo (EN/FR: Combo style de vibration recharge)
+            string[] rrStyleNames = { "Default", "Ratchet", "Short", "Long", "Custom" };
+            ComboBox cboRrStyle = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(45, 45, 48),
+                ForeColor = Color.White,
+                Location = new Point(startX + 138, tcY - 1),
+                Size = new Size(105, 22)
+            };
+            cboRrStyle.Items.AddRange(rrStyleNames);
+
+            int rrStyleIdx;
+            if (osMappings != null && osMappings.ReloadRumbleStyleOverride >= 0)
+            {
+                rrStyleIdx = osMappings.ReloadRumbleStyleOverride + 1; // 0..2 -> 1..3
+            }
+            else
+            {
+                rrStyleIdx = 0; // Default = follow global
+            }
+            cboRrStyle.SelectedIndex = rrStyleIdx;
+
+            cboRrStyle.SelectedIndexChanged += (s, e) =>
+            {
+                if (osMappings != null)
+                {
+                    osMappings.ReloadRumbleStyleOverride = cboRrStyle.SelectedIndex - 1; // -1 = Default/global
+                }
+                if (IsDefaultProfileActive() && cboRrStyle.SelectedIndex > 0)
+                {
+                    Options.Instance.ReloadRumbleStyle = cboRrStyle.SelectedIndex - 1;
+                }
+            };
+            ttOs.SetToolTip(cboRrStyle,
+                "Rumble style for this profile: Default = follow Options > Gestures.\r\n" +
+                "Custom = the tic pattern defined in Options > Gestures (Ticks / ON / OFF).\r\n" +
+                "FR : Style de vibration pour ce profil : Default = suivre Options > Gestures.\r\n" +
+                "Custom = le motif de tics défini dans Options > Gestures (Ticks / ON / OFF).");
+            panel.Controls.Add(cboRrStyle);
+            tcY += 26;
+
+            // [V55y] Reload rumble INTENSITY combo (EN/FR: Combo intensité de vibration recharge)
+            Label lblRrIntensity = new Label
+            {
+                Text = "Rumble Intensity:",
+                ForeColor = ColorText,
+                Font = new Font("Segoe UI", 8.0F),
+                Location = new Point(startX, tcY + 2),
+                Size = new Size(130, 18),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            int[] rrIntensityValues = { -1, 20, 40, 60, 80, 100 };
+            ComboBox cboRrIntensity = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(45, 45, 48),
+                ForeColor = Color.White,
+                Location = new Point(startX + 138, tcY),
+                Size = new Size(105, 22)
+            };
+            cboRrIntensity.Items.AddRange(new object[] { "Default", "20%", "40%", "60%", "80%", "100%" });
+
+            int rrIntensityIdx = 0; // Default = follow global
+            if (osMappings != null && osMappings.ReloadRumbleIntensityOverride >= 0)
+            {
+                int v = osMappings.ReloadRumbleIntensityOverride;
+                rrIntensityIdx = Array.IndexOf(rrIntensityValues, v >= 0 ? ((v / 20) * 20) : v);
+                if (rrIntensityIdx < 0) rrIntensityIdx = 3; // snap to 60% bucket
+            }
+            cboRrIntensity.SelectedIndex = rrIntensityIdx;
+
+            cboRrIntensity.SelectedIndexChanged += (s, e) =>
+            {
+                if (osMappings != null)
+                {
+                    osMappings.ReloadRumbleIntensityOverride = rrIntensityValues[cboRrIntensity.SelectedIndex >= 0 ? cboRrIntensity.SelectedIndex : 0];
+                }
+            };
+            ttOs.SetToolTip(lblRrIntensity,
+                "Rumble intensity for this profile: Default = follow Options > Gestures.\r\n" +
+                "FR : Intensité de vibration pour ce profil : Default = suivre Options > Gestures.");
+            ttOs.SetToolTip(cboRrIntensity,
+                "Rumble intensity for this profile: Default = follow Options > Gestures.\r\n" +
+                "FR : Intensité de vibration pour ce profil : Default = suivre Options > Gestures.");
+
+            panel.Controls.Add(lblRrIntensity);
+            panel.Controls.Add(cboRrIntensity);
+            tcY += 26;
+
+            // 2) TC Cover auto-reload (Time Crisis)
+            //    (EN/FR: Planque TC auto-rechargement (Time Crisis))
+            CheckBox chkTcCover = new CheckBox
+            {
+                Text = "TC Cover Auto-Reload (Time Crisis)",
+                ForeColor = ColorText,
+                Font = new Font("Segoe UI", 8.5F),
+                Location = new Point(startX, tcY),
+                Size = new Size(280, 20),
+                UseVisualStyleBackColor = true,
+                Checked = osMappings != null && osMappings.TCCoverReload
+            };
+            if (osMappings != null)
+            {
+                chkTcCover.CheckedChanged += (s, e) => { osMappings.TCCoverReload = chkTcCover.Checked; };
+            }
+            ttOs.SetToolTip(chkTcCover,
+                "Time Crisis cover mode (CORRECTED [V55]):\r\n" +
+                "Aiming ON-screen HOLDS the cover/planque input (= exit cover, shoot).\r\n" +
+                "Aiming OFF-screen RELEASES it (= return to cover/planque).\r\n" +
+                "This is the OPPOSITE of standard reload: in TC games you hold the pedal\r\n" +
+                "to aim and shoot, then release to hide again.\r\n" +
+                "Inhibits global Off-Screen Reload and Auto Off-Screen for this profile.\r\n" +
+                "FR : Mode planque Time Crisis (CORRIGÉ [V55]) :\r\n" +
+                "Viser l'ÉCRAN MAINTIENT l'entrée planque (= sortie planque, tirer).\r\n" +
+                "Viser HORS écran RELÂCHE (= retour en planque).\r\n" +
+                "C'est l'INVERSE du reload classique : dans TC on maintient la pédale pour\r\n" +
+                "viser/tirer puis on relâche pour se cacher. Inhibe Off-Screen Reload global.");
+            panel.Controls.Add(chkTcCover);
+            tcY += 26;
+
+            // 3) TC reload button dropdown (forced physical button)
+            //    (EN/FR: Liste déroulante du bouton TC (bouton physique forcé))
+            string[] tcNames = { "Auto (Right-Click)", "A Button", "B Button", "1 Button", "2 Button", "+ (Plus)", "- (Minus)", "C Button", "Z Button" };
+            string[] tcIds = { "auto", "WiiA", "WiiB", "WiiOne", "WiiTwo", "WiiPlus", "WiiMinus", "NunC", "NunZ" };
+
+            Label lblTcBtn = new Label
+            {
+                Text = "TC Reload Button:",
+                ForeColor = ColorText,
+                Font = new Font("Segoe UI", 8.0F),
+                Location = new Point(startX, tcY + 2),
+                Size = new Size(120, 18),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            ComboBox cboTcBtn = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(45, 45, 48),
+                ForeColor = Color.White,
+                Location = new Point(startX + 125, tcY),
+                Size = new Size(180, 22)
+            };
+            foreach (string n in tcNames) cboTcBtn.Items.Add(n);
+            int tcIdx = Array.IndexOf(tcIds, string.IsNullOrEmpty(osMappings?.TCCoverButton) ? "auto" : osMappings.TCCoverButton);
+            if (tcIdx < 0) tcIdx = 0;
+            cboTcBtn.SelectedIndex = tcIdx;
+            if (osMappings != null)
+            {
+                cboTcBtn.SelectedIndexChanged += (s, e) =>
+                {
+                    int sel = cboTcBtn.SelectedIndex >= 0 ? cboTcBtn.SelectedIndex : 0;
+                    osMappings.TCCoverButton = tcIds[sel];
+                };
+            }
+            ttOs.SetToolTip(cboTcBtn,
+                "Physical Wiimote/Nunchuk button used by the TC cover action.\r\n" +
+                "Auto = right-click mapping (existing behavior). Lets you override the\r\n" +
+                "reload button for games that use a different one.\r\n" +
+                "FR : Bouton physique Wiimote/Nunchuk utilisé par la planque TC.\r\n" +
+                "Auto = mapping clic droit (comportement existant). Permet de contourner\r\n" +
+                "un changement de bouton pour certains jeux.");
+
+            panel.Controls.Add(lblTcBtn);
+            panel.Controls.Add(cboTcBtn);
+            tcY += 28;
+
+            // 4) [V55] TC Bi-Pedal (TC4, TC5 2-pedal games)
+            //    (EN/FR: Pédale TC bi-directionnelle (jeux à 2 pédales))
+            CheckBox chkTcBiPedal = new CheckBox
+            {
+                Text = "TC Bi-Pedal (2 Pedals - Time Crisis 4/5)",
+                ForeColor = ColorText,
+                Font = new Font("Segoe UI", 8.5F),
+                Location = new Point(startX, tcY),
+                Size = new Size(300, 20),
+                UseVisualStyleBackColor = true,
+                Checked = osMappings != null && osMappings.TCBiPedal
+            };
+            if (osMappings != null)
+            {
+                chkTcBiPedal.CheckedChanged += (s, e) => { osMappings.TCBiPedal = chkTcBiPedal.Checked; };
+            }
+            ttOs.SetToolTip(chkTcBiPedal,
+                "TC BI-DIRECTIONAL PEDAL [V55] (2-Pedal TC games):\r\n" +
+                "Select two buttons for Left and Right pedal.\r\n" +
+                "Pressing Left or Right while aiming ON-screen holds that direction.\r\n" +
+                "Aiming OFF-screen releases without changing state. Pressing the other pedal switches.\r\n" +
+                "FR : Pédale bi-directionnelle TC [V55] (jeux TC à 2 pédales) :\r\n" +
+                "Choisir deux boutons pour la pédale gauche et droite.\r\n" +
+                "Appuyer en visant l'écran maintient la direction. Hors écran relâche.");
+            panel.Controls.Add(chkTcBiPedal);
+            tcY += 28; // EN/FR: Espace aéré pour ne pas tronquer les ComboBox du dessous
+
+            // 5) [V55] Two DropDowns for Pedal Left and Pedal Right
+            //    (EN/FR: Deux listes déroulantes pour Pédale Gauche et Pédale Droite)
+            string[] tcPedalNames = { "D-Pad Left", "D-Pad Right", "Auto (Right-Click)", "A Button", "B Button", "1 Button", "2 Button", "+ (Plus)", "- (Minus)", "D-Pad Up", "D-Pad Down", "C Button", "Z Button" };
+            string[] tcPedalIds = { "WiiLeft", "WiiRight", "auto", "WiiA", "WiiB", "WiiOne", "WiiTwo", "WiiPlus", "WiiMinus", "WiiUp", "WiiDown", "NunC", "NunZ" };
+
+            Label lblPedalLeft = new Label
+            {
+                Text = "Pedal Left:",
+                ForeColor = ColorText,
+                Font = new Font("Segoe UI", 8.0F),
+                Location = new Point(startX, tcY + 2),
+                Size = new Size(68, 18),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            ComboBox cboPedalLeft = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(45, 45, 48),
+                ForeColor = Color.White,
+                Location = new Point(startX + 70, tcY),
+                Size = new Size(130, 22),
+                Enabled = chkTcBiPedal.Checked
+            };
+            foreach (string n in tcPedalNames) cboPedalLeft.Items.Add(n);
+            int pLeftIdx = Array.IndexOf(tcPedalIds, string.IsNullOrEmpty(osMappings?.TCBiPedalLeftButton) ? "WiiLeft" : osMappings.TCBiPedalLeftButton);
+            if (pLeftIdx < 0) pLeftIdx = 0; // Default: D-Pad Left
+            cboPedalLeft.SelectedIndex = pLeftIdx;
+            if (osMappings != null)
+            {
+                cboPedalLeft.SelectedIndexChanged += (s, e) =>
+                {
+                    int sel = cboPedalLeft.SelectedIndex >= 0 ? cboPedalLeft.SelectedIndex : 0;
+                    osMappings.TCBiPedalLeftButton = tcPedalIds[sel];
+                };
+            }
+
+            Label lblPedalRight = new Label
+            {
+                Text = "Pedal Right:",
+                ForeColor = ColorText,
+                Font = new Font("Segoe UI", 8.0F),
+                Location = new Point(startX + 215, tcY + 2),
+                Size = new Size(72, 18),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            ComboBox cboPedalRight = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(45, 45, 48),
+                ForeColor = Color.White,
+                Location = new Point(startX + 290, tcY),
+                Size = new Size(130, 22),
+                Enabled = chkTcBiPedal.Checked
+            };
+            foreach (string n in tcPedalNames) cboPedalRight.Items.Add(n);
+            int pRightIdx = Array.IndexOf(tcPedalIds, string.IsNullOrEmpty(osMappings?.TCBiPedalRightButton) ? "WiiRight" : osMappings.TCBiPedalRightButton);
+            if (pRightIdx < 0) pRightIdx = 1; // Default: D-Pad Right
+            cboPedalRight.SelectedIndex = pRightIdx;
+            if (osMappings != null)
+            {
+                cboPedalRight.SelectedIndexChanged += (s, e) =>
+                {
+                    int sel = cboPedalRight.SelectedIndex >= 0 ? cboPedalRight.SelectedIndex : 1;
+                    osMappings.TCBiPedalRightButton = tcPedalIds[sel];
+                };
+            }
+
+            chkTcBiPedal.CheckedChanged += (s, e) =>
+            {
+                cboPedalLeft.Enabled = chkTcBiPedal.Checked;
+                cboPedalRight.Enabled = chkTcBiPedal.Checked;
+            };
+
+            panel.Controls.Add(lblPedalLeft);
+            panel.Controls.Add(cboPedalLeft);
+            panel.Controls.Add(lblPedalRight);
+            panel.Controls.Add(cboPedalRight);
+            tcY += 32; // EN/FR: Marge aérée avant le début des colonnes de boutons
+
+            int baseButtonsY = tcY;
+
             // Column 1: Wiimote (EN/FR: Colonne 1: Wiimote)
             int col1X = startX;
+            int col1Y = baseButtonsY;
             Label lblWiimote = new Label
             {
                 Text = "━━ Wiimote ━━",
                 ForeColor = ColorAccent,
                 Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
-                Location = new Point(col1X, yPos),
+                Location = new Point(col1X, col1Y),
                 Size = new Size(column1Width, 22),
                 TextAlign = ContentAlignment.MiddleCenter
             };
             panel.Controls.Add(lblWiimote);
-            yPos += spacing + 5;
+            col1Y += spacing + 5;
             
             Action<string, ButtonAction> AddWiimoteRow = (buttonName, mapping) =>
             {
@@ -278,7 +1195,7 @@ namespace WiimoteGun.Controls
                     Text = buttonName + ":",
                     ForeColor = ColorText,
                     Font = new Font("Segoe UI", 8.5F),
-                    Location = new Point(col1X, yPos),
+                    Location = new Point(col1X, col1Y),
                     Size = new Size(labelWidth, 18),
                     TextAlign = ContentAlignment.MiddleLeft
                 };
@@ -288,14 +1205,14 @@ namespace WiimoteGun.Controls
                     Text = GetMappingDisplay(mapping),
                     ForeColor = ColorAccent,
                     Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
-                    Location = new Point(col1X + labelWidth + 5, yPos),
+                    Location = new Point(col1X + labelWidth + 5, col1Y),
                     Size = new Size(valueWidth, 18),
                     TextAlign = ContentAlignment.MiddleLeft
                 };
                 
                 panel.Controls.Add(lblButton);
                 panel.Controls.Add(lblMapping);
-                yPos += spacing;
+                col1Y += spacing;
             };
             
             AddWiimoteRow("A Button", mappings.WiiA);
@@ -311,19 +1228,19 @@ namespace WiimoteGun.Controls
             
             // Column 2: Nunchuk (EN/FR: Colonne 2: Nunchuk)
             int col2X = col1X + column1Width + columnSpacing;
-            yPos = 15;
+            int col2Y = baseButtonsY;
             
             Label lblNunchuk = new Label
             {
                 Text = "━━ Nunchuk ━━",
                 ForeColor = ColorAccent,
                 Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
-                Location = new Point(col2X, yPos),
+                Location = new Point(col2X, col2Y),
                 Size = new Size(column2Width, 22),
                 TextAlign = ContentAlignment.MiddleCenter
             };
             panel.Controls.Add(lblNunchuk);
-            yPos += spacing + 5;
+            col2Y += spacing + 5;
             
             Action<string, ButtonAction> AddNunchukRow = (buttonName, mapping) =>
             {
@@ -332,7 +1249,7 @@ namespace WiimoteGun.Controls
                     Text = buttonName + ":",
                     ForeColor = ColorText,
                     Font = new Font("Segoe UI", 8.5F),
-                    Location = new Point(col2X, yPos),
+                    Location = new Point(col2X, col2Y),
                     Size = new Size(labelWidth, 18),
                     TextAlign = ContentAlignment.MiddleLeft
                 };
@@ -342,14 +1259,14 @@ namespace WiimoteGun.Controls
                     Text = GetMappingDisplay(mapping),
                     ForeColor = ColorAccent,
                     Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
-                    Location = new Point(col2X + labelWidth + 5, yPos),
+                    Location = new Point(col2X + labelWidth + 5, col2Y),
                     Size = new Size(valueWidth, 18),
                     TextAlign = ContentAlignment.MiddleLeft
                 };
                 
                 panel.Controls.Add(lblButton);
                 panel.Controls.Add(lblMapping);
-                yPos += spacing;
+                col2Y += spacing;
             };
             
             if (mappings.NunC != null && mappings.NunZ != null)
@@ -368,14 +1285,14 @@ namespace WiimoteGun.Controls
                     Text = "(Not configured)",
                     ForeColor = Color.FromArgb(128, 128, 128),
                     Font = new Font("Segoe UI", 8.5F, FontStyle.Italic),
-                    Location = new Point(col2X, yPos),
+                    Location = new Point(col2X, col2Y),
                     Size = new Size(column2Width, 18)
                 };
                 panel.Controls.Add(lblNoNunchuk);
-                yPos += spacing;
+                col2Y += spacing;
             }
 
-            int motionY = Math.Max(yPos, 15 + (10 * spacing)) + 35; // EN/FR: Augmenté de 15 à 35 pour aérer
+            int motionY = Math.Max(col1Y, col2Y) + 25; // EN/FR: Aéré proprement sous les deux colonnes
             
             int totalMotionColumns = 2; // EN/FR: Passé de 3 à 2 colonnes pour éviter le texte tronqué
             int motionColumnWidth = totalWidth / totalMotionColumns;
@@ -548,9 +1465,21 @@ namespace WiimoteGun.Controls
             btnViz.FlatAppearance.BorderSize = 0;
             btnViz.Click += (s, e) => Open3DVisualizer();
             
-            ToolTip tt = new ToolTip();
-            tt.SetToolTip(btnViz, "Open 3D Visualizer (Calibration tool)");
-            panel.Controls.Add(btnViz);
+            // EN/FR: Bottom margin spacer to ensure comfortable scrolling
+            panel.Controls.Add(new Label { Location = new Point(startX, sensY + spacing + 25), Size = new Size(totalWidth, 15) });
+        }
+
+        /// <summary>
+        /// EN: [V54] True when the ACTIVE profile is the root default.remap — its
+        /// Off-Screen Reload state always follows Options > Gestures (global).
+        /// FR: [V54] True si le profil ACTIF est le default.remap racine — son état
+        /// Off-Screen Reload suit toujours Options > Gestures (global).
+        /// </summary>
+        private static bool IsDefaultProfileActive()
+        {
+            string active = Program.GetActiveRemapProfile();
+            if (string.IsNullOrEmpty(active)) return false;
+            return active.Replace('\\', '/').Equals("default.remap", StringComparison.OrdinalIgnoreCase);
         }
 
         private void Open3DVisualizer()
@@ -990,6 +1919,38 @@ namespace WiimoteGun.Controls
                 if (ofd.ShowDialog(this.FindForm()) == DialogResult.OK)
                 {
                     SetCurrentGame(Path.GetFileName(ofd.FileName), ofd.FileName);
+
+                    // [V51] Manual exe selection = explicit intent: make Auto-Load available
+                    // and CHECKED directly (creates the link immediately) — same logic as
+                    // the GamePad page (user request overriding the V35 no-auto-check).
+                    // [V52b] Never for the ROOT default.remap (base mapping, not associable).
+                    // (EN/FR: Sélection manuelle d'un exe = intention explicite : rendre
+                    // Auto-Load disponible et COCHÉ directement (crée le lien immédiatement)
+                    // — même logique que la page GamePad (demande utilisateur, remplace V35).
+                    // [V52b] Jamais pour le default.remap RACINE (mapping de base).)
+                    string activeProfile = Program.GetActiveRemapProfile();
+                    if (chkAutoLoad != null &&
+                        !string.IsNullOrEmpty(activeProfile) &&
+                        !GameProfileMappingManager.IsRootDefaultProfilePath(activeProfile))
+                    {
+                        chkAutoLoad.Enabled = true;
+                        if (!chkAutoLoad.Checked)
+                        {
+                            _updatingCheckbox = false;
+                            chkAutoLoad.Checked = true; // Fires the handler -> AddMapping
+                        }
+                        else
+                        {
+                            // [V55l] If chkAutoLoad was ALREADY checked, resolve association and update link
+                            string gameName; bool gameIsFolder; string systemName;
+                            if (TryResolveAssociationForLink(out gameName, out gameIsFolder, out systemName))
+                            {
+                                GameProfileMappingManager.AddMapping(_currentExecutable, activeProfile, ofd.FileName, null,
+                                    chkIsEmulator?.Checked == true, gameName, gameIsFolder, systemName);
+                                UpdateCurrentGameLabel();
+                            }
+                        }
+                    }
                     // Selected notification
                 }
             }
@@ -1022,7 +1983,7 @@ namespace WiimoteGun.Controls
                             
                             LoadProfileUI();
                             comboBoxSubfolders.SelectedItem = folderName;
-                            MessageBox.Show(this.FindForm(), $"Folder '{folderName}' created!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            _toast.Show($"Folder '{folderName}' created!");
                         }
                         catch (Exception ex)
                         {
@@ -1060,7 +2021,7 @@ namespace WiimoteGun.Controls
 
                         File.Delete(profilePath);
                         RefreshProfileList();
-                        MessageBox.Show(this.FindForm(), $"Profile '{selectedProfile}' deleted", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        _toast.Show($"Profile '{selectedProfile}' deleted");
                     }
                 }
                 catch (Exception ex)
@@ -1078,7 +2039,7 @@ namespace WiimoteGun.Controls
                 {
                     HotkeyManager.SetProfile(_currentPlayer, dialog.HotkeyProfile);
                     SimpleLogger.Instance?.Info($"Hotkeys updated for Player {_currentPlayer}");
-                    MessageBox.Show(this.FindForm(), $"Hotkeys saved for Player {_currentPlayer}", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    _toast.Show($"Hotkeys saved for Player {_currentPlayer}");
                 }
             }
         }
@@ -1140,50 +2101,179 @@ namespace WiimoteGun.Controls
                 
                 string selectedFolder = comboBoxSubfolders.SelectedItem?.ToString();
                 string subfolder = selectedFolder == "(Root)" ? null : selectedFolder;
-                
+
+                // [V54] The ROOT default.remap always FOLLOWS Options > Gestures: store the
+                // inherit state (-1) so the global checkboxes govern the default profile.
+                // Custom profiles keep their own explicit choice.
+                // (EN/FR: Le default.remap racine SUIT toujours Options > Gestures :
+                // stocker l'état héritage (-1) pour que les cases globales gouvernent le
+                // profil par défaut. Les profils custom gardent leur choix explicite.)
+                if (string.IsNullOrEmpty(subfolder) && profileName.Equals("default", StringComparison.OrdinalIgnoreCase))
+                {
+                    profile.P1Mappings.OffScreenReloadOverride = -1;
+                    profile.P2Mappings.OffScreenReloadOverride = -1;
+                    profile.P3Mappings.OffScreenReloadOverride = -1;
+                    profile.P4Mappings.OffScreenReloadOverride = -1;
+
+                    // [V55y] Reset reload rumble overrides on the default profile
+                    // (EN/FR: Réinitialiser les overrides vibration recharge sur le profil par défaut)
+                    profile.P1Mappings.ReloadRumbleOverride = -1;
+                    profile.P2Mappings.ReloadRumbleOverride = -1;
+                    profile.P3Mappings.ReloadRumbleOverride = -1;
+                    profile.P4Mappings.ReloadRumbleOverride = -1;
+                    profile.P1Mappings.ReloadRumbleIntensityOverride = -1;
+                    profile.P2Mappings.ReloadRumbleIntensityOverride = -1;
+                    profile.P3Mappings.ReloadRumbleIntensityOverride = -1;
+                    profile.P4Mappings.ReloadRumbleIntensityOverride = -1;
+                    profile.P1Mappings.ReloadRumbleStyleOverride = -1;
+                    profile.P2Mappings.ReloadRumbleStyleOverride = -1;
+                    profile.P3Mappings.ReloadRumbleStyleOverride = -1;
+                    profile.P4Mappings.ReloadRumbleStyleOverride = -1;
+                    Options.Instance.Save();
+                }
+
                 bool success = RemapProfileManager.SaveProfile(profileName, subfolder, profile);
                 
                 if (success)
                 {
-                    // FIX V25: Also save the Game Mapping (JSON) if Auto-Load is checked OR user confirms
-                    // (EN/FR: Sauver aussi le mapping jeu (JSON) si Auto-Load coché OU utilisateur confirme)
-                    
-                    bool hasExe = !string.IsNullOrEmpty(_currentExecutable) && !string.IsNullOrEmpty(_currentExecutablePath);
-                    bool shouldSaveMapping = false;
+                    // [V48] The profile keeps its existing association (emulator/game):
+                    // do NOT re-link it to the foreground exe — the V37 replacement would
+                    // destroy the previous JSON association for this profile.
+                    // (EN/FR: Le profil CONSERVE son association existante (émulateur/jeu) :
+                    // ne pas le re-lier à l'exe au premier plan — le remplacement V37
+                    // détruirait l'association JSON précédente de ce profil.)
+                    bool hasExe = !string.IsNullOrEmpty(_currentExecutable);
 
-                    if (hasExe)
+                    // [V52b] The root default.remap is never associable: skip every link
+                    // creation (and the "Link Executable?" prompt) for it.
+                    // (EN/FR: Le default.remap racine n'est jamais associable : sauter
+                    // toute création de lien (et le prompt "Link Executable?") pour lui.)
+                    string savedProfileRelPath = string.IsNullOrEmpty(subfolder)
+                        ? profileName + ".remap"
+                        : Path.Combine(subfolder, profileName + ".remap");
+                    bool savedIsRootDefault = GameProfileMappingManager.IsRootDefaultProfilePath(savedProfileRelPath);
+
+                    if (_linkedMapping != null &&
+                        SameProfilePath(_linkedMapping.ProfilePath, string.IsNullOrEmpty(subfolder) ? profileName + ".remap" : Path.Combine(subfolder, profileName + ".remap")))
                     {
-                        if (chkAutoLoad.Checked)
+                        // [V51b] Emulator is checked but the kept association carries NO game:
+                        // the link was created at the manual exe selection (V51 auto-check)
+                        // BEFORE the Emulator/System/Folder boxes were set. Resolve the
+                        // advanced association NOW (system picker + game file/folder) instead
+                        // of silently keeping a game-less link.
+                        // (EN/FR: Emulator coché mais l'association conservée ne porte AUCUN
+                        // jeu : le lien a été créé à la sélection manuelle de l'exe (auto-coche
+                        // V51) AVANT les cases Emulator/System/Folder. Résoudre l'association
+                        // avancée MAINTENANT (système + fichier/dossier) au lieu de conserver
+                        // silencieusement un lien sans jeu.)
+                        if (chkIsEmulator != null && chkIsEmulator.Checked && string.IsNullOrEmpty(_linkedMapping.GameName))
                         {
-                            shouldSaveMapping = true;
+                            string esGameKept; bool esGameKeptIsFolder; string esSystemKept;
+                            if (TryResolveAssociationForLink(out esGameKept, out esGameKeptIsFolder, out esSystemKept) &&
+                                !string.IsNullOrEmpty(esGameKept))
+                            {
+                                string keptProfilePath = string.IsNullOrEmpty(subfolder)
+                                    ? profileName + ".remap"
+                                    : Path.Combine(subfolder, profileName + ".remap");
+                                GameProfileMappingManager.AddMapping(_currentExecutable, keptProfilePath, _currentExecutablePath, null,
+                                    true, esGameKept, esGameKeptIsFolder, esSystemKept);
+                                _toast.Show($"Association updated: {_currentExecutable} [game: {esGameKept}{(esGameKeptIsFolder ? ", folder" : "")}]");
+                            }
+                            else
+                            {
+                                _toast.Show($"Association kept: {_linkedMapping.ExecutableName}");
+                            }
+                        }
+                        else if (chkIsSystem != null && chkIsSystem.Checked &&
+                                 (string.IsNullOrEmpty(_linkedMapping.SystemName) || (_manualSystemName != null && _manualSystemName != _linkedMapping.SystemName)))
+                        {
+                            // [V55l] Direct exe with System name checked: prompt/apply system
+                            string sys = _manualSystemName ?? _linkedMapping.SystemName;
+                            if (string.IsNullOrEmpty(sys))
+                            {
+                                string defaultSys = DetectSystemFromPath(_currentExecutablePath ?? _linkedMapping.ExecutablePath) ?? EsScriptIntegration.LastSystem;
+                                sys = UI.Modern.Forms.EsSystemPickerForm.Show(this.FindForm(), "Select the game system", defaultSys);
+                                if (!string.IsNullOrEmpty(sys)) _manualSystemName = sys;
+                            }
+
+                            if (!string.IsNullOrEmpty(sys))
+                            {
+                                string keptProfilePath = string.IsNullOrEmpty(subfolder)
+                                    ? profileName + ".remap"
+                                    : Path.Combine(subfolder, profileName + ".remap");
+                                GameProfileMappingManager.AddMapping(_linkedMapping.ExecutableName, keptProfilePath, _linkedMapping.ExecutablePath ?? _currentExecutablePath, null,
+                                    _linkedMapping.IsEmulator, _linkedMapping.GameName, _linkedMapping.GameIsFolder, sys);
+                                _toast.Show($"Association updated: {_linkedMapping.ExecutableName} [{sys}]");
+                            }
+                            else
+                            {
+                                _toast.Show($"Association kept: {_linkedMapping.ExecutableName}");
+                            }
                         }
                         else
                         {
-                            // If user manually selected an EXE but forgot to check Auto-Load, ask them.
-                            // (EN/FR: Si utilisateur a sélectionné manuellement un EXE mais oublié de cocher Auto-Load, demander.)
-                            var result = MessageBox.Show(this.FindForm(),
-                                $"Do you want to link this profile to '{_currentExecutable}' for auto-loading?", 
-                                "Link Executable?", 
-                                MessageBoxButtons.YesNo, 
-                                MessageBoxIcon.Question);
-                                
-                            if (result == DialogResult.Yes)
+                            _toast.Show($"Association kept: {_linkedMapping.ExecutableName}" +
+                                (string.IsNullOrEmpty(_linkedMapping.GameName) ? "" : $" [game: {_linkedMapping.GameName}]") +
+                                (string.IsNullOrEmpty(_linkedMapping.SystemName) ? "" : $" [{_linkedMapping.SystemName}]"));
+                        }
+                        UpdateCurrentGameLabel();
+                    }
+                    else
+                    {
+                        // FIX V25: Also save the Game Mapping (JSON) if Auto-Load is checked OR user confirms
+                        // (EN/FR: Sauver aussi le mapping jeu (JSON) si Auto-Load coché OU utilisateur confirme)
+
+                        bool shouldSaveMapping = false;
+
+                        if (hasExe && !savedIsRootDefault) // [V52b] No link for the root default
+                        {
+                            if (chkAutoLoad.Checked)
                             {
-                                chkAutoLoad.Checked = true;
                                 shouldSaveMapping = true;
                             }
+                            else
+                            {
+                                // If user manually selected an EXE but forgot to check Auto-Load, ask them.
+                                // (EN/FR: Si utilisateur a sélectionné manuellement un EXE mais oublié de cocher Auto-Load, demander.)
+                                var result = MessageBox.Show(this.FindForm(),
+                                    $"Do you want to link this profile to '{_currentExecutable}' for auto-loading?",
+                                    "Link Executable?",
+                                    MessageBoxButtons.YesNo,
+                                    MessageBoxIcon.Question);
+
+                                if (result == DialogResult.Yes)
+                                {
+                                    chkAutoLoad.Checked = true;
+                                    shouldSaveMapping = true;
+                                }
+                            }
+                        }
+
+                        if (shouldSaveMapping)
+                        {
+                            string savedProfilePath = string.IsNullOrEmpty(subfolder) ? profileName + ".remap" : Path.Combine(subfolder, profileName + ".remap");
+                            // [V42-V50] Association resolution (session auto / advanced with memory)
+                            // (EN/FR: Résolution d'association (session auto / avancé avec mémoire))
+                            string esGame; bool esGameIsFolder; string esSystem;
+                            if (!TryResolveAssociationForLink(out esGame, out esGameIsFolder, out esSystem))
+                            {
+                                // Canceled/invalid: skip the JSON link (EN/FR: Annulé/invalide : ignorer le lien JSON)
+                            }
+                            else
+                            {
+                                GameProfileMappingManager.AddMapping(_currentExecutable, savedProfilePath, _currentExecutablePath, null,
+                                    chkIsEmulator?.Checked == true, esGame, esGameIsFolder, esSystem);
+                            }
+                            UpdateCurrentGameLabel(); // Refresh label to show link
                         }
                     }
 
-                    if (shouldSaveMapping)
-                    {
-                        string savedProfilePath = string.IsNullOrEmpty(subfolder) ? profileName + ".remap" : Path.Combine(subfolder, profileName + ".remap");
-                        GameProfileMappingManager.AddMapping(_currentExecutable, savedProfilePath, _currentExecutablePath);
-                        UpdateCurrentGameLabel(); // Refresh label to show link
-                    }
-
-                    RefreshProfileList();
-                    MessageBox.Show(this.FindForm(), $"Profile '{profileName}' saved", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    // [V41] Re-select the SAVED profile (not the first of the list) so the
+                    // name box keeps pointing at the profile being edited.
+                    // (EN/FR: Re-sélectionner le profil SAUVEGARDÉ (pas le premier de la
+                    // liste) pour que la zone de nom continue de désigner le profil édité.)
+                    RefreshProfileList(profileName);
+                    _toast.Show($"Profile '{profileName}' saved");
                 }
                 else
                 {
@@ -1252,8 +2342,8 @@ namespace WiimoteGun.Controls
                     LoadCurrentMappings();
                     UpdateAutoLoadCheckbox();
                     UpdateCurrentGameLabel(); // V25m: Force UI refresh of "Linked EXE" status
-                    
-                    MessageBox.Show(this.FindForm(), $"Profile '{profile.ProfileName}' loaded", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    _toast.Show($"Profile '{profile.ProfileName}' loaded");
                 }
                 else
                 {
@@ -1274,14 +2364,46 @@ namespace WiimoteGun.Controls
             {
                 if (chkAutoLoad.Checked)
                 {
-                    if (!string.IsNullOrEmpty(_currentExecutablePath) && !string.IsNullOrEmpty(_currentExecutable))
+                    // [V47] Path is OPTIONAL: the foreground hook may know the exe name only.
+                    // The game name comes automatically from the ES game-start while in game.
+                    // (EN/FR: Le chemin est OPTIONNEL : le hook peut ne connaître que le nom
+                    // de l'exe. Le nom du jeu vient automatiquement du game-start ES en jeu.)
+                    if (!string.IsNullOrEmpty(_currentExecutable))
                     {
+                        string exePathForLink = string.IsNullOrEmpty(_currentExecutablePath) ? null : _currentExecutablePath;
                         string currentProfile = Program.GetActiveRemapProfile();
                         if (!string.IsNullOrEmpty(currentProfile))
                         {
-                            GameProfileMappingManager.AddMapping(_currentExecutable, currentProfile, _currentExecutablePath);
-                            // Auto-load enabled
-                            UpdateCurrentGameLabel();
+                            // [V52b] The root default.remap is never associable
+                            // (EN/FR: Le default.remap racine n'est jamais associable)
+                            if (GameProfileMappingManager.IsRootDefaultProfilePath(currentProfile))
+                            {
+                                _updatingCheckbox = true;
+                                chkAutoLoad.Checked = false;
+                                _updatingCheckbox = false;
+                                return;
+                            }
+
+                            // [V42-V50] Association resolution: automatic during an ES game
+                            // session, advanced flow with memory outside.
+                            // (EN/FR: Résolution d'association : automatique en session de
+                            // jeu ES, flux avancé avec mémoire hors session.)
+                            string gameName; bool gameIsFolder; string systemName;
+                            if (!TryResolveAssociationForLink(out gameName, out gameIsFolder, out systemName))
+                            {
+                                // Canceled/invalid: don't create a broken link
+                                // (EN/FR: Annulé/invalide : ne pas créer un lien cassé)
+                                _updatingCheckbox = true;
+                                chkAutoLoad.Checked = false;
+                                _updatingCheckbox = false;
+                            }
+                            else
+                            {
+                                GameProfileMappingManager.AddMapping(_currentExecutable, currentProfile, exePathForLink, null,
+                                    chkIsEmulator?.Checked == true, gameName, gameIsFolder, systemName);
+                                // Auto-load enabled
+                                UpdateCurrentGameLabel();
+                            }
                         }
                         else
                         {
@@ -1294,12 +2416,27 @@ namespace WiimoteGun.Controls
                 }
                 else
                 {
-                    if (!string.IsNullOrEmpty(_currentExecutable))
+                    // [V48] Unchecking removes THE DISPLAYED ASSOCIATION (its exe + game),
+                    // not the foreground exe: a profile linked to an emulator+game can be
+                    // unlinked while browsing the frontend.
+                    // (EN/FR: Le décochage supprime L'ASSOCIATION AFFICHÉE (son exe + jeu),
+                    // pas l'exe au premier plan : un profil lié à un émulateur+jeu peut être
+                    // dissocié pendant qu'on navigue le frontend.)
+                    if (_linkedMapping != null)
                     {
-                        GameProfileMappingManager.RemoveMapping(_currentExecutable);
-                        // Auto-load disabled
-                        UpdateCurrentGameLabel();
+                        GameProfileMappingManager.RemoveProfileLinkForExecutable(
+                            _linkedMapping.ExecutableName, _linkedMapping.ExecutablePath, _linkedMapping.GameName);
+                        SimpleLogger.Instance.Info($"[V48] Removed association of profile from '{_linkedMapping.ExecutableName}'" +
+                            (string.IsNullOrEmpty(_linkedMapping.GameName) ? "" : $" [game: {_linkedMapping.GameName}]"));
+                        _linkedMapping = null;
                     }
+                    else if (!string.IsNullOrEmpty(_currentExecutable))
+                    {
+                        GameProfileMappingManager.RemoveProfileLinkForExecutable(_currentExecutable, _currentExecutablePath, GetEsGameNameForRemoval());
+                    }
+                    // Auto-load disabled
+                    UpdateCurrentGameLabel();
+                    UpdateAutoLoadCheckbox();
                 }
             }
             catch (Exception ex)

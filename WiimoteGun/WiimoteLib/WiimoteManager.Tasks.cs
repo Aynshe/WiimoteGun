@@ -267,18 +267,48 @@ namespace WiimoteLib {
 			return true;
 		}
 
+		// [V53] Consecutive instant-empty inquiry rounds (radio wedge detection)
+		// (EN/FR: Tours d'inquiry instantanés-vides consécutifs (détection radio coincée))
+		private static int _btWedgeSuspicions = 0;
+
+		// [V53b] Consecutive pathologically SLOW inquiries (degraded stack detection)
+		// (EN/FR: Inquiry consécutifs pathologiquement LENTS (détection pile dégradée))
+		private static int _btSlowInquiries = 0;
+
+		/// <summary>
+		/// EN: [V55v] Public read access to the radio-wedge suspicion counter (8+ = wedged).
+		/// Used by the client-side BT watchdog to justify a reset ONLY on real evidence.
+		/// FR: [V55v] Accès public en lecture au compteur de soupçons de radio coincée
+		/// (8+ = coincée). Utilisé par le watchdog BT côté client pour ne justifier un
+		/// reset QUE sur des preuves réelles.
+		/// </summary>
+		public static int BtWedgeSuspicions
+		{
+			get { return _btWedgeSuspicions; }
+		}
+
+		/// <summary>
+		/// EN: [V55v] Public read access to the consecutive slow-inquiry counter (3+ = degraded stack).
+		/// FR: [V55v] Accès public en lecture au compteur d'inquiry lents consécutifs (3+ = pile dégradée).
+		/// </summary>
+		public static int BtSlowInquiries
+		{
+			get { return _btSlowInquiries; }
+		}
+
 		private static bool BluetoothDiscoverLoop(CancellationToken token)
 		{
 			HashSet<BluetoothAddress> missingDevices = new HashSet<BluetoothAddress>(ConnectedAddresses);
 			var devices = BluetoothDeviceInfo.EnumerateDevices(token, MatchBluetooth);
 			Stopwatch watch = Stopwatch.StartNew();
 			bool anyPaired = false;
+			int foundCount = 0;
 			foreach (BluetoothDeviceInfo device in devices)
 			{
 				if (token.IsCancellationRequested)
 					return false;
 
-				Log.Debug($"Took {watch.ElapsedMilliseconds}ms to enumerate bluetooth device");
+				foundCount++;
 
 				Wiimote wiimote = null;
 				lock (wiimotes)
@@ -352,8 +382,59 @@ namespace WiimoteLib {
 					{
 						device.RemoveDevice(token);
 					}
-				}
-				watch.Restart();
+			}
+
+			// [V53] Enumeration summary: once per round (not once per device)
+			// (EN/FR: Résumé d'énumération : une fois par tour (pas par périphérique))
+			Log.Debug($"Took {watch.ElapsedMilliseconds}ms to enumerate bluetooth device(s) - {foundCount} found");
+
+			// [V53] Radio wedge watchdog: a WEDGED Microsoft Bluetooth stack returns from
+			// the inquiry INSTANTLY (<300ms) with ZERO device, while a healthy inquiry
+			// takes ~1.3s even with no Wiimote in range. 8 consecutive suspicious rounds
+			// = the radio is wedged: only a dongle power-cycle (unplug/replug or Device
+			// Manager disable/enable) recovers it — restarting Wiimote4Guns does NOT.
+			// (EN/FR: Chien de garde radio coincée : une pile Bluetooth Microsoft COINCÉE
+			// revient de l'inquiry INSTANTANÉMENT (<300ms) sans AUCUN périphérique, alors
+			// qu'un inquiry sain prend ~1,3s même sans wiimote à portée. 8 tours suspects
+			// consécutifs = radio coincée : seul un cycle d'alimentation du dongle
+			// (débrancher/rebrancher ou désactiver/activer dans le Gestionnaire de
+			// périphériques) la rétablit — redémarrer Wiimote4Guns ne sert à RIEN.)
+			if (BluetoothDeviceInfo.LastInquiryStartedUtc != DateTime.MinValue &&
+			    BluetoothDeviceInfo.LastInquiryDurationMs >= 0 &&
+			    BluetoothDeviceInfo.LastInquiryDurationMs < 300 &&
+			    BluetoothDeviceInfo.LastInquiryDeviceCount == 0)
+			{
+				_btWedgeSuspicions++;
+				_btSlowInquiries = 0;
+				if (_btWedgeSuspicions == 8)
+					Log.Error("[BT Wedge] Bluetooth inquiry returns instantly with no device 8 times in a row: the radio stack appears WEDGED. Unplug/replug the Bluetooth dongle (or disable/enable it in Device Manager) - restarting Wiimote4Guns will NOT fix this.");
+				else if (_btWedgeSuspicions > 8 && _btWedgeSuspicions % 32 == 0)
+					Log.Warning($"[BT Wedge] Still wedged ({_btWedgeSuspicions} instant empty inquiries). A dongle power-cycle is required.");
+			}
+			// [V53b] Degraded-stack detection: a SICK stack can still find devices and
+			// pair, but its inquiries take a pathological 15s+ (healthy ~1.3s) and the
+			// post-pairing HID connection never establishes (the Wiimote pairs, waits,
+			// then powers off). Warn the user EARLY: a dongle power-cycle fixes it.
+			// (EN/FR: Détection pile dégradée : une pile MALADE peut encore trouver des
+			// périphériques et les apparier, mais ses inquiry prennent 15s+ pathologiques
+			// (sain ~1,3s) et la connexion HID post-appairage ne s'établit jamais (la
+			// wiimote se apparie, attend, puis s'éteint). Prévenir l'utilisateur TÔT :
+			// un cycle d'alimentation du dongle corrige.)
+			else if (BluetoothDeviceInfo.LastInquiryDurationMs > 15000)
+			{
+				_btSlowInquiries++;
+				_btWedgeSuspicions = 0;
+				Log.Warning($"[BT Health] Bluetooth inquiry took {BluetoothDeviceInfo.LastInquiryDurationMs / 1000.0:F1}s (healthy: ~1.3s) - the radio stack is degraded; pairing may succeed but the HID connection will likely fail.");
+				if (_btSlowInquiries == 3)
+					Log.Error("[BT Health] 3 consecutive slow inquiries: the Bluetooth stack is DEGRADED. Unplug/replug the Bluetooth dongle (or disable/enable it in Device Manager) - restart Wiimote4Guns will NOT fix this.");
+			}
+			else
+			{
+				_btWedgeSuspicions = 0;
+				_btSlowInquiries = 0;
+			}
+
+			watch.Restart();
 			}
 
 			token.Sleep(anyPaired ? driverInstallDelay : 0);

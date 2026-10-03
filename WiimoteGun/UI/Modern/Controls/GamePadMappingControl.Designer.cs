@@ -1,4 +1,4 @@
-namespace WiimoteGun.Controls
+﻿namespace WiimoteGun.Controls
 {
     partial class GamePadMappingControl
     {
@@ -50,6 +50,9 @@ namespace WiimoteGun.Controls
             this.btnDeleteProfile = new System.Windows.Forms.Button();
             this.btnSelectExe = new System.Windows.Forms.Button();
             this.chkAutoLoad = new System.Windows.Forms.CheckBox();
+            this.chkIsEmulator = new System.Windows.Forms.CheckBox();
+            this.chkIsFolder = new System.Windows.Forms.CheckBox();
+            this.chkIsSystem = new System.Windows.Forms.CheckBox();
             this.btnOpenFolder = new System.Windows.Forms.Button();
             this.lblDetectedApp = new System.Windows.Forms.Label();
             this.pnlProfile.SuspendLayout();
@@ -76,10 +79,13 @@ namespace WiimoteGun.Controls
             this.pnlProfile.Controls.Add(this.btnOpenFolder);
             this.pnlProfile.Controls.Add(this.btnSelectExe);
             this.pnlProfile.Controls.Add(this.chkAutoLoad);
+            this.pnlProfile.Controls.Add(this.chkIsEmulator);
+            this.pnlProfile.Controls.Add(this.chkIsFolder);
+            this.pnlProfile.Controls.Add(this.chkIsSystem);
             this.pnlProfile.Controls.Add(this.lblDetectedApp);
             this.pnlProfile.Location = new System.Drawing.Point(5, 10);
             this.pnlProfile.Name = "pnlProfile";
-            this.pnlProfile.Size = new System.Drawing.Size(550, 65);
+            this.pnlProfile.Size = new System.Drawing.Size(550, 90);
             this.pnlProfile.TabIndex = 5;
             // 
             // cboSubfolders
@@ -203,6 +209,40 @@ namespace WiimoteGun.Controls
             this.chkAutoLoad.UseVisualStyleBackColor = true;
             this.chkAutoLoad.CheckedChanged += new System.EventHandler(this.ChkAutoLoad_CheckedChanged);
             // 
+            // chkIsEmulator
+            // 
+            this.chkIsEmulator.AutoSize = true;
+            this.chkIsEmulator.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(224)))), ((int)(((byte)(224)))), ((int)(((byte)(224)))));
+            this.chkIsEmulator.Location = new System.Drawing.Point(445, 38);
+            this.chkIsEmulator.Name = "chkIsEmulator";
+            this.chkIsEmulator.Size = new System.Drawing.Size(75, 17);
+            this.chkIsEmulator.TabIndex = 6;
+            this.chkIsEmulator.Text = "Emulator";
+            this.chkIsEmulator.UseVisualStyleBackColor = true;
+            // 
+            // chkIsFolder
+            // 
+            this.chkIsFolder.AutoSize = true;
+            this.chkIsFolder.Enabled = false;
+            this.chkIsFolder.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(224)))), ((int)(((byte)(224)))), ((int)(((byte)(224)))));
+            this.chkIsFolder.Location = new System.Drawing.Point(445, 60);
+            this.chkIsFolder.Name = "chkIsFolder";
+            this.chkIsFolder.Size = new System.Drawing.Size(106, 17);
+            this.chkIsFolder.TabIndex = 7;
+            this.chkIsFolder.Text = "This is a folder";
+            this.chkIsFolder.UseVisualStyleBackColor = true;
+            // 
+            // chkIsSystem
+            // 
+            this.chkIsSystem.AutoSize = true;
+            this.chkIsSystem.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(224)))), ((int)(((byte)(224)))), ((int)(((byte)(224)))));
+            this.chkIsSystem.Location = new System.Drawing.Point(345, 60);
+            this.chkIsSystem.Name = "chkIsSystem";
+            this.chkIsSystem.Size = new System.Drawing.Size(95, 17);
+            this.chkIsSystem.TabIndex = 8;
+            this.chkIsSystem.Text = "System name";
+            this.chkIsSystem.UseVisualStyleBackColor = true;
+            // 
             // lblDetectedApp
             // 
             this.lblDetectedApp.AutoSize = true;
@@ -222,7 +262,7 @@ namespace WiimoteGun.Controls
             this.btnBack.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnBack.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.btnBack.ForeColor = System.Drawing.Color.White;
-            this.btnBack.Location = new System.Drawing.Point(10, 685);
+            this.btnBack.Location = new System.Drawing.Point(10, 705);
             this.btnBack.Name = "btnBack";
             this.btnBack.Size = new System.Drawing.Size(80, 25);
             this.btnBack.TabIndex = 0;
@@ -236,7 +276,7 @@ namespace WiimoteGun.Controls
             this.tabControlPlayers.Controls.Add(this.tabPage2);
             this.tabControlPlayers.Controls.Add(this.tabPage3);
             this.tabControlPlayers.Controls.Add(this.tabPage4);
-            this.tabControlPlayers.Location = new System.Drawing.Point(10, 80);
+            this.tabControlPlayers.Location = new System.Drawing.Point(10, 105);
             this.tabControlPlayers.Name = "tabControlPlayers";
             this.tabControlPlayers.SelectedIndex = 0;
             this.tabControlPlayers.Size = new System.Drawing.Size(540, 30);
@@ -290,7 +330,7 @@ namespace WiimoteGun.Controls
             | System.Windows.Forms.AnchorStyles.Right)));
             this.tabControlSettings.Controls.Add(this.tabPageMappings);
             this.tabControlSettings.Controls.Add(this.tabPageCalibration);
-            this.tabControlSettings.Location = new System.Drawing.Point(10, 100);
+            this.tabControlSettings.Location = new System.Drawing.Point(10, 125);
             this.tabControlSettings.Name = "tabControlSettings";
             this.tabControlSettings.SelectedIndex = 0;
             this.tabControlSettings.Size = new System.Drawing.Size(540, 570);
@@ -497,11 +537,11 @@ namespace WiimoteGun.Controls
             this.btnApply.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnApply.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
             this.btnApply.ForeColor = System.Drawing.Color.White;
-            this.btnApply.Location = new System.Drawing.Point(400, 685);
+            this.btnApply.Location = new System.Drawing.Point(400, 705);
             this.btnApply.Name = "btnApply";
             this.btnApply.Size = new System.Drawing.Size(150, 25);
             this.btnApply.TabIndex = 4;
-            this.btnApply.Text = "💾 Save Changes";
+            this.btnApply.Text = "💾 Save to Config";
             this.btnApply.UseVisualStyleBackColor = false;
             this.btnApply.Click += new System.EventHandler(this.BtnApply_Click);
             // 
@@ -569,6 +609,9 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.Button btnDeleteProfile;
         private System.Windows.Forms.Button btnSelectExe;
         private System.Windows.Forms.CheckBox chkAutoLoad;
+        private System.Windows.Forms.CheckBox chkIsEmulator;
+        private System.Windows.Forms.CheckBox chkIsFolder;
+        private System.Windows.Forms.CheckBox chkIsSystem;
         private System.Windows.Forms.Label lblDetectedApp;
     }
 }

@@ -17,6 +17,28 @@ namespace WiimoteLib.Devices {
 
 		//private DateTime pairingStarted;
 
+		private static DateTime _lastInquiryTime = DateTime.MinValue;
+
+		// [V39] Discovery window state (EN/FR: État de la fenêtre de découverte)
+		private static DateTime _discoveryWindowEndUtc = DateTime.MinValue;
+		private static int _lastKnownConnectedCount = 0;
+		private const double DiscoveryWindowSeconds = 90.0;
+		private const int MaxSupportedWiimotes = 4;
+
+		// [V53] Inquiry health tracking: a WEDGED Microsoft Bluetooth stack returns from
+		// BluetoothFindFirstDevice(fIssueInquiry=true) INSTANTLY with no device at all,
+		// while a healthy inquiry takes ~1.3s even with no Wiimote in range. The
+		// discovery loop reads these stats to detect the wedge and warn the user that
+		// only a dongle power-cycle recovers it.
+		// (EN/FR: Suivi santé inquiry : une pile Bluetooth Microsoft COINCÉE revient de
+		// BluetoothFindFirstDevice(fIssueInquiry=true) INSTANTANÉMENT sans aucun
+		// périphérique, alors qu'un inquiry sain prend ~1,3s même sans wiimote à portée.
+		// La boucle de découverte lit ces stats pour détecter le blocage et prévenir
+		// l'utilisateur que seul un cycle d'alimentation du dongle le rétablit.)
+		internal static DateTime LastInquiryStartedUtc = DateTime.MinValue;
+		internal static double LastInquiryDurationMs = -1.0;
+		internal static int LastInquiryDeviceCount = -1;
+
 		public BluetoothAddress Address => new BluetoothAddress(DeviceInfo.Address);
 		public bool Connected => DeviceInfo.fConnected;
 		public bool Remembered => DeviceInfo.fRemembered;
@@ -178,6 +200,8 @@ namespace WiimoteLib.Devices {
 
 		internal static IEnumerable<BluetoothDeviceInfo> EnumerateDevices(CancellationToken token, Predicate<BluetoothDeviceInfo> match) {
 			IntPtr hFind = IntPtr.Zero;
+			Stopwatch inquiryWatch = null; // [V53] Inquiry health tracking
+			int inquiryDeviceCount = 0;
 			try {
 				BLUETOOTH_DEVICE_INFO btdi = new BLUETOOTH_DEVICE_INFO();
 				BLUETOOTH_DEVICE_SEARCH_PARAMS srch = new BLUETOOTH_DEVICE_SEARCH_PARAMS();
@@ -185,11 +209,72 @@ namespace WiimoteLib.Devices {
 				btdi.dwSize = Marshal.SizeOf<BLUETOOTH_DEVICE_INFO>();
 				srch.dwSize = Marshal.SizeOf<BLUETOOTH_DEVICE_SEARCH_PARAMS>();
 
-				srch.fReturnAuthenticated = true;
-				srch.fReturnRemembered = true;
-				srch.fReturnConnected = true;
-				srch.fReturnUnknown = true;
-				srch.fIssueInquiry = true;
+			srch.fReturnAuthenticated = true;
+			srch.fReturnRemembered = true;
+			srch.fReturnConnected = true;
+			srch.fReturnUnknown = true;
+			// [FIX V24→V39] A live Bluetooth inquiry hogs the radio for ~1.3s and degrades active
+			// SSP/EDR links: on MotionPlus Inside (RVL-CNT-01-TR) Wiimotes the HID report stream
+			// collapses into 27.5ms bursts (measured in WiimoteTimingDiagnostics CSV: gaps of
+			// 27.5/2.4/27.4ms vs 4-16ms on V1). Connected and remembered devices are returned
+			// without an inquiry; only pairing a brand new discoverable Wiimote needs one.
+			//
+			// [V39] Discovery window (user spec) replaces the flat 30s throttle:
+			// - 0 Wiimote connected: full inquiry on EVERY enumeration (fast pairing, pre-V24
+			//   behavior). Required for automated pairing of the first Wiimote.
+			// - >=1 connected: keep the fast inquiry for a 90s window starting at the observed
+			//   connection. Each NEW connection restarts the window (players turn their guns on
+			//   one after another). Each DISCONNECTION also restarts the window so a dropped
+			//   Wiimote can re-pair immediately.
+			// - Outside the window: NO live inquiry at all (zero radio pollution during play).
+			//   Remembered Wiimotes are still returned and reconnect without inquiry.
+			// - 4/4 connected: no inquiry (max players reached).
+			bool issueInquiry;
+			int connectedCount = WiimoteManager.WiimoteCount;
+			if (connectedCount == 0) {
+				// Nothing connected yet: keep searching fast (EN/FR: Rien de connecté : recherche rapide continue)
+				issueInquiry = true;
+				_discoveryWindowEndUtc = DateTime.MinValue; // window (re)opens on next observed connection
+			}
+			else {
+				if (connectedCount != _lastKnownConnectedCount) {
+					// Connection or disconnection observed -> (re)start the 90s discovery window
+					// (EN/FR: Connexion ou déconnexion observée -> (re)démarre la fenêtre de découverte de 90s)
+					_discoveryWindowEndUtc = DateTime.UtcNow.AddSeconds(DiscoveryWindowSeconds);
+					_lastInquiryTime = DateTime.MinValue; // force an immediate inquiry inside the window
+				}
+
+				if (connectedCount >= MaxSupportedWiimotes) {
+					// 4/4 connected: nothing left to discover (EN/FR: 4/4 connectées : plus rien à découvrir)
+					issueInquiry = false;
+				}
+				else if (DateTime.UtcNow < _discoveryWindowEndUtc) {
+					// Inside the window: fast inquiry on every enumeration (EN/FR: Dans la fenêtre : inquiry rapide à chaque énumération)
+					issueInquiry = true;
+				}
+				else {
+					// [V39b] Window expired: fall back to the V24 slow cadence (max one inquiry per 30s).
+					// A Wiimote powered on again (1+2) is ONLY visible through a live inquiry, and
+					// re-pairing always removes the remembered entry first (PairDevice) — so the
+					// search can never stop completely while Wiimotes can still join or come back.
+					// (EN/FR: Fenêtre expirée : repli sur la cadence lente V24 (1 inquiry max toutes
+					// les 30s). Une wiimote rallumée (1+2) n'est visible QUE via un inquiry live et
+					// le ré-appairage supprime toujours l'entrée mémorisée d'abord (PairDevice) —
+					// la recherche ne peut donc jamais s'arrêter totalement tant qu'une wiimote
+					// peut encore revenir ou rejoindre.)
+					issueInquiry = (DateTime.UtcNow - _lastInquiryTime).TotalSeconds >= 30.0;
+				}
+			}
+			_lastKnownConnectedCount = connectedCount;
+			if (issueInquiry) {
+				_lastInquiryTime = DateTime.UtcNow;
+				LastInquiryStartedUtc = DateTime.UtcNow; // [V53] Inquiry health tracking
+				inquiryWatch = Stopwatch.StartNew();
+			}
+			else {
+				LastInquiryDurationMs = -1.0; // [V53b] No inquiry this round: invalidate stale stats
+			}
+			srch.fIssueInquiry = issueInquiry;
 				srch.cTimeoutMultiplier = 1;
 				srch.hRadio = IntPtr.Zero;
 				//srch.hRadio = InTheHand.Net.Bluetooth.BluetoothRadio.PrimaryRadio.Handle;
@@ -197,8 +282,10 @@ namespace WiimoteLib.Devices {
 				hFind = NativeMethods.BluetoothFindFirstDevice(ref srch, ref btdi);
 				do {
 					BluetoothDeviceInfo device = new BluetoothDeviceInfo(btdi);
-					if (match?.Invoke(device) ?? true)
+					if (match?.Invoke(device) ?? true) {
+						inquiryDeviceCount++; // [V53]
 						yield return device;
+					}
 					if (token.IsCancellationRequested)
 						break;
 				}
@@ -207,6 +294,10 @@ namespace WiimoteLib.Devices {
 			finally {
 				if (hFind != IntPtr.Zero)
 					NativeMethods.BluetoothFindDeviceClose(hFind);
+				if (inquiryWatch != null) { // [V53] Publish inquiry health stats
+					LastInquiryDurationMs = inquiryWatch.ElapsedMilliseconds;
+					LastInquiryDeviceCount = inquiryDeviceCount;
+				}
 			}
 		}
 	}

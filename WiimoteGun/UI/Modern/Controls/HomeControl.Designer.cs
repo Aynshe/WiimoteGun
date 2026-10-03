@@ -28,6 +28,7 @@ namespace WiimoteGun.Controls
         /// </summary>
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
             this.lblHomeTitle = new System.Windows.Forms.Label();
             this.lblHomeDescription = new System.Windows.Forms.Label();
             this.btnNavOptions = new System.Windows.Forms.Button();
@@ -36,6 +37,14 @@ namespace WiimoteGun.Controls
             this.btnNavIRViz = new System.Windows.Forms.Button();
             this.btnOpenSetupWizard = new System.Windows.Forms.Button();
             this.lblVersion = new System.Windows.Forms.Label();
+            this.pnlUpdateStatus = new System.Windows.Forms.Panel();
+            this.lblUpdateDot = new System.Windows.Forms.Label();
+            this.lblUpdateStatusText = new System.Windows.Forms.Label();
+            this.cmsUpdate = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.tsmiOpenReleasePage = new System.Windows.Forms.ToolStripMenuItem();
+            this.tsmiUpdateNow = new System.Windows.Forms.ToolStripMenuItem();
+            this.pnlUpdateStatus.SuspendLayout();
+            this.cmsUpdate.SuspendLayout();
             this.SuspendLayout();
             // 
             // lblHomeTitle
@@ -150,7 +159,7 @@ namespace WiimoteGun.Controls
             // 
             // lblVersion
             // 
-            this.lblVersion.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular);
+            this.lblVersion.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.lblVersion.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(120)))), ((int)(((byte)(120)))), ((int)(((byte)(120)))));
             this.lblVersion.Location = new System.Drawing.Point(0, 680);
             this.lblVersion.Name = "lblVersion";
@@ -159,11 +168,69 @@ namespace WiimoteGun.Controls
             this.lblVersion.Text = "v0.0.0";
             this.lblVersion.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
+            // pnlUpdateStatus
+            // 
+            this.pnlUpdateStatus.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
+            this.pnlUpdateStatus.Controls.Add(this.lblUpdateDot);
+            this.pnlUpdateStatus.Controls.Add(this.lblUpdateStatusText);
+            this.pnlUpdateStatus.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.pnlUpdateStatus.Location = new System.Drawing.Point(180, 711);
+            this.pnlUpdateStatus.Name = "pnlUpdateStatus";
+            this.pnlUpdateStatus.Size = new System.Drawing.Size(200, 26);
+            this.pnlUpdateStatus.TabIndex = 8;
+            this.pnlUpdateStatus.Click += new System.EventHandler(this.UpdateStatus_Click);
+            // 
+            // lblUpdateDot
+            // 
+            this.lblUpdateDot.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(160)))), ((int)(((byte)(160)))), ((int)(((byte)(160)))));
+            this.lblUpdateDot.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.lblUpdateDot.Location = new System.Drawing.Point(6, 7);
+            this.lblUpdateDot.Name = "lblUpdateDot";
+            this.lblUpdateDot.Size = new System.Drawing.Size(12, 12);
+            this.lblUpdateDot.TabIndex = 0;
+            this.lblUpdateDot.Click += new System.EventHandler(this.UpdateStatus_Click);
+            // 
+            // lblUpdateStatusText
+            // 
+            this.lblUpdateStatusText.AutoSize = true;
+            this.lblUpdateStatusText.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.lblUpdateStatusText.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
+            this.lblUpdateStatusText.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
+            this.lblUpdateStatusText.Location = new System.Drawing.Point(24, 5);
+            this.lblUpdateStatusText.Name = "lblUpdateStatusText";
+            this.lblUpdateStatusText.Size = new System.Drawing.Size(67, 15);
+            this.lblUpdateStatusText.TabIndex = 1;
+            this.lblUpdateStatusText.Text = "Checking...";
+            this.lblUpdateStatusText.Click += new System.EventHandler(this.UpdateStatus_Click);
+            // 
+            // cmsUpdate
+            // 
+            this.cmsUpdate.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.tsmiOpenReleasePage,
+            this.tsmiUpdateNow});
+            this.cmsUpdate.Name = "cmsUpdate";
+            this.cmsUpdate.Size = new System.Drawing.Size(192, 48);
+            // 
+            // tsmiOpenReleasePage
+            // 
+            this.tsmiOpenReleasePage.Name = "tsmiOpenReleasePage";
+            this.tsmiOpenReleasePage.Size = new System.Drawing.Size(191, 22);
+            this.tsmiOpenReleasePage.Text = "Open the release page";
+            this.tsmiOpenReleasePage.Click += new System.EventHandler(this.TsmiOpenReleasePage_Click);
+            // 
+            // tsmiUpdateNow
+            // 
+            this.tsmiUpdateNow.Name = "tsmiUpdateNow";
+            this.tsmiUpdateNow.Size = new System.Drawing.Size(191, 22);
+            this.tsmiUpdateNow.Text = "Update now";
+            this.tsmiUpdateNow.Click += new System.EventHandler(this.TsmiUpdateNow_Click);
+            // 
             // HomeControl
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Transparent;
+            this.Controls.Add(this.pnlUpdateStatus);
             this.Controls.Add(this.btnNavIRViz);
             this.Controls.Add(this.btnNavAssign);
             this.Controls.Add(this.btnNavMapping);
@@ -173,7 +240,10 @@ namespace WiimoteGun.Controls
             this.Controls.Add(this.lblHomeDescription);
             this.Controls.Add(this.lblHomeTitle);
             this.Name = "HomeControl";
-            this.Size = new System.Drawing.Size(560, 720);
+            this.Size = new System.Drawing.Size(560, 745);
+            this.pnlUpdateStatus.ResumeLayout(false);
+            this.pnlUpdateStatus.PerformLayout();
+            this.cmsUpdate.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -189,5 +259,12 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.Button btnNavIRViz;
         private System.Windows.Forms.Button btnOpenSetupWizard;
         private System.Windows.Forms.Label lblVersion;
+        // [V56e] Update status indicator (EN/FR: Voyant d'état de mise à jour)
+        private System.Windows.Forms.Panel pnlUpdateStatus;
+        private System.Windows.Forms.Label lblUpdateDot;
+        private System.Windows.Forms.Label lblUpdateStatusText;
+        private System.Windows.Forms.ContextMenuStrip cmsUpdate;
+        private System.Windows.Forms.ToolStripMenuItem tsmiOpenReleasePage;
+        private System.Windows.Forms.ToolStripMenuItem tsmiUpdateNow;
     }
 }

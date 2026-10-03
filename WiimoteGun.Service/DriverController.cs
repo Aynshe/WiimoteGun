@@ -523,5 +523,183 @@ namespace WiimoteGun.Service
             string output = RunDevConWithOutput($"find \"{pattern}\"");
             return output.IndexOf("matching device(s) found", StringComparison.OrdinalIgnoreCase) >= 0;
         }
+
+        // ====================================================================
+        // [V55] BLUETOOTH ADAPTER RESET (EN/FR: RÉINITIALISATION ADAPTATEUR BT)
+        // ====================================================================
+
+        // EN: Cooldown: refuse a second reset within 30 seconds to avoid spamming.
+        // FR: Cooldown: refuser un second reset dans les 30 secondes pour éviter le spam.
+        private static DateTime _lastBtResetTime = DateTime.MinValue;
+        private const int BT_RESET_COOLDOWN_SECONDS = 30;
+
+        /// <summary>
+        /// EN: [V55r] Parse a "devcon find =Bluetooth" output and return ONLY the
+        /// Bluetooth RADIO instance IDs: child/protocol nodes (BTHENUM\, BTHLEENUM\)
+        /// are excluded — disabling a child explicitly leaves it PERSISTENTLY
+        /// disabled (code 22) and devcon often fails to re-enable all children
+        /// afterwards, which is exactly what the V55 blanket class disable did
+        /// (user had to re-enable devices one by one in Device Manager).
+        /// Disabling ONLY the radio makes the children follow their parent
+        /// (absent while off, automatically back when on) with no sticky disable.
+        /// FR: [V55r] Analyse une sortie "devcon find =Bluetooth" et retourne
+        /// UNIQUEMENT les instance IDs des RADIOS Bluetooth : les nœuds
+        /// enfants/protocole (BTHENUM\, BTHLEENUM\) sont exclus — désactiver un
+        /// enfant explicitement le laisse désactivé de façon PERSISTANTE (code 22)
+        /// et devcon échoue souvent à les réactiver tous ensuite, ce que faisait
+        /// exactement le disable global par classe de la V55 (l'utilisateur devait
+        /// réactiver les périphériques un par un dans le gestionnaire). Désactiver
+        /// UNIQUEMENT la radio fait suivre les enfants à leur parent (absents
+        /// pendant l'arrêt, de retour automatiquement ensuite) sans disable rémanent.
+        /// </summary>
+        private static List<string> ParseBluetoothRadioIds(string devconFindOutput)
+        {
+            List<string> radios = new List<string>();
+            if (string.IsNullOrWhiteSpace(devconFindOutput)) return radios;
+
+            foreach (string rawLine in devconFindOutput.Split('\n'))
+            {
+                string line = rawLine.TrimEnd('\r').Trim();
+                if (line.Length == 0) continue;
+
+                // EN/FR: devcon output line: "<InstanceId> : <Friendly name>"
+                int sep = line.LastIndexOf(" : ");
+                if (sep <= 0) continue;
+                string instanceId = line.Substring(0, sep).Trim();
+
+                // EN/FR: Skip child/protocol nodes — only those are the problem
+                if (instanceId.StartsWith("BTHENUM\\", StringComparison.OrdinalIgnoreCase)) continue;
+                if (instanceId.StartsWith("BTHLEENUM\\", StringComparison.OrdinalIgnoreCase)) continue;
+                // EN/FR: Instance IDs always contain a "\" (USB\..., PCI\..., ACPI\...)
+                if (!instanceId.Contains("\\")) continue;
+
+                radios.Add(instanceId);
+            }
+            return radios;
+        }
+
+        /// <summary>
+        /// EN: [V55r] Count the devices reported as disabled in a "devcon status =Bluetooth"
+        /// output (best-effort diagnostic for the verification pass).
+        /// FR: [V55r] Compte les périphériques signalés désactivés dans une sortie
+        /// "devcon status =Bluetooth" (diagnostic best-effort pour la passe de vérification).
+        /// </summary>
+        private static int CountDisabledDevices(string devconStatusOutput)
+        {
+            if (string.IsNullOrWhiteSpace(devconStatusOutput)) return 0;
+            int count = 0;
+            foreach (string rawLine in devconStatusOutput.Split('\n'))
+            {
+                string line = rawLine.Trim();
+                if (line.IndexOf("disabled", StringComparison.OrdinalIgnoreCase) >= 0) count++;
+            }
+            return count;
+        }
+
+        /// <summary>
+        /// EN: [V55/V55r] Reset the Windows Bluetooth adapter.
+        /// V55r fixes the V55 blanket-class cycle ("disable =Bluetooth" / "enable =Bluetooth")
+        /// which left child devices (paired Bluetooth nodes, RFCOMM, PAN...) PERSISTENTLY
+        /// disabled in Device Manager. New cycle:
+        ///   Step 0 - HEAL: re-enable every Bluetooth-class device (repairs the nodes
+        ///   left disabled by a previous buggy reset).
+        ///   Step 1 - Identify the RADIO(S) only (instance IDs not under BTHENUM/BTHLEENUM).
+        ///   Step 2 - Disable then re-enable ONLY the radio(s): children follow their
+        ///   parent automatically (no sticky disable code).
+        ///   Step 3 - Verify: status scan + up to 3 "enable =Bluetooth" repair passes
+        ///   while disabled devices remain. A 30-second cooldown prevents spam calls.
+        /// FR: [V55/V55r] Réinitialise l'adaptateur Bluetooth Windows.
+        /// V55r corrige le cycle global par classe de la V55 ("disable =Bluetooth" /
+        /// "enable =Bluetooth") qui laissait des périphériques enfants (nœuds Bluetooth
+        /// appairés, RFCOMM, PAN...) désactivés de façon PERSISTANTE dans le
+        /// gestionnaire de périphériques. Nouveau cycle :
+        ///   Étape 0 - RÉPARATION : réactiver tous les périphériques de la classe
+        ///   Bluetooth (répare les nœuds laissés désactivés par un ancien reset bogué).
+        ///   Étape 1 - Identifier UNIQUEMENT la/les RADIO(S) (instance IDs hors BTHENUM/BTHLEENUM).
+        ///   Étape 2 - Désactiver puis réactiver UNIQUEMENT la/les radio(s) : les
+        ///   enfants suivent leur parent automatiquement (aucun code disable rémanent).
+        ///   Étape 3 - Vérification : scan de statut + jusqu'à 3 passes de réparation
+        ///   "enable =Bluetooth" tant qu'il reste des périphériques désactivés.
+        ///   Un cooldown de 30s empêche les appels en rafale.
+        /// </summary>
+        public static bool ResetBluetoothAdapter()
+        {
+            CheckDevCon();
+
+            // EN: Cooldown check (EN/FR: Vérification du cooldown)
+            double secondsSinceLast = (DateTime.Now - _lastBtResetTime).TotalSeconds;
+            if (secondsSinceLast < BT_RESET_COOLDOWN_SECONDS)
+            {
+                Log($"[BT-Reset] Ignored: cooldown active ({BT_RESET_COOLDOWN_SECONDS - (int)secondsSinceLast}s remaining).");
+                return false;
+            }
+
+            _lastBtResetTime = DateTime.Now;
+            Log("[BT-Reset] Starting Bluetooth adapter reset cycle (V55r: radio-only + heal passes)...");
+
+            // EN/FR: [V55r] Step 0 - HEAL: re-enable every Bluetooth-class device first.
+            // This repairs the child nodes left PERSISTENTLY disabled by the V55 blanket
+            // disable ("disable =Bluetooth") on this machine.
+            Log("[BT-Reset] Step 0: Heal pass — re-enabling all Bluetooth class devices...");
+            RunDevCon("enable =Bluetooth");
+            System.Threading.Thread.Sleep(2000); // Wait for stack to come back up
+
+            // EN/FR: [V55r] Step 1 - Identify the RADIO(S) only (children excluded)
+            Log("[BT-Reset] Step 1: Identifying Bluetooth radio device(s)...");
+            string findOutput = RunDevConWithOutput("find =Bluetooth");
+            List<string> radioIds = ParseBluetoothRadioIds(findOutput);
+
+            if (radioIds.Count == 0)
+            {
+                Log("[BT-Reset] ERROR: no Bluetooth radio device identified (unexpected devcon output). " +
+                    "Radio cycle aborted to avoid blanket-disabling children again. The heal pass already ran. " +
+                    "See [DevCon Output] above for diagnosis.");
+                return false;
+            }
+
+            foreach (string radioId in radioIds)
+            {
+                Log($"[BT-Reset] Step 2a: Disabling radio: {radioId}");
+                RunDevCon($"disable \"@{radioId}\"");
+            }
+            System.Threading.Thread.Sleep(2500); // Wait for stack to release
+
+            foreach (string radioId in radioIds)
+            {
+                Log($"[BT-Reset] Step 2b: Re-enabling radio: {radioId}");
+                RunDevCon($"enable \"@{radioId}\"");
+            }
+            System.Threading.Thread.Sleep(3000); // Wait for stack + children re-enumeration
+
+            // EN/FR: [V55r] Step 3 - Verification + repair passes while disabled devices remain
+            const int MaxVerifyPasses = 3;
+            for (int pass = 1; pass <= MaxVerifyPasses; pass++)
+            {
+                string statusOutput = RunDevConWithOutput("status =Bluetooth");
+                int disabledCount = CountDisabledDevices(statusOutput);
+
+                if (disabledCount == 0)
+                {
+                    Log($"[BT-Reset] Verification pass {pass}: all Bluetooth devices enabled. Reset cycle completed.");
+                    Log("[BT-Reset] Wiimotes should now be able to reconnect.");
+                    return true;
+                }
+
+                Log($"[BT-Reset] Verification pass {pass}: {disabledCount} Bluetooth device(s) still disabled — repair enable pass...");
+                RunDevCon("enable =Bluetooth");
+                System.Threading.Thread.Sleep(3000);
+            }
+
+            string finalStatus = RunDevConWithOutput("status =Bluetooth");
+            int remaining = CountDisabledDevices(finalStatus);
+            if (remaining > 0)
+            {
+                Log($"[BT-Reset] ERROR: {remaining} Bluetooth device(s) STILL DISABLED after repair passes " +
+                    "(see [DevCon Output] above). Open Device Manager and re-enable them manually, " +
+                    "or unplug/replug the Bluetooth dongle.");
+            }
+            Log("[BT-Reset] Bluetooth adapter reset cycle completed.");
+            return true;
+        }
     }
 }

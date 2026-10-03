@@ -32,6 +32,12 @@ namespace WiimoteGun.Service
             _clientWatcherThread.IsBackground = true;
             _clientWatcherThread.Start();
             DriverController.Log("[ClientWatcher] Thread started.");
+
+            // [V55v] EN: Start the crash/hang watchdog (monitors the registered client,
+            // restarts WiimoteGun as the interactive user on crash or UI freeze).
+            // FR: Démarrer le chien de garde de crash/gel (surveille le client enregistré,
+            // relance WiimoteGun en utilisateur interactif en cas de crash ou de gel UI).
+            CrashWatchdog.Start();
         }
 
         public void Stop()
@@ -160,7 +166,11 @@ namespace WiimoteGun.Service
                         // EN: Reset enabled players list when new client connects (fresh session)
                         // FR: Réinitialiser la liste des joueurs activés quand un nouveau client se connecte (nouvelle session)
                         DriverController.ResetEnabledPlayers();
-                        
+
+                        // [V55v] EN: Arm the crash/hang watchdog for this client
+                        // FR: [V55v] Armer le chien de garde de crash/gel pour ce client
+                        CrashWatchdog.OnClientRegistered(pid);
+
                         DriverController.Log($"[ClientWatcher] Successfully registered client PID: {pid}");
                     }
                     else
@@ -181,7 +191,13 @@ namespace WiimoteGun.Service
                         previousPid = _registeredClientPid;
                         _registeredClientPid = 0;
                     }
-                    
+
+                    // [V55v] EN: Deliberate exit — disarm the crash watchdog (never
+                    // restart a clean shutdown or a controlled update restart).
+                    // FR: [V55v] Sortie volontaire — désarmer le chien de garde de crash
+                    // (ne jamais relancer un arrêt propre ou un redémarrage contrôlé).
+                    CrashWatchdog.OnClientUnregistered(isRestart);
+
                     DriverController.Log($"[ClientWatcher] Unregistered client PID: {previousPid} (clean shutdown requested, restart={isRestart})");
                     
                     // EN: If it's a real exit (not a restart), trigger immediate cleanup
@@ -209,6 +225,13 @@ namespace WiimoteGun.Service
                     // EN: Cleanup unwanted VMulti collections (COL01, COL02, COL04, COL05, COL06)
                     // FR: Nettoyer les collections VMulti non désirées
                     case "CLEANUP_VMULTI": DriverController.CleanupUnwantedCollections(); break;
+
+                    // [V55] EN: Reset Bluetooth adapter (disable then re-enable) to unstick the BT stack.
+                    // FR: Réinitialiser l'adaptateur Bluetooth (désactiver puis réactiver) pour débloquer la pile BT.
+                    case "BT_RESET":
+                        bool resetOk = DriverController.ResetBluetoothAdapter();
+                        DriverController.Log($"[BT-Reset] Result via pipe command: {(resetOk ? "DONE" : "SKIPPED (cooldown)")}");
+                        break;
 
                     // EN: Remove (hide) COL03 mouse for specific players or all
                     // FR: Supprimer (masquer) COL03 souris pour joueurs spécifiques ou tous

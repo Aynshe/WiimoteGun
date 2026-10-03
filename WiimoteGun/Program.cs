@@ -88,6 +88,45 @@ namespace WiimoteGun
             // Parse -remap argument first (EN/FR: Parser argument -remap d'abord)
             ParseRemapArgument(args);
 
+            // [V42+V47] Handle EmulationStation script values: forward to the running instance
+            // and EXIT — a script must never start the full application. When no instance is
+            // running, the value is persisted in a temp file and consumed at next startup.
+            // (EN/FR: Traiter les valeurs des scripts EmulationStation : transférer à
+            // l'instance en cours puis QUITTER — un script ne doit jamais démarrer
+            // l'application complète. Sans instance en cours, la valeur est persistée dans
+            // un fichier temporaire et consommée au démarrage suivant.)
+            if (args.Length > 0)
+            {
+                string esArg = args[0].ToLower();
+                if (esArg == EsScriptIntegration.ArgGameStart || esArg == EsScriptIntegration.ArgSystemSelected || esArg == EsScriptIntegration.ArgGameEnd)
+                {
+                    bool isGameStart = (esArg == EsScriptIntegration.ArgGameStart);
+                    bool isSystem = (esArg == EsScriptIntegration.ArgSystemSelected);
+                    bool isGameEnd = (esArg == EsScriptIntegration.ArgGameEnd); // [V47]
+                    string rawArgs = string.Join(" ", args.Skip(1).Select(t =>
+                        (t.IndexOf(' ') >= 0 && !t.StartsWith("\"")) ? "\"" + t + "\"" : t));
+
+                    SimpleLogger.Instance.Info($"[ES] {(isGameStart ? "game-start" : isSystem ? "system-selected" : "game-end")} value received: {rawArgs}");
+
+                    bool sent = MessageWindow.SendEsValueToRunningInstance(isGameStart, isSystem, isGameEnd, rawArgs);
+                    if (!sent)
+                    {
+                        try
+                        {
+                            string tempFile = isGameStart ? EsScriptIntegration.GameStartTempFile
+                                         : (isSystem ? EsScriptIntegration.SystemTempFile : EsScriptIntegration.GameEndTempFile);
+                            System.IO.File.WriteAllText(tempFile, rawArgs);
+                            SimpleLogger.Instance.Info("[ES] No running instance: value persisted for next startup");
+                        }
+                        catch (Exception ex)
+                        {
+                            SimpleLogger.Instance.Error($"[ES] Failed to persist value: {ex.Message}");
+                        }
+                    }
+                    return;
+                }
+            }
+
             // Handle -restart argument: Wait for previous instance to exit (EN/FR: Gérer argument -restart)
             if (args.Length > 0 && (args[0].ToLower() == "-restart" || args[0].ToLower() == "/restart"))
             {
@@ -273,6 +312,15 @@ namespace WiimoteGun
             // FR: Vérifier les mises à jour du service (Arrêt -> Remplacement -> Démarrage) si une version plus récente est incluse.
             ServiceClient.CheckAndPromptServiceUpdate();
 
+            // [V56e] EN: Check GitHub for a newer Wiimote4Guns release (once per session,
+            // background). Result feeds the startup tile notification (20s after the first
+            // Wiimote connects, never during a game) and the Home page indicator.
+            // FR: Vérifier sur GitHub la disponibilité d'une release Wiimote4Guns plus
+            // récente (une fois par session, en arrière-plan). Le résultat alimente la
+            // notification tuile au démarrage (20s après la première connexion Wiimote,
+            // jamais pendant un jeu) et le voyant de la page Home.
+            Core.AppUpdateChecker.BeginCheck();
+
             // Update PATH environment variable if needed (EN/FR: Mettre à jour variable PATH si nécessaire)
             UpdatePathEnvironmentVariable();
 
@@ -314,7 +362,30 @@ namespace WiimoteGun
             _messageWindow.RefreshRequested += OnRefreshRequested;
             _messageWindow.RemapRequested += OnRemapRequested;
             _messageWindow.MenuRequested += OnMenuRequested;
+            _messageWindow.EsGameStartRequested += (s, e) =>
+            {
+                EsScriptIntegration.HandleGameStart(e.RawArgs); // [V42]
+                // [V55] Lock mode on game-start if option is enabled
+                // (EN/FR: Verrouiller le mode au lancement de jeu si l'option est activée)
+                if (Options.Instance.LockModeOnGameStart)
+                    _wiiMoteManager?.Controllers?.ToList().ForEach(c => c.LockMode(true));
+            };
+            _messageWindow.EsSystemSelectedRequested += (s, e) => EsScriptIntegration.HandleSystemSelected(e.RawArgs); // [V42]
+            _messageWindow.EsGameEndRequested += (s, e) =>
+            {
+                EsScriptIntegration.HandleGameEnd(e.RawArgs); // [V47]
+                // [V55] Unlock mode on game-end
+                // (EN/FR: Déverrouiller le mode au game-end)
+                _wiiMoteManager?.Controllers?.ToList().ForEach(c => c.LockMode(false));
+            };
             _messageWindow.DeviceChanged += (s, e) => _wiiMoteManager?.RefreshAllDInputIndices();
+
+            // [V42] EmulationStation integration: scripts install/verify + pending values
+            // + tile modal hotkey (long-press PLUS on any Wiimote)
+            // (EN/FR: Intégration EmulationStation : installation/vérif des scripts +
+            // valeurs en attente + hotkey modale en tuiles (appui long PLUS))
+            EsScriptIntegration.Initialize();
+            EsScriptIntegration.TileModalRequested += OnEsTileModalRequested;
             
             // Initialize Overlay (EN/FR: Initialiser Overlay)
             _profileOverlay = new ProfileOverlay(_menuMode);
@@ -477,7 +548,17 @@ namespace WiimoteGun
             }
             // Ensure cleanup happens on any application exit (EN/FR: Assurer le nettoyage lors de toute sortie de l'application)
             Application.ApplicationExit += OnApplicationExit;
-           
+
+            // [V55v] Start the UI-thread heartbeat: the WiimoteGun Service CrashWatchdog
+            // monitors this pulse to detect a frozen UI ("not responding") and restart
+            // the app as the interactive user. WinForms timer = stops when the UI stops
+            // pumping messages, which is exactly the hang signal.
+            // (EN/FR: Démarrer le battement sur thread UI : le CrashWatchdog du service
+            // surveille ce pouls pour détecter un UI figé (« ne répond pas ») et relancer
+            // l'app en utilisateur interactif. Timer WinForms = s'arrête quand l'UI ne
+            // pompe plus les messages, ce qui est exactement le signal de gel.)
+            Core.AppHeartbeat.Start();
+
             Application.Run(_appContext);
         }
 
@@ -747,6 +828,12 @@ namespace WiimoteGun
                 SimpleLogger.Instance.Error($"Error unregistering IPC client: {ex.Message}");
             }
 
+            try
+            {
+                WiimoteLib.TimingDiagnostics.Shutdown();
+            }
+            catch { }
+
             if (_trayIcon != null)
             {
                 _trayIcon.Visible = false;
@@ -770,15 +857,47 @@ namespace WiimoteGun
 
         public static void Notify(string text)
         {
+            // [V56e] Default duration (5000ms) — kept for all existing callers
+            // (EN/FR: Durée par défaut - conservée pour tous les appelants existants)
+            Notify(text, 5000);
+        }
+
+        /// <summary>
+        /// EN: [V56e] Show the tile notification for a custom duration (ms).
+        /// Tiles stack downward when several show at the same moment.
+        /// FR: [V56e] Affiche la tuile de notification pour une durée personnalisée (ms).
+        /// Les tuiles s'empilent vers le bas quand plusieurs s'affichent en même temps.
+        /// </summary>
+        public static void Notify(string text, int durationMs)
+        {
             if (!Options.Instance.ShowNotifications || string.IsNullOrEmpty(text))
                 return;
 
             PostToUIThread(() =>
             {
-                var frm = new NotifyForm();
+                var frm = new NotifyForm(durationMs);
                 frm.UpdateState(text);
                 frm.Show();
             });
+        }
+
+        /// <summary>
+        /// EN: [V56e] Clean application exit for the self-update: unregisters from the
+        /// service first (so the CrashWatchdog does not "restart" the app mid-update),
+        /// then exits the message loop. The update script waits for our exit.
+        /// FR: [V56e] Sortie propre de l'application pour l'auto-mise à jour : se
+        /// désenregistrer d'abord auprès du service (pour que le CrashWatchdog ne
+        /// « relance » pas l'app en pleine mise à jour), puis sortir de la boucle de
+        /// messages. Le script de mise à jour attend notre sortie.
+        /// </summary>
+        public static void ExitApplicationForUpdate()
+        {
+            try
+            {
+                ServiceClient.SendCommand("UNREGISTER_CLIENT:UPDATE");
+            }
+            catch { }
+            PostToUIThread(() => Application.Exit());
         }
 
         public static void PostToUIThread(System.Action a)
@@ -996,9 +1115,16 @@ namespace WiimoteGun
                 SimpleLogger.Instance.Info($"Applying remap profile: {profile.ProfileName}");
                 ApplyProfileToOptions(profile);
                 
-                // EN: Always attempt to load default GamePad profile when a remap profile (mouse) is loaded
-                // FR: Toujours essayer de charger le profil GamePad par défaut quand un profil remap (souris) est chargé
-                RevertToDefaultGamePadProfile();
+                // EN: [V32] Only revert the GamePad profile to default.remap when NO GamePad
+                // profile is active. Otherwise ApplyRemapProfile (mouse profile reload, deferred
+                // default load, Wiimote reconnect) would wipe the auto-loaded GamePad profile.
+                // FR: [V32] Ne revenir au default.remap GamePad que si AUCUN profil GamePad
+                // n'est actif. Sinon ApplyRemapProfile (rechargement profil souris, chargement
+                // différé, reconnexion Wiimote) écraserait le profil GamePad auto-chargé.
+                if (string.IsNullOrEmpty(_activeGamePadProfile))
+                {
+                    RevertToDefaultGamePadProfile();
+                }
                 
                 // Notify user that profile was loaded (EN/FR: Notifier l'utilisateur du chargement)
                 // Delay notification to avoid overlap with Wiimote connection notifications
@@ -1031,9 +1157,12 @@ namespace WiimoteGun
                 // FR: Forcer les mappings d'usine si aucun fichier .remap n'existe
                 ApplyProfileToOptions(RemapProfile.GetFactoryDefault());
                 
-                // EN: Also try to load default GamePad profile
-                // FR: Essayer aussi de charger le profil GamePad par défaut
-                RevertToDefaultGamePadProfile();
+                // EN: [V32] Only revert GamePad profile if none is active (see above)
+                // FR: [V32] Ne revenir au profil GamePad par défaut que si aucun n'est actif (voir plus haut)
+                if (string.IsNullOrEmpty(_activeGamePadProfile))
+                {
+                    RevertToDefaultGamePadProfile();
+                }
                 
                 return false;
             }
@@ -1041,18 +1170,39 @@ namespace WiimoteGun
 
         /// <summary>
         /// EN: Apply a GamePad profile to current Options instance.
+        /// [V44] preserveXInputApi: when TRUE (auto-load / revert), the XInput/DInput choice
+        /// is NEVER changed by the profile — only a manual load or the tile modal swap can.
         /// FR: Appliquer un profil GamePad à l'instance Options actuelle.
+        /// [V44] preserveXInputApi : si TRUE (auto-load / revert), le choix XInput/DInput
+        /// n'est JAMAIS modifié par le profil — seul un chargement manuel ou la bascule de
+        /// la modale en tuiles peuvent le changer.
         /// </summary>
-        public static void ApplyGamePadProfileToOptions(GamePadProfile profile)
+        public static void ApplyGamePadProfileToOptions(GamePadProfile profile, bool preserveXInputApi = false)
         {
             if (profile == null) return;
-            
+
+            // [V44] Keep the current GamePad API per player before applying mappings
+            // (EN/FR: Conserver l'API GamePad courante par player avant d'appliquer les mappings)
+            bool keepApi = preserveXInputApi;
+            bool p1Api = Options.Instance.P1GamePadMappings?.UseXInput ?? false;
+            bool p2Api = Options.Instance.P2GamePadMappings?.UseXInput ?? false;
+            bool p3Api = Options.Instance.P3GamePadMappings?.UseXInput ?? false;
+            bool p4Api = Options.Instance.P4GamePadMappings?.UseXInput ?? false;
+
             Options.Instance.P1GamePadMappings.CopyFrom(profile.P1Mappings);
             Options.Instance.P2GamePadMappings.CopyFrom(profile.P2Mappings);
             Options.Instance.P3GamePadMappings.CopyFrom(profile.P3Mappings);
             Options.Instance.P4GamePadMappings.CopyFrom(profile.P4Mappings);
-            
-            SimpleLogger.Instance.Info($"Applied GamePad profile: {profile.ProfileName}");
+
+            if (keepApi)
+            {
+                if (Options.Instance.P1GamePadMappings != null) Options.Instance.P1GamePadMappings.UseXInput = p1Api;
+                if (Options.Instance.P2GamePadMappings != null) Options.Instance.P2GamePadMappings.UseXInput = p2Api;
+                if (Options.Instance.P3GamePadMappings != null) Options.Instance.P3GamePadMappings.UseXInput = p3Api;
+                if (Options.Instance.P4GamePadMappings != null) Options.Instance.P4GamePadMappings.UseXInput = p4Api;
+            }
+
+            SimpleLogger.Instance.Info($"Applied GamePad profile: {profile.ProfileName}" + (keepApi ? " (GamePad API preserved)" : ""));
         }
 
         /// <summary>
@@ -1312,7 +1462,12 @@ namespace WiimoteGun
                         _lastDetectedProcessId = (int)processId;
                         
                         // Pass full path for strict matching (EN/FR: Passer chemin complet pour correspondance stricte)
-                        string profilePath = GameProfileMappingManager.GetProfileForGame(exeName, exePath);
+                        // [V42] + ES game name (per-game profiles on emulators)
+                        // [V46] + raw name (folder links: name WITH extension)
+                        // (EN/FR: + nom de jeu ES (profils par jeu sur émulateurs) + nom brut
+                        // (liens dossier : nom AVEC extension))
+                        string profilePath = GameProfileMappingManager.GetProfileForGame(exeName, exePath,
+                            EsScriptIntegration.LastGameName, EsScriptIntegration.LastGameNameRaw);
                         bool hasMapping = !string.IsNullOrEmpty(profilePath);
 
                         // Prevent auto-load if editing (EN/FR: Empêcher chargement auto si édition en cours)
@@ -1397,7 +1552,8 @@ namespace WiimoteGun
                         // GAMEPAD PROFILE LOGIC (EN/FR: LOGIQUE PROFIL GAMEPAD)
                         // =========================================================================================
                         
-                        string gamePadProfilePath = GameProfileMappingManager.GetGamePadProfileForGame(exeName, exePath);
+                        string gamePadProfilePath = GameProfileMappingManager.GetGamePadProfileForGame(exeName, exePath,
+                            EsScriptIntegration.LastGameName, EsScriptIntegration.LastGameNameRaw);
                         bool hasGamePadMapping = !string.IsNullOrEmpty(gamePadProfilePath);
 
                         if (hasGamePadMapping)
@@ -1407,13 +1563,22 @@ namespace WiimoteGun
                             if (!_manualGamePadProfileOverride && _autoLoadedGamePadExe != exeName)
                             {
                                  _synchronizationContext.Post(_ => 
-                                {
-                                    SimpleLogger.Instance.Info($"Auto-loading GamePad profile for {exeName}: {gamePadProfilePath}");
-                                    LoadGamePadProfileHot(gamePadProfilePath);
-                                    _autoLoadedGamePadExe = exeName;
-                                    string profileName = System.IO.Path.GetFileNameWithoutExtension(gamePadProfilePath);
-                                    Notify($"GamePad Profile auto-loaded for {exeName}: {profileName}");
-                                }, null);
+                                 {
+                                     string profileName = System.IO.Path.GetFileNameWithoutExtension(gamePadProfilePath);
+                                     // [V32] Notify according to the REAL load result
+                                     // (EN/FR: Notifier selon le résultat RÉEL du chargement)
+                                     if (LoadGamePadProfileHot(gamePadProfilePath))
+                                     {
+                                         SimpleLogger.Instance.Info($"Auto-loading GamePad profile for {exeName}: {gamePadProfilePath}");
+                                         _autoLoadedGamePadExe = exeName;
+                                         Notify($"GamePad Profile auto-loaded for {exeName}: {profileName}");
+                                     }
+                                     else
+                                     {
+                                         SimpleLogger.Instance.Error($"GamePad auto-load FAILED for {exeName}: '{gamePadProfilePath}' could not be loaded. Current (default) mappings kept.");
+                                         Notify($"GamePad Profile NOT found for {exeName}: {profileName}");
+                                     }
+                                 }, null);
                             }
                         }
                     }
@@ -1450,6 +1615,10 @@ namespace WiimoteGun
                             _lastDetectedGamePath = null;
                             _manualProfileOverride = false; // Reset override for next game
                             _manualGamePadProfileOverride = false;
+                            // [V47] The ES game state lifecycle is owned by the game-start /
+                            // game-end SCRIPTS (launcher patterns would clear it too early).
+                            // (EN/FR: Le cycle de vie de l'état jeu ES appartient aux SCRIPTS
+                            // game-start / game-end (les lanceurs le nettoieraient trop tôt).)
                             
                             // Only revert if we are NOT editing (EN/FR: Revenir seulement si pas en édition)
                             if (_profileOverlay != null && _profileOverlay.IsEditing)
@@ -1501,6 +1670,7 @@ namespace WiimoteGun
             try
             {
                 _activeRemapProfile = null; // Will cause ApplyRemapProfile to load default.remap or settings.cfg
+                _activeGamePadProfile = null; // [V32] Reset GamePad profile so ApplyRemapProfile reverts it to default.remap too
                 
                 // EN: ApplyRemapProfile now handles both Mouse/IR and GamePad default profiles
                 // FR: ApplyRemapProfile gère maintenant les profils par défaut Mouse/IR et GamePad
@@ -1514,7 +1684,15 @@ namespace WiimoteGun
             }
         }
         
-        public static void LoadGamePadProfileHot(string profilePath, bool isManualLoad = false)
+        /// <summary>
+        /// EN: Hot load a GamePad profile. Returns true only if the profile file was
+        /// found and actually applied (a silent null load used to leave default.remap
+        /// active while the UI claimed the mapped profile was loaded).
+        /// FR: Chargement à chaud d'un profil GamePad. Retourne true seulement si le
+        /// fichier profil a été trouvé et réellement appliqué (un chargement null
+        /// silencieux laissait default.remap actif alors que l'UI annonçait le profil associé).
+        /// </summary>
+        public static bool LoadGamePadProfileHot(string profilePath, bool isManualLoad = false)
         {
             try
             {
@@ -1524,7 +1702,9 @@ namespace WiimoteGun
                 var profile = RemapProfileManager.LoadGamePadProfile(profilePath);
                 if (profile != null)
                 {
-                    ApplyGamePadProfileToOptions(profile);
+                    // [V44] Auto-load preserves the XInput/DInput choice; manual load applies it
+                    // (EN/FR: L'auto-load préserve le choix XInput/DInput ; le chargement manuel l'applique)
+                    ApplyGamePadProfileToOptions(profile, !isManualLoad);
                     
                     // Note: We don't have a specific "Apply" method for GamePads because they are polled directly from Options
                     // but we should ensure saving if needed, or just keep in memory until exit?
@@ -1532,11 +1712,22 @@ namespace WiimoteGun
                     Options.Instance.Save();
                     
                     if (isManualLoad) _manualGamePadProfileOverride = true;
+                    return true;
                 }
+
+                // [V32] Explicit failure: nothing was applied, default.remap GamePad
+                // mappings (if any) remain active. Reset the active marker to reflect reality.
+                // (EN/FR: Échec explicite : rien n'a été appliqué, les mappings default.remap
+                // GamePad restent actifs. Reset du marqueur actif pour refléter la réalité.)
+                SimpleLogger.Instance.Error($"Failed to hot load GamePad profile: '{profilePath}' not found or unreadable. Keeping current mappings.");
+                _activeGamePadProfile = null;
+                return false;
             }
             catch (Exception ex)
             {
                 SimpleLogger.Instance.Error($"Failed to hot load GamePad profile: {ex.Message}");
+                _activeGamePadProfile = null;
+                return false;
             }
         }
 
@@ -1549,13 +1740,13 @@ namespace WiimoteGun
                 if (profile != null)
                 {
                     SimpleLogger.Instance.Info("Reverting to default GamePad profile from: default.remap");
-                    ApplyGamePadProfileToOptions(profile);
+                    ApplyGamePadProfileToOptions(profile, true); // [V44] Never change the GamePad API on revert
                     Options.Instance.Save();
                 }
                 else
                 {
                     SimpleLogger.Instance.Info("No default.remap (GamePad) found, reverting to Factory Default");
-                    ApplyGamePadProfileToOptions(new GamePadProfile { ProfileName = "Factory Default" });
+                    ApplyGamePadProfileToOptions(new GamePadProfile { ProfileName = "Factory Default" }, true); // [V44]
                     Options.Instance.Save();
                 }
             }
@@ -1615,6 +1806,36 @@ namespace WiimoteGun
             {
                 form.StartPosition = FormStartPosition.CenterScreen;
             }
+        }
+
+        /// <summary>
+        /// EN: [V42] Open the profile tile modal (long-press PLUS on any Wiimote).
+        /// FR: [V42] Ouvre la modale en tuiles des profils (appui long PLUS sur n'importe quelle wiimote).
+        /// </summary>
+        private static void OnEsTileModalRequested()
+        {
+            if (_synchronizationContext == null) return;
+
+            _synchronizationContext.Post(_ =>
+            {
+                try
+                {
+                    // Don't open over an editing overlay (EN/FR: Ne pas ouvrir par-dessus l'overlay en édition)
+                    if (_profileOverlay != null && _profileOverlay.IsEditing)
+                    {
+                        SimpleLogger.Instance.Info("[ES Tile] Skipped: overlay is editing");
+                        return;
+                    }
+                    if (UI.Modern.Forms.EsProfileTileDialog.IsOpen) return;
+
+                    SimpleLogger.Instance.Info("[ES Tile] Opening profile tile modal");
+                    UI.Modern.Forms.EsProfileTileDialog.ShowModal();
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.Instance.Error($"Failed to open tile modal: {ex.Message}");
+                }
+            }, null);
         }
 
         private static void OnMenuRequested(object sender, EventArgs e)

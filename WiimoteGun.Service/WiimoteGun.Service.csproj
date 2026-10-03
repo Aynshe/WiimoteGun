@@ -66,6 +66,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CrashWatchdog.cs" />
     <Compile Include="DriverController.cs" />
     <Compile Include="PipeServer.cs" />
     <Compile Include="ServiceMain.cs">

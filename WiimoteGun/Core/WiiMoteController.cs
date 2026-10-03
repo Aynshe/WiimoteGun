@@ -49,6 +49,13 @@ namespace WiimoteGun
         // Weapon recoil rumble (EN/FR: Vibration recul arme)
         private System.Threading.Timer _rumbleTimer;
         private System.Threading.Timer _rumbleStopTimer;
+
+        // [V55y] Reload rumble sequencer (EN/FR: Séquenceur vibration rechargement)
+        private System.Threading.Timer _reloadRumbleTimer;
+        private volatile bool _isReloadRumbling;
+        private int[] _reloadRumblePattern;   // Alternating ON/OFF durations in ms (EN/FR: Durées ON/OFF alternées en ms)
+        private int _reloadRumbleStepIdx;
+        private bool _lastRawReloadButton;   // Physical reload button edge tracking (EN/FR: Suivi d'arête bouton reload physique)
         private bool _isTriggerPressed = false;
         private bool _isRumbling = false;
         private DateTime _lastRumbleTime = DateTime.MinValue;
@@ -66,8 +73,9 @@ namespace WiimoteGun
         // Off-screen Reload state tracking (EN/FR: Suivi d'état rechargement hors écran)
         private bool _wasOnScreen = false;
         private bool _hasAimedAtScreenOnce = false; // Must aim at screen first before reload can trigger (EN/FR: Doit viser l'écran avant autorisation reload)
-        private bool _offScreenReloadPerformed = false; // Only 1 reload allowed per off-screen session (EN/FR: 1 seul reload par session hors écran)
+        private bool _offScreenReloadPerformed = false; // Only 1 AUTO reload allowed per off-screen session (EN/FR: 1 seul reload AUTO par session hors écran)
         private int _offScreenReloadClickSequence = 0; // 0=idle, 1-3=holding right click, -1=done
+        private bool _osTriggerReloadWasActive = false; // [V55u] Previous frame state of the off-screen trigger→reload redirect (edge detection for log/rumble)
         private DateTime _lastAutoReloadTime = DateTime.MinValue; // Cooldown for auto-reload (EN/FR: Cooldown pour rechargement auto)
         private int _onScreenConsecutiveFrames = 0; // Stability counter for on-screen (EN/FR: Compteur de stabilité sur l'écran)
         private int _offScreenConsecutiveFrames = 0; // Stability counter for off-screen (EN/FR: Compteur de stabilité hors écran)
@@ -275,6 +283,49 @@ namespace WiimoteGun
         private float _lastGyroPitch = 0f; // Last Pitch value in °/s or accel delta (EN/FR: Dernière valeur Pitch en °/s ou delta accel)
         private float _lastGyroRoll = 0f;  // Last Roll value in °/s (EN/FR: Dernière valeur Roll en °/s)
 
+        private int _diagReportCount = 0;
+        private DateTime _diagWindowStart = DateTime.MinValue;
+        private DateTime _diagLastReportTime = DateTime.MinValue;
+        private double _diagDeltaSum = 0;
+        private double _diagDeltaMax = 0;
+        private int _diagDeltaCount = 0;
+
+        private double _avgReportIntervalMs = 10.0;
+        private float _smoothPredVelX = 0f;
+        private float _smoothPredVelY = 0f;
+
+        // [DIAG] Timing instrumentation for V1 vs MotionPlus Inside V2 jitter.
+        private long _diagLastStateTicks = 0;
+
+        // [FIX V25] Burst de-jitter replay buffer.
+        // The Windows Bluetooth stack aggregates the RVL-CNT-01-TR (V2) HID stream into
+        // batches of 2-4 reports delivered every ~30-40ms (measured in TimingDiagnostics CSV:
+        // gaps of 27.5/2.4ms vs 4-16ms on V1). We buffer real IR positions and replay them on
+        // a uniform time grid shifted by an adaptive delay, so the cursor moves smoothly
+        // even though the transport delivers in bursts.
+        private readonly object _replayLock = new object();
+        private readonly System.Collections.Generic.List<double> _replayTimeMs = new System.Collections.Generic.List<double>();
+        private readonly System.Collections.Generic.List<int> _replayX = new System.Collections.Generic.List<int>();
+        private readonly System.Collections.Generic.List<int> _replayY = new System.Collections.Generic.List<int>();
+        private long _replayLastSampleTicks = 0;
+        private double _lastBurstBoundaryMs = -1.0;
+        private double _burstPeriodEmaMs = 0.0;
+        private double _replayDelayMs = 24.0;
+
+        // [DIAG] Output-side (Virtual Polling) diagnostics: measures what the cursor
+        // actually receives (replay vs fallback), not just the raw input rate.
+        private long _diagOutEmissions = 0;
+        private long _diagOutReplay = 0;
+        private long _diagOutFallback = 0;
+        private double _diagOutWindowStartMs = -1.0;
+
+        // [FIX V26] Cooldown for MotionPlus re-activation. Some V1 external MotionPlus
+        // adapters report extension=0 in every status report after standalone activation,
+        // which raised endless "MotionPlus Removed" events and caused an infinite
+        // activate/status/activate loop (~20 writes + GetStatus every 600ms, observed in
+        // WiimoteTimingDiagnostics CSV as periodic report-backlog dumps).
+        private DateTime _lastMpActivationCompleted = DateTime.MinValue;
+
         // Battery level monitoring (EN/FR: Suivi du niveau de batterie)
         private float _lastBatteryLevel = -1f;
         private DateTime _lastBatteryLogTime = DateTime.MinValue;
@@ -319,6 +370,30 @@ namespace WiimoteGun
         private DateTime GetNow() => Options.Instance.UseHighPerfTimers ? DateTime.UtcNow : DateTime.Now;
 
         public Wiimote Wiimote { get; }
+
+        // [V28] Per-Wiimote-model option resolution: V1 (RVL-CNT-01) vs V2 TR (RVL-CNT-01-TR).
+        // The left value in Options applies to V1; the "V2" fields apply to Wiimote Plus only.
+        // (EN/FR: Résolution des options par modèle : la valeur de gauche s'applique à la V1,
+        // les champs "V2" uniquement à la Wiimote Plus.)
+        private bool IsWiimoteV2TR
+        {
+            get { return Wiimote != null && (Wiimote.Type & WiimoteType.WiimotePlus) == WiimoteType.WiimotePlus; }
+        }
+
+        private int ActiveVirtualPollingRate
+        {
+            get { return IsWiimoteV2TR ? Options.Instance.VirtualPollingRateV2 : Options.Instance.VirtualPollingRate; }
+        }
+
+        private int ActiveIRSmoothingStrength
+        {
+            get { return IsWiimoteV2TR ? Options.Instance.IRSmoothingStrengthV2 : Options.Instance.IRSmoothingStrength; }
+        }
+
+        private float ActiveIRExtrapolationStrength
+        {
+            get { return IsWiimoteV2TR ? Options.Instance.IRExtrapolationStrengthV2 : Options.Instance.IRExtrapolationStrength; }
+        }
         public int PlayerIndex { get; }
         public int ScreenIndex { get; set; }
         public ScreenPositionCalculator Calculator { get { return _calculator; } }
@@ -344,9 +419,9 @@ namespace WiimoteGun
             SetupWiimote();
 
             // Setup Hypersampling timer if enabled (EN/FR: Configurer timer de hypersampling si activé)
-            if (Options.Instance.EnableVirtualPolling)
+            if (Options.Instance.EnableVirtualPolling && ActiveVirtualPollingRate > 0)
             {
-                int interval = 1000 / Options.Instance.VirtualPollingRate;
+                int interval = 1000 / ActiveVirtualPollingRate;
                 _virtualPollingTimer = new WiimoteLib.Helpers.MultimediaTimer(interval, OnVirtualPollingTick);
                 _virtualPollingTimer.Start();
             }
@@ -365,12 +440,19 @@ namespace WiimoteGun
             _rumbleTimer = new System.Threading.Timer(_ => RumbleRepetitionCallback(), null, Timeout.Infinite, Timeout.Infinite);
             _rumbleStopTimer = new System.Threading.Timer(_ => StopRumble(), null, Timeout.Infinite, Timeout.Infinite);
 
+            // [V55y] Reload rumble sequencer timer (EN/FR: Timer du séquenceur de vibration rechargement)
+            _reloadRumbleTimer = new System.Threading.Timer(ReloadRumbleStepCallback, null, Timeout.Infinite, Timeout.Infinite);
+
             // Initialize time-based fields (EN/FR: Initialiser les champs basés sur le temps)
             _lastActivityTime = GetNow();
             _lastReportTime = GetNow();
             _lastIRSeenTime = GetNow();
             _lastGyroStillTime = GetNow();
             _controllerStartTime = GetNow();
+
+            // [V55m] If game session is active and lock option enabled, inherit locked state
+            // (EN/FR: Si une session de jeu est active et l'option cochée, hériter de l'état verrouillé)
+            _modeLocked = Options.Instance.LockModeOnGameStart && EsScriptIntegration.HasCurrentGame;
         }
 
         private void CheckSleep()
@@ -760,6 +842,13 @@ namespace WiimoteGun
                 _rumbleStopTimer = null;
             }
 
+            // [V55y] Dispose the reload rumble sequencer (EN/FR: Disposer le séquenceur vibration rechargement)
+            if (_reloadRumbleTimer != null)
+            {
+                _reloadRumbleTimer.Dispose();
+                _reloadRumbleTimer = null;
+            }
+
             // Dispose virtual polling timer (EN/FR: Disposer le timer de polling virtuel)
             if (_virtualPollingTimer != null)
             {
@@ -989,6 +1078,25 @@ namespace WiimoteGun
 
                         ExtensionType ext = Wiimote.WiimoteState.ExtensionType;
 
+                        // [FIX V26] EN: Cooldown against the standalone-MP re-activation loop.
+                        // External MP adapters without a passthrough extension report extension=0 in
+                        // every status report, which triggers "MotionPlus Removed" → re-activation →
+                        // status → removed → ... every ~600ms. When no real passthrough extension is
+                        // detected (standalone MP or None), refuse to re-activate within 8s of the
+                        // last completed activation. Real Nunchuk/Classic hot-plug still goes through.
+                        // FR: Cooldown contre la boucle de ré-activation MP standalone. Les adaptateurs
+                        // MP externes sans extension en passthrough rapportent extension=0 dans chaque
+                        // rapport de statut, ce qui déclenche « MotionPlus Removed » → ré-activation →
+                        // statut → removed → ... toutes les ~600ms. Sans vraie extension détectée
+                        // (MP standalone ou None), refuser de ré-activer dans les 8s suivant la
+                        // dernière activation terminée. Le hot-plug réel Nunchuk/Classic passe toujours.
+                        if ((ext == ExtensionType.None || ext == ExtensionType.MotionPlus) &&
+                            (DateTime.Now - _lastMpActivationCompleted).TotalSeconds < 8.0)
+                        {
+                            SimpleLogger.Instance.Info(string.Format("[P{0}] [V26] AutoEnableMotionPlus skipped (standalone MP cooldown, ext: {1})", PlayerIndex, ext));
+                            return;
+                        }
+
                         // EN: Decision based ONLY on detected ExtensionType — do NOT use Status.Extension here.
                         // On V2 TR Wiimotes, Status.Extension is ALWAYS true (built-in MP shows as extension),
                         // so it cannot be used to detect Nunchuk presence. The bit-0 detection in ParseMotionPlus
@@ -1026,6 +1134,7 @@ namespace WiimoteGun
                         // Ensure report type is maintained (MotionPlus activation can reset it)
                         // (EN/FR: S'assurer que le type de rapport est maintenu)
                         UpdateIRSensitivity();
+                        _lastMpActivationCompleted = DateTime.Now;
                     }
                     finally
                     {
@@ -1084,6 +1193,41 @@ namespace WiimoteGun
             _lastReportTime = Options.Instance.UseHighPerfTimers 
                 ? DateTime.UtcNow   // UtcNow is faster than Now (~0.1µs vs ~1µs) (EN/FR: UtcNow plus rapide que Now)
                 : DateTime.Now;     // Standard fallback (EN/FR: Fallback standard)
+
+            DateTime diagNow = _lastReportTime;
+            long diagStateStart = TimingDiagnostics.BeginState();
+            double diagStateDtMs = _diagLastStateTicks == 0 ? 0.0 : (Stopwatch.GetTimestamp() - _diagLastStateTicks) * 1000.0 / Stopwatch.Frequency;
+            _diagLastStateTicks = Stopwatch.GetTimestamp();
+            double diagGyroUs = 0.0;
+            double diagPositionUs = 0.0;
+            double diagIrUs = 0.0;
+            if (_diagLastReportTime != DateTime.MinValue)
+            {
+                double delta = (diagNow - _diagLastReportTime).TotalMilliseconds;
+                if (delta >= 0 && delta < 1000)
+                {
+                    _diagDeltaSum += delta;
+                    _diagDeltaCount++;
+                    if (delta > _diagDeltaMax) _diagDeltaMax = delta;
+                }
+            }
+            _diagLastReportTime = diagNow;
+            _diagReportCount++;
+            if (_diagWindowStart == DateTime.MinValue)
+                _diagWindowStart = diagNow;
+            else if ((diagNow - _diagWindowStart).TotalMilliseconds >= 5000)
+            {
+                double rate = _diagReportCount / (diagNow - _diagWindowStart).TotalSeconds;
+                double avgGap = _diagDeltaCount > 0 ? _diagDeltaSum / _diagDeltaCount : 0;
+                SimpleLogger.Instance.Info(string.Format("[P{0}] [DIAG] Rate: {1:F0} Hz, Gap avg: {2:F1}ms, Gap max: {3:F0}ms", PlayerIndex, rate, avgGap, _diagDeltaMax));
+                _avgReportIntervalMs = avgGap > 1.0 ? avgGap : 10.0;
+                _diagReportCount = 0;
+                _diagWindowStart = diagNow;
+                _diagDeltaSum = 0;
+                _diagDeltaMax = 0;
+                _diagDeltaCount = 0;
+            }
+
             lock (_lock)
             {
                 ButtonState buttons = e.WiimoteState.Buttons;
@@ -1117,7 +1261,9 @@ namespace WiimoteGun
                 }
 
                 // Read and process gyroscope data (EN/FR: Lire et traiter données gyroscope)
+                long diagGyroStart = TimingDiagnostics.BeginStage();
                 ProcessGyroscopeData(e.WiimoteState);
+                diagGyroUs = TimingDiagnostics.ElapsedUs(diagGyroStart);
 
                 // Activity is detected if any button is pressed, IR is detected, or nunchuk is moved
                 bool hasNunchukForActivity = (e.WiimoteState.ExtensionType == ExtensionType.Nunchuk || e.WiimoteState.ExtensionType == ExtensionType.MotionPlusNunchuk);
@@ -1194,7 +1340,9 @@ namespace WiimoteGun
                 DetectHotkeyButtonChanges(buttons, _lastState, nunchuk, _lastNunchukState, hasNunchuk);
 
                 // This enables "Autocalibration" (Gun4IR/RetroShooter layouts) for GamePad mode.
+                long diagPositionStart = TimingDiagnostics.BeginStage();
                 var scaledPos = _calculator.GetScaledPosition(ir, buttons, _lastState);
+                diagPositionUs = TimingDiagnostics.ElapsedUs(diagPositionStart);
 
                 // Apply Aspect Ratio Correction (EN/FR: Appliquer correction de format d'image)
                 if (scaledPos.HasValue)
@@ -1245,6 +1393,14 @@ namespace WiimoteGun
                     if (_gestureRightClickFrameCount > 0) { mRight = true; _gestureRightClickFrameCount--; }
                     if (_gestureMiddleClickFrameCount > 0) { mMiddle = true; _gestureMiddleClickFrameCount--; }
 
+                    // [V55y] Capture the PHYSICAL reload button state (right-click mapping +
+                    // shake reload gesture) BEFORE the off-screen block: the edge detection
+                    // below must ignore the reload inputs injected by the off-screen redirect.
+                    // (EN/FR: Capturer l'état du bouton reload PHYSIQUE (mapping clic droit +
+                    // geste shake) AVANT le bloc hors écran : la détection d'arête ci-dessous
+                    // doit ignorer les entrées recharge injectées par la redirection hors écran.)
+                    bool rawReloadButton = mRight;
+
                     // 3. Off-screen Reload Logic (EN/FR: Logique Rechargement Hors-écran)
                     DateTime now = GetNow();
 
@@ -1259,72 +1415,169 @@ namespace WiimoteGun
                         _onScreenConsecutiveFrames = 0;
                     }
 
-                    if (Options.Instance.EnableOffScreenReload && !isOnScreen)
+                    // [V55] Per-profile resolution: legacy Off-Screen Reload (override or
+                    // global) + TC Cover mode (inhibits the two legacy functions).
+                    // TC COVER LOGIC (Time Crisis): hold button ON-screen (exit cover/planque),
+                    // release OFF-screen (enter cover/planque). This is the OPPOSITE of a
+                    // standard reload — in TC games you hold the pedal to AIM, release to HIDE.
+                    // (EN/FR: Résolution par profil : Off-Screen Reload héritage + mode Planque TC.
+                    // LOGIQUE TC : maintien bouton EN visant l'écran (sortie planque), relâché HORS
+                    // écran (rentrée planque). Inverse du reload classique — dans TC on maintient
+                    // la pédale pour viser, on relâche pour se planquer.)
+                    bool offScreenReloadEnabled = ResolveOffScreenReloadEnabled();
+                    bool tcCoverActive = _playerMappings != null && _playerMappings.TCCoverReload;
+
+                    if (!isOnScreen)
                     {
-                        // Capture requested inputs before clearing
-                        // (EN/FR: Capturer les entrées demandées avant de tout verrouiller)
-                        bool rawTrigger = mLeft;
-                        bool rawReload = mRight;
-
-                        // Default all mouse outputs to false while off-screen (strictly locked)
-                        // (EN/FR: Par défaut, tous les clics souris sont verrouillés hors écran)
-                        mLeft = false;
-                        mMiddle = false;
-                        mRight = false;
-
-                        // Startup protection: No reload allowed if the Wiimote hasn't aimed at the screen at least once
-                        // (EN/FR: Protection démarrage: Pas de reload si la Wiimote n'a pas encore visé l'écran au moins une fois)
-                        if (_hasAimedAtScreenOnce)
+                        if (tcCoverActive)
                         {
-                            if (Options.Instance.OffScreenReloadAuto)
-                            {
-                                // Auto-reload: trigger a single right-click when going off-screen (1x)
-                                // Only 1 reload per off-screen session is allowed
-                                // Cooldown of 250ms prevents rapid re-triggering / bounce at the screen edge
-                                // (EN/FR: Rechargement auto: 1 seul clic droit par session hors écran avec délai 250ms anti-rebond)
-                                if (!_offScreenReloadPerformed && _wasOnScreen && _offScreenReloadClickSequence == 0 && (now - _lastAutoReloadTime).TotalMilliseconds >= 250)
-                                {
-                                    _offScreenReloadClickSequence = 1;
-                                    _lastAutoReloadTime = now;
-                                    _offScreenReloadPerformed = true;
-                                    reloadTriggered = true;
-                                    SimpleLogger.Instance.Info($"[P{PlayerIndex}] Auto-reload sequence started (1x mRight)");
-                                }
+                            // [V55] TC Cover: OFF-screen = in cover (planque) → RELEASE the TC
+                            // button so the game registers the hide. Lock all mouse outputs.
+                            // (EN/FR: Planque TC : HORS écran = en planque → RELÂCHER le bouton TC
+                            // pour que le jeu enregistre la planque. Sorties souris verrouillées.)
+                            bool rawTriggerTc = mLeft;
+                            mLeft = false;
+                            mMiddle = false;
+                            mRight = false;
 
-                                if (_offScreenReloadClickSequence > 0)
-                                {
-                                    if (_offScreenReloadClickSequence <= 3) // Hold right-click for 3 frames to ensure game registers it
-                                    {
-                                        mRight = true;
-                                        _offScreenReloadClickSequence++;
-                                    }
-                                    else
-                                    {
-                                        _offScreenReloadClickSequence = -1; // Sequence finished
-                                    }
-                                }
+                            if (_hasAimedAtScreenOnce)
+                            {
+                                // Ensure any held TC key is released while off-screen
+                                // (EN/FR: S'assurer que la touche TC maintenue est relâchée hors écran)
+                                ReleaseTcCoverKey();
+                                if (rawTriggerTc) _suppressLeftClickUntilRelease = true;
                             }
-                            
-                            // Manual reload: The logical shoot button (mLeft) or reload button (mRight) triggers reload (mRight).
-                            // We DO NOT hardcode buttons.B here to respect user mapping.
-                            // Only 1 reload allowed per off-screen session until re-aiming at the screen. All spamming is blocked.
-                            // (EN/FR: Rechargement manuel: déclenche 1 seul clic droit par session hors écran. Tout spam est bloqué)
-                            if (rawTrigger || rawReload)
-                            {
-                                if (rawTrigger) _suppressLeftClickUntilRelease = true; // Prevent accidental shot when returning on-screen
 
-                                if (!_offScreenReloadPerformed)
+                            // [V56] TC Cover: entering cover = the TC reload moment. The input is
+                            // INVERTED in TC mode: going OFF-screen RELEASES the TC button (= hide
+                            // and reload in the game) — vibrate exactly here, once per transition.
+                            // (EN/FR: Planque TC : l'entrée en planque = le moment du rechargement
+                            // TC. L'entrée est INVERSÉE en mode TC : passer HORS écran RELÂCHE le
+                            // bouton TC (= se cacher et recharger dans le jeu) — vibrer exactement
+                            // ici, une seule fois par transition.)
+                            if (_wasOnScreen && _hasAimedAtScreenOnce)
+                            {
+                                TriggerReloadRumble();
+                            }
+                        }
+                        else
+                        {
+                            // [V55t/V55u] UNIFIED NON-TC OFF-SCREEN HANDLING:
+                            // - The TRIGGER (mLeft / Mouse Left = railshooter fire) is ALWAYS
+                            //   locked while off-screen. The ONLY case where an off-screen
+                            //   trigger press does something is Off-Screen Reload enabled
+                            //   (global option or per-profile override): EVERY physical
+                            //   trigger pulse is redirected to the reload input (mRight),
+                            //   mirroring the physical state (no 1-per-session limit — only
+                            //   the "Auto" mode is 1x per off-screen session). Anti-accident:
+                            //   a trigger held off-screen never fires when returning on-screen.
+                            // - The PHYSICAL RELOAD BUTTON (mRight / Mouse Right) is NEVER
+                            //   locked and NEVER limited: it passes through freely while
+                            //   off-screen, whether Off-Screen Reload is enabled or not.
+                            // - Middle click passes through as well: ONLY the trigger is locked.
+                            // (EN/FR: GESTION HORS ÉCRAN UNIFIÉE SANS PLANQUE TC :
+                            // - La GÂCHETTE (mLeft / Mouse Left = tir railshooter) est
+                            //   TOUJOURS verrouillée hors écran. Le SEUL cas où un appui
+                            //   gâchette hors écran fait quelque chose est le Off-Screen
+                            //   Reload activé (option globale ou override par profil) :
+                            //   CHAQUE impulsion physique est redirigée vers l'input
+                            //   reload (mRight), en reflétant l'état physique (PAS de limite
+                            //   1 par session — seul le mode « Auto » est 1× par session hors
+                            //   écran). Anti-accident : une gâchette maintenue hors écran ne
+                            //   tire jamais au retour à l'écran.
+                            // - Le BOUTON PHYSIQUE DE RELOAD (mRight / Mouse Right) n'est
+                            //   JAMAIS verrouillé ni limité à 1 impulsion : il passe
+                            //   librement hors écran, que le Off-Screen Reload soit activé
+                            //   ou non.
+                            // - Le clic milieu passe également : SEULE la gâchette est verrouillée.)
+                            bool rawTrigger = mLeft;
+
+                            // [V55s/V55t] Lock ONLY the trigger while off-screen
+                            // (EN/FR: Verrouiller SEULEMENT la gâchette hors écran)
+                            mLeft = false;
+
+                            if (rawTrigger && _hasAimedAtScreenOnce)
+                            {
+                                // Prevent the shot firing when returning on-screen with the trigger still held
+                                // (EN/FR: Empêcher le tir au retour à l'écran si la gâchette est toujours maintenue)
+                                _suppressLeftClickUntilRelease = true;
+                            }
+
+                            // Startup protection: No reload allowed if the Wiimote hasn't aimed at the screen at least once
+                            // (EN/FR: Protection démarrage: Pas de reload si la Wiimote n'a pas encore visé l'écran au moins une fois)
+                            if (offScreenReloadEnabled && _hasAimedAtScreenOnce)
+                            {
+                                if (ResolveOffScreenAutoEnabled())
+                                {
+                                    // Auto-reload: trigger a single right-click when going off-screen (1x)
+                                    // Only 1 reload per off-screen session is allowed
+                                    // Cooldown of 250ms prevents rapid re-triggering / bounce at the screen edge
+                                    // (EN/FR: Rechargement auto: 1 seul clic droit par session hors écran avec délai 250ms anti-rebond)
+                                    if (!_offScreenReloadPerformed && _wasOnScreen && _offScreenReloadClickSequence == 0 && (now - _lastAutoReloadTime).TotalMilliseconds >= 250)
+                                    {
+                                        _offScreenReloadClickSequence = 1;
+                                        _lastAutoReloadTime = now;
+                                        _offScreenReloadPerformed = true;
+                                        reloadTriggered = true;
+                                        TriggerReloadRumble(); // [V55y] Configurable reload rumble (EN/FR: Vibration recharge paramétrable)
+                                        SimpleLogger.Instance.Info($"[P{PlayerIndex}] Auto-reload sequence started (1x mRight)");
+                                    }
+
+                                    if (_offScreenReloadClickSequence > 0)
+                                    {
+                                        if (_offScreenReloadClickSequence <= 3) // Hold right-click for 3 frames to ensure game registers it
+                                        {
+                                            mRight = true;
+                                            _offScreenReloadClickSequence++;
+                                        }
+                                        else
+                                        {
+                                            _offScreenReloadClickSequence = -1; // Sequence finished
+                                        }
+                                    }
+                                }
+
+                                // Manual reload via TRIGGER REDIRECT: EVERY physical trigger pulse
+                                // off-screen is redirected to the reload input (mRight) — NOT
+                                // limited to 1 per session ([V55u]: only the "Auto" mode is 1x
+                                // per off-screen session). The redirected state mirrors the
+                                // physical trigger state (press and hold supported).
+                                // (EN/FR: Rechargement manuel par REDIRECTION GÂCHETTE : CHAQUE
+                                // impulsion physique de la gâchette hors écran est redirigée
+                                // vers l'input reload (mRight) — SANS limite de 1 par session
+                                // ([V55u] : seul le mode « Auto » est limité à 1× par session
+                                // hors écran). L'état redirigé reflète l'état physique de la
+                                // gâchette (appui et maintien pris en charge).)
+                                if (rawTrigger)
                                 {
                                     mRight = true;
-                                    reloadTriggered = true;
-                                    _offScreenReloadPerformed = true;
-                                    SimpleLogger.Instance.Info($"[P{PlayerIndex}] Manual reload performed (1x mRight)");
+                                    if (!_osTriggerReloadWasActive)
+                                    {
+                                        // Rising edge of a new deliberate reload press: log + rumble
+                                        // (EN/FR: Front montant d'un nouvel appui reload délibéré : log + vibration)
+                                        reloadTriggered = true;
+                                        TriggerReloadRumble(); // [V55y] Configurable reload rumble (EN/FR: Vibration recharge paramétrable)
+                                        SimpleLogger.Instance.Info($"[P{PlayerIndex}] Trigger reload (redirected to mRight)");
+                                    }
                                 }
+                                _osTriggerReloadWasActive = rawTrigger;
+                            }
+                            else
+                            {
+                                // EN/FR: [V55u] Redirect not active (reload disabled or no first aim yet): reset the edge tracker
+                                _osTriggerReloadWasActive = false;
                             }
                         }
                     }
                     else if (isOnScreen)
                     {
+                        // [V55] ON-screen: TC Cover = hold the TC button (player is aiming = out of cover)
+                        // (EN/FR: À l'ÉCRAN : Planque TC = maintenir le bouton TC (joueur vise = sort de planque))
+                        if (tcCoverActive && _hasAimedAtScreenOnce)
+                        {
+                            ApplyTcCoverHold(ref mLeft, ref mMiddle, ref mRight);
+                        }
+
                         // Debounce logic: If user was holding the trigger off-screen, suppress the shot on-screen until they release it
                         // (EN/FR: Logique anti-rebond: Si le joueur maintenait la gâchette hors écran, on bloque le tir jusqu'au relâchement)
                         if (_suppressLeftClickUntilRelease)
@@ -1338,7 +1591,7 @@ namespace WiimoteGun
                         if (_onScreenConsecutiveFrames >= 3)
                         {
                             _hasAimedAtScreenOnce = true;
-                            _offScreenReloadPerformed = false; // Reset reload authorization for next off-screen session
+                            _offScreenReloadPerformed = false; // [V55u] Reset AUTO reload authorization for next off-screen session
                             if (_offScreenReloadClickSequence != 0)
                             {
                                 _offScreenReloadClickSequence = 0;
@@ -1347,11 +1600,17 @@ namespace WiimoteGun
                     }
                     _wasOnScreen = isOnScreen;
 
-                    // Trigger rumble on reload if enabled (EN/FR: Déclencher vibration au rechargement si activé)
-                    if (reloadTriggered && Options.Instance.GetEnableWeaponRumble(PlayerIndex))
+                    // [V55y] Reload rumble on the PHYSICAL reload button (right-click mapping
+                    // or shake reload gesture) rising edge — fires whether Off-Screen Reload
+                    // is enabled or not (per user spec), on-screen and off-screen.
+                    // (EN/FR: Vibration recharge au front montant du bouton reload PHYSIQUE
+                    // (mapping clic droit ou geste shake) — se déclenche que le Off-Screen
+                    // Reload soit activé ou non (spec utilisateur), à l'écran comme hors écran.)
+                    if (rawReloadButton && !_lastRawReloadButton)
                     {
-                        TriggerWeaponRumble();
+                        TriggerReloadRumble();
                     }
+                    _lastRawReloadButton = rawReloadButton;
 
                     // 4. Update Tracking (Pure Gyro or Absolute IR) (EN/FR: Mise à jour du tracking)
                     if (wasCalibrating || _calculator.IsCalibrating)
@@ -1373,9 +1632,11 @@ namespace WiimoteGun
                             finalY = (int)scaledPos.Value.Y;
 
                             // Smoothing
-                            if (Options.Instance.EnableIRSmoothing && _lastX != 0 && _lastY != 0)
+                            // [V28b] Strength 0 = smoothing disabled for this Wiimote model (V1 or V2 column).
+                            // FR: Force 0 = lissage désactivé pour ce modèle de Wiimote (colonne V1 ou V2).
+                            if (Options.Instance.EnableIRSmoothing && ActiveIRSmoothingStrength > 0 && _lastX != 0 && _lastY != 0)
                             {
-                                float alpha = 1.0f / Math.Max(1, Math.Min(10, Options.Instance.IRSmoothingStrength));
+                                float alpha = 1.0f / Math.Max(1, Math.Min(10, ActiveIRSmoothingStrength));
                                 finalX = (int)(alpha * finalX + (1.0f - alpha) * _lastX);
                                 finalY = (int)(alpha * finalY + (1.0f - alpha) * _lastY);
                             }
@@ -1385,10 +1646,12 @@ namespace WiimoteGun
                             {
                                 velocityX = finalX - _lastX;
                                 velocityY = finalY - _lastY;
-                                if (Options.Instance.UseIRExtrapolation)
+                                // [V28b] Strength 0 = extrapolation disabled for this Wiimote model.
+                                // FR: Force 0 = extrapolation désactivée pour ce modèle de Wiimote.
+                                if (Options.Instance.UseIRExtrapolation && ActiveIRExtrapolationStrength > 0f)
                                 {
-                                    finalX = (int)(finalX + velocityX * Options.Instance.IRExtrapolationStrength);
-                                    finalY = (int)(finalY + velocityY * Options.Instance.IRExtrapolationStrength);
+                                    finalX = (int)(finalX + velocityX * ActiveIRExtrapolationStrength);
+                                    finalY = (int)(finalY + velocityY * ActiveIRExtrapolationStrength);
                                     finalX = Math.Max(0, Math.Min(65535, finalX));
                                     finalY = Math.Max(0, Math.Min(65535, finalY));
                                 }
@@ -1411,6 +1674,50 @@ namespace WiimoteGun
                             _lastY_Raw = finalY;
                             _lastVelX_Diag = velocityX;
                             _lastVelY_Diag = velocityY;
+
+                            // [FIX V25] Push the real position into the replay buffer and
+                            // track burst cycle length (gap > 20ms = burst boundary).
+                            long replayNowTicks = Stopwatch.GetTimestamp();
+                            long replayPrevTicks = _replayLastSampleTicks;
+                            _replayLastSampleTicks = replayNowTicks;
+                            double replayNowMs = replayNowTicks * 1000.0 / Stopwatch.Frequency;
+                            if (replayPrevTicks != 0)
+                            {
+                                double replayPrevMs = replayPrevTicks * 1000.0 / Stopwatch.Frequency;
+                                if (replayNowMs - replayPrevMs > 20.0)
+                                {
+                                    // [FIX V27] Track the dead-gap size (not the full burst period) to size the
+                                    // replay delay. The delay only needs to cover the LARGEST inter-sample gap
+                                    // (dead time before a new batch lands), not the whole burst cycle. V26 sized
+                                    // the delay on the full period EMA (~36-39ms) + 6ms = 42-45ms, which was
+                                    // over-conservative by ~12ms and made the cursor feel unresponsive.
+                                    // FR: Suivre la taille du trou mort (pas le cycle complet) pour dimensionner
+                                    // le délai. Le délai doit seulement couvrir le PLUS GRAND écart entre
+                                    // échantillons, pas tout le cycle de salve. V26 utilisait la période EMA
+                                    // (~36-39ms) + 6ms = 42-45ms, soit ~12ms de trop → curseur peu réactif.
+                                    _burstPeriodEmaMs = _burstPeriodEmaMs <= 0.0 ? (replayNowMs - replayPrevMs) : (0.8 * _burstPeriodEmaMs + 0.2 * (replayNowMs - replayPrevMs));
+                                    _replayDelayMs = Math.Max(22.0, Math.Min(55.0, _burstPeriodEmaMs + 3.0));
+                                }
+                            }
+                            lock (_replayLock)
+                            {
+                                _replayTimeMs.Add(replayNowMs);
+                                _replayX.Add(finalX);
+                                _replayY.Add(finalY);
+                                if (_replayTimeMs.Count > 64)
+                                {
+                                    int excess = _replayTimeMs.Count - 64;
+                                    _replayTimeMs.RemoveRange(0, excess);
+                                    _replayX.RemoveRange(0, excess);
+                                    _replayY.RemoveRange(0, excess);
+                                }
+                                while (_replayTimeMs.Count > 2 && replayNowMs - _replayTimeMs[0] > 250.0)
+                                {
+                                    _replayTimeMs.RemoveAt(0);
+                                    _replayX.RemoveAt(0);
+                                    _replayY.RemoveAt(0);
+                                }
+                            }
                         }
                         else
                         {
@@ -1433,24 +1740,45 @@ namespace WiimoteGun
                         _lockUntilABreleased = false;
 
                     UpdateIRSensorStatus(isOnScreen);
+
+                    // [DIAG] One compact CSV row per StateChanged callback, emitted after cursor
+                    // processing so callback cadence (dt) and hot-path stage costs can be compared
+                    // between V1 and MotionPlus Inside V2. See WiimoteLib/TimingDiagnostics.cs.
+                    TimingDiagnostics.StateReport(
+                        diagStateStart,
+                        e.WiimoteState.ExtensionType.ToString(),
+                        diagGyroUs,
+                        diagIrUs,
+                        diagPositionUs,
+                        ir.IRSensor0.Found,
+                        ir.IRSensor1.Found,
+                        _lastX,
+                        _lastY,
+                        string.Format("dt={0:F3}ms;mode={1};report={2};mp={3}",
+                            diagStateDtMs, _mode, e.WiimoteState.ReportType,
+                            (e.WiimoteState.ExtensionType == ExtensionType.MotionPlus || e.WiimoteState.ExtensionType == ExtensionType.MotionPlusNunchuk) ? 1 : 0));
                 }
 
                 if ((_mode == WiiMoteMode.Mouse || _mode == WiiMoteMode.Mouse43 || _mode == WiiMoteMode.MouseFPS || _mode == WiiMoteMode.Keyboardpad) && _joy != null && _joy.IsEnabled && !_calculator.IsCalibrating)
                 {
                     // Lock keyboard shooting/reloading inputs while off-screen (EN/FR: Bloquer inputs clavier tir/recharge hors écran)
-                    bool lockOffscreenShooting = Options.Instance.EnableOffScreenReload && !isOnScreen;
+                    // [V54] Lock keyboard/mouse outputs while OFF-screen for BOTH modes:
+                    // legacy off-screen reload and TC cover (all outputs are silenced in cover).
+                    // (EN/FR: Verrouiller sorties clavier/souris HORS écran pour les DEUX
+                    // modes : reload hors-écran hérité et planque TC (tout est masqué en planque).)
+                    bool lockOffscreenShooting = (ResolveOffScreenReloadEnabled() || (_playerMappings != null && _playerMappings.TCCoverReload)) && !isOnScreen;
 
                     // Mask inputs if specific button is consumed by hotkey (EN/FR: Masquer inputs si bouton consommé par hotkey)
                     SendKeyEvent(_playerMappings.WiiA, !lockOffscreenShooting && buttons.A && !HotkeyManager.IsButtonConsumed(PlayerIndex, "A"), _lastState.A);
                     SendKeyEvent(_playerMappings.WiiB, !lockOffscreenShooting && buttons.B && !HotkeyManager.IsButtonConsumed(PlayerIndex, "B"), _lastState.B);
-                    SendKeyEvent(_playerMappings.WiiUp, buttons.Up && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Up") && !_isOffsetAdjustmentActive, _lastState.Up);
-                    SendKeyEvent(_playerMappings.WiiDown, buttons.Down && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Down") && !_isOffsetAdjustmentActive, _lastState.Down);
-                    SendKeyEvent(_playerMappings.WiiLeft, buttons.Left && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Left") && !_isOffsetAdjustmentActive, _lastState.Left);
-                    SendKeyEvent(_playerMappings.WiiRight, buttons.Right && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Right") && !_isOffsetAdjustmentActive, _lastState.Right);
+            SendKeyEvent(_playerMappings.WiiUp, buttons.Up && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Up") && !_isOffsetAdjustmentActive && !UI.Modern.Forms.EsProfileTileDialog.IsOpen, _lastState.Up);
+            SendKeyEvent(_playerMappings.WiiDown, buttons.Down && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Down") && !_isOffsetAdjustmentActive && !UI.Modern.Forms.EsProfileTileDialog.IsOpen, _lastState.Down);
+            SendKeyEvent(_playerMappings.WiiLeft, buttons.Left && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Left") && !_isOffsetAdjustmentActive && !UI.Modern.Forms.EsProfileTileDialog.IsOpen, _lastState.Left);
+            SendKeyEvent(_playerMappings.WiiRight, buttons.Right && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Right") && !_isOffsetAdjustmentActive && !UI.Modern.Forms.EsProfileTileDialog.IsOpen, _lastState.Right);
                     SendKeyEvent(_playerMappings.WiiOne, buttons.One && !HotkeyManager.IsButtonConsumed(PlayerIndex, "One"), _lastState.One);
                     SendKeyEvent(_playerMappings.WiiTwo, buttons.Two && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Two"), _lastState.Two);
-                    SendKeyEvent(_playerMappings.WiiPlus, buttons.Plus && !suppressMinusPlus && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Plus"), _lastState.Plus);
-                    SendKeyEvent(_playerMappings.WiiMinus, buttons.Minus && !suppressMinusPlus && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Minus"), _lastState.Minus);
+                    SendKeyEvent(_playerMappings.WiiPlus, buttons.Plus && !suppressMinusPlus && !UI.Modern.Forms.EsProfileTileDialog.IsOpen && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Plus"), _lastState.Plus);
+                    SendKeyEvent(_playerMappings.WiiMinus, buttons.Minus && !suppressMinusPlus && !UI.Modern.Forms.EsProfileTileDialog.IsOpen && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Minus"), _lastState.Minus);
 
                     if (hasNunchuk)
                     {
@@ -1460,6 +1788,68 @@ namespace WiimoteGun
                         SendKeyEvent(_playerMappings.NunDown, nunchuk.Joystick.Y < -0.3f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunDown"), _lastNunchukState.Joystick.Y < -0.3f);
                         SendKeyEvent(_playerMappings.NunLeft, nunchuk.Joystick.X < -0.3f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunLeft"), _lastNunchukState.Joystick.X < -0.3f);
                         SendKeyEvent(_playerMappings.NunRight, nunchuk.Joystick.X > 0.3f && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunRight"), _lastNunchukState.Joystick.X > 0.3f);
+                    }
+
+                    // [V55] TC Bi-Pedal Mouse Mode: Two pedals configured by user (default Left=DPadLeft, Right=DPadRight)
+                    // (EN/FR: Pédale TC bi-directionnelle mode souris : deux pédales configurées)
+                    if (_playerMappings != null && _playerMappings.TCBiPedal && !_playerMappings.TCCoverReload)
+                    {
+                        string leftBtnId = string.IsNullOrEmpty(_playerMappings.TCBiPedalLeftButton) ? "WiiLeft" : _playerMappings.TCBiPedalLeftButton;
+                        string rightBtnId = string.IsNullOrEmpty(_playerMappings.TCBiPedalRightButton) ? "WiiRight" : _playerMappings.TCBiPedalRightButton;
+
+                        bool pLeft = IsPhysicalButtonPressed(leftBtnId, buttons, nunchuk, hasNunchuk);
+                        bool pRight = IsPhysicalButtonPressed(rightBtnId, buttons, nunchuk, hasNunchuk);
+
+                        if (isOnScreen)
+                        {
+                            if (pLeft && !pRight) _mouseBiPedalActive = -1;
+                            if (pRight && !pLeft) _mouseBiPedalActive = 1;
+
+                            System.Windows.Forms.Keys targetKey = System.Windows.Forms.Keys.None;
+                            if (_mouseBiPedalActive == -1)
+                            {
+                                ButtonAction bAct = GetPhysicalButtonAction(leftBtnId) ?? _playerMappings.WiiLeft;
+                                targetKey = (bAct != null && bAct.Key != System.Windows.Forms.Keys.None) ? bAct.Key : System.Windows.Forms.Keys.Left;
+                            }
+                            else if (_mouseBiPedalActive == 1)
+                            {
+                                ButtonAction bAct = GetPhysicalButtonAction(rightBtnId) ?? _playerMappings.WiiRight;
+                                targetKey = (bAct != null && bAct.Key != System.Windows.Forms.Keys.None) ? bAct.Key : System.Windows.Forms.Keys.Right;
+                            }
+
+                            if (targetKey != _mouseBiPedalHeldKey)
+                            {
+                                if (_mouseBiPedalHeldKey != System.Windows.Forms.Keys.None)
+                                    _joy.SendKeyEvent(_mouseBiPedalHeldKey, false);
+                                _mouseBiPedalHeldKey = targetKey;
+                                if (_mouseBiPedalHeldKey != System.Windows.Forms.Keys.None)
+                                    _joy.SendKeyEvent(_mouseBiPedalHeldKey, true);
+                            }
+                        }
+                        else
+                        {
+                            // [V56a] TC Bi-Pedal: entering cover (ON->OFF transition). The pedal
+                            // input is RELEASED (= taking cover = TC reload) — vibrate exactly
+                            // here, once per transition, same principle as the single TC cover.
+                            // (EN/FR: Pédale TC bi-directionnelle : entrée en planque (transition
+                            // ON->OFF). L'entrée pédale est RELÂCHÉE (= se planquer = rechargement
+                            // TC) — vibrer exactement ici, une seule fois par transition, même
+                            // principe que la planque TC sur un seul bouton.)
+                            if (_mouseBiPedalWasOnScreen && _hasAimedAtScreenOnce)
+                            {
+                                TriggerReloadRumble();
+                            }
+
+                            if (_mouseBiPedalHeldKey != System.Windows.Forms.Keys.None)
+                            {
+                                _joy.SendKeyEvent(_mouseBiPedalHeldKey, false);
+                                _mouseBiPedalHeldKey = System.Windows.Forms.Keys.None;
+                            }
+                        }
+
+                        // [V56a] Track the on-screen state for the cover-enter transition detection
+                        // (EN/FR: Suivre l'état à l'écran pour la détection de transition d'entrée en planque)
+                        _mouseBiPedalWasOnScreen = isOnScreen;
                     }
 
                     // --- Keyboard/Mouse Motion Action Processor (EN/FR: Traitement Actions Souris via Mouvement) ---
@@ -1611,18 +2001,23 @@ namespace WiimoteGun
                     // --- FINALLY: Send Mouse State (EN/FR: ENFIN : Envoyer l'état de la souris) ---
                     if (_virtualMouse != null)
                     {
-                        if (Options.Instance.EnableVirtualPolling)
+                        // [FIX V23a/V23b] Movement is delegated to the prediction thread ONLY when it
+                        // actually runs (rate > 0). At rate 0 the prediction is disabled, so the real
+                        // thread must move the cursor or it freezes (observed: pointer static until a button press).
+                        // FR: Le mouvement est délégué au thread de prédiction SEULEMENT quand il
+                        // s'exécute réellement (rate > 0). À rate 0 la prédiction est désactivée, donc le
+                        // thread réel doit déplacer le curseur sinon il gèle (constaté: pointeur immobile jusqu'à un bouton).
+                        // [V28] Rate is resolved per Wiimote model (V2 TR column in options).
+                        // FR: Le taux est résolu selon le modèle de Wiimote (colonne V2 TR dans les options).
+                        if (Options.Instance.EnableVirtualPolling && ActiveVirtualPollingRate > 0)
                         {
                             // Real thread only sends clicks, Virtual Polling thread handles cursor movement
                             // We MUST pass isAbsolute=true and _lastX_Raw/_lastY_Raw so VMulti uses the absolute digitizer for clicks
-                            if (_lastMoveCursor_Raw)
-                                _virtualMouse.UpdateMouse(_lastX_Raw, _lastY_Raw, mLeft, mRight, mMiddle, false, true);
-                            else
-                                _virtualMouse.UpdateMouse(_lastX_Raw, _lastY_Raw, mLeft, mRight, mMiddle, false, true);
+                            _virtualMouse.UpdateMouse(_lastX_Raw, _lastY_Raw, mLeft, mRight, mMiddle, false, true);
                         }
                         else
                         {
-                            // Standard polling handles both cursor movement and clicks
+                            // Standard polling (or Virtual Polling with low target rate) handles both cursor movement and clicks
                             if (_lastMoveCursor_Raw)
                                 _virtualMouse.UpdateMouse(_lastX_Raw, _lastY_Raw, mLeft, mRight, mMiddle, true, true);
                             else
@@ -1675,12 +2070,326 @@ namespace WiimoteGun
             _joy.SendKeyEvent(action.Key, pressed);
         }
 
+        // =====================================================================================
+        // [V55] TC COVER AUTO-RELOAD (EN/FR: PLANQUE TC - AUTO-RECHARGEMENT)
+        // Time Crisis (CORRECTED): aiming ON-screen HOLDS the TC button (exit cover),
+        // aiming OFF-screen RELEASES it (enter cover). Inhibits legacy off-screen
+        // reload functions while active for the profile.
+        // =====================================================================================
+        private bool _tcKeyHeld = false;                                       // A TC key is currently held down (EN/FR: Touche TC tenue)
+        private System.Windows.Forms.Keys _tcHeldKey = System.Windows.Forms.Keys.None;
+        private bool _gpTcHasAimedOnce = false;                                // GamePad side: has aimed at the screen once (EN/FR: A visé l'écran au moins une fois)
+        private bool _gpTcWasOnScreen = false;                                 // GamePad side: was on-screen in TC Cover (EN/FR: Était à l'écran en planque TC)
+        private bool _gpFireWasPressed = false;                                // [V56] GamePad: previous frame state of the physical fire button (EN/FR: État bouton tir physique à la frame précédente)
+        private bool _gpReloadBtnWasPressed = false;                            // [V56] GamePad: previous frame state of the physical reload button (EN/FR: État bouton reload physique à la frame précédente)
+        private bool _gpFireHeldRumble = false;                                // [V56a] GamePad: fire button held ON-screen (continuous rumble source, like mouse mode)
+        private bool _mouseBiPedalWasOnScreen = false;                          // [V56a] Mouse TC Bi-Pedal: was on-screen last frame (cover-enter detection)
+        private bool _gpBiPedalWasOnScreen = false;                             // [V56a] GamePad TC Bi-Pedal: was on-screen last frame (cover-enter detection)
+
+        // [V55] Off-Screen Reload GamePad state (EN/FR: État Reload hors-écran GamePad)
+        private bool _gpOffScreenReloadPerformed = false;  // One reload per off-screen session (EN/FR: 1 reload par session hors écran)
+        private bool _gpWasOnScreen = false;               // Was on-screen previous frame (EN/FR: Était à l'écran frame précédente)
+        private bool _gpHasAimedOnce = false;              // Has aimed at screen since startup (EN/FR: A visé l'écran depuis le démarrage)
+        private DateTime _gpLastAutoReloadTime = DateTime.MinValue; // Cooldown for auto reload (EN/FR: Cooldown auto-reload)
+
+        // [V55] TC Bi-directional Pedal state (EN/FR: État Pédale TC bi-directionnelle)
+        // 0=none, -1=Left held, 1=Right held
+        private int _gpBiPedalActive = 0;
+        private int _mouseBiPedalActive = 0;
+        private System.Windows.Forms.Keys _mouseBiPedalHeldKey = System.Windows.Forms.Keys.None;
+
+        /// <summary>
+        /// EN: [V54] Effective legacy Off-Screen Reload state: per-profile override (-1 = follow global).
+        /// FR: [V54] État effectif du reload hors-écran hérité : override par profil (-1 = suivre le global).
+        /// </summary>
+        private bool ResolveOffScreenReloadEnabled()
+        {
+            if (_playerMappings == null) return Options.Instance.EnableOffScreenReload;
+            if (_playerMappings.OffScreenReloadOverride == 1) return true;
+            if (_playerMappings.OffScreenReloadOverride == 0) return false;
+            return Options.Instance.EnableOffScreenReload;
+        }
+
+        /// <summary>
+        /// EN: [V55] Effective Auto Off-Screen Reload state: per-profile override (-1=follow global).
+        /// FR: [V55] État effectif du mode Auto Reload hors-écran : override par profil (-1=suivre le global).
+        /// </summary>
+        private bool ResolveOffScreenAutoEnabled()
+        {
+            if (_playerMappings == null) return Options.Instance.OffScreenReloadAuto;
+            if (_playerMappings.OffScreenAutoOverride == 1) return true;
+            if (_playerMappings.OffScreenAutoOverride == 0) return false;
+            return Options.Instance.OffScreenReloadAuto;
+        }
+
+        /// <summary>
+        /// EN: [V54] Resolve the TC cover action (mouse mode). Null = hold the right-click
+        /// (the existing auto behavior) — used for "auto" or an empty forced mapping.
+        /// FR: [V54] Résout l'action planque TC (mode souris). Null = maintenir le clic
+        /// droit (comportement auto existant) — utilisé pour "auto" ou un mapping forcé vide.
+        /// </summary>
+        private ButtonAction ResolveTcCoverAction()
+        {
+            if (_playerMappings == null) return null;
+            string id = _playerMappings.TCCoverButton;
+            if (string.IsNullOrEmpty(id) || id.Equals("auto", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            ButtonAction act = GetPhysicalButtonAction(id);
+            if (act == null || (act.Special == SpecialAction.None && act.Key == System.Windows.Forms.Keys.None))
+                return null; // Empty mapping -> fallback right-click hold (EN/FR: Mapping vide -> repli clic droit)
+            return act;
+        }
+
+        private ButtonAction GetPhysicalButtonAction(string id)
+        {
+            switch (id)
+            {
+                case "WiiA": return _playerMappings.WiiA;
+                case "WiiB": return _playerMappings.WiiB;
+                case "WiiOne": return _playerMappings.WiiOne;
+                case "WiiTwo": return _playerMappings.WiiTwo;
+                case "WiiPlus": return _playerMappings.WiiPlus;
+                case "WiiMinus": return _playerMappings.WiiMinus;
+                case "NunC": return _playerMappings.NunC;
+                case "NunZ": return _playerMappings.NunZ;
+                default: return null;
+            }
+        }
+
+        /// <summary>
+        /// EN: [V54] Hold the TC cover action while OFF-screen (mouse mode): a mouse
+        /// button stays pressed every frame, a keyboard key is sent DOWN once and
+        /// tracked for release.
+        /// FR: [V54] Maintien de l'action planque TC HORS écran (mode souris) : un bouton
+        /// souris reste pressé à chaque frame, une touche clavier est envoyée ENFONCÉE
+        /// une seule fois et suivie pour le relâchement.
+        /// </summary>
+        private void ApplyTcCoverHold(ref bool mLeft, ref bool mMiddle, ref bool mRight)
+        {
+            ButtonAction act = ResolveTcCoverAction();
+            if (act == null) { mRight = true; return; } // Auto / empty = right-click hold (EN/FR: Auto / vide = clic droit maintenu)
+
+            if (act.Special == SpecialAction.RightMouse) mRight = true;
+            else if (act.Special == SpecialAction.LeftMouse) mLeft = true;
+            else if (act.Special == SpecialAction.MiddleMouse) mMiddle = true;
+            else if (act.Key != System.Windows.Forms.Keys.None)
+            {
+                if (!_tcKeyHeld || _tcHeldKey != act.Key)
+                {
+                    if (_tcKeyHeld && _tcHeldKey != System.Windows.Forms.Keys.None)
+                        _joy.SendKeyEvent(_tcHeldKey, false); // Safety: release a previously held key (EN/FR: Sécurité : relâcher l'ancienne touche)
+                    _tcHeldKey = act.Key;
+                    _joy.SendKeyEvent(act.Key, true);
+                    _tcKeyHeld = true;
+                    SimpleLogger.Instance.Info($"[P{PlayerIndex}] TC cover: holding key '{act.Key}' (off-screen)");
+                }
+            }
+        }
+
+        /// <summary>
+        /// EN: [V54] Release the TC cover key when back ON-screen.
+        /// FR: [V54] Relâche la touche planque TC au retour à l'écran.
+        /// </summary>
+        private void ReleaseTcCoverKey()
+        {
+            if (!_tcKeyHeld) return;
+            if (_tcHeldKey != System.Windows.Forms.Keys.None)
+            {
+                _joy.SendKeyEvent(_tcHeldKey, false);
+                SimpleLogger.Instance.Info($"[P{PlayerIndex}] TC cover: released key '{_tcHeldKey}' (on-screen)");
+            }
+            _tcKeyHeld = false;
+            _tcHeldKey = System.Windows.Forms.Keys.None;
+        }
+
+        /// <summary>
+        /// EN: [V54] GamePad side: resolve the TC button's GamePad mapping. "auto" = the
+        /// physical button mapped to right-click on the mouse side, applied to the
+        /// GamePad side; fallback B.
+        /// FR: [V54] Côté GamePad : résout le mapping GamePad du bouton TC. "auto" = le
+        /// bouton physique mappé clic droit côté souris, appliqué côté GamePad ; repli B.
+        /// </summary>
+        private GamePadButton ResolveTcGamePadButton(GamePadMappings mappings)
+        {
+            string id = mappings.TCCoverButton;
+            if (string.IsNullOrEmpty(id) || id.Equals("auto", StringComparison.OrdinalIgnoreCase))
+            {
+                id = FindRightClickPhysicalButtonName();
+                if (id == null) return mappings.WiiB; // Fallback: B (EN/FR: Repli : B)
+            }
+
+            GamePadButton b = GamePadButtonForName(mappings, id);
+            return b != GamePadButton.None ? b : mappings.WiiB;
+        }
+
+        private GamePadButton GamePadButtonForName(GamePadMappings m, string id)
+        {
+            switch (id)
+            {
+                case "WiiA": return m.WiiA;
+                case "WiiB": return m.WiiB;
+                case "Wii1":
+                case "WiiOne": return m.Wii1;
+                case "Wii2":
+                case "WiiTwo": return m.Wii2;
+                case "Wii+":
+                case "WiiPlus": return m.WiiPlus;
+                case "Wii-":
+                case "WiiMinus": return m.WiiMinus;
+                case "NunchukC":
+                case "NunC": return m.NunchukC;
+                case "NunchukZ":
+                case "NunZ": return m.NunchukZ;
+                default: return GamePadButton.None;
+            }
+        }
+
+        /// <summary>
+        /// EN: [V54] Name of the first physical button mapped to RIGHT-CLICK on the mouse
+        /// side, null when none is mapped. Used by the GamePad TC auto resolution.
+        /// FR: [V54] Nom du premier bouton physique mappé sur CLIC DROIT côté souris,
+        /// null si aucun. Utilisé par la résolution auto TC côté GamePad.
+        /// </summary>
+        private string FindRightClickPhysicalButtonName()
+        {
+            PlayerMappings pm = Options.Instance.GetMappingsForPlayer(PlayerIndex);
+            if (pm == null) return null;
+            if (IsRightMouse(pm.WiiA)) return "WiiA";
+            if (IsRightMouse(pm.WiiB)) return "WiiB";
+            if (IsRightMouse(pm.WiiOne)) return "WiiOne";
+            if (IsRightMouse(pm.WiiTwo)) return "WiiTwo";
+            if (IsRightMouse(pm.WiiPlus)) return "WiiPlus";
+            if (IsRightMouse(pm.WiiMinus)) return "WiiMinus";
+            if (IsRightMouse(pm.NunC)) return "NunC";
+            if (IsRightMouse(pm.NunZ)) return "NunZ";
+            return null;
+        }
+
+        private static bool IsRightMouse(ButtonAction a)
+        {
+            return a != null && a.Special == SpecialAction.RightMouse;
+        }
+
+        /// <summary>
+        /// EN: [V55] Checks if a configured physical button ID is pressed.
+        /// FR: [V55] Vérifie si l'ID d'un bouton physique configuré est pressé.
+        /// </summary>
+        private bool IsPhysicalButtonPressed(string buttonId, ButtonState buttons, NunchukState nunchuk, bool hasNunchuk)
+        {
+            if (string.IsNullOrEmpty(buttonId)) return false;
+            switch (buttonId)
+            {
+                case "WiiLeft":
+                case "DPadLeft":
+                    return buttons.Left && !HotkeyManager.IsButtonConsumed(PlayerIndex, "WiiLeft") && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Left");
+                case "WiiRight":
+                case "DPadRight":
+                    return buttons.Right && !HotkeyManager.IsButtonConsumed(PlayerIndex, "WiiRight") && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Right");
+                case "WiiUp":
+                case "DPadUp":
+                    return buttons.Up && !HotkeyManager.IsButtonConsumed(PlayerIndex, "WiiUp") && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Up");
+                case "WiiDown":
+                case "DPadDown":
+                    return buttons.Down && !HotkeyManager.IsButtonConsumed(PlayerIndex, "WiiDown") && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Down");
+                case "WiiA":
+                    return buttons.A && !HotkeyManager.IsButtonConsumed(PlayerIndex, "WiiA") && !HotkeyManager.IsButtonConsumed(PlayerIndex, "A");
+                case "WiiB":
+                    return buttons.B && !HotkeyManager.IsButtonConsumed(PlayerIndex, "WiiB") && !HotkeyManager.IsButtonConsumed(PlayerIndex, "B");
+                case "WiiOne":
+                    return buttons.One && !HotkeyManager.IsButtonConsumed(PlayerIndex, "WiiOne") && !HotkeyManager.IsButtonConsumed(PlayerIndex, "One");
+                case "WiiTwo":
+                    return buttons.Two && !HotkeyManager.IsButtonConsumed(PlayerIndex, "WiiTwo") && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Two");
+                case "WiiPlus":
+                    return buttons.Plus && !HotkeyManager.IsButtonConsumed(PlayerIndex, "WiiPlus") && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Plus");
+                case "WiiMinus":
+                    return buttons.Minus && !HotkeyManager.IsButtonConsumed(PlayerIndex, "WiiMinus") && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Minus");
+                case "NunC":
+                    return hasNunchuk && nunchuk.C && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunC");
+                case "NunZ":
+                    return hasNunchuk && nunchuk.Z && !HotkeyManager.IsButtonConsumed(PlayerIndex, "NunZ");
+                case "auto":
+                    string rc = FindRightClickPhysicalButtonName();
+                    if (!string.IsNullOrEmpty(rc) && !rc.Equals("auto", StringComparison.OrdinalIgnoreCase))
+                        return IsPhysicalButtonPressed(rc, buttons, nunchuk, hasNunchuk);
+                    return buttons.A && !HotkeyManager.IsButtonConsumed(PlayerIndex, "A");
+                default:
+                    return false;
+            }
+        }
+
+        // [V42] Long-press PLUS state (EN/FR: État appui long PLUS)
+        private DateTime _plusHoldStartUtc = DateTime.MinValue;
+        private bool _plusLongPressFired = false;
+
         /// <summary>
         /// Detect button changes and notify HotkeyManager for hotkey processing
         /// (EN/FR: Détecter changements de boutons et notifier HotkeyManager pour traitement hotkeys)
         /// </summary>
         private void DetectHotkeyButtonChanges(ButtonState currentState, ButtonState lastState, NunchukState currentNunchuk, NunchukState lastNunchuk, bool hasNunchuk)
         {
+            // [V42] Long-press PLUS (>= 1s) on ANY connected Wiimote requests the profile
+            // tile modal (profiles concern all players at once).
+            // [V49] While the modal is OPEN: PLUS (single click) = validate the focused
+            // tile/button, MINUS = back inside a folder / close at root.
+            // (EN/FR: Appui long PLUS (>= 1s) sur N'IMPORTE QUELLE wiimote connectée
+            // demande la modale. Modale OUVERTE : PLUS (un clic) = valider la tuile/bouton
+            // focus, MINUS = retour dans un dossier / fermer à la racine.)
+            try
+            {
+                bool esTileOpen = UI.Modern.Forms.EsProfileTileDialog.IsOpen;
+
+                if (esTileOpen)
+                {
+                    // Single-click remote control (EN/FR: Télécommande un clic)
+                    if (currentState.Plus && !lastState.Plus)
+                        UI.Modern.Forms.EsProfileTileDialog.NotifyWiimotePlus();
+                    if (currentState.Minus && !lastState.Minus)
+                        UI.Modern.Forms.EsProfileTileDialog.NotifyWiimoteMinus();
+
+                    // [V52] DPad remote control: the PHYSICAL wiimote DPad navigates the
+                    // modal in ANY mode (Mouse, XInput GamePad, DInput GamePad) — the
+                    // button is read directly, BEFORE the virtual driver, so the driver
+                    // (DInput or XInput) does not matter.
+                    // (EN/FR: Télécommande DPad : le DPad PHYSIQUE de la wiimote navigue
+                    // la modale dans N'IMPORTE QUEL mode (Souris, XInput, DInput) — le
+                    // bouton est lu directement, AVANT le pilote virtuel, donc le pilote
+                    // n'a aucune importance.)
+                    if (currentState.Up && !lastState.Up)
+                        UI.Modern.Forms.EsProfileTileDialog.NotifyWiimoteDirection(0, -1);
+                    if (currentState.Down && !lastState.Down)
+                        UI.Modern.Forms.EsProfileTileDialog.NotifyWiimoteDirection(0, 1);
+                    if (currentState.Left && !lastState.Left)
+                        UI.Modern.Forms.EsProfileTileDialog.NotifyWiimoteDirection(-1, 0);
+                    if (currentState.Right && !lastState.Right)
+                        UI.Modern.Forms.EsProfileTileDialog.NotifyWiimoteDirection(1, 0);
+                }
+
+                if (currentState.Plus && !esTileOpen && Options.Instance.EsTileHotkeyEnabled &&
+                    !HotkeyManager.IsButtonConsumed(PlayerIndex, "Plus"))
+                {
+                    if (_plusHoldStartUtc == DateTime.MinValue) _plusHoldStartUtc = DateTime.UtcNow;
+
+                    // [V43] Configurable delay (default 4s): coexists with custom hotkeys
+                    // using [+] — short presses never trigger the modal.
+                    // (EN/FR: Délai configurable (4s par défaut) : coexiste avec les hotkeys
+                    // custom utilisant [+] — les pressions courtes ne déclenchent jamais la modale.)
+                    long delayMs = Options.Instance.EsTileHotkeyDelayMs > 0 ? Options.Instance.EsTileHotkeyDelayMs : 4000;
+                    if (!_plusLongPressFired && (DateTime.UtcNow - _plusHoldStartUtc).TotalMilliseconds >= delayMs)
+                    {
+                        _plusLongPressFired = true;
+                        SimpleLogger.Instance.Info($"[P{PlayerIndex}] Long press PLUS ({delayMs}ms): requesting profile tile modal");
+                        EsScriptIntegration.RaiseTileModalRequested();
+                    }
+                }
+                else
+                {
+                    _plusHoldStartUtc = DateTime.MinValue;
+                    _plusLongPressFired = false;
+                }
+            }
+            catch { }
+
             // Check each button for state changes (EN/FR: Vérifier chaque bouton pour changements d'état)
             CheckButtonStateChange("Home", currentState.Home, lastState.Home);
             CheckButtonStateChange("A", currentState.A, lastState.A);
@@ -1820,34 +2529,72 @@ namespace WiimoteGun
 
         private void SwitchMode(Wiimote wiimote)
         {
-            int modeVal = (int)_mode;
-            bool foundValidMode = false;
+            int modeVal;
 
-            while (!foundValidMode)
+            // [V55m] When mode is locked during game session: only allow 4:3 toggle within active mode family!
+            // Mouse <-> Mouse43, GamePad <-> GamePad43.
+            // (EN/FR: [V55m] Quand verrouillé en session de jeu : autoriser uniquement la bascule 4:3 dans la famille active !)
+            if (_modeLocked)
             {
-                modeVal++;
-
-                // Wrap around if past Disabled (EN/FR: Boucler si au-delà de Disabled)
-                if (modeVal > (int)WiiMoteMode.Disabled)
-                    modeVal = 0;
-
-                WiiMoteMode nextMode = (WiiMoteMode)modeVal;
-                foundValidMode = true;
-
-                // Skip GamePad modes if option is not enabled (EN/FR: Passer les modes GamePad si option non activée)
-                if ((nextMode == WiiMoteMode.GamePad || nextMode == WiiMoteMode.GamePad43 || nextMode == WiiMoteMode.GamePadFPS) 
-                    && !Options.Instance.EnableGamePadSwapMode)
+                if (_mode == WiiMoteMode.Mouse)
+                    modeVal = (int)WiiMoteMode.Mouse43;
+                else if (_mode == WiiMoteMode.Mouse43)
+                    modeVal = (int)WiiMoteMode.Mouse;
+                else if (_mode == WiiMoteMode.MouseFPS)
+                    modeVal = (int)WiiMoteMode.Mouse43;
+                else if (_mode == WiiMoteMode.GamePad)
+                    modeVal = (int)WiiMoteMode.GamePad43;
+                else if (_mode == WiiMoteMode.GamePad43)
+                    modeVal = (int)WiiMoteMode.GamePad;
+                else if (_mode == WiiMoteMode.GamePadFPS)
+                    modeVal = (int)WiiMoteMode.GamePad43;
+                else
                 {
-                    foundValidMode = false;
-                    continue;
+                    SimpleLogger.Instance.Info($"[P{PlayerIndex}] SwitchMode blocked (mode locked to {_mode}, no 4:3 swap available)");
+                    return;
                 }
 
-                // Skip FPS modes if option is not enabled (EN/FR: Passer les modes FPS si option non activée)
-                if ((nextMode == WiiMoteMode.MouseFPS || nextMode == WiiMoteMode.GamePadFPS) 
-                    && !Options.Instance.EnableFPSMode)
+                SimpleLogger.Instance.Info($"[P{PlayerIndex}] Mode locked - 4:3 toggle: {_mode} -> {(WiiMoteMode)modeVal}");
+            }
+            else
+            {
+                modeVal = (int)_mode;
+                bool foundValidMode = false;
+
+                while (!foundValidMode)
                 {
-                    foundValidMode = false;
-                    continue;
+                    modeVal++;
+
+                    // Wrap around if past Disabled (EN/FR: Boucler si au-delà de Disabled)
+                    if (modeVal > (int)WiiMoteMode.Disabled)
+                        modeVal = 0;
+
+                    WiiMoteMode nextMode = (WiiMoteMode)modeVal;
+                    foundValidMode = true;
+
+                    // Skip GamePad modes if option is not enabled (EN/FR: Passer les modes GamePad si option non activée)
+                    if ((nextMode == WiiMoteMode.GamePad || nextMode == WiiMoteMode.GamePad43 || nextMode == WiiMoteMode.GamePadFPS) 
+                        && !Options.Instance.EnableGamePadSwapMode)
+                    {
+                        foundValidMode = false;
+                        continue;
+                    }
+
+                    // Skip FPS modes if option is not enabled (EN/FR: Passer les modes FPS si option non activée)
+                    if ((nextMode == WiiMoteMode.MouseFPS || nextMode == WiiMoteMode.GamePadFPS) 
+                        && !Options.Instance.EnableFPSMode)
+                    {
+                        foundValidMode = false;
+                        continue;
+                    }
+
+                    // [V55] Skip Keyboardpad mode: removed from Home swap cycle in this fork
+                    // (EN/FR: [V55] Mode Keyboardpad supprimé de la séquence Home dans ce fork)
+                    if (nextMode == WiiMoteMode.Keyboardpad)
+                    {
+                        foundValidMode = false;
+                        continue;
+                    }
                 }
             }
 
@@ -1897,6 +2644,18 @@ namespace WiimoteGun
             {
                 // Entering GamePad mode - enable Col06 and connect
                 // (EN/FR: Entrer mode GamePad - activer Col06 et connecter)
+
+                // [V31] Ensure the GamePad default.remap fallback profile exists
+                // (EN/FR: Garantir l'existence du profil de repli default.remap GamePad)
+                try
+                {
+                    RemapProfileManager.EnsureDefaultGamePadProfile();
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.Instance.Warning(string.Format("[GamePad P{0}] Failed to ensure default GamePad profile: {1}", PlayerIndex, ex.Message));
+                }
+
                 try
                 {
                     // Initialize Virtual Gamepad settings (EN/FR: Initialiser les paramètres du Gamepad Virtuel)
@@ -2062,25 +2821,29 @@ namespace WiimoteGun
             {
                 Program.Notify(string.Format("WiimoteGun P{0} : {1}", PlayerIndex, modeName));
             }
+            else if (_mode == WiiMoteMode.Keyboardpad)
+            {
+                // [V55] Keyboardpad mode is kept for internal use but NOT announced
+                // (EN/FR: Mode Keyboardpad conservé en interne mais non annoncé via notification)
+            }
             else
             {
                 Program.Notify(string.Format("WiimoteGun P{0} : {1} activated", PlayerIndex, modeName));
                 if (_mode == WiiMoteMode.GamePad || _mode == WiiMoteMode.GamePad43 || _mode == WiiMoteMode.GamePadFPS)
                 {
                     string activeProfile = Program.GetActiveGamePadProfileName();
-                    if (!string.IsNullOrEmpty(activeProfile))
+                    if (!string.IsNullOrEmpty(activeProfile) && !_modeLocked)
                     {
                         // EN: Delay profile notification to appear after mode notification (avoid overlap)
-                        // FR: Retarder la notification du profil pour qu'elle apparaisse après la notification de mode (éviter chevauchement)
+                        // FR: Retarder la notification du profil pour qu'elle apparaisse apres la notification de mode
                         System.Threading.ThreadPool.QueueUserWorkItem(_ =>
                         {
-                            System.Threading.Thread.Sleep(2500); // 2.5 second delay to be sure first one is gone
+                            System.Threading.Thread.Sleep(2500);
                             Program.Notify($"GamePad Profile: {activeProfile}");
                         });
                     }
                 }
             }
-
             // EN: Trigger profile updates when mode changes to ensure tags are updated in emulators
             // FR: Déclencher la mise à jour des profils lors du changement de mode pour mettre à jour les tags
             Program.WiiMoteManager?.RefreshAllDInputIndices();
@@ -2094,6 +2857,25 @@ namespace WiimoteGun
         /// (EN/FR: Bloque SwitchMode pendant une courte période après ouverture/annulation calibration.
         /// Empêche le changement de mode accidentel quand Home ferme la calibration.)
         /// </summary>
+        // [V55] Mode lock on ES game-start (EN/FR: Verrouillage du mode au lancement de jeu ES)
+        private bool _modeLocked = false;
+
+        /// <summary>
+        /// EN: [V55] Lock or unlock the current WiimoteGun mode. When locked, the Home button
+        /// cannot cycle modes. Called by Program.cs on ES game-start / game-end events.
+        /// FR: [V55] Verrouille ou déverrouille le mode actuel. Quand verrouillé, le bouton
+        /// Home ne peut pas changer le mode. Appelé par Program.cs lors des événements
+        /// game-start / game-end ES.
+        /// </summary>
+        public void LockMode(bool locked)
+        {
+            _modeLocked = locked;
+            if (locked)
+                SimpleLogger.Instance.Info($"[P{PlayerIndex}] Mode locked to {_mode} (4:3 toggle permitted)");
+            else
+                SimpleLogger.Instance.Info($"[P{PlayerIndex}] Mode unlocked");
+        }
+
         private DateTime _modeSwitchBlockedUntil = DateTime.MinValue;
 
         private void ManageCalibration(Wiimote wiimote, ButtonState buttons, ButtonState lastState, Point2F? scaledPos)
@@ -2313,7 +3095,12 @@ namespace WiimoteGun
         {
             // Trigger rumble if trigger still pressed and continuous mode enabled (EN/FR: Déclencher vibration si gâchette maintenue et mode continu activé)
             // CRITICAL: Also check if IR sensor is active to prevent rumble loop when off-screen (EN/FR: Vérifier aussi si capteur IR actif pour éviter boucle vibration hors écran)
-            if (_isTriggerPressed && _hasIRSensor && Options.Instance.GetAllowContinuousRumble(PlayerIndex))
+            // [V56a] Also accept the GamePad fire button held ON-screen: full parity with
+            // the mouse-mode trigger rumble (same Assign intensity/duration).
+            // (EN/FR: Accepter aussi le bouton tir GamePad maintenu À l'écran : parité
+            // complète avec la vibration de gâchette du mode souris.)
+            if (((_isTriggerPressed && _hasIRSensor) || _gpFireHeldRumble) &&
+                Options.Instance.GetAllowContinuousRumble(PlayerIndex))
             {
                 TriggerWeaponRumble();
             }
@@ -2332,12 +3119,21 @@ namespace WiimoteGun
             
             if (durationMs > 0)
             {
-                _isRumbling = true;
-                
                 try
                 {
                     if (Wiimote != null && Wiimote.IsConnected)
                     {
+                        // [V55y] Latch _isRumbling ONLY on a successful start: the old code
+                        // set it BEFORE the connection check, so a rumble requested during
+                        // a transient disconnect latched the flag forever and silenced ALL
+                        // later reload rumbles ("two long vibrations then nothing").
+                        // (EN/FR: Verrouiller _isRumbling SEULEMENT après un démarrage réussi :
+                        // l'ancien code le fixait AVANT la vérification de connexion, donc une
+                        // vibration demandée pendant une déconnexion transitoire verrouillait
+                        // le drapeau pour toujours et réduisait au silence TOUTES les
+                        // vibrations de recharge suivantes (« deux vibrations puis plus rien »).)
+                        _isRumbling = true;
+
                         Wiimote.SetRumble(true);
                         
                         // Schedule rumble stop (EN/FR: Programmer arrêt vibration)
@@ -2354,6 +3150,244 @@ namespace WiimoteGun
                     _isRumbling = false;
                 }
             }
+        }
+
+        // ====================================================================
+        // [V55y] RELOAD RUMBLE ENGINE (EN/FR: MOTEUR DE VIBRATION RECHARGEMENT)
+        // Plays a configurable rumble pattern when a RELOAD occurs, whatever its
+        // source: off-screen Auto sequence, off-screen trigger redirect, physical
+        // reload button press (right-click mapping / shake reload gesture) — even
+        // when Off-Screen Reload is disabled. Patterns simulate a weapon reload
+        // ("crique-crique" mechanical style by default). Intensity (0-100) scales
+        // the ON pulses (the Wiimote motor is binary: intensity is achieved via
+        // pulse width). Robust by design: NO latched state — every path ends with
+        // the rumble stopped and the flag cleared.
+        // (EN/FR: Joue un motif de vibration configurable quand une RECHARGE survient,
+        // quelle que soit sa source : séquence Auto hors écran, redirection gâchette
+        // hors écran, appui du bouton reload physique (mapping clic droit / geste
+        // shake) — même si le Off-Screen Reload est désactivé. Les motifs simulent
+        // un rechargement d'arme (style « crique-crique » mécanique par défaut).
+        // L'intensité (0-100) met à l'échelle les impulsions ON (le moteur de la
+        // Wiimote est binaire : l'intensité passe par la largeur d'impulsion).
+        // Robuste par conception : AUCUN état verrouillé — chaque chemin se termine
+        // par la vibration arrêtée et le drapeau libéré.)
+        // ====================================================================
+
+        /// <summary>
+        /// EN: [V55y/V55z] Build the rumble pattern for a style, with intensity applied.
+        /// Style 0 = "Ratchet": short mechanical clicks then a chunk (weapon reload feel).
+        /// Style 1 = Short: single pulse. Style 2 = Long: single continuous pulse.
+        /// Style 3 = Custom: N tics of (OnMs, OffMs) configured in Options > Gestures.
+        /// Intensity (0-100) maps to a 0.25x..3x multiplier on the ON pulses, so the whole
+        /// slider range is perceptible and 100% is clearly the maximum (the Wiimote motor
+        /// is binary: intensity is achieved via pulse width).
+        /// Every pattern ends with an OFF step so the sequence always finishes stopped.
+        /// FR: [V55y/V55z] Construit le motif de vibration pour un style, intensité appliquée.
+        /// Style 0 = « Ratchet » : petits clics mécaniques puis une taloche (sensation de
+        /// rechargement d'arme). Style 1 = Court : impulsion unique. Style 2 = Long :
+        /// impulsion continue. Style 3 = Personnalisé : N tics (OnMs, OffMs) configurés
+        /// dans Options > Gestures. L'intensité (0-100) correspond à un multiplicateur
+        /// 0,25×..3× sur les impulsions ON : toute la plage du curseur est perceptible et
+        /// 100 % est clairement le maximum (le moteur de la Wiimote est binaire :
+        /// l'intensité passe par la largeur d'impulsion). Tout motif se termine par une
+        /// étape OFF pour finir arrêté.
+        /// </summary>
+        private static int[] BuildReloadRumblePattern(int style, int intensity)
+        {
+            // [V55z] Intensity multiplier: 0% -> 0.25x, 50% -> 1.625x, 100% -> 3x
+            // (EN/FR: Multiplicateur d'intensité : 0% -> 0,25×, 50% -> 1,625×, 100% -> 3×)
+            int clampedIntensity = Math.Min(100, Math.Max(0, intensity));
+            double mult = 0.25 + (2.75 * clampedIntensity / 100.0);
+
+            int[] raw;
+            switch (style)
+            {
+                case 1:
+                    raw = new int[] { 120, 60 };   // Short: single pulse (EN/FR: Court : impulsion unique)
+                    break;
+                case 2:
+                    raw = new int[] { 420, 60 };   // Long: continuous (EN/FR: Long : continue)
+                    break;
+                case 3:
+                {
+                    // [V55z] Custom: N tics of (OnMs, OffMs) from Options > Gestures
+                    // (EN/FR: Personnalisé : N tics (OnMs, OffMs) depuis Options > Gestures)
+                    int ticks = Math.Min(10, Math.Max(1, Options.Instance.ReloadRumbleCustomTicks));
+                    int onMs = Math.Min(500, Math.Max(10, Options.Instance.ReloadRumbleCustomOnMs));
+                    int offMs = Math.Min(500, Math.Max(10, Options.Instance.ReloadRumbleCustomOffMs));
+                    System.Collections.Generic.List<int> custom = new System.Collections.Generic.List<int>();
+                    for (int t = 0; t < ticks; t++)
+                    {
+                        custom.Add(onMs);
+                        custom.Add(offMs);
+                    }
+                    raw = custom.ToArray();
+                    break;
+                }
+                default:
+                    // 0 = Ratchet: click-click-click... CHNK (mechanical reload)
+                    // (EN/FR: Ratchet : clic-clic-clic... TCHAK - rechargement mécanique)
+                    raw = new int[] { 45, 55, 45, 55, 45, 55, 110, 70, 60, 90 };
+                    break;
+            }
+
+            // EN/FR: Intensity scales the ON pulses (even indexes); 15ms floor keeps it perceptible
+            int[] pattern = new int[raw.Length];
+            for (int i = 0; i < raw.Length; i++)
+            {
+                if (i % 2 == 0)
+                {
+                    int on = (int)(raw[i] * mult);
+                    pattern[i] = Math.Max(15, on);
+                }
+                else
+                {
+                    pattern[i] = raw[i];
+                }
+            }
+            return pattern;
+        }
+
+        /// <summary>
+        /// EN: [V55y] Start playing a reload rumble pattern (no overlap: ignored while
+        /// already playing). Takes over the weapon rumble if one is running so the two
+        /// never fight over the motor.
+        /// FR: [V55y] Démarre la lecture d'un motif de vibration rechargement (pas de
+        /// chevauchement : ignoré pendant une lecture en cours). Prend la main sur la
+        /// vibration d'arme si une est en cours pour qu'elles ne se disputent jamais le moteur.
+        /// </summary>
+        private void PlayReloadRumblePattern(bool enabled, int intensity, int style)
+        {
+            if (!enabled) return;
+            if (intensity <= 0) return;
+            if (_isReloadRumbling) return; // Already playing (EN/FR: Lecture en cours)
+
+            _reloadRumblePattern = BuildReloadRumblePattern(style, intensity);
+            if (_reloadRumblePattern == null || _reloadRumblePattern.Length == 0) return;
+
+            // EN/FR: Take over the weapon rumble if it is running (avoid SetRumble fights)
+            if (_isRumbling) StopRumble();
+
+            _reloadRumbleStepIdx = 0;
+            _isReloadRumbling = true;
+            _reloadRumbleTimer?.Change(0, Timeout.Infinite); // Start on the next tick
+        }
+
+        /// <summary>
+        /// EN: [V55y] Reload rumble sequencer step: alternates the motor ON/OFF following
+        /// the pattern. Always terminates cleanly (flag cleared, motor stopped).
+        /// FR: [V55y] Étape du séquenceur : alterne le moteur ON/OFF selon le motif.
+        /// Se termine toujours proprement (drapeau libéré, moteur arrêté).
+        /// </summary>
+        private void ReloadRumbleStepCallback(object state)
+        {
+            try
+            {
+                if (!_isReloadRumbling) return;
+
+                int[] pattern = _reloadRumblePattern;
+                if (pattern == null || _reloadRumbleStepIdx >= pattern.Length)
+                {
+                    FinishReloadRumble();
+                    return;
+                }
+
+                bool on = (_reloadRumbleStepIdx % 2 == 0);
+                int ms = pattern[_reloadRumbleStepIdx];
+                _reloadRumbleStepIdx++;
+
+                try
+                {
+                    if (Wiimote != null && Wiimote.IsConnected) Wiimote.SetRumble(on);
+                }
+                catch { }
+
+                _reloadRumbleTimer?.Change(Math.Max(10, ms), Timeout.Infinite);
+            }
+            catch
+            {
+                FinishReloadRumble();
+            }
+        }
+
+        /// <summary>
+        /// EN: [V55y] Stop the reload rumble and clear its state (never latches).
+        /// FR: [V55y] Arrête la vibration rechargement et libère son état (jamais verrouillé).
+        /// </summary>
+        private void FinishReloadRumble()
+        {
+            _isReloadRumbling = false;
+            _reloadRumbleStepIdx = 0;
+            try
+            {
+                if (Wiimote != null && Wiimote.IsConnected) Wiimote.SetRumble(false);
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// EN: [V55y] Effective reload rumble state (mouse profiles): per-profile override
+        /// (-1 = follow Options > Gestures global).
+        /// FR: [V55y] État effectif vibration rechargement (profils souris) : override par
+        /// profil (-1 = suivre le global Options > Gestures).
+        /// </summary>
+        private bool ResolveReloadRumbleEnabled()
+        {
+            if (_playerMappings != null)
+            {
+                if (_playerMappings.ReloadRumbleOverride == 1) return true;
+                if (_playerMappings.ReloadRumbleOverride == 0) return false;
+            }
+            return Options.Instance.ReloadRumbleEnabled;
+        }
+
+        private int ResolveReloadRumbleIntensity()
+        {
+            int v = (_playerMappings != null && _playerMappings.ReloadRumbleIntensityOverride >= 0)
+                ? _playerMappings.ReloadRumbleIntensityOverride
+                : Options.Instance.ReloadRumbleIntensity;
+            return Math.Min(100, Math.Max(0, v));
+        }
+
+        private int ResolveReloadRumbleStyle()
+        {
+            int v = (_playerMappings != null && _playerMappings.ReloadRumbleStyleOverride >= 0)
+                ? _playerMappings.ReloadRumbleStyleOverride
+                : Options.Instance.ReloadRumbleStyle;
+            // [V55z] 0=Ratchet, 1=Short, 2=Long, 3=Custom
+            return (v >= 0 && v <= 3) ? v : 0;
+        }
+
+        /// <summary>
+        /// EN: [V55y] Trigger the reload rumble (mouse mode: resolves the profile overrides).
+        /// FR: [V55y] Déclenche la vibration rechargement (mode souris : résout les overrides profil).
+        /// </summary>
+        private void TriggerReloadRumble()
+        {
+            PlayReloadRumblePattern(ResolveReloadRumbleEnabled(), ResolveReloadRumbleIntensity(), ResolveReloadRumbleStyle());
+        }
+
+        /// <summary>
+        /// EN: [V55y] Trigger the reload rumble (GamePad mode: resolves the GamePad profile
+        /// overrides, falling back to the global options).
+        /// FR: [V55y] Déclenche la vibration rechargement (mode GamePad : résout les overrides
+        /// du profil GamePad, à défaut les options globales).
+        /// </summary>
+        private void TriggerReloadRumble(GamePadMappings mappings)
+        {
+            bool enabled = Options.Instance.ReloadRumbleEnabled;
+            int intensity = Options.Instance.ReloadRumbleIntensity;
+            int style = Options.Instance.ReloadRumbleStyle;
+
+            if (mappings != null)
+            {
+                if (mappings.ReloadRumbleOverride == 1) enabled = true;
+                else if (mappings.ReloadRumbleOverride == 0) enabled = false;
+                if (mappings.ReloadRumbleIntensityOverride >= 0) intensity = mappings.ReloadRumbleIntensityOverride;
+                if (mappings.ReloadRumbleStyleOverride >= 0) style = mappings.ReloadRumbleStyleOverride;
+            }
+
+            PlayReloadRumblePattern(enabled, Math.Min(100, Math.Max(0, intensity)), (style >= 0 && style <= 3) ? style : 0);
         }
 
         private void StopRumble()
@@ -2625,7 +3659,7 @@ namespace WiimoteGun
                 // Also suppress ANY button consumed by a hotkey combo
                 bool homePressed = state.Buttons.Home && !_isOffsetAdjustmentActive && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Home");
                 bool minusPressed = state.Buttons.Minus && !_isOffsetAdjustmentActive && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Minus");
-                bool dpadActive = !_isOffsetAdjustmentActive;
+                bool dpadActive = !_isOffsetAdjustmentActive && !UI.Modern.Forms.EsProfileTileDialog.IsOpen; // [V52] No double navigation while the tile modal is open (the wiimote DPad drives it directly)
 
                 // --- Hybrid Mode Logic ---
                 bool hasNunchuk = state.ExtensionType == ExtensionType.Nunchuk || state.ExtensionType == ExtensionType.MotionPlusNunchuk;
@@ -2789,8 +3823,21 @@ namespace WiimoteGun
                 _lastHybridActive = isHybridActive;
 
                 // Regular GamePad Buttons (disabled during hybrid)
-                _virtualGamepad.SetButton(mappings.WiiA, !isHybridActive && state.Buttons.A && !HotkeyManager.IsButtonConsumed(PlayerIndex, "A"));
-                _virtualGamepad.SetButton(mappings.WiiB, !isHybridActive && state.Buttons.B && !HotkeyManager.IsButtonConsumed(PlayerIndex, "B"));
+                // [V56c] While the tile modal is open, the wiimote A/B drive the modal
+                // DIRECTLY (native wiring: A = validate, B = back). Suppress them on the
+                // virtual gamepad too, so a ViGEm (XInput) or VMulti gamepad polled by the
+                // modal never double-activates. Physical XInput controllers are unaffected
+                // (they are not driven by the wiimote).
+                // (EN/FR: Pendant que la modale tuiles est ouverte, les A/B de la wiimote
+                // pilotent la modale DIRECTEMENT (câblage natif : A = valider, B = retour).
+                // Les supprimer aussi sur le gamepad virtuel, pour qu'un gamepad ViGEm
+                // (XInput) ou VMulti sondé par la modale ne double-actionne jamais.
+                // Les manettes XInput physiques ne sont pas affectées (elles ne sont pas
+                // pilotées par la wiimote).)
+                bool modalNavActive = UI.Modern.Forms.EsProfileTileDialog.IsOpen;
+
+                _virtualGamepad.SetButton(mappings.WiiA, !isHybridActive && state.Buttons.A && !modalNavActive && !HotkeyManager.IsButtonConsumed(PlayerIndex, "A"));
+                _virtualGamepad.SetButton(mappings.WiiB, !isHybridActive && state.Buttons.B && !modalNavActive && !HotkeyManager.IsButtonConsumed(PlayerIndex, "B"));
                 _virtualGamepad.SetButton(mappings.Wii1, !isHybridActive && state.Buttons.One && !HotkeyManager.IsButtonConsumed(PlayerIndex, "One"));
                 _virtualGamepad.SetButton(mappings.Wii2, !isHybridActive && state.Buttons.Two && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Two"));
                 _virtualGamepad.SetButton(mappings.WiiPlus, !isHybridActive && state.Buttons.Plus && !HotkeyManager.IsButtonConsumed(PlayerIndex, "Plus"));
@@ -2840,6 +3887,211 @@ namespace WiimoteGun
                         }
                     }
                 }
+
+                // [V55n] TC Cover GamePad (Time Crisis pedal hold/release)
+                // Runs independently of Nunchuk presence (standard GunCon / Wiimote configuration).
+                // (EN/FR: Planque TC GamePad : maintien/relâche de la pédale Time Crisis.
+                // S'exécute indépendamment de la présence du Nunchuk - config GunCon standard.)
+                if (mappings.TCCoverReload)
+                {
+                    bool tcOnScreen = scaledPos.HasValue;
+                    if (tcOnScreen) _gpTcHasAimedOnce = true;
+
+                    GamePadButton tcButton = ResolveTcGamePadButton(mappings);
+
+                    if (_gpTcHasAimedOnce && tcOnScreen) // ON-screen = hold (exit cover)
+                    {
+                        if (tcButton != GamePadButton.None)
+                            _virtualGamepad.SetButton(tcButton, true); // HOLD while aiming on-screen (EN/FR: MAINTENU en visant l'écran)
+
+                        if (!_gpTcWasOnScreen)
+                        {
+                            _gpTcWasOnScreen = true;
+                            SimpleLogger.Instance.Info($"[GamePad P{PlayerIndex}] TC Cover: ON-screen (exit cover) -> HOLD {tcButton} ({mappings.TCCoverButton})");
+                        }
+                    }
+                    else if (_gpTcWasOnScreen)
+                    {
+                        _gpTcWasOnScreen = false;
+                        // [V56] Entering cover (ON->OFF transition) = TC reload -> rumble
+                        // (EN/FR: Entrée en planque (transition ON->OFF) = rechargement TC -> vibration)
+                        TriggerReloadRumble(mappings);
+                        SimpleLogger.Instance.Info($"[GamePad P{PlayerIndex}] TC Cover: OFF-screen (in cover) -> RELEASE {tcButton} ({mappings.TCCoverButton})");
+                    }
+                    // OFF-screen: physical state governs (button released unless physically held)
+                    // (EN/FR: Hors écran : état physique prime - bouton relâché sauf si physiquement maintenu)
+                }
+
+                // [V55] Off-Screen Reload GamePad: 0=Off, 1=Trigger, 2=Auto
+                // Sends a brief A-button press to reload when off-screen (works like mouse mode equivalent).
+                // Runs independently of Nunchuk presence.
+                // (EN/FR: Reload hors-écran GamePad : 0=Off, 1=Trigger, 2=Auto
+                // Envoie une pression brève du bouton A pour recharger hors écran. S'exécute sans Nunchuk.)
+                if (mappings.OffScreenReloadMode > 0 && !mappings.TCCoverReload)
+                {
+                    bool gpOnScreen = scaledPos.HasValue;
+                    if (gpOnScreen)
+                    {
+                        _gpHasAimedOnce = true;
+                        if (_gpWasOnScreen == false)
+                        {
+                            // Returned to screen: re-arm reload
+                            // (EN/FR: Retour à l'écran : réarmer le reload)
+                            _gpOffScreenReloadPerformed = false;
+                        }
+                        _gpWasOnScreen = true;
+                    }
+                    else if (_gpHasAimedOnce) // off-screen
+                    {
+                        _gpWasOnScreen = false;
+
+                        if (mappings.OffScreenReloadMode == 2) // Auto
+                        {
+                            // One auto-reload when transitioning off-screen (cooldown 250ms)
+                            // (EN/FR: Une recharge auto à la sortie de l'écran - cooldown 250ms)
+                            if (!_gpOffScreenReloadPerformed &&
+                                (DateTime.Now - _gpLastAutoReloadTime).TotalMilliseconds >= 250)
+                            {
+                                _gpOffScreenReloadPerformed = true;
+                                _gpLastAutoReloadTime = DateTime.Now;
+                                // Send A-button (reload) for 1 frame via the mapping
+                                // (EN/FR: Envoyer bouton A (reload) pour 1 frame via le mapping)
+                                GamePadButton reloadBtn = mappings.WiiA;
+                                if (reloadBtn != GamePadButton.None)
+                                    _virtualGamepad.SetButton(reloadBtn, true);
+                                TriggerReloadRumble(mappings); // [V55y] Configurable reload rumble (EN/FR: Vibration recharge paramétrable)
+                                SimpleLogger.Instance.Info($"[P{PlayerIndex}] GP Auto-reload fired (off-screen)");
+                            }
+                        }
+                        else if (mappings.OffScreenReloadMode == 1) // Trigger
+                        {
+                            // Manual: press A (fire) off-screen to reload once
+                            // (EN/FR: Manuel : appuyer sur A (tir) hors écran pour recharger une fois)
+                            bool rawA = state.Buttons.A && !HotkeyManager.IsButtonConsumed(PlayerIndex, "A") && !HotkeyManager.IsButtonConsumed(PlayerIndex, "WiiA");
+                            bool rawB = state.Buttons.B && !HotkeyManager.IsButtonConsumed(PlayerIndex, "B") && !HotkeyManager.IsButtonConsumed(PlayerIndex, "WiiB");
+                            if ((rawA || rawB) && !_gpOffScreenReloadPerformed)
+                            {
+                                _gpOffScreenReloadPerformed = true;
+                                GamePadButton reloadBtn = mappings.WiiA;
+                                if (reloadBtn != GamePadButton.None)
+                                    _virtualGamepad.SetButton(reloadBtn, true);
+                                TriggerReloadRumble(mappings); // [V55y] Configurable reload rumble (EN/FR: Vibration recharge paramétrable)
+                                SimpleLogger.Instance.Info($"[P{PlayerIndex}] GP Trigger-reload fired (off-screen)");
+                            }
+                        }
+                    }
+                }
+
+                // [V56] PHYSICAL FIRE / RELOAD rumble buttons (GamePad mode)
+                // - FireButton (default B): its ON-screen press triggers the weapon rumble
+                //   (same feature as the mouse-mode trigger rumble, gated by the per-player
+                //   weapon rumble option). OFF-screen presses are left to the off-screen
+                //   reload logic (Trigger mode) which fires its own reload rumble.
+                // - OffScreenReloadButton (default 2): its press triggers the reload rumble,
+                //   ON-screen and OFF-screen, gated by the global Reload Rumble option and
+                //   the per-profile override (works whether Off-Screen Reload is enabled or not).
+                // (EN/FR: BOUTONS physiques TIR / RECHARGE (mode GamePad) :
+                // - FireButton (défaut B) : son appui À l'écran déclenche la vibration d'arme
+                //   (même fonction que la vibration de gâchette en mode souris, gated sur
+                //   l'option de vibration d'arme par joueur). Les appuis HORS écran relèvent
+                //   de la logique reload hors écran (mode Trigger) qui déclenche sa propre
+                //   vibration de recharge.
+                // - OffScreenReloadButton (défaut 2) : son appui déclenche la vibration de
+                //   recharge, À l'écran comme HORS écran, gated sur l'option globale Reload
+                //   Rumble et l'override par profil (fonctionne que le Off-Screen Reload
+                //   soit activé ou non).)
+                {
+                    string gpFireId = string.IsNullOrEmpty(mappings.FireButton) ? "WiiB" : mappings.FireButton;
+                    bool gpFireRaw = IsGamePadButtonPressed(gpFireId, state.Buttons, state.Nunchuk, hasNunchuk);
+
+                    // [V56a] FULL PARITY with the mouse-mode trigger rumble: intensity and
+                    // duration come from "Assign wiimotes" (TriggerWeaponRumble reads
+                    // GetRumbleDurationMs/GetRumbleIntensity), and the CONTINUOUS repetition
+                    // runs while the fire button is held ON-screen when AllowContinuousRumble
+                    // is enabled (GetRumbleRepetitionMs), stopping on release.
+                    // (EN/FR: PARITÉ COMPLÈTE avec la vibration de gâchette du mode souris :
+                    // l'intensité et la durée viennent d'« Assign wiimotes » (TriggerWeaponRumble
+                    // lit GetRumbleDurationMs/GetRumbleIntensity), et la répétition CONTINUE
+                    // tourne tant que le bouton de tir est maintenu À l'écran quand
+                    // AllowContinuousRumble est activé (GetRumbleRepetitionMs), arrêt au relâchement.)
+                    bool gpFireRumbleActive = gpFireRaw && scaledPos.HasValue && Options.Instance.GetEnableWeaponRumble(PlayerIndex);
+                    _gpFireHeldRumble = gpFireRumbleActive;
+
+                    if (gpFireRaw && !_gpFireWasPressed && gpFireRumbleActive)
+                    {
+                        TriggerWeaponRumble(); // [V56] On-screen fire press -> weapon rumble (EN/FR: Appui tir à l'écran -> vibration d'arme)
+
+                        if (Options.Instance.GetAllowContinuousRumble(PlayerIndex))
+                        {
+                            int intervalMs = Options.Instance.GetRumbleRepetitionMs(PlayerIndex);
+                            _rumbleTimer?.Change(intervalMs, intervalMs);
+                        }
+                    }
+                    else if (!gpFireRaw && _gpFireWasPressed)
+                    {
+                        _rumbleTimer?.Change(Timeout.Infinite, Timeout.Infinite); // [V56a] Release -> stop the continuous rumble
+                    }
+                    _gpFireWasPressed = gpFireRaw;
+
+                    string gpReloadId = string.IsNullOrEmpty(mappings.OffScreenReloadButton) ? "Wii2" : mappings.OffScreenReloadButton;
+                    bool gpReloadRaw = IsGamePadButtonPressed(gpReloadId, state.Buttons, state.Nunchuk, hasNunchuk);
+                    if (gpReloadRaw && !_gpReloadBtnWasPressed)
+                    {
+                        TriggerReloadRumble(mappings); // [V56] Physical reload button press -> reload rumble (EN/FR: Appui bouton reload physique -> vibration recharge)
+                    }
+                    _gpReloadBtnWasPressed = gpReloadRaw;
+                }
+
+                // [V55] TC Bi-directional Pedal: DPad Left/Right hold a direction while aiming on-screen
+                // [V55] TC Bi-directional Pedal: Two pedals configured by user (default Left=DPadLeft, Right=DPadRight)
+                // Runs independently of Nunchuk presence.
+                // (EN/FR: Pédale TC bi-directionnelle : deux pédales configurées, défaut G=DPadLeft, D=DPadRight.
+                // S'exécute indépendamment de la présence du Nunchuk.)
+                if (mappings.TCBiPedal && !mappings.TCCoverReload)
+                {
+                    bool biOnScreen = scaledPos.HasValue;
+                    string leftBtnId = string.IsNullOrEmpty(mappings.TCBiPedalLeftButton) ? "WiiLeft" : mappings.TCBiPedalLeftButton;
+                    string rightBtnId = string.IsNullOrEmpty(mappings.TCBiPedalRightButton) ? "WiiRight" : mappings.TCBiPedalRightButton;
+
+                    bool dLeft  = IsPhysicalButtonPressed(leftBtnId, state.Buttons, state.Nunchuk, hasNunchuk);
+                    bool dRight = IsPhysicalButtonPressed(rightBtnId, state.Buttons, state.Nunchuk, hasNunchuk);
+
+                    if (biOnScreen)
+                    {
+                        // On-screen: process new direction requests
+                        // (EN/FR: À l'écran : traiter les nouvelles demandes de direction)
+                        if (dLeft && !dRight)  _gpBiPedalActive = -1;  // Left pedal
+                        if (dRight && !dLeft)  _gpBiPedalActive =  1;  // Right pedal
+                    }
+                    else
+                    {
+                        // [V56a] TC Bi-Pedal: entering cover (ON->OFF transition). The pedal input
+                        // is RELEASED (= taking cover = TC reload) — vibrate exactly here, once
+                        // per transition, same principle as the single TC cover.
+                        // (EN/FR: Pédale TC bi-directionnelle : entrée en planque (transition
+                        // ON->OFF). L'entrée pédale est RELÂCHÉE (= se planquer = rechargement
+                        // TC) — vibrer exactement ici, une seule fois par transition, même
+                        // principe que la planque TC sur un seul bouton.)
+                        if (_gpBiPedalWasOnScreen)
+                        {
+                            TriggerReloadRumble(mappings);
+                        }
+
+                        // Off-screen: release without changing state
+                        // (EN/FR: Hors écran : relâcher sans changer l'état)
+                        _gpBiPedalActive = 0;
+                    }
+
+                    // Apply the held direction as DPad button state
+                    // (EN/FR: Appliquer la direction tenue comme état du DPad)
+                    _virtualGamepad.SetButton(GamePadButton.DPadLeft,  _gpBiPedalActive == -1);
+                    _virtualGamepad.SetButton(GamePadButton.DPadRight, _gpBiPedalActive ==  1);
+
+                    // [V56a] Track the on-screen state for the cover-enter transition detection
+                    // (EN/FR: Suivre l'état à l'écran pour la détection de transition d'entrée en planque)
+                    _gpBiPedalWasOnScreen = biOnScreen;
+                }
+
 
                 // --- IR Sensor Axis ---
                 bool irFound = scaledPos.HasValue;
@@ -3403,40 +4655,130 @@ namespace WiimoteGun
             if (!Options.Instance.EnableVirtualPolling || _mode == WiiMoteMode.Disabled) return;
             if (!_lastMoveCursor_Raw) return;
 
-            // Short-circuit: Do not send virtual reports if the target rate is close to native Wiimote (100Hz)
-            // (EN/FR: Ne pas envoyer de rapports virtuels si le taux est proche du natif Wiimote)
-            if (Options.Instance.VirtualPollingRate <= 110) return;
+            // [FIX V23b] Allow prediction at ANY rate > 0 (previously short-circuited at <= 110).
+            // With the V2 TR streaming at ~83Hz, a rate of 100 makes the prediction FILL the 12ms gaps
+            // between real reports without upsampling beyond the native rate.
+            // FR: Autoriser la prédiction à TOUT taux > 0 (précédemment court-circuitée à <= 110).
+            // Avec la V2 TR qui stream à ~83Hz, un taux de 100 fait combler par la prédiction les gaps
+            // de 12ms entre rapports réels sans dépasser le taux natif.
+            // [V28] Rate is resolved per Wiimote model (V2 TR column in options).
+            // (EN/FR: Le taux est résolu selon le modèle de Wiimote.)
+            if (ActiveVirtualPollingRate <= 0) return;
 
-            // Calculate time since last real report (for prediction vector) 
-            // and time since any report (for rate limiting synchronization)
-            // (EN/FR: Calculer temps depuis dernier rapport réel et depuis n'importe quel rapport)
             DateTime now = GetNow();
-            double msSinceLastReal = (now - _lastProcessingTime).TotalMilliseconds;
             double msSinceLastAny = (now - _lastAnyReportTime).TotalMilliseconds;
 
-            // Target interval for the configured polling rate (e.g. 4.0ms for 250Hz)
-            // (EN/FR: Intervalle cible pour le taux configuré)
-            double targetIntervalMs = 1000.0 / Options.Instance.VirtualPollingRate;
+            double targetIntervalMs = 1000.0 / Math.Max(1, ActiveVirtualPollingRate);
 
-            // Only predict if within a reasonable window (EN/FR: Prédire uniquement dans une fenêtre raisonnable)
-            // AND if enough time has passed to maintain the target rate (synchronization)
-            // We use a 0.85 factor to allow for slight jitter while being closer to target than additive
-            if (msSinceLastReal > 1.0 && msSinceLastReal < 20.0 && msSinceLastAny >= (targetIntervalMs * 0.85))
+            // Rate limiting: keep the output on the configured uniform grid.
+            // (EN/FR: Limitation de débit : garder la sortie sur la grille uniforme configurée.)
+            if (msSinceLastAny >= 0 && msSinceLastAny < (targetIntervalMs * 0.85)) return;
+
+            double nowMs = Stopwatch.GetTimestamp() * 1000.0 / Stopwatch.Frequency;
+
+            // [FIX V25] If burst cycles stopped recurring, drop the retiming mode.
+            // (EN/FR: Si les cycles de salves ne se reproduisent plus, abandonner le re-chronométrage.)
+            if (_burstPeriodEmaMs > 0.0 && _lastBurstBoundaryMs >= 0.0 && nowMs - _lastBurstBoundaryMs > 500.0)
+                _burstPeriodEmaMs = 0.0;
+
+            int outX = 0, outY = 0;
+            bool havePosition = false;
+
+            // [FIX V25] Retiming path: replay the buffered real positions, interpolated at
+            // (now - replayDelay). Converts 2-4 report batches every ~30-40ms into a perfectly
+            // uniform output stream at the configured rate. Only engages when burst cycles
+            // are actually recurring (measured period 20-100ms), i.e. on affected links.
+            // FR: Chemin de re-chronométrage : rejouer les positions réelles du tampon, interpolées
+            // à (now - délai). Convertit les salves de 2-4 rapports tous les ~30-40ms en flux de
+            // sortie parfaitement uniforme au taux configuré. Ne s'active que si des cycles de
+            // salves se reproduisent réellement (période mesurée 20-100ms).
+            if (_burstPeriodEmaMs > 0.0 && _burstPeriodEmaMs < 100.0)
             {
-                // Predict position using last known velocity
-                // Multiplier (msSinceLastReal / 10.0) approximates frames (10ms per frame)
-                float frameFactor = (float)(msSinceLastReal / 10.0);
-                
-                int predX = (int)(_lastX_Raw + _lastVelX_Diag * frameFactor);
-                int predY = (int)(_lastY_Raw + _lastVelY_Diag * frameFactor);
-
-                predX = Math.Max(0, Math.Min(65535, predX));
-                predY = Math.Max(0, Math.Min(65535, predY));
-
-                // Send extrapolated update
-                _virtualMouse.UpdateMouse(predX, predY, _lastLeft_Raw, _lastRight_Raw, _lastMiddle_Raw, true);
-                _lastAnyReportTime = now;
+                double targetMs = nowMs - _replayDelayMs;
+                lock (_replayLock)
+                {
+                    int n = _replayTimeMs.Count;
+                    if (n >= 2 && nowMs - _replayTimeMs[n - 1] < 80.0)
+                    {
+                        if (targetMs <= _replayTimeMs[0])
+                        {
+                            outX = _replayX[0];
+                            outY = _replayY[0];
+                            havePosition = true;
+                        }
+                        else
+                        {
+                            for (int i = n - 2; i >= 0; i--)
+                            {
+                                if (_replayTimeMs[i] <= targetMs)
+                                {
+                                    double span = _replayTimeMs[i + 1] - _replayTimeMs[i];
+                                    double f = span > 0.0 ? (targetMs - _replayTimeMs[i]) / span : 0.0;
+                                    outX = (int)(_replayX[i] + (_replayX[i + 1] - _replayX[i]) * f);
+                                    outY = (int)(_replayY[i] + (_replayY[i + 1] - _replayY[i]) * f);
+                                    havePosition = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
             }
+
+            if (!havePosition)
+            {
+                // Fallback: plain velocity extrapolation (V23a behavior), used while the
+                // burst period is not yet measured or on links without burst aggregation.
+                // (EN/FR: Repli : extrapolation de vélocité simple (V23a), utilisée tant que la
+                // période des salves n'est pas mesurée ou sur les liens sans agrégation.)
+                double msSinceLastReal = (now - _lastProcessingTime).TotalMilliseconds;
+                if (!(msSinceLastReal > 1.0 && msSinceLastReal < 20.0)) return;
+
+                // [FIX V23a] Scale the prediction by the MEASURED average report interval instead of a
+                // hardcoded 10ms. V2 TR Wiimotes stream at ~83Hz (12ms gaps), so the old /10.0 factor
+                // overshot every tick by ~20% and made stuttering worse at 110-300Hz.
+                // FR: Calibrer la prédiction sur l'intervalle moyen MESURÉ au lieu d'un 10ms codé en dur.
+                // Les Wiimotes V2 TR streament à ~83Hz (gaps de 12ms), donc l'ancien facteur /10.0
+                // dépassait chaque tick de ~20% et aggravait le bégaiement à 110-300Hz.
+                float frameFactor = (float)(msSinceLastReal / Math.Max(1.0, _avgReportIntervalMs));
+
+                // [FIX V23a] Use an EMA-smoothed velocity for prediction: the raw per-report IR delta is
+                // noisy and made the predicted position oscillate ahead/back of the real one.
+                // FR: Utiliser une vélocité lissée EMA pour la prédiction : le delta IR brut par rapport
+                // est bruité et faisait osciller la position prédite devant/derrière la position réelle.
+                _smoothPredVelX = (0.5f * _lastVelX_Diag) + (0.5f * _smoothPredVelX);
+                _smoothPredVelY = (0.5f * _lastVelY_Diag) + (0.5f * _smoothPredVelY);
+
+                outX = (int)(_lastX_Raw + _smoothPredVelX * frameFactor);
+                outY = (int)(_lastY_Raw + _smoothPredVelY * frameFactor);
+            }
+
+            outX = Math.Max(0, Math.Min(65535, outX));
+            outY = Math.Max(0, Math.Min(65535, outY));
+
+            // [DIAG] Output-side rate: what the cursor ACTUALLY receives after V25 retiming.
+            // (EN/FR: Taux côté sortie : ce que le curseur reçoit RÉELLEMENT après le
+            // re-chronométrage V25. replay% élevé + Hz réguliers = de-jitter engagé.)
+            _diagOutEmissions++;
+            if (havePosition && _burstPeriodEmaMs > 0.0 && _burstPeriodEmaMs < 100.0) _diagOutReplay++;
+            else _diagOutFallback++;
+            if (_diagOutWindowStartMs < 0.0) _diagOutWindowStartMs = nowMs;
+            else if (nowMs - _diagOutWindowStartMs >= 5000.0)
+            {
+                double outRate = _diagOutEmissions / ((nowMs - _diagOutWindowStartMs) / 1000.0);
+                long total = _diagOutReplay + _diagOutFallback;
+                int replayPct = total > 0 ? (int)(_diagOutReplay * 100 / total) : 0;
+                SimpleLogger.Instance.Info(string.Format(
+                    "[P{0}] [DIAG] Output: {1:F0} Hz, replay: {2}%, delay: {3:F0}ms, burstEMA: {4:F0}ms",
+                    PlayerIndex, outRate, replayPct, _replayDelayMs, _burstPeriodEmaMs));
+                _diagOutEmissions = 0;
+                _diagOutReplay = 0;
+                _diagOutFallback = 0;
+                _diagOutWindowStartMs = nowMs;
+            }
+
+            _virtualMouse.UpdateMouse(outX, outY, _lastLeft_Raw, _lastRight_Raw, _lastMiddle_Raw, true);
+            _lastAnyReportTime = now;
         }
     }
 

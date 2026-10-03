@@ -14,6 +14,11 @@ namespace WiimoteGun
         private EmulatorProcessMonitor _emulatorMonitor;
         private System.Threading.Timer _refreshTimer; // Debounce timer for DInput refresh (EN/FR: Timer d'anti-rebond)
 
+        // [V55] BT Watchdog: timer for auto BT reset when no Wiimote connects
+        // (EN/FR: Watchdog BT : timer pour reset BT auto si aucune Wiimote ne se connecte)
+        private System.Threading.Timer _btWatchdogTimer;
+        private readonly object _btWatchdogLock = new object();
+
         public int ConnectedWiimotesCount { get { return _controllers.Count; } }
         public IEnumerable<WiiMoteController> Controllers { get { return _controllers.AsReadOnly(); } }
 
@@ -56,12 +61,23 @@ namespace WiimoteGun
             WiimoteManager.Connected += OnWiimoteConnected;
             WiimoteManager.Disconnected += OnWiimoteDisconnected;
             WiimoteManager.WiimoteException += OnWiimoteException;
+            // [V55v] Record real failed connection attempts as BT-reset evidence
+            // (EN/FR: Enregistrer les véritables tentatives de connexion échouées comme preuve de reset BT)
+            WiimoteManager.ConnectionFailed += OnWiimoteConnectionFailed;
 
             WiimoteManager.StartDiscovery();
 
             // Start monitoring for emulator startup during runtime (EN/FR: Surveiller démarrage émulateur)
             _emulatorMonitor.EmulatorStarted += OnEmulatorStarted;
             _emulatorMonitor.StartMonitoring();
+
+            // [V55] Arm BT watchdog after startup grace period (2s), in case no Wiimote connects at all
+            // (EN/FR: Armer le watchdog BT après délai de démarrage (2s), si aucune Wiimote ne se connecte)
+            System.Threading.Tasks.Task.Delay(2000).ContinueWith(_ =>
+            {
+                if (_controllers.Count == 0)
+                    ArmBtWatchdog();
+            });
         }
 
         public void Dispose()
@@ -69,6 +85,10 @@ namespace WiimoteGun
             WiimoteManager.Connected -= OnWiimoteConnected;
             WiimoteManager.Disconnected -= OnWiimoteDisconnected;
             WiimoteManager.WiimoteException -= OnWiimoteException;
+            WiimoteManager.ConnectionFailed -= OnWiimoteConnectionFailed; // [V55v]
+
+            // [V55] Cancel BT watchdog on dispose (EN/FR: Annuler le watchdog BT à la destruction)
+            DisarmBtWatchdog();
 
             foreach (var controller in _controllers)
             {
@@ -143,6 +163,20 @@ namespace WiimoteGun
 
             try
             {
+                // [V55] Disarm BT watchdog: a Wiimote connected, no reset needed
+                // (EN/FR: Désarmer le watchdog BT : une Wiimote s'est connectée, pas besoin de reset)
+                DisarmBtWatchdog();
+
+                // [V56e] Schedule the "update available" tile notification once per
+                // session: 20 seconds after the FIRST Wiimote connects. Never shown
+                // while an ES game-start is in progress (re-checked every 30s while a
+                // game runs). Displays for 6 seconds.
+                // (EN/FR: Planifier la notification tuile « mise à jour disponible »
+                // une fois par session : 20 secondes après la PREMIÈRE connexion
+                // Wiimote. Jamais pendant un game-start ES en cours (revérifié toutes
+                // les 30s tant qu'un jeu tourne). Affichée pendant 6 secondes.)
+                ScheduleUpdateNotificationOnce();
+
                 string mac = e.Wiimote.Address.ToString();
                 int playerIndex = -1;
 
@@ -268,6 +302,253 @@ namespace WiimoteGun
             if (_controllers.Count == 0)
             {
                 Program.SetConnectedState(false);
+
+                // [V55] Arm BT watchdog on last disconnect
+                // (EN/FR: Armer le watchdog BT à la déconnexion de la dernière Wiimote)
+                ArmBtWatchdog();
+            }
+        }
+
+        // ====================================================================
+        // [V55/V55r] BT WATCHDOG (EN/FR: WATCHDOG BT)
+        // ====================================================================
+
+        // EN/FR: [V55r] Consecutive reset attempts without any Wiimote connecting.
+        // After this many failed resets the watchdog STOPS: repeatedly resetting a
+        // wedged/degraded dongle never heals it (V53/V53b) and used to leave the
+        // BT stack in a worse state. The counter resets when a Wiimote connects.
+        private const int BtResetMaxAttempts = 3;
+        private int _btResetAttempts = 0;
+
+        // EN/FR: [V55v] Evidence of a REAL failed connection attempt since the watchdog
+        // was armed. The BT reset must NEVER fire when the user is simply not trying
+        // to connect (Wiimote off / out of range): it is requested ONLY when a real
+        // attempt failed or the radio stack is proven wedged.
+        private bool _btAttemptFailedSinceArm = false;
+        private DateTime _btArmUtc = DateTime.MinValue;
+
+        // [V56e] Update notification scheduling state (EN/FR: État de planification de la notification de mise à jour)
+        private bool _updateNotificationScheduled = false;
+
+        // ====================================================================
+        // [V56e] UPDATE AVAILABLE NOTIFICATION (EN/FR: NOTIFICATION MISE À JOUR)
+        // ====================================================================
+
+        /// <summary>
+        /// EN: [V56e] Once per session, 20 seconds after the FIRST Wiimote connects, show
+        /// the "update available" tile notification for 6 seconds — but NEVER while an ES
+        /// game-start is in progress (re-checked every 30s while a game runs, up to 10
+        /// minutes). The tile stacks below any notification already on screen.
+        /// FR: [V56e] Une fois par session, 20 secondes après la PREMIÈRE connexion
+        /// Wiimote, afficher la notification tuile « mise à jour disponible » pendant
+        /// 6 secondes — mais JAMAIS pendant un game-start ES en cours (revérifié toutes
+        /// les 30s tant qu'un jeu tourne, jusqu'à 10 minutes). La tuile s'empile sous
+        /// toute notification déjà à l'écran.
+        /// </summary>
+        private void ScheduleUpdateNotificationOnce()
+        {
+            if (_updateNotificationScheduled) return; // Once per session (EN/FR: Une fois par session)
+            _updateNotificationScheduled = true;
+
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    System.Threading.Tasks.Task.Delay(20000).Wait(); // 20s after the first Wiimote connects
+
+                    DateTime giveUp = DateTime.UtcNow.AddMinutes(10);
+                    while (EsScriptIntegration.HasCurrentGame && DateTime.UtcNow < giveUp)
+                    {
+                        // EN/FR: A game is running: do not disturb — re-check in 30s
+                        System.Threading.Tasks.Task.Delay(30000).Wait();
+                    }
+
+                    if (EsScriptIntegration.HasCurrentGame) return; // Still in game after the grace window (EN/FR: Toujours en jeu après la fenêtre de grâce)
+
+                    if (!Core.AppUpdateChecker.HasChecked)
+                    {
+                        // EN/FR: Check still running: wait a bit for it (max 10s)
+                        DateTime limit = DateTime.UtcNow.AddSeconds(10);
+                        while (!Core.AppUpdateChecker.HasChecked && DateTime.UtcNow < limit)
+                        {
+                            System.Threading.Tasks.Task.Delay(500).Wait();
+                        }
+                    }
+
+                    if (Core.AppUpdateChecker.UpdateAvailable)
+                    {
+                        string latest = Core.AppUpdateChecker.LatestVersion;
+                        Program.Notify(string.Format("Update available!\r\nv{0} is out (running v{1})",
+                            latest,
+                            System.Reflection.Assembly.GetExecutingAssembly().GetName().Version), 6000);
+                        SimpleLogger.Instance.Info("[AppUpdate] Update notification shown (6s tile).");
+                    }
+                }
+                catch { }
+            });
+        }
+
+        /// <summary>
+        /// EN: [V55/V55r] Arm the BT watchdog timer. If no Wiimote connects within
+        /// AutoBtResetDelaySeconds (+ extraDelaySec grace), the service is asked to
+        /// reset the BT adapter. Does nothing if the option is disabled.
+        /// FR: [V55/V55r] Armer le timer watchdog BT. Si aucune Wiimote ne se
+        /// connecte dans AutoBtResetDelaySeconds (+ grâce extraDelaySec), le service
+        /// est invité à resetter l'adaptateur BT. Ne fait rien si l'option est désactivée.
+        /// </summary>
+        private void ArmBtWatchdog(int extraDelaySec = 0)
+        {
+            if (!Options.Instance.AutoBtResetOnFail) return;
+
+            int delaySec = Math.Max(10, Options.Instance.AutoBtResetDelaySeconds) + extraDelaySec;
+            SimpleLogger.Instance.Info($"[BT-Watchdog] Armed: will reset BT in {delaySec}s if no Wiimote connects.");
+
+            // EN/FR: [V55v] Fresh arming: clear the failed-attempt evidence window
+            _btAttemptFailedSinceArm = false;
+            _btArmUtc = DateTime.UtcNow;
+
+            lock (_btWatchdogLock)
+            {
+                _btWatchdogTimer?.Dispose();
+                _btWatchdogTimer = new System.Threading.Timer(OnBtWatchdogFired, null,
+                    delaySec * 1000, System.Threading.Timeout.Infinite);
+            }
+        }
+
+        /// <summary>
+        /// EN: [V55v] True when there is EVIDENCE of a real failed connection attempt
+        /// (or a proven broken radio) since the watchdog was armed. The BT reset must
+        /// never fire just because "no Wiimote is connected" — the user may simply
+        /// have the Wiimote turned off. Valid evidence:
+        /// 1. A Wiimote connection attempt FAILED since arming (ConnectionFailed event);
+        /// 2. A REAL Bluetooth inquiry (not an instant/cached enumeration) found a
+        ///    discoverable device since arming = a Wiimote was actively in pairing mode;
+        /// 3. The radio stack is WEDGED (V53: 8+ consecutive instant empty inquiries) —
+        ///    the BT reset automates the official manual fix (disable/enable).
+        /// FR: [V55v] True s'il y a PREUVE d'une véritable tentative de connexion échouée
+        /// (ou d'une radio cassée prouvée) depuis l'armement du watchdog. Le reset BT ne
+        /// doit JAMAIS se déclencher sous prétexte qu'« aucune Wiimote n'est connectée » —
+        /// l'utilisateur peut simplement avoir éteint sa Wiimote. Preuves valides :
+        /// 1. Une tentative de connexion Wiimote a ÉCHOUÉ depuis l'armement (événement ConnectionFailed) ;
+        /// 2. Un inquiry Bluetooth RÉEL (pas une énumération instantanée/cache) a trouvé un
+        ///    périphérique discoverable depuis l'armement = une Wiimote était en mode appairage ;
+        /// 3. La radio est COINCÉE (V53 : 8+ inquiry instantanés-vides consécutifs) —
+        ///    le reset BT automatise la correction manuelle officielle (désactiver/activer).
+        /// </summary>
+        private bool HasBtConnectionAttemptEvidence()
+        {
+            // Evidence 1: a connection attempt failed since arming
+            // (EN/FR: Preuve 1 : une tentative de connexion a échoué depuis l'armement)
+            if (_btAttemptFailedSinceArm) return true;
+
+            // Evidence 2: a REAL inquiry found a discoverable device since arming.
+            // An instant enumeration (<300ms, V53 wedge heuristic / remembered-device
+            // cache) is NOT proof of a live Wiimote in pairing mode.
+            // (EN/FR: Preuve 2 : un inquiry RÉEL a trouvé un périphérique discoverable
+            // depuis l'armement. Une énumération instantanée (<300ms, heuristique V53 /
+            // cache des périphériques mémorisés) n'est PAS la preuve d'une Wiimote vivante.)
+            try
+            {
+                if (WiimoteLib.Devices.BluetoothDeviceInfo.LastInquiryStartedUtc >= _btArmUtc &&
+                    WiimoteLib.Devices.BluetoothDeviceInfo.LastInquiryDurationMs >= 300 &&
+                    WiimoteLib.Devices.BluetoothDeviceInfo.LastInquiryDeviceCount > 0)
+                {
+                    return true;
+                }
+            }
+            catch { }
+
+            // Evidence 3: radio stack wedged (V53) — disable/enable is the official fix
+            // (EN/FR: Preuve 3 : pile radio coincée (V53) — désactiver/activer est le correctif officiel)
+            if (WiimoteManager.BtWedgeSuspicions >= 8) return true;
+
+            return false;
+        }
+
+        /// <summary>
+        /// EN: [V55v] ConnectionFailed handler: records a real failed connection attempt.
+        /// FR: [V55v] Gestionnaire ConnectionFailed : enregistre une véritable tentative
+        /// de connexion échouée.
+        /// </summary>
+        private void OnWiimoteConnectionFailed(object sender, WiimoteConnectionFailedEventArgs e)
+        {
+            _btAttemptFailedSinceArm = true;
+            SimpleLogger.Instance.Warning("[BT-Watchdog] Connection attempt failed (" + (e.Exception != null ? e.Exception.Message : "unknown error") + ") — recorded as reset evidence.");
+        }
+
+        /// <summary>
+        /// EN: [V55] Disarm the BT watchdog timer (called when a Wiimote connects).
+        /// FR: [V55] Désarmer le timer watchdog BT (appelé quand une Wiimote se connecte).
+        /// </summary>
+        private void DisarmBtWatchdog()
+        {
+            // EN/FR: [V55r] A Wiimote connected: the reset cycle succeeded — reset the attempts counter
+            _btResetAttempts = 0;
+
+            lock (_btWatchdogLock)
+            {
+                if (_btWatchdogTimer != null)
+                {
+                    _btWatchdogTimer.Dispose();
+                    _btWatchdogTimer = null;
+                    SimpleLogger.Instance.Info("[BT-Watchdog] Disarmed (Wiimote connected).");
+                }
+            }
+        }
+
+        /// <summary>
+        /// EN: [V55/V55r] Fired when the watchdog timer expires — triggers BT reset via service.
+        /// V55r: growing grace period before re-arming (the BT stack needs time to
+        /// re-initialize after a reset: radio + children re-enumeration + pairing
+        /// loop) and a hard cap of BtResetMaxAttempts consecutive resets.
+        /// FR: [V55/V55r] Déclenché à l'expiration du watchdog — reset BT via service.
+        /// V55r : période de grâce croissante avant réarmement (la pile BT a besoin
+        /// de temps pour se réinitialiser après un reset : radio + ré-énumération des
+        /// enfants + boucle d'appairage) et plafond de BtResetMaxAttempts resets consécutifs.
+        /// </summary>
+        private void OnBtWatchdogFired(object state)
+        {
+            lock (_btWatchdogLock) { _btWatchdogTimer = null; }
+
+            // EN: Only reset if still no Wiimote connected and option still enabled
+            // FR: Reset seulement si toujours aucune Wiimote et l'option toujours activée
+            if (_controllers.Count == 0 && Options.Instance.AutoBtResetOnFail)
+            {
+                // [V55v] EVIDENCE GATE: never reset when the user is simply not trying
+                // to connect (Wiimote off / out of range). The reset is requested ONLY
+                // when a real failed connection attempt (or a proven wedged radio) was
+                // observed since the watchdog was armed.
+                // (EN/FR: PORTE DE PREUVES : jamais de reset si l'utilisateur n'essaie
+                // simplement pas de se connecter (Wiimote éteinte / hors de portée). Le
+                // reset est demandé SEULEMENT si une véritable tentative de connexion
+                // échouée (ou une radio coincée prouvée) a été observée depuis l'armement.)
+                if (!HasBtConnectionAttemptEvidence())
+                {
+                    SimpleLogger.Instance.Info("[BT-Watchdog] No connection attempt detected since arming (Wiimote off or out of range?) — BT reset SKIPPED.");
+                    ArmBtWatchdog();
+                    return;
+                }
+
+                _btResetAttempts++;
+
+                // EN/FR: [V55r] Give up: repeated resets never healed a wedged dongle (V53/V53b)
+                if (_btResetAttempts > BtResetMaxAttempts)
+                {
+                    SimpleLogger.Instance.Error($"[BT-Watchdog] {BtResetMaxAttempts} BT resets without any Wiimote connection — automatic resets STOPPED. " +
+                        "Unplug/replug the Bluetooth dongle (see [BT Health] messages) or check the Wiimote batteries, then reconnect.");
+                    return;
+                }
+
+                SimpleLogger.Instance.Info($"[BT-Watchdog] No Wiimote after delay — requesting BT reset via service (attempt {_btResetAttempts}/{BtResetMaxAttempts}).");
+                ServiceClient.RequestBtReset();
+
+                // EN/FR: [V55r] Re-arm with a growing grace period so the BT stack has
+                // time to re-initialize after the reset before the next attempt
+                ArmBtWatchdog(30 * _btResetAttempts);
+            }
+            else
+            {
+                SimpleLogger.Instance.Info("[BT-Watchdog] Fired but Wiimote already connected — no reset needed.");
             }
         }
         public IEnumerable<WiiMoteController> GetControllers()

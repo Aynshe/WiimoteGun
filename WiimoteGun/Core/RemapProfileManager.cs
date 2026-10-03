@@ -34,6 +34,19 @@ namespace WiimoteGun
                 return null;
             }
 
+            return TryGetRetroBatRegistryPath();
+        }
+
+        /// <summary>
+        /// EN: Read RetroBat install path from registry, ignoring Standalone mode.
+        /// Used for the remap profiles directory and the ES scripts integration, which
+        /// must always follow RetroBat when installed.
+        /// FR: Lit le chemin RetroBat dans le registre, en ignorant le mode Standalone.
+        /// Utilisé pour le dossier de profils remap et l'intégration des scripts ES,
+        /// qui doivent toujours suivre RetroBat si installé.
+        /// </summary>
+        public static string TryGetRetroBatRegistryPath()
+        {
             try
             {
                 using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RETROBAT_REGISTRY_KEY))
@@ -61,6 +74,8 @@ namespace WiimoteGun
         /// <summary>
         /// Get the remap directory path (creates if doesn't exist)
         /// (EN/FR: Obtenir le chemin du dossier remap (crée si inexistant))
+        /// EN: RetroBat (registry) always takes priority for profiles, even in Standalone mode.
+        /// FR: RetroBat (registre) a toujours la priorité pour les profils, même en mode Standalone.
         /// </summary>
         public static string GetRemapDirectory()
         {
@@ -69,31 +84,23 @@ namespace WiimoteGun
 
             string remapDir;
 
-            if (Options.Instance.StandaloneMode)
+            // [V31] Registry detection first, INDEPENDENT of StandaloneMode.
+            // Standalone must only affect emulator auto-detection, not the profiles folder.
+            // (EN/FR: Détection registre d'abord, INDÉPENDANTE du mode Standalone.)
+            string retroBatPath = TryGetRetroBatRegistryPath();
+
+            if (!string.IsNullOrEmpty(retroBatPath) && Directory.Exists(retroBatPath))
             {
-                // Standalone: use local directory
-                // (EN/FR: Autonome : utiliser dossier local)
-                string exeDir = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
-                remapDir = Path.Combine(exeDir, "RemapProfiles");
-                SimpleLogger.Instance.Info(string.Format("Standalone Mode: Using local remap directory: {0}", remapDir));
+                remapDir = Path.Combine(retroBatPath, REMAP_SUBFOLDER);
+                SimpleLogger.Instance.Info(string.Format("Using RetroBat remap directory: {0}", remapDir));
             }
             else
             {
-                string retroBatPath = GetRetroBatPath();
-
-                if (!string.IsNullOrEmpty(retroBatPath) && Directory.Exists(retroBatPath))
-                {
-                    remapDir = Path.Combine(retroBatPath, REMAP_SUBFOLDER);
-                    SimpleLogger.Instance.Info(string.Format("Using RetroBat remap directory: {0}", remapDir));
-                }
-                else
-                {
-                    // Fallback: use local directory if RetroBat not found
-                    // (EN/FR: Repli : utiliser dossier local si RetroBat introuvable)
-                    string exeDir = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
-                    remapDir = Path.Combine(exeDir, "RemapProfiles");
-                    SimpleLogger.Instance.Warning(string.Format("RetroBat not found, using fallback directory: {0}", remapDir));
-                }
+                // RetroBat not installed: local profiles folder
+                // (EN/FR: RetroBat introuvable : dossier de profils local)
+                string exeDir = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                remapDir = Path.Combine(exeDir, "RemapProfiles");
+                SimpleLogger.Instance.Warning(string.Format("RetroBat not found in registry, using local remap directory: {0}", remapDir));
             }
 
             // Create directory if it doesn't exist (EN/FR: Créer le dossier s'il n'existe pas)
@@ -473,39 +480,56 @@ namespace WiimoteGun
             return LoadGamePadProfile(DEFAULT_GAMEPAD_PROFILE_NAME);
         }
 
+        /// <summary>
+        /// EN: Ensure the GamePad default.remap exists in the Gamepad folder.
+        /// Creates it from current Options mappings on first use (GamePad mode activation,
+        /// config page open, or first profile save) so a fallback profile always exists.
+        /// FR: Garantit l'existence de default.remap GamePad dans le dossier Gamepad.
+        /// Le crée depuis les mappings Options actuels au premier usage (activation du mode
+        /// GamePad, ouverture de la page de config, ou première sauvegarde de profil).
+        /// </summary>
+        public static bool EnsureDefaultGamePadProfile()
+        {
+            string gamepadDir = GetGamePadRemapDirectory();
+            if (string.IsNullOrEmpty(gamepadDir)) return false;
+
+            string defaultPath = Path.Combine(gamepadDir, DEFAULT_GAMEPAD_PROFILE_NAME);
+            if (File.Exists(defaultPath)) return true;
+
+            try
+            {
+                // Create default.remap from current Options settings (EN/FR: Créer default.remap depuis les options actuelles)
+                GamePadProfile defaultProfile = new GamePadProfile
+                {
+                    ProfileName = "Default",
+                    P1Mappings = Options.Instance.P1GamePadMappings?.Clone() ?? new GamePadMappings(),
+                    P2Mappings = Options.Instance.P2GamePadMappings?.Clone() ?? new GamePadMappings(),
+                    P3Mappings = Options.Instance.P3GamePadMappings?.Clone() ?? new GamePadMappings(),
+                    P4Mappings = Options.Instance.P4GamePadMappings?.Clone() ?? new GamePadMappings()
+                };
+
+                XmlSerializer serializer = new XmlSerializer(typeof(GamePadProfile));
+                using (FileStream stream = File.Create(defaultPath))
+                {
+                    serializer.Serialize(stream, defaultProfile);
+                }
+                SimpleLogger.Instance.Info(string.Format("Auto-created GamePad default.remap from current settings.cfg: {0}", defaultPath));
+                return true;
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Warning(string.Format("Failed to auto-create GamePad default.remap: {0}", ex.Message));
+                return false;
+            }
+        }
+
         public static bool SaveGamePadProfile(string profileName, string subfolder, GamePadProfile profile)
         {
             string gamepadDir = GetGamePadRemapDirectory();
             if (string.IsNullOrEmpty(gamepadDir)) return false;
 
             // AUTO-CREATE default.remap on first profile save (EN/FR: Auto-créer default.remap à la première sauvegarde)
-            string defaultPath = Path.Combine(gamepadDir, DEFAULT_GAMEPAD_PROFILE_NAME);
-            if (!File.Exists(defaultPath))
-            {
-                try
-                {
-                    // Create default.remap from current Options settings (EN/FR: Créer default.remap depuis les options actuelles)
-                    GamePadProfile defaultProfile = new GamePadProfile
-                    {
-                        ProfileName = "Default",
-                        P1Mappings = Options.Instance.P1GamePadMappings?.Clone() ?? new GamePadMappings(),
-                        P2Mappings = Options.Instance.P2GamePadMappings?.Clone() ?? new GamePadMappings(),
-                        P3Mappings = Options.Instance.P3GamePadMappings?.Clone() ?? new GamePadMappings(),
-                        P4Mappings = Options.Instance.P4GamePadMappings?.Clone() ?? new GamePadMappings()
-                    };
-
-                    XmlSerializer serializer = new XmlSerializer(typeof(GamePadProfile));
-                    using (FileStream stream = File.Create(defaultPath))
-                    {
-                        serializer.Serialize(stream, defaultProfile);
-                    }
-                    SimpleLogger.Instance.Info(string.Format("Auto-created GamePad default.remap from current settings.cfg: {0}", defaultPath));
-                }
-                catch (Exception ex)
-                {
-                    SimpleLogger.Instance.Warning(string.Format("Failed to auto-create GamePad default.remap: {0}", ex.Message));
-                }
-            }
+            EnsureDefaultGamePadProfile();
 
             // Ensure only default.remap in root Gamepad folder? 
             // The constraint "Only default.remap allowed in Root" was for main remap folder because of settings.cfg confusion?

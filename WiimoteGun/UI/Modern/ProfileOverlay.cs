@@ -40,6 +40,7 @@ namespace WiimoteGun.Forms
         private bool _windowedMode;
         private System.Windows.Forms.Timer _gameDetectTimer;
         private string _currentExecutable = "";
+        private string _currentExecutablePath = null; // [V47] Full path of the foreground exe (EN/FR: Chemin complet de l'exe au premier plan)
         
         // Dynamic Sizing Constants (EN/FR: Constantes de redimensionnement dynamique)
         private const int COMPACT_WIDTH = 600;
@@ -191,10 +192,17 @@ namespace WiimoteGun.Forms
                     break;
                 case "Options":
                     activeControl = optionsControl;
+                    optionsControl.LoadOptionsFromInstance();
                     break;
                 case "Mapping":
                     activeControl = mappingControl;
-                    mappingControl.SetCurrentGame(_currentExecutable);
+                    // [V47] Pass exe + PATH, falling back to the tracked game so the
+                    // association is fully automatic while in game.
+                    // (EN/FR: Passer exe + CHEMIN, avec repli sur le jeu suivi pour que
+                    // l'association soit entièrement automatique en jeu.)
+                    mappingControl.SetCurrentGame(
+                        !string.IsNullOrEmpty(_currentExecutable) ? _currentExecutable : Program.LastDetectedGameName,
+                        !string.IsNullOrEmpty(_currentExecutablePath) ? _currentExecutablePath : Program.LastDetectedGamePath);
                     break;
                 case "Assign":
                     activeControl = assignControl;
@@ -206,7 +214,13 @@ namespace WiimoteGun.Forms
                     break;
                 case "GamePadMapping":
                     activeControl = gamePadMappingControl;
-                    gamePadMappingControl.SetCurrentGame(_currentExecutable);
+                    // [V47] Pass exe + PATH, falling back to the tracked game so the
+                    // association is fully automatic while in game.
+                    // (EN/FR: Passer exe + CHEMIN, avec repli sur le jeu suivi pour que
+                    // l'association soit entièrement automatique en jeu.)
+                    gamePadMappingControl.SetCurrentGame(
+                        !string.IsNullOrEmpty(_currentExecutable) ? _currentExecutable : Program.LastDetectedGameName,
+                        !string.IsNullOrEmpty(_currentExecutablePath) ? _currentExecutablePath : Program.LastDetectedGamePath);
                     gamePadMappingControl.LoadData();
                     break;
             }
@@ -348,7 +362,7 @@ namespace WiimoteGun.Forms
                 uint processId;
                 GetWindowThreadProcessId(handle, out processId);
                 Process p = Process.GetProcessById((int)processId);
-                
+
                 string processName = p.ProcessName.ToLower();
                 // Ignore shell and self (overlay)
                 // (EN/FR: Ignorer shell et soi-même (overlay))
@@ -357,12 +371,18 @@ namespace WiimoteGun.Forms
                 if (processName + ".exe" != _currentExecutable)
                 {
                     _currentExecutable = processName + ".exe";
+
+                    // [V47] Capture the full path too: linking needs it for strict matching
+                    // (EN/FR: Capturer aussi le chemin complet : le lien en a besoin pour
+                    // la correspondance stricte)
+                    try { _currentExecutablePath = p.MainModule?.FileName; } catch { _currentExecutablePath = null; }
+
                     // Update Mapping Control
                     if (mappingControl != null)
-                        mappingControl.SetCurrentGame(_currentExecutable);
+                        mappingControl.SetCurrentGame(_currentExecutable, _currentExecutablePath);
                     // Update GamePad Mapping Control (EN/FR: Mettre à jour l'UI GamePad)
                     if (gamePadMappingControl != null && gamePadMappingControl.Visible)
-                        gamePadMappingControl.SetCurrentGame(_currentExecutable);
+                        gamePadMappingControl.SetCurrentGame(_currentExecutable, _currentExecutablePath);
                 }
             }
             catch {}

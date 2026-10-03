@@ -199,6 +199,87 @@ namespace WiimoteGun
         /// </summary>
         public bool UseXInput { get; set; }
 
+        // ========== [V55] TC Cover (EN/FR: Planque TC) ==========
+
+        /// <summary>
+        /// EN: [V55] TC Cover (Time Crisis): aiming ON-screen HOLDS the TC gamepad button
+        /// (player is aiming = out of cover); aiming OFF-screen RELEASES it (player hides).
+        /// FR: [V55] Planque TC (Time Crisis) : viser l'ÉCRAN MAINTIENT le bouton gamepad TC
+        /// (joueur vise = sort de planque) ; viser HORS écran le RELÂCHE (joueur se cache).
+        /// </summary>
+        public bool TCCoverReload { get; set; } = false;
+
+        /// <summary>
+        /// EN: Physical Wiimote/Nunchuk button used by the TC cover action:
+        /// "auto" = the button mapped to right-click on the mouse side (fallback B),
+        /// or WiiA/WiiB/WiiOne/WiiTwo/WiiPlus/WiiMinus/NunC/NunZ.
+        /// FR: Bouton physique Wiimote/Nunchuk utilisé par la planque TC :
+        /// "auto" = le bouton mappé clic droit côté souris (repli B), ou WiiA/WiiB/
+        /// WiiOne/WiiTwo/WiiPlus/WiiMinus/NunC/NunZ.
+        /// </summary>
+        public string TCCoverButton { get; set; } = "auto";
+
+        // ========== [V55] Off-Screen Reload GamePad (EN/FR: Reload hors-écran GamePad) ==========
+
+        /// <summary>
+        /// EN: [V55] Off-Screen Reload mode for GamePad:
+        ///   0 = Off (disabled)
+        ///   1 = Trigger (manual: press the fire button off-screen to reload once)
+        ///   2 = Auto   (one auto-reload sent when going off-screen, no button needed)
+        /// FR: [V55] Mode reload hors-écran pour GamePad :
+        ///   0 = Désactivé
+        ///   1 = Trigger (manuel : presser le bouton de tir hors écran pour recharger une fois)
+        ///   2 = Auto   (une recharge auto envoyée à la sortie de l'écran, sans bouton)
+        /// </summary>
+        public int OffScreenReloadMode { get; set; } = 0;
+
+        // [V55y] Reload rumble overrides (GamePad side) (EN/FR: Overrides vibration rechargement - côté GamePad)
+        // -1 = follow Options > Gestures global, 0 = force OFF, 1 = force ON
+        public int ReloadRumbleOverride { get; set; } = -1;
+
+        // EN/FR: -1 = follow the global intensity, else 0-100
+        public int ReloadRumbleIntensityOverride { get; set; } = -1;
+
+        // EN/FR: -1 = follow the global style, else 0=Ratchet, 1=Short, 2=Long, 3=Custom
+        public int ReloadRumbleStyleOverride { get; set; } = -1;
+
+        // [V56] Physical FIRE button: its ON-screen press triggers the weapon rumble
+        // in GamePad mode (physical button id, default = WiiMote B).
+        // (EN/FR: Bouton physique de TIR : son appui À l'écran déclenche la vibration
+        // d'arme en mode GamePad (id bouton physique, défaut = B Wiimote).)
+        public string FireButton { get; set; } = "WiiB";
+
+        // [V56] Physical RELOAD button: its press triggers the reload rumble in
+        // GamePad mode, on-screen and off-screen (physical button id, default = 2).
+        // (EN/FR: Bouton physique de RECHARGE : son appui déclenche la vibration de
+        // recharge en mode GamePad, à l'écran comme hors écran (id bouton physique, défaut = 2).)
+        public string OffScreenReloadButton { get; set; } = "Wii2";
+
+
+        // [V55] TC Bi-directional Pedal (EN/FR: Pédale TC bi-directionnelle)
+
+        /// <summary>
+        /// EN: [V55] TC Bi-directional Pedal mode (TC3/TC4/TC5): DPad Left/Right on Wiimote
+        /// act as two TC pedals. Pressing one while aiming ON-screen holds that direction;
+        /// going OFF-screen releases without changing state; pressing the other side switches.
+        /// FR: [V55] Mode pédale TC bi-directionnelle (TC3/TC4/TC5) : DPad Gauche/Droite de la
+        /// Wiimote agissent comme deux pédales TC. Appuyer en visant l'écran maintient la
+        /// direction ; hors écran relâche sans changer ; appuyer l'autre bascule.
+        /// </summary>
+        public bool TCBiPedal { get; set; } = false;
+
+        /// <summary>
+        /// EN: [V55] Physical GamePad button used as the LEFT TC pedal (default: DPad Left).
+        /// FR: [V55] Bouton GamePad physique utilisé comme pédale TC GAUCHE (défaut: DPad Gauche).
+        /// </summary>
+        public string TCBiPedalLeftButton { get; set; } = "DPadLeft";
+
+        /// <summary>
+        /// EN: [V55] Physical GamePad button used as the RIGHT TC pedal (default: DPad Right).
+        /// FR: [V55] Bouton GamePad physique utilisé comme pédale TC DROITE (défaut: DPad Droit).
+        /// </summary>
+        public string TCBiPedalRightButton { get; set; } = "DPadRight";
+
         // ========== Wiimote Button Mappings (EN/FR: Mappings boutons Wiimote) ==========
         
         public GamePadButton WiiA { get; set; }
@@ -483,6 +564,23 @@ namespace WiimoteGun
             
             IRHybridAsMouse = source.IRHybridAsMouse;
             HybridToggle = source.HybridToggle;
+
+            // [V55] TC Cover + Off-Screen Reload + Bi-Pedal (EN/FR: Planque TC + Reload hors-écran + Bi-Pédale)
+            TCCoverReload = source.TCCoverReload;
+            TCCoverButton = source.TCCoverButton;
+            OffScreenReloadMode = source.OffScreenReloadMode;
+            TCBiPedal = source.TCBiPedal;
+            TCBiPedalLeftButton = source.TCBiPedalLeftButton;
+            TCBiPedalRightButton = source.TCBiPedalRightButton;
+
+            // [V55y] Reload rumble overrides (EN/FR: Overrides vibration rechargement)
+            ReloadRumbleOverride = source.ReloadRumbleOverride;
+            ReloadRumbleIntensityOverride = source.ReloadRumbleIntensityOverride;
+            ReloadRumbleStyleOverride = source.ReloadRumbleStyleOverride;
+
+            // [V56] Physical fire/reload rumble buttons (EN/FR: Boutons physiques tir/recharge)
+            FireButton = source.FireButton;
+            OffScreenReloadButton = source.OffScreenReloadButton;
         }
 
         /// <summary>

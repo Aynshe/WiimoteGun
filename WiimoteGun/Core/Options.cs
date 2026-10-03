@@ -282,6 +282,16 @@ namespace WiimoteGun
                 EnableShakeReload = false;
                 ShakeSensitivity = 2; // 0=Very Low, 1=Low, 2=Medium, 3=High (EN/FR: 2=Moyen)
                 ShakeFromNunchuk = false; // false=Wiimote, true=Nunchuk
+
+                // [V55y] Reload rumble defaults (EN/FR: Valeurs par défaut vibration rechargement)
+                ReloadRumbleEnabled = true;   // ON by default (EN/FR: Activée par défaut)
+                ReloadRumbleIntensity = 60;   // 0-100
+                ReloadRumbleStyle = 0;        // 0=Ratchet, 1=Short, 2=Long, 3=Custom
+
+                // [V55z] Custom style defaults (EN/FR: Valeurs par défaut du style personnalisé)
+                ReloadRumbleCustomTicks = 4;      // 1-10 tics
+                ReloadRumbleCustomOnMs = 60;      // 10-500ms per tic ON
+                ReloadRumbleCustomOffMs = 90;     // 10-500ms per tic OFF
                 EnableGrenadeGesture = false;
                 GrenadeFromNunchuk = false;
 
@@ -336,14 +346,17 @@ namespace WiimoteGun
                 // IR Tracking Optimizations (EN/FR: Optimisations tracking IR)
                 EnableIRSmoothing = false;
                 IRSmoothingStrength = 5;
+                IRSmoothingStrengthV2 = 2;
                 UseHighPerfTimers = false;
                 EnableHomographyCache = false;
                 UseIRExtrapolation = false;
                 IRExtrapolationStrength = 0.5f;
+                IRExtrapolationStrengthV2 = 0.3f;
                 EnableDistanceCompensation = false;
 
                 EnableVirtualPolling = false;
                 VirtualPollingRate = 250;
+                VirtualPollingRateV2 = 250;
 
                 DefaultMouseMode = MouseMode.RawInput;
 
@@ -366,6 +379,12 @@ namespace WiimoteGun
                 CemuPath = "";
                 EnableFPSMode = false;
                 AutoStart = AutoStartMode.None;
+
+                // [V42/V55o] EmulationStation integration defaults (EN/FR: Valeurs par défaut intégration ES)
+                EsScriptsEnabled = true;    // Install/verify ES scripts (game-start / system-selected)
+                EsTileHotkeyEnabled = true; // Long-press PLUS opens the profile tile modal
+                EsTileHotkeyDelayMs = 3000; // [V55o] 3s default (reduced from 4s)
+                LockModeOnGameStart = true; // [V55o] Lock active mode on ES game launch (default ON)
 
                 // Motion Plus/Accelerometer disable for problematic Wiimote models (EN/FR: Désactivation MP/Accel pour modèles problématiques)
                 DisableMotionPlusAndAccelerometer = true; // Default to True to disable MP/accelerometer (EN/FR: True par défaut pour désactiver MP/accel)
@@ -478,6 +497,36 @@ namespace WiimoteGun
                             SimpleLogger.Instance.Info(string.Format(
                                 "[Options] v2.3.5.26 migration: DisableMotionPlusAndAccelerometer was {0}, reset to False. Version stamp set. User can re-enable manually from now on.",
                                 wasPreviouslyDisabled));
+                        }
+
+                        // EN: [V55o] Auto-upgrade ES Scripts options to default ON (true) & set long-press PLUS delay to 3s (3000ms).
+                        // FR: [V55o] Mise à niveau auto des options ES Scripts par défaut à ON (true) et délai appui long PLUS à 3s (3000ms).
+                        bool needsEsUpgrade = false;
+                        if (!fileContent.Contains("<LockModeOnGameStart>"))
+                        {
+                            options.LockModeOnGameStart = true;
+                            needsEsUpgrade = true;
+                        }
+                        if (!fileContent.Contains("<EsScriptsEnabled>"))
+                        {
+                            options.EsScriptsEnabled = true;
+                            needsEsUpgrade = true;
+                        }
+                        if (!fileContent.Contains("<EsTileHotkeyEnabled>"))
+                        {
+                            options.EsTileHotkeyEnabled = true;
+                            needsEsUpgrade = true;
+                        }
+                        if (!fileContent.Contains("<EsTileHotkeyDelayMs>") || options.EsTileHotkeyDelayMs == 4000)
+                        {
+                            options.EsTileHotkeyDelayMs = 3000;
+                            needsEsUpgrade = true;
+                        }
+
+                        if (needsEsUpgrade)
+                        {
+                            options.Save();
+                            SimpleLogger.Instance.Info("[Options] [V55o] Auto-upgraded ES Scripts settings: all 3 options ON, long-press PLUS delay set to 3s.");
                         }
 
                         return options;
@@ -1134,7 +1183,12 @@ namespace WiimoteGun
         public bool EnableIRSmoothing { get; set; }
 
         [DefaultValue(5)]
-        public int IRSmoothingStrength { get; set; } // 1=minimal, 10=heavy (EN/FR: 1=minimal, 10=fort)
+        public int IRSmoothingStrength { get; set; } // 0=off, 1=minimal, 10=heavy (EN/FR: 0=désactivé, 1=minimal, 10=fort)
+
+        // [V2 Model] Per-Wiimote-model settings: V2 = Wiimote Plus RVL-CNT-01-TR (MP Inside)
+        // (EN/FR: Réglages par modèle de Wiimote : V2 = Wiimote Plus RVL-CNT-01-TR)
+        [DefaultValue(2)]
+        public int IRSmoothingStrengthV2 { get; set; } // V2 TR only, 0=off (EN/FR: uniquement V2 TR, 0=désactivé)
 
         [DefaultValue(false)]
         public bool UseHighPerfTimers { get; set; }
@@ -1155,11 +1209,17 @@ namespace WiimoteGun
         [DefaultValue(0.5f)]
         public float IRExtrapolationStrength { get; set; }
 
+        [DefaultValue(0.3f)]
+        public float IRExtrapolationStrengthV2 { get; set; } // V2 TR only, 0=off (EN/FR: uniquement V2 TR, 0=désactivé)
+
         [DefaultValue(false)]
         public bool EnableVirtualPolling { get; set; }
 
         [DefaultValue(250)]
         public int VirtualPollingRate { get; set; } // 100-1000 Hz
+
+        [DefaultValue(250)]
+        public int VirtualPollingRateV2 { get; set; } // V2 TR only, 0 = off (EN/FR: uniquement V2 TR, 0 = off)
 
         // Gesture & Reload Settings (EN/FR: Paramètres Gestes & Rechargement)
         [DefaultValue(false)]
@@ -1167,6 +1227,38 @@ namespace WiimoteGun
 
         [DefaultValue(false)]
         public bool OffScreenReloadAuto { get; set; }
+
+        // [V55y] Reload rumble (vibration rechargement) — applies to ANY reload
+        // (off-screen auto/trigger redirect, physical reload button, shake reload),
+        // whether Off-Screen Reload is enabled or not. Per-profile overrides available
+        // on the Mouse and GamePad mapping pages.
+        // (EN/FR: Vibration rechargement — s'applique à TOUTE recharge (auto/redirect
+        // hors écran, bouton reload physique, shake), que le Off-Screen Reload soit
+        // activé ou non. Overrides par profil sur les pages mapping Souris et GamePad.)
+        [DefaultValue(true)]
+        public bool ReloadRumbleEnabled { get; set; }
+
+        // EN/FR: 0-100 (% of the ON pulses of the rumble pattern)
+        [DefaultValue(60)]
+        public int ReloadRumbleIntensity { get; set; }
+
+        // EN/FR: 0=Ratchet (mechanical), 1=Short (single pulse), 2=Long (continuous), 3=Custom (own tics)
+        [DefaultValue(0)]
+        public int ReloadRumbleStyle { get; set; }
+
+        // [V55z] Custom style parameters (used when ReloadRumbleStyle = 3)
+        // (EN/FR: Paramètres du style personnalisé (utilisé quand ReloadRumbleStyle = 3))
+        // EN/FR: Number of tics 1-10 (horizontal graduated slider in Options > Gestures)
+        [DefaultValue(4)]
+        public int ReloadRumbleCustomTicks { get; set; }
+
+        // EN/FR: ON duration of each tic in ms (10-500)
+        [DefaultValue(60)]
+        public int ReloadRumbleCustomOnMs { get; set; }
+
+        // EN/FR: OFF gap between tics in ms (10-500)
+        [DefaultValue(90)]
+        public int ReloadRumbleCustomOffMs { get; set; }
 
         // DEV ONLY: Hidden setting to enable experimental gestures (EN/FR: Paramètre caché pour gestes expérimentaux)
         // Must be manually set to true in XML config file (EN/FR: Doit être activé manuellement dans le fichier XML)
@@ -1225,6 +1317,35 @@ namespace WiimoteGun
         public bool EnableFPSMode { get; set; }
 
         /// <summary>
+        /// EN: [V55/V55o] Lock the current WiimoteGun mode when an ES game starts (prevent accidental
+        /// mode switch via Home while playing). The mode is unlocked on game-end. Default is ON.
+        /// FR: [V55/V55o] Verrouiller le mode WiimoteGun actuel au lancement d'un jeu ES (empêcher
+        /// changement de mode accidentel via Home en jouant). Mode déverrouillé au game-end. Actif par défaut.
+        /// </summary>
+        [DefaultValue(true)]
+        public bool LockModeOnGameStart { get; set; }
+
+        /// <summary>
+        /// EN: [V55] Auto Bluetooth reset via service when Wiimotes cannot connect.
+        /// When enabled, if no Wiimote is detected within AutoBtResetDelaySeconds after
+        /// startup (or after the last disconnect), the service is asked to do a BT
+        /// adapter disable/re-enable cycle. Requires the WiimoteGun Helper Service.
+        /// FR: [V55] Reset Bluetooth auto via service quand les Wiimotes ne peuvent pas se connecter.
+        /// Si activé et qu'aucune Wiimote n'est détectée dans AutoBtResetDelaySeconds après
+        /// le démarrage (ou le dernier déconnect), le service fait un cycle disable/enable BT.
+        /// Nécessite le service WiimoteGun Helper.
+        /// </summary>
+        [DefaultValue(false)]
+        public bool AutoBtResetOnFail { get; set; }
+
+        /// <summary>
+        /// EN: [V55] Delay (seconds) before triggering the auto BT reset when no Wiimote is found.
+        /// FR: [V55] Délai (secondes) avant le reset BT auto si aucune Wiimote détectée.
+        /// </summary>
+        [DefaultValue(60)]
+        public int AutoBtResetDelaySeconds { get; set; } = 60;
+
+        /// <summary>
         /// EN: GamePad button and axis mappings per player.
         /// FR: Mappings boutons et axes GamePad par joueur.
         /// </summary>
@@ -1239,6 +1360,32 @@ namespace WiimoteGun
         /// </summary>
         [DefaultValue(false)]
         public bool StandaloneMode { get; set; }
+
+        /// <summary>
+        /// EN: [V42] Enable the EmulationStation scripts integration (installs/keeps the
+        /// game-start and system-selected scripts; uncheck removes them).
+        /// FR: [V42] Active l'intégration des scripts EmulationStation (installe/conserve
+        /// les scripts game-start et system-selected ; décocher les supprime).
+        /// </summary>
+        [DefaultValue(true)]
+        public bool EsScriptsEnabled { get; set; }
+
+        /// <summary>
+        /// EN: [V42] Long-press on PLUS (any connected Wiimote) opens the profile tile modal.
+        /// FR: [V42] Un appui long sur PLUS (n'importe quelle wiimote connectée) ouvre la
+        /// modale en tuiles des profils.
+        /// </summary>
+        [DefaultValue(true)]
+        public bool EsTileHotkeyEnabled { get; set; }
+
+        /// <summary>
+        /// EN: [V43/V55o] Long-press duration (ms) on PLUS before the tile modal opens.
+        /// 3s default (reduced from 4s) so [+] can still be used without long wait.
+        /// FR: [V43/V55o] Durée d'appui long (ms) sur PLUS avant l'ouverture de la modale en tuiles.
+        /// 3s par défaut (réduit de 4s) pour une ouverture plus réactive sans déclenchement à tort.
+        /// </summary>
+        [DefaultValue(3000)]
+        public int EsTileHotkeyDelayMs { get; set; }
 
         /// <summary>
         /// EN: Manual path for PCSX2 emulator.
