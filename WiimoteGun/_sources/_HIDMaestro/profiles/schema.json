@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HIDMaestro Controller Profile",
+  "description": "Defines the identity and HID characteristics of a game controller for virtual device emulation.",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "vendor",
+    "vid",
+    "pid",
+    "productString",
+    "type",
+    "connection"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier slug (e.g. 'xbox-360-wired')"
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable display name"
+    },
+    "vendor": {
+      "type": "string",
+      "description": "Manufacturer name"
+    },
+    "vid": {
+      "type": "string",
+      "description": "USB Vendor ID as hex string (e.g. '0x045E')"
+    },
+    "pid": {
+      "type": "string",
+      "description": "USB Product ID as hex string (e.g. '0x028E')"
+    },
+    "productString": {
+      "type": "string",
+      "description": "String returned by IOCTL_HID_GET_STRING (iProduct). This is what joy.cpl and games see."
+    },
+    "manufacturerString": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "String returned for manufacturer query (iManufacturer). Null if unknown."
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "gamepad",
+        "wheel",
+        "joystick",
+        "flightstick",
+        "hotas",
+        "arcadestick",
+        "pedals",
+        "other"
+      ],
+      "description": "Controller category"
+    },
+    "connection": {
+      "type": "string",
+      "enum": [
+        "usb",
+        "bluetooth",
+        "wireless-adapter"
+      ],
+      "description": "Connection type this profile represents"
+    },
+    "descriptor": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "HID report descriptor as a hex string (e.g. '05010905A101...'). Null if not yet captured."
+    },
+    "inputReportSize": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "description": "Size of the input report in bytes (excluding report ID). Null if unknown."
+    },
+    "deviceDescription": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Device Manager display name (from vendor INF or Windows HID class). Null means use productString. This is what FriendlyName gets set to on the device node."
+    },
+    "notes": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Implementation notes, caveats, or special behavior."
+    },
+    "nativeDescriptor": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Record-keeping only: the original captured descriptor hex, preserved verbatim when the shipped 'descriptor' was edited. Not deserialized by the loader."
+    },
+    "layout": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Physical layout for consumer mapping/binding UIs: sticks, triggers, dpad, faceButtons, shoulderButtons, systemButtons, imu, haptics, etc. Bound to HMLayout (camelCase keys, case-insensitive)."
+    },
+    "buttonMap": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "integer"
+      },
+      "description": "Maps HMButton bit positions (array index) to descriptor button indices (value). Null = identity (Xbox layout). Sony profiles remap so A lands on Cross, X on Square, etc. -1 = this profile does not carry that button (the bit is dropped instead of falling through to identity). Values at or past the declared button count address the contiguous 1-bit vendor-page run that continues the button array, when the descriptor has one: the DualSense family declares 15 buttons then a 13x1-bit vendor field, and the Edge back paddles / Fn buttons live in its bits (value 16 = FnL 0x10 ... 19 = RB 0x80), matching where real firmware puts them without widening the descriptor."
+    },
+    "triggerButtons": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "integer"
+      },
+      "description": "Button indices that represent digital trigger clicks (LT/RT as buttons)."
+    },
+    "axisMap": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Maps HID usage (hex-string key) to a role name (e.g. 'leftTrigger'), overriding descriptor-derived axis roles."
+    },
+    "sdlMapping": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "SDL gamepad mapping body, everything after the GUID and name, trailing comma included. For pads SDL enumerates through DirectInput and has no database entry for, so it would otherwise expose them as roleless joysticks. Consumers prepend the runtime GUID and the profile name and call SDL_AddGamepadMapping."
+    },
+    "triggerMode": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Descriptor trigger encoding hint (e.g. 'combined', 'separate'). Describes wire encoding, not DirectInput presentation."
+    },
+    "driverMode": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Special driver binding, e.g. 'xinputhid' for Xbox-family kernel-filter profiles."
+    },
+    "driverPid": {
+      "type": [
+        "string",
+        "integer",
+        "null"
+      ],
+      "description": "Override PID reported to the driver/companion when it must differ from the HID-attribute PID."
+    },
+    "versionNumber": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "description": "HidD_GetAttributes VersionNumber override. Sony DS4 BT ships 0 so Chromium selects the BT report layout."
+    },
+    "sixaxisCompatible": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "description": "v1.10.0: if true, the persona is a DualShock 3 presented the way Sony's sixaxis.sys and DsHidMini's SXS mode present one, which is what PCSX2 and RPCS3 read on Windows. The profile's extendedReport is the native 49-byte report 0x01 with alwaysArmed set. The driver serves it as the report 0 feature reply, derives the 12-byte joystick input report from it, and folds report 0 output commands into the native output report that extendedOutputReport decodes. See profiles/sony/dualshock-3-full.json."
+    },
+    "inputDefaults": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "description": "Fixed on-wire byte overlays applied after report build (e.g. DS5 Edge activeProfile status byte). Each entry is { byte, value }."
+    },
+    "extendedReport": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Data-driven vendor-blob INPUT spec (Sony BT Report 0x31/0x11, Switch 2 Pro Report 0x09, DualShock 3 Report 0x01): { reportId, size, armOn, alwaysArmed, fields[] }. Drives VendorBlobCodec.EncodeInput. armOn lists the host reads or writes that switch the pad into this report. With alwaysArmed set the report goes out from the first frame, for firmware that streams it from power-on."
+    },
+    "extendedOutputReport": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Data-driven vendor-blob OUTPUT spec (rumble/lightbar/triggers): { reportId, size, fields[] }. Drives VendorBlobCodec.EncodeOutput/Decode."
+    },
+    "companionOnly": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "description": "If true, this profile creates only the XUSB companion, no HID child. No shipped profile currently sets it."
+    },
+    "backend": {
+      "type": "string",
+      "enum": [
+        "umdf2",
+        "usbip"
+      ],
+      "description": "Issue #39: which instantiation path creates this device. Absent or 'umdf2' is the default UMDF2 HID path most profiles use. 'usbip' marks a composite USB persona, which takes the USB/IP create path so it can present USB Audio Class interfaces alongside HID. That transport is bundled inside HIDMaestro.Core.dll and deploys itself on first use, so a usbip profile needs nothing installed by hand. A property of the device, never a mode toggle on an existing profile."
+    },
+    "usbConfiguration": {
+      "type": "object",
+      "description": "Issue #39: the USB configuration a composite persona presents (interfaces with alternate settings, isochronous endpoints, audio stream formats and channel roles). Only valid with backend 'usbip'. Shaped after the standard descriptor set so it can be authored from a real device's descriptor dump; see sdk/HIDMaestro.Core/Internal/UsbConfigurationSpec.cs for the field-level contract and profiles/sony/dualsense-composite.json for the authored example. Carries the wire truth verbatim: 'deviceDescriptor' (18-byte hex), 'configurationDescriptor' (full config blob hex, served byte-for-byte and cross-checked against the structured interfaces at create time), 'otherSpeedConfigurationDescriptor' (dual-speed devices only; its absence makes the backend stall Device_Qualifier and Other_Speed exactly as a single-speed real pad does), 'busSpeed' ('high' or 'full', the speed reported in the USB/IP import), and 'audioControls' (per feature unit: unitId, controlInterface, function, muteCur, and volumeMin/Max/Res/CurRaw as UAC1 s16 1/256-dB wire values, captured from a real pad's GET_MIN/MAX/RES/CUR exchanges, never invented)."
+    },
+    "featureStubs": {
+      "type": "object",
+      "description": "Issue #56: the answers a usbip persona gives to GET_REPORT(Feature), for a device whose claiming software interrogates it before it will use it. 'match' selects the keying rule: 'reportId' (default) keys on the request's own report id; 'lastMessage' keys on the message id of the SET_REPORT that preceded it, which is what Valve's command channel needs (SET 0x83 then GET 0x83 for attributes, SET 0xAE then GET 0xAE for a string). 'messageByte' says where that message id sits in the payload: 0 when the descriptor declares no report ids at all (the Steam Deck and the 2015 Steam Controller), 1 when a report id precedes it (the 2026 Steam Controller, whose command channel rides feature report 1). 'reports' lists { id (hex), param (the message parameter this answer is for, when one message carries several, as ID_GET_STRING_ATTRIBUTE does; absent answers the message whatever parameter it carried), size (the report's wire length, padded to), data (leading bytes, hex, verbatim from a real device's reply), comment }. A message with no entry stalls, as real hardware does for one it does not implement. Only valid with backend 'usbip'; see sdk/HIDMaestro.Core/Internal/Usbip/FeatureStubTable.cs and the three profiles/valve/*-composite and steam-controller-2 profiles for the authored examples."
+    }
+  }
+}

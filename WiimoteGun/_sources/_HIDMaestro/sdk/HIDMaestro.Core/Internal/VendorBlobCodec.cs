@@ -1,0 +1,904 @@
+using System;
+using System.Collections.Generic;
+
+namespace HIDMaestro.Internal;
+
+/// <summary>v1.3.5: generic vendor-blob HID report encoder/decoder. Walks an
+/// <see cref="ExtendedReportSpec"/> field list to translate between
+/// HMGamepadState / parsed-field dictionaries and on-wire bytes. Profile JSON
+/// is the source of truth for byte layouts; the codec is profile-agnostic.
+///
+/// <para>The same codec serves both directions:</para>
+/// <list type="bullet">
+/// <item><description>Input: HMController.SubmitState → encoded extended-input report bytes</description></item>
+/// <item><description>Output: incoming output-report bytes → parsed-field dictionary</description></item>
+/// </list>
+///
+/// <para>Since issue #34 the per-frame loops run over a
+/// <see cref="VendorBlobProgram"/>: the spec's strings (type, semantic,
+/// button names, bit/byte ranges) are compiled to numeric opcodes once per
+/// spec, and each frame is a switch over enums with no string parsing.
+/// Byte parity with the pre-compiled implementation is locked by
+/// <c>test/probes/vendor_blob_golden_check</c>.</para>
+///
+/// <para>CRC32 uses CRC-32/ISO-HDLC (poly 0xEDB88320), matching Sony's wire
+/// format and dualsense-tester / ds4drv reference impls.</para>
+/// </summary>
+internal static class VendorBlobCodec
+{
+    /// <summary>Per-controller mutable state for vendor-blob encoding.
+    /// Holds rolling counters that advance with each Encode call so the
+    /// emitted reports increment monotonically as a real device does.</summary>
+    public sealed class EncoderState
+    {
+        // Keyed by field semantic name so multiple rolling fields in one
+        // report (Sony: framingTag at byte 1, reportCounter at byte 8)
+        // each advance independently.
+        public Dictionary<string, byte> RollingCounters { get; } = new();
+
+        /// <summary>Wider counters, for a format whose packet number is 32
+        /// bits (Valve's state packets).</summary>
+        public Dictionary<string, uint> RollingCounters32 { get; } = new();
+
+        private long _clockOrigin;
+
+        /// <summary>Issue #64. The sensor time for this report in 1/3 µs
+        /// ticks: the consumer's own <see cref="HMGamepadState.SensorTimestamp"/>
+        /// when it sets one, otherwise the time since this controller's
+        /// first report. A real pad stamps every report, and SDL, Linux and
+        /// DS4Windows all take the motion interval from the difference
+        /// between stamps, so a stamp that never moves reads as no time
+        /// passing.</summary>
+        public uint SensorTicks(uint consumerTicks)
+        {
+            if (consumerTicks != 0) return consumerTicks;
+            long now = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (_clockOrigin == 0) _clockOrigin = now;
+            // 3 ticks per microsecond, wrapping at 32 bits like the
+            // consumer's value does.
+            double us = (now - _clockOrigin) * 1_000_000.0 / System.Diagnostics.Stopwatch.Frequency;
+            return unchecked((uint)(ulong)(us * 3.0));
+        }
+    }
+
+    // ── Input encoder: HMGamepadState → bytes ─────────────────────────────
+
+    /// <summary>Encode an HMGamepadState into the byte buffer per the spec.
+    /// Buffer is zeroed first; report ID byte is written at offset 0.
+    ///
+    /// <para>v1.3.9: caller passes the pre-resolved 6 simple-slot values
+    /// (left stick X/Y, right stick X/Y, LT, RT) in <c>[0..1]</c> range.
+    /// HMController.SubmitState resolves these from
+    /// <see cref="HMGamepadState.Axes"/> via the profile's
+    /// <see cref="HMProfile.Sticks"/> / <see cref="HMProfile.Triggers"/>.
+    /// All other state fields (touchpad, IMU, battery, hat, buttons) are
+    /// read directly from <paramref name="state"/>.</para></summary>
+    public static void EncodeInput(
+        ExtendedReportSpec spec,
+        in HMGamepadState state,
+        float leftStickX, float leftStickY,
+        float rightStickX, float rightStickY,
+        float leftTrigger, float rightTrigger,
+        byte[] buffer,
+        EncoderState encState)
+    {
+        if (buffer.Length < spec.Size)
+            throw new ArgumentException($"Buffer too small: need {spec.Size}, got {buffer.Length}");
+
+        Array.Clear(buffer, 0, spec.Size);
+        buffer[0] = spec.ReportIdByte;
+
+        var prog = VendorBlobProgram.Get(spec);
+        var fields = prog.Fields;
+        for (int fi = 0; fi < fields.Length; fi++)
+        {
+            ref readonly var f = ref fields[fi];
+            switch (f.Op)
+            {
+                case VendorBlobProgram.FieldOp.U8Axis:
+                {
+                    if (f.B < 0) break;
+                    // v1.3.9: sticks are [0..1] uniformly (0.5 = center).
+                    // The "center" override stays for vendor blobs that
+                    // place the on-wire center somewhere other than 128.
+                    float v = f.Source switch
+                    {
+                        VendorBlobProgram.SrcOp.LeftStickX  => leftStickX,
+                        VendorBlobProgram.SrcOp.LeftStickY  => leftStickY,
+                        VendorBlobProgram.SrcOp.RightStickX => rightStickX,
+                        VendorBlobProgram.SrcOp.RightStickY => rightStickY,
+                        _ => 0.5f,
+                    };
+                    int raw = (int)Math.Round(Math.Clamp(v, 0f, 1f) * 255);
+                    if (f.Center != 128)
+                        raw = f.Center + (int)Math.Round((Math.Clamp(v, 0f, 1f) - 0.5f) * 254);
+                    buffer[f.B] = (byte)Math.Clamp(raw, 0, 255);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.U8Trigger:
+                {
+                    if (f.B < 0) break;
+                    float v = f.Source switch
+                    {
+                        VendorBlobProgram.SrcOp.LeftTrigger  => leftTrigger,
+                        VendorBlobProgram.SrcOp.RightTrigger => rightTrigger,
+                        _ => 0f,
+                    };
+                    buffer[f.B] = (byte)Math.Clamp((int)Math.Round(Math.Clamp(v, 0f, 1f) * 255), 0, 255);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.Stick12Pair:
+                {
+                    // Two 12-bit axes sharing three bytes, exactly as
+                    // VIIPER's ns2pro packStick12 lays them out:
+                    //   out[0] = x low 8
+                    //   out[1] = x high 4 in the low nibble,
+                    //            y low 4 in the high nibble
+                    //   out[2] = y high 8
+                    // The middle byte belongs to both axes, which is why
+                    // this is one field and not two: writing either axis
+                    // alone would clobber half of the other.
+                    if (f.B < 0 || f.B + 2 >= buffer.Length) break;
+                    float vx, vy;
+                    if (f.Source == VendorBlobProgram.SrcOp.RightStick) { vx = rightStickX; vy = rightStickY; }
+                    else { vx = leftStickX; vy = leftStickY; }
+                    // 0..1 maps onto the full 12-bit range. VIIPER centers a
+                    // resting stick at 0x0800 (StickCenter), which is what
+                    // 0.5f produces here after rounding.
+                    int x = Math.Clamp((int)Math.Round(Math.Clamp(vx, 0f, 1f) * 4095), 0, 4095);
+                    int y = Math.Clamp((int)Math.Round(Math.Clamp(vy, 0f, 1f) * 4095), 0, 4095);
+                    buffer[f.B]     = (byte)(x & 0xFF);
+                    buffer[f.B + 1] = (byte)(((x >> 8) & 0x0F) | ((y & 0x0F) << 4));
+                    buffer[f.B + 2] = (byte)((y >> 4) & 0xFF);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.U8Rolling:
+                {
+                    if (f.B < 0) break;
+                    if (!encState.RollingCounters.TryGetValue(f.RollKey, out var counter))
+                        counter = f.Initial;
+                    buffer[f.B] = counter;
+                    encState.RollingCounters[f.RollKey] = unchecked((byte)(counter + f.Stride));
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.U8Const:
+                {
+                    if (f.B < 0) break;
+                    buffer[f.B] = f.Source == VendorBlobProgram.SrcOp.TouchpadPacketCounter
+                        ? state.TouchpadPacketCounter : f.Initial;
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.U16:
+                {
+                    // Issue #64: the DualShock 4 sensor timestamp, little
+                    // endian in 16/3 µs ticks (SDL_hidapi_ps4.c "Sensor
+                    // timestamp is in 5.33us units", hid-playstation.c
+                    // dualshock4_input_report_common.sensor_timestamp).
+                    // Divisor 16 turns the SDK's 1/3 µs ticks into those, and
+                    // because 2^32 / 16 is a multiple of 2^16 the 16-bit
+                    // value still wraps cleanly when the 32-bit source does.
+                    if (f.B < 0 || f.B + 1 >= buffer.Length) break;
+                    uint u16 = f.Source == VendorBlobProgram.SrcOp.SensorTimestamp
+                        ? encState.SensorTicks(state.SensorTimestamp) / f.Divisor : 0u;
+                    buffer[f.B]     = (byte)(u16 & 0xFF);
+                    buffer[f.B + 1] = (byte)((u16 >> 8) & 0xFF);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.U8Pressure:
+                {
+                    if (f.B < 0 || (uint)f.B >= (uint)buffer.Length) break;
+                    buffer[f.B] = Pressure(f.Source, in state);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.U10BE:
+                {
+                    // A DualShock 3 motion sensor: 10 bits around a center,
+                    // most significant byte first (hid-sony.c sixaxis_raw_event
+                    // "MSByte first", SDL_hidapi_ps3.c ScaleAccel's
+                    // SDL_Swap16BE). The SDK's fields are rescaled from their
+                    // own resolution to the wire's and clamped to 0..1023.
+                    if (f.B < 0 || f.B + 1 >= buffer.Length) break;
+                    int src = f.Source switch
+                    {
+                        VendorBlobProgram.SrcOp.AccelX    => state.AccelX,
+                        VendorBlobProgram.SrcOp.AccelY    => state.AccelY,
+                        VendorBlobProgram.SrcOp.AccelZ    => state.AccelZ,
+                        VendorBlobProgram.SrcOp.GyroPitch => state.GyroPitch,
+                        VendorBlobProgram.SrcOp.GyroYaw   => state.GyroYaw,
+                        VendorBlobProgram.SrcOp.GyroRoll  => state.GyroRoll,
+                        _ => 0,
+                    };
+                    int delta = (int)Math.Round((double)src * f.Resolution / f.SourceResolution,
+                                                MidpointRounding.AwayFromZero);
+                    int v10 = Math.Clamp(f.Invert ? f.Center - delta : f.Center + delta, 0, 1023);
+                    buffer[f.B]     = (byte)((v10 >> 8) & 0xFF);
+                    buffer[f.B + 1] = (byte)(v10 & 0xFF);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.Ds3Battery:
+                {
+                    // 0xEE charging and 0xEF charged on the cable, otherwise a
+                    // level 0..5 that hid-sony.c reads as 0, 1, 25, 50, 75 and
+                    // 100% (sixaxis_battery_capacity) and RPCS3 reads the same
+                    // way (ds3_pad_handler.cpp get_data).
+                    if (f.B < 0 || (uint)f.B >= (uint)buffer.Length) break;
+                    buffer[f.B] = state.BatteryFull ? (byte)0xEF
+                                : state.BatteryCharging ? (byte)0xEE
+                                : Ds3BatteryLevel[Math.Min((int)state.BatteryLevel, 10)];
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.I16:
+                {
+                    if (f.B < 0 || f.B + 1 >= buffer.Length) break;
+                    short v = f.Source switch
+                    {
+                        VendorBlobProgram.SrcOp.GyroPitch => state.GyroPitch,
+                        VendorBlobProgram.SrcOp.GyroYaw   => state.GyroYaw,
+                        VendorBlobProgram.SrcOp.GyroRoll  => state.GyroRoll,
+                        VendorBlobProgram.SrcOp.AccelX    => state.AccelX,
+                        VendorBlobProgram.SrcOp.AccelY    => state.AccelY,
+                        VendorBlobProgram.SrcOp.AccelZ    => state.AccelZ,
+                        _ => (short)0,
+                    };
+                    buffer[f.B]     = (byte)(v & 0xFF);
+                    buffer[f.B + 1] = (byte)((v >> 8) & 0xFF);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.I16Axis:
+                {
+                    // Signed 16-bit stick axis. Sticks arrive as [0..1] with
+                    // 0.5 centered (v1.3.9); Valve's packets carry them
+                    // full-scale signed, which SDL reads straight through.
+                    if (f.B < 0 || f.B + 1 >= buffer.Length) break;
+                    float sv = f.Source switch
+                    {
+                        VendorBlobProgram.SrcOp.LeftStickX  => leftStickX,
+                        VendorBlobProgram.SrcOp.LeftStickY  => leftStickY,
+                        VendorBlobProgram.SrcOp.RightStickX => rightStickX,
+                        VendorBlobProgram.SrcOp.RightStickY => rightStickY,
+                        _ => 0.5f,
+                    };
+                    // Valve's packets are positive-up on Y, the opposite of
+                    // the byte-oriented pads: SDL applies a unary minus to
+                    // sLeftStickY and sRightStickY on the way in. Y is
+                    // therefore negated here so up reads as up.
+                    bool yAxis = f.Source is VendorBlobProgram.SrcOp.LeftStickY
+                                           or VendorBlobProgram.SrcOp.RightStickY;
+                    float centered = Math.Clamp(sv, 0f, 1f) - 0.5f;
+                    if (yAxis) centered = -centered;
+                    short sraw = (short)Math.Clamp(
+                        (int)Math.Round(centered * 2f * 32767f), -32767, 32767);
+                    buffer[f.B]     = (byte)(sraw & 0xFF);
+                    buffer[f.B + 1] = (byte)((sraw >> 8) & 0xFF);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.I16Pad:
+                case VendorBlobProgram.FieldOp.I16PadOrStick:
+                {
+                    // Valve trackpad coordinate. Fingers arrive in Sony's
+                    // native range (0..1919 by 0..1079, HMGamepadState), and
+                    // Valve's pads are full-scale signed with positive Y up:
+                    // SDL_hidapi_steamdeck.c reads them back as
+                    // sLeftPadX / 65536 + 0.5 and -sLeftPadY / 65536 + 0.5,
+                    // so X maps straight across and Y inverts.
+                    //
+                    // I16PadOrStick is the 2015 controller's shared pair. Its
+                    // firmware packs EITHER the pad or the joystick into the
+                    // same two axes and flags which with the finger-down bit,
+                    // and SDL_hidapi_steam.c:UpdateSteamControllerState reads
+                    // it exactly that way. Falling back to the stick when the
+                    // finger is up is the hardware's own behavior, not a
+                    // substitution for missing data.
+                    if (f.B < 0 || f.B + 1 >= buffer.Length) break;
+                    bool isLeft = f.Source is VendorBlobProgram.SrcOp.LeftPadX
+                                            or VendorBlobProgram.SrcOp.LeftPadY;
+                    bool isY = f.Source is VendorBlobProgram.SrcOp.LeftPadY
+                                         or VendorBlobProgram.SrcOp.RightPadY;
+                    bool down = isLeft ? state.TouchpadFinger0Active
+                                       : state.TouchpadFinger1Active;
+                    short praw;
+                    if (down)
+                    {
+                        int raw = isLeft
+                            ? (isY ? state.TouchpadFinger0Y : state.TouchpadFinger0X)
+                            : (isY ? state.TouchpadFinger1Y : state.TouchpadFinger1X);
+                        float span = isY ? 1079f : 1919f;
+                        float unit = Math.Clamp(raw / span, 0f, 1f) - 0.5f;
+                        if (isY) unit = -unit;
+                        praw = (short)Math.Clamp(
+                            (int)Math.Round(unit * 2f * 32767f), -32767, 32767);
+                    }
+                    else if (f.Op == VendorBlobProgram.FieldOp.I16PadOrStick)
+                    {
+                        float sv = isLeft ? (isY ? leftStickY : leftStickX)
+                                          : (isY ? rightStickY : rightStickX);
+                        float centered = Math.Clamp(sv, 0f, 1f) - 0.5f;
+                        if (isY) centered = -centered;
+                        praw = (short)Math.Clamp(
+                            (int)Math.Round(centered * 2f * 32767f), -32767, 32767);
+                    }
+                    else
+                    {
+                        praw = 0;
+                    }
+                    buffer[f.B]     = (byte)(praw & 0xFF);
+                    buffer[f.B + 1] = (byte)((praw >> 8) & 0xFF);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.U16Pressure:
+                {
+                    // Pad pressure, 0..32768 full scale (SDL divides by
+                    // 32768.0f). HMGamepadState carries no analog pressure,
+                    // so a contact reports full scale and no contact zero,
+                    // which is the same shape a capacitive pad without a
+                    // force sensor reports.
+                    if (f.B < 0 || f.B + 1 >= buffer.Length) break;
+                    bool pdown = f.Source == VendorBlobProgram.SrcOp.RightPadPressure
+                        ? state.TouchpadFinger1Active
+                        : state.TouchpadFinger0Active;
+                    ushort pv = pdown ? (ushort)32767 : (ushort)0;
+                    buffer[f.B]     = (byte)(pv & 0xFF);
+                    buffer[f.B + 1] = (byte)((pv >> 8) & 0xFF);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.U16Trigger:
+                {
+                    // Unsigned 16-bit trigger, 0..32767. SDL widens it as
+                    // (raw * 2 - 32768) to reach its own full range, so a
+                    // full pull is 32767 rather than 65535.
+                    if (f.B < 0 || f.B + 1 >= buffer.Length) break;
+                    float tv = f.Source switch
+                    {
+                        VendorBlobProgram.SrcOp.LeftTrigger  => leftTrigger,
+                        VendorBlobProgram.SrcOp.RightTrigger => rightTrigger,
+                        _ => 0f,
+                    };
+                    int traw = (int)Math.Round(Math.Clamp(tv, 0f, 1f) * 32767f);
+                    buffer[f.B]     = (byte)(traw & 0xFF);
+                    buffer[f.B + 1] = (byte)((traw >> 8) & 0xFF);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.U32Rolling:
+                {
+                    // Valve's unPacketNum. A consumer that sees the same
+                    // number twice may skip the frame, so this has to
+                    // advance on every encode or the stream reads as one
+                    // frame repeated forever.
+                    if (f.B < 0 || f.B + 3 >= buffer.Length) break;
+                    if (!encState.RollingCounters32.TryGetValue(f.RollKey, out var c32))
+                        c32 = f.Initial;
+                    buffer[f.B]     = (byte)(c32         & 0xFF);
+                    buffer[f.B + 1] = (byte)((c32 >>  8) & 0xFF);
+                    buffer[f.B + 2] = (byte)((c32 >> 16) & 0xFF);
+                    buffer[f.B + 3] = (byte)((c32 >> 24) & 0xFF);
+                    encState.RollingCounters32[f.RollKey] =
+                        unchecked(c32 + (uint)Math.Max(1, (int)f.Stride));
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.U32:
+                {
+                    if (f.B < 0 || f.B + 3 >= buffer.Length) break;
+                    uint v = f.Source == VendorBlobProgram.SrcOp.SensorTimestamp
+                        ? state.SensorTimestamp : 0u;
+                    buffer[f.B]     = (byte)(v        & 0xFF);
+                    buffer[f.B + 1] = (byte)((v >>  8) & 0xFF);
+                    buffer[f.B + 2] = (byte)((v >> 16) & 0xFF);
+                    buffer[f.B + 3] = (byte)((v >> 24) & 0xFF);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.TouchpadFinger:
+                {
+                    // Sony two-finger packet: 4 bytes per finger.
+                    //   byte 0: bit 7 = lifted (1 = not touching), bits 0-6 = tracking ID
+                    //   byte 1: X low 8 bits
+                    //   byte 2: bits 0-3 = X high 4 bits, bits 4-7 = Y low 4 bits
+                    //   byte 3: Y high 8 bits
+                    if (f.B < 0 || f.B + 3 >= buffer.Length) break;
+                    bool active; ushort x, y; byte id;
+                    if (f.Source == VendorBlobProgram.SrcOp.Finger1)
+                    {
+                        active = state.TouchpadFinger1Active;
+                        x = state.TouchpadFinger1X; y = state.TouchpadFinger1Y;
+                        id = state.TouchpadFinger1Id;
+                    }
+                    else
+                    {
+                        active = state.TouchpadFinger0Active;
+                        x = state.TouchpadFinger0X; y = state.TouchpadFinger0Y;
+                        id = state.TouchpadFinger0Id;
+                    }
+                    buffer[f.B]     = (byte)((id & 0x7F) | (active ? 0x00 : 0x80));
+                    buffer[f.B + 1] = (byte)(x & 0xFF);
+                    buffer[f.B + 2] = (byte)(((x >> 8) & 0x0F) | ((y & 0x0F) << 4));
+                    buffer[f.B + 3] = (byte)((y >> 4) & 0xFF);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.Bitfield:
+                {
+                    if (f.B < 0 || (uint)f.B >= (uint)buffer.Length || f.FlagKinds == null) break;
+                    byte packed = 0;
+                    for (int i = 0; i < f.FlagKinds.Length && (f.BitLo + i) <= f.BitHi; i++)
+                    {
+                        bool bit = f.FlagKinds[i] switch
+                        {
+                            VendorBlobProgram.FlagCharging   => state.BatteryCharging,
+                            VendorBlobProgram.FlagFull       => state.BatteryFull,
+                            VendorBlobProgram.FlagMic        => state.MicMuted,
+                            VendorBlobProgram.FlagHeadphones => state.HeadphonesConnected,
+                            VendorBlobProgram.FlagCable      => state.BatteryCharging || state.BatteryFull,
+                            _ => false,
+                        };
+                        if (bit) packed |= (byte)(1 << (f.BitLo + i));
+                    }
+                    byte preserveMask = (byte)~(((1 << (f.BitHi - f.BitLo + 1)) - 1) << f.BitLo);
+                    buffer[f.B] = (byte)((buffer[f.B] & preserveMask) | packed);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.Battery:
+                {
+                    // BatteryLevel byte, optionally sub-bit-ranged (Sony packs
+                    // capacity in the low nibble, charging+full in the high).
+                    if (f.B < 0 || (uint)f.B >= (uint)buffer.Length) break;
+                    int width = f.BitHi - f.BitLo + 1;
+                    byte mask = (byte)(((1 << width) - 1) << f.BitLo);
+                    int level = f.FullValue >= 0 && state.BatteryFull ? f.FullValue : state.BatteryLevel;
+                    byte v = (byte)(level & ((1 << width) - 1));
+                    buffer[f.B] = (byte)((buffer[f.B] & ~mask) | ((v << f.BitLo) & mask));
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.HatOctant:
+                {
+                    // HMHat values 1..8 (N..NW) map to descriptor 0..7;
+                    // HMHat.None maps to the neutral value (typically 8).
+                    if (f.B < 0) break;
+                    int hatNibble = state.Hat == HMHat.None ? f.Neutral : ((int)state.Hat - 1) & 0x0F;
+                    if (f.HasBits)
+                    {
+                        int width = f.BitHi - f.BitLo + 1;
+                        byte mask = (byte)(((1 << width) - 1) << f.BitLo);
+                        buffer[f.B] = (byte)((buffer[f.B] & ~mask) | ((hatNibble << f.BitLo) & mask));
+                    }
+                    else
+                    {
+                        buffer[f.B] = (byte)(hatNibble & 0xFF);
+                    }
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.ButtonMask:
+                {
+                    if (f.B < 0 || f.ButtonBits == null) break;
+                    uint mask = (uint)state.Buttons;
+                    ulong packed = 0;
+                    for (int i = 0; i < f.ButtonBits.Length && (f.BitLo + i) <= f.BitHi; i++)
+                    {
+                        ulong bits = f.ButtonBits[i];
+                        if (bits == 0) continue;
+                        // Magic trigger-engaged digital buttons: DS4/DS5
+                        // report L2/R2 as both analog axis AND digital button.
+                        // D-pad directions come from state.Hat, not from the
+                        // button mask, so a profile that spells the d-pad as
+                        // four discrete buttons still consumes the same
+                        // HMHat a hat-encoded profile does. Diagonals set
+                        // both of their components, which is what the wire
+                        // format expects and what SDL reconstructs a hat
+                        // from on the other side.
+                        // The trigger bits follow the 8-bit analog value
+                        // (issue #64): set exactly when it is nonzero, the
+                        // rule DS4Windows applies to its own virtual DS4
+                        // (ControlService.cs "cState.L2Btn = cState.L2 > 0").
+                        // SDL's PS4 and PS5 drivers read a set bit over a
+                        // zero trigger byte as a full pull, which a bare
+                        // "above zero" test produced for any value under
+                        // half of the first step.
+                        var h = state.Hat;
+                        bool on = bits switch
+                        {
+                            VendorBlobProgram.ButtonLtDigital => TriggerByte(leftTrigger) > 0,
+                            VendorBlobProgram.ButtonRtDigital => TriggerByte(rightTrigger) > 0,
+                            VendorBlobProgram.ButtonDpadUp    => h is HMHat.North or HMHat.NorthEast or HMHat.NorthWest,
+                            VendorBlobProgram.ButtonDpadDown  => h is HMHat.South or HMHat.SouthEast or HMHat.SouthWest,
+                            VendorBlobProgram.ButtonDpadLeft  => h is HMHat.West  or HMHat.NorthWest or HMHat.SouthWest,
+                            VendorBlobProgram.ButtonDpadRight => h is HMHat.East  or HMHat.NorthEast or HMHat.SouthEast,
+                            VendorBlobProgram.ButtonPad0Touch => state.TouchpadFinger0Active,
+                            VendorBlobProgram.ButtonPad1Touch => state.TouchpadFinger1Active,
+                            _ => (mask & (uint)bits) != 0,
+                        };
+                        if (on) packed |= 1UL << (f.BitLo + i);
+                    }
+                    // OR into the existing bytes, preserving bits outside the
+                    // declared range. The range may span more than one byte:
+                    // Valve's state packets carry a 64-bit button field, and
+                    // a single-byte write would drop every button above 7.
+                    int nBytes = (f.BitHi / 8) + 1;
+                    for (int by = 0; by < nBytes; by++)
+                    {
+                        if ((uint)(f.B + by) >= (uint)buffer.Length) break;
+                        int lo = by * 8;
+                        int rlo = Math.Max(lo, f.BitLo), rhi = Math.Min(lo + 7, f.BitHi);
+                        if (rlo > rhi) continue;
+                        byte span = (byte)((((1 << (rhi - rlo + 1)) - 1) << (rlo - lo)) & 0xFF);
+                        byte val = (byte)((packed >> lo) & 0xFF);
+                        buffer[f.B + by] = (byte)((buffer[f.B + by] & (byte)~span) | (val & span));
+                    }
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.Crc32:
+                {
+                    if (f.Src.Scope == null) break;
+                    var crc = ComputeCrc32(f.Src.Scope, buffer);
+                    // -1 sentinel: no declared dest; the old string impl
+                    // resolved buffer.Length - 4 at run time. Preserved.
+                    int dst = f.CrcDst >= 0 ? f.CrcDst : buffer.Length - 4;
+                    buffer[dst + 0] = (byte)(crc       & 0xFF);
+                    buffer[dst + 1] = (byte)((crc >> 8 ) & 0xFF);
+                    buffer[dst + 2] = (byte)((crc >> 16) & 0xFF);
+                    buffer[dst + 3] = (byte)((crc >> 24) & 0xFF);
+                    break;
+                }
+                // Rgb24: input direction carries no RGB source; skip (the
+                // output direction consumes it via the parsed-fields path).
+                // BytesZero / BytesPassthrough / Unknown: buffer already
+                // zeroed; unknown types stay a silent no-op by contract.
+                default:
+                    break;
+            }
+        }
+    }
+
+    // ── Output encoder: parsed fields → bytes ─────────────────────────────
+
+    /// <summary>Encode a parsed-field dictionary into the byte buffer per the
+    /// spec. Used by HMOutputEncoder for consumers that want to drive a real
+    /// device from synthesized state without reimplementing byte layouts.
+    ///
+    /// <para><paramref name="encState"/> may be null for stateless callers
+    /// (the historical signature). When supplied, <c>uint8-rolling</c> fields
+    /// without a matching dict entry advance an internal rolling counter so
+    /// the spec can own the framingTag pattern (Sony BT effect output's
+    /// <c>btTag</c> stride-16 cycle is the canonical case).</para></summary>
+    public static byte[] EncodeOutput(
+        ExtendedReportSpec spec,
+        IReadOnlyDictionary<string, object> fields,
+        EncoderState? encState = null)
+    {
+        var buffer = new byte[spec.Size];
+        buffer[0] = spec.ReportIdByte;
+
+        var prog = VendorBlobProgram.Get(spec);
+        var compiled = prog.Fields;
+        for (int fi = 0; fi < compiled.Length; fi++)
+        {
+            ref readonly var f = ref compiled[fi];
+            var field = f.Src;
+            // The source of every value is the parsed-fields dict keyed by
+            // semantic name. Unmapped fields stay zero.
+            switch (f.Op)
+            {
+                case VendorBlobProgram.FieldOp.U8Const:
+                {
+                    if (f.B < 0) break;
+                    if (field.Semantic != null && fields.TryGetValue(field.Semantic, out var val))
+                        buffer[f.B] = ToByte(val);
+                    else if (field.Initial.HasValue)
+                        // Constant byte the spec wants written even when the
+                        // consumer's dict doesn't carry the semantic. Sony BT
+                        // output's byte-2 framing-flag (0x10) is the canonical
+                        // case: real firmware drops the packet without it.
+                        buffer[f.B] = f.Initial;
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.U8Rolling:
+                {
+                    if (f.B < 0) break;
+                    // An explicit consumer value overrides the auto-advance
+                    // (diagnostic fixtures).
+                    if (field.Semantic != null && fields.TryGetValue(field.Semantic, out var val))
+                    {
+                        buffer[f.B] = ToByte(val);
+                        break;
+                    }
+                    // Auto-advance by stride. Required for Sony BT btTag.
+                    // Real firmware silently drops the packet otherwise.
+                    if (encState != null)
+                    {
+                        string key = field.Semantic ?? $"_o{f.B}";
+                        if (!encState.RollingCounters.TryGetValue(key, out var counter))
+                            counter = f.Initial;
+                        buffer[f.B] = counter;
+                        encState.RollingCounters[key] = unchecked((byte)(counter + f.Stride));
+                    }
+                    else if (field.Initial.HasValue)
+                    {
+                        buffer[f.B] = f.Initial;
+                    }
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.U8Axis:
+                {
+                    if (f.B < 0 || field.Semantic == null) break;
+                    if (fields.TryGetValue(field.Semantic, out var val))
+                    {
+                        if (val is float fv) buffer[f.B] = (byte)Math.Clamp(f.Center + (int)Math.Round(fv * 127), 0, 255);
+                        else if (val is double d) buffer[f.B] = (byte)Math.Clamp(f.Center + (int)Math.Round(d * 127), 0, 255);
+                        else buffer[f.B] = ToByte(val);
+                    }
+                    else
+                    {
+                        buffer[f.B] = (byte)f.Center;
+                    }
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.U8Trigger:
+                {
+                    if (f.B < 0 || field.Semantic == null) break;
+                    if (fields.TryGetValue(field.Semantic, out var val))
+                    {
+                        if (val is float fv) buffer[f.B] = (byte)Math.Clamp((int)Math.Round(fv * 255), 0, 255);
+                        else if (val is double d) buffer[f.B] = (byte)Math.Clamp((int)Math.Round(d * 255), 0, 255);
+                        else buffer[f.B] = ToByte(val);
+                    }
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.Rgb24:
+                {
+                    if (f.RangeLo < 0 || field.Semantic == null) break;
+                    if (fields.TryGetValue(field.Semantic, out var val))
+                    {
+                        if (val is byte[] arr && arr.Length >= 3)
+                        {
+                            buffer[f.RangeLo + 0] = arr[0];
+                            buffer[f.RangeLo + 1] = arr[1];
+                            buffer[f.RangeLo + 2] = arr[2];
+                        }
+                        else if (val is uint packed)
+                        {
+                            buffer[f.RangeLo + 0] = (byte)((packed >> 16) & 0xFF);
+                            buffer[f.RangeLo + 1] = (byte)((packed >>  8) & 0xFF);
+                            buffer[f.RangeLo + 2] = (byte)( packed        & 0xFF);
+                        }
+                    }
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.BytesPassthrough:
+                {
+                    if (f.RangeLo < 0 || field.Semantic == null) break;
+                    if (fields.TryGetValue(field.Semantic, out var val) && val is byte[] arr)
+                    {
+                        int n = Math.Min(arr.Length, f.RangeHi - f.RangeLo + 1);
+                        Buffer.BlockCopy(arr, 0, buffer, f.RangeLo, n);
+                    }
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.Crc32:
+                {
+                    if (field.Scope == null) break;
+                    var crc = ComputeCrc32(field.Scope, buffer);
+                    // -1 sentinel: resolve from the live buffer (see EncodeInput).
+                    int dst = f.CrcDst >= 0 ? f.CrcDst : buffer.Length - 4;
+                    buffer[dst + 0] = (byte)(crc       & 0xFF);
+                    buffer[dst + 1] = (byte)((crc >> 8 ) & 0xFF);
+                    buffer[dst + 2] = (byte)((crc >> 16) & 0xFF);
+                    buffer[dst + 3] = (byte)((crc >> 24) & 0xFF);
+                    break;
+                }
+                // BytesZero and every unknown/input-only type: leave the
+                // field's bytes at their zeroed default.
+                default:
+                    break;
+            }
+        }
+        return buffer;
+    }
+
+    // ── Decoder: bytes → parsed fields ────────────────────────────────────
+
+    /// <summary>Decode a byte buffer into a parsed-field dictionary per the
+    /// spec. Used by HMController.OnOutputReceived to surface incoming output
+    /// reports as named values to consumers via the OutputDecoded event.</summary>
+    public static (Dictionary<string, object> fields, bool crcValid) Decode(
+        ExtendedReportSpec spec,
+        ReadOnlySpan<byte> buffer)
+    {
+        var prog = VendorBlobProgram.Get(spec);
+        // Pre-sized (issue #34): the compiled program knows how many fields
+        // produce entries, so the dictionary never rehashes mid-decode.
+        var result = new Dictionary<string, object>(prog.DecodeFieldCount);
+        bool crcValid = true;
+
+        var compiled = prog.Fields;
+        for (int fi = 0; fi < compiled.Length; fi++)
+        {
+            ref readonly var f = ref compiled[fi];
+            var field = f.Src;
+            switch (f.Op)
+            {
+                case VendorBlobProgram.FieldOp.U8Const:
+                case VendorBlobProgram.FieldOp.U8Rolling:
+                {
+                    if (f.B < 0 || field.Semantic == null) continue;
+                    if ((uint)f.B >= (uint)buffer.Length) continue;
+                    result[field.Semantic] = buffer[f.B];
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.U8Axis:
+                {
+                    if (f.B < 0 || field.Semantic == null) continue;
+                    if ((uint)f.B >= (uint)buffer.Length) continue;
+                    result[field.Semantic] = (float)((buffer[f.B] - f.Center) / 127.0);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.U8Trigger:
+                {
+                    if (f.B < 0 || field.Semantic == null) continue;
+                    if ((uint)f.B >= (uint)buffer.Length) continue;
+                    result[field.Semantic] = (float)(buffer[f.B] / 255.0);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.HatOctant:
+                {
+                    if (f.B < 0 || field.Semantic == null) continue;
+                    if ((uint)f.B >= (uint)buffer.Length) continue;
+                    int raw;
+                    if (f.HasBits)
+                    {
+                        int width = f.BitHi - f.BitLo + 1;
+                        int mask = (1 << width) - 1;
+                        raw = (buffer[f.B] >> f.BitLo) & mask;
+                    }
+                    else
+                    {
+                        raw = buffer[f.B];
+                    }
+                    result[field.Semantic] = raw == f.Neutral ? (byte)0 : (byte)((raw + 1) & 0xFF);
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.ButtonMask:
+                {
+                    if (f.B < 0 || field.Buttons == null) continue;
+                    if ((uint)f.B >= (uint)buffer.Length) continue;
+                    var pressed = new List<string>();
+                    for (int i = 0; i < field.Buttons.Count; i++)
+                    {
+                        if (((buffer[f.B] >> (f.BitLo + i)) & 1) != 0
+                            && !string.IsNullOrEmpty(field.Buttons[i])
+                            && field.Buttons[i] != "_")
+                        {
+                            pressed.Add(field.Buttons[i]);
+                        }
+                    }
+                    string semantic = field.Semantic ?? $"buttons_b{f.B}";
+                    result[semantic] = pressed;
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.Rgb24:
+                {
+                    if (f.RangeLo < 0 || field.Semantic == null) continue;
+                    if (f.RangeLo + 2 >= buffer.Length) continue;
+                    result[field.Semantic] = new byte[]
+                    {
+                        buffer[f.RangeLo], buffer[f.RangeLo + 1], buffer[f.RangeLo + 2],
+                    };
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.BytesPassthrough:
+                {
+                    if (f.RangeLo < 0 || field.Semantic == null) continue;
+                    if (f.RangeHi >= buffer.Length) continue;
+                    int n = f.RangeHi - f.RangeLo + 1;
+                    var slice = new byte[n];
+                    buffer.Slice(f.RangeLo, n).CopyTo(slice);
+                    result[field.Semantic] = slice;
+                    break;
+                }
+                case VendorBlobProgram.FieldOp.Crc32:
+                {
+                    if (field.Scope == null) continue;
+                    // -1 sentinel: the RECEIVED report's length rules here.
+                    // A short host write must still get its CRC validated
+                    // at the actual buffer end, exactly like the old impl.
+                    int dst = f.CrcDst >= 0 ? f.CrcDst : buffer.Length - 4;
+                    if (dst < 0 || dst + 3 >= buffer.Length) continue;
+                    uint observed = (uint)buffer[dst]
+                                  | ((uint)buffer[dst + 1] << 8)
+                                  | ((uint)buffer[dst + 2] << 16)
+                                  | ((uint)buffer[dst + 3] << 24);
+                    // Span-based CRC (issue #34): the string implementation
+                    // did buffer.ToArray() per decode purely to feed the
+                    // byte[] CRC helper.
+                    uint expected = ComputeCrc32(field.Scope, buffer);
+                    crcValid = observed == expected;
+                    break;
+                }
+                // Unknown/unhandled decode types: omit the field from the
+                // result dict rather than throwing.
+                default:
+                    break;
+            }
+        }
+        return (result, crcValid);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    /// <summary>The 8-bit value a <c>uint8-trigger</c> field writes for
+    /// <paramref name="v"/>, by the same arithmetic.</summary>
+    private static int TriggerByte(float v) => (int)Math.Round(Math.Clamp(v, 0f, 1f) * 255);
+
+    /// <summary>A pressure-sensitive button's byte: the consumer's pressure
+    /// when it sets one, otherwise 255 while the button is pressed and 0
+    /// while it is not, so digital-only state still presses fully.</summary>
+    private static byte Pressure(VendorBlobProgram.SrcOp source, in HMGamepadState s)
+    {
+        var h = s.Hat;
+        (byte p, bool down) = source switch
+        {
+            VendorBlobProgram.SrcOp.PressureA           => (s.PressureA, (s.Buttons & HMButton.A) != 0),
+            VendorBlobProgram.SrcOp.PressureB           => (s.PressureB, (s.Buttons & HMButton.B) != 0),
+            VendorBlobProgram.SrcOp.PressureX           => (s.PressureX, (s.Buttons & HMButton.X) != 0),
+            VendorBlobProgram.SrcOp.PressureY           => (s.PressureY, (s.Buttons & HMButton.Y) != 0),
+            VendorBlobProgram.SrcOp.PressureLeftBumper  => (s.PressureLeftBumper, (s.Buttons & HMButton.LeftBumper) != 0),
+            VendorBlobProgram.SrcOp.PressureRightBumper => (s.PressureRightBumper, (s.Buttons & HMButton.RightBumper) != 0),
+            VendorBlobProgram.SrcOp.PressureDpadUp      => (s.PressureDpadUp, h is HMHat.North or HMHat.NorthEast or HMHat.NorthWest),
+            VendorBlobProgram.SrcOp.PressureDpadRight   => (s.PressureDpadRight, h is HMHat.East or HMHat.NorthEast or HMHat.SouthEast),
+            VendorBlobProgram.SrcOp.PressureDpadDown    => (s.PressureDpadDown, h is HMHat.South or HMHat.SouthEast or HMHat.SouthWest),
+            VendorBlobProgram.SrcOp.PressureDpadLeft    => (s.PressureDpadLeft, h is HMHat.West or HMHat.NorthWest or HMHat.SouthWest),
+            _ => ((byte)0, false),
+        };
+        return p != 0 ? p : down ? (byte)255 : (byte)0;
+    }
+
+    /// <summary>DualShock 3 battery level for each 0..10 level: the level
+    /// whose hid-sony.c capacity (0, 1, 25, 50, 75, 100%) is nearest the
+    /// level's midpoint, 10 x level + 5%.</summary>
+    private static readonly byte[] Ds3BatteryLevel = { 1, 2, 2, 2, 3, 3, 4, 4, 4, 5, 5 };
+
+    // CRC-32/ISO-HDLC, polynomial 0xEDB88320 (matches Sony BT, dualsense-tester,
+    // ds4drv, hidapi, OpenRGB SonyDualSenseController, PadForge Ds5RawHidWriter).
+    // Inline table to avoid pulling System.IO.Hashing, so single-file
+    // deployment works without an extra NuGet dep.
+    private static readonly uint[] s_crc32Table = BuildCrc32Table();
+
+    private static uint[] BuildCrc32Table()
+    {
+        var t = new uint[256];
+        for (uint i = 0; i < 256; i++)
+        {
+            uint c = i;
+            for (int k = 0; k < 8; k++)
+                c = ((c & 1) != 0) ? (0xEDB88320u ^ (c >> 1)) : (c >> 1);
+            t[i] = c;
+        }
+        return t;
+    }
+
+    private static uint ComputeCrc32(CrcScope scope, ReadOnlySpan<byte> buffer)
+    {
+        uint crc = 0xFFFFFFFFu;
+        if (scope.Prefix != null)
+        {
+            for (int i = 0; i < scope.Prefix.Count; i++)
+                crc = s_crc32Table[(crc ^ scope.Prefix[i]) & 0xFF] ^ (crc >> 8);
+        }
+        int from = scope.From;
+        int to = Math.Min(scope.To, buffer.Length - 1);
+        for (int i = from; i <= to; i++)
+            crc = s_crc32Table[(crc ^ buffer[i]) & 0xFF] ^ (crc >> 8);
+        return crc ^ 0xFFFFFFFFu;
+    }
+
+    private static byte ToByte(object val)
+    {
+        return val switch
+        {
+            byte b => b,
+            sbyte sb => (byte)sb,
+            short s => (byte)s,
+            ushort us => (byte)us,
+            int i => (byte)i,
+            uint u => (byte)u,
+            long l => (byte)l,
+            ulong ul => (byte)ul,
+            _ => 0,
+        };
+    }
+}

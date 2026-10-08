@@ -1,0 +1,14 @@
+{
+  "id": "wiimotegun-mkb",
+  "name": "Wiimote4Guns Virtual Mouse+Keyboard",
+  "vendor": "Wiimote4Guns",
+  "vid": "0x00FF",
+  "pid": "0xBACC",
+  "productString": "Wiimote4Guns Virtual Device",
+  "manufacturerString": "Wiimote4Guns",
+  "type": "other",
+  "connection": "usb",
+  "descriptor": "05010902a10185030901a1000509190129051500250175019505810295038103050126ff7f75109501550f6511350045000930810209318102050109381581257f750895018106c0c005010906a1018507050719e029e71500250175019508810295017508810395057501050819012905910295017503910395067508150025650507190029658100c0",
+  "inputReportSize": 8,
+  "notes": "POC V57c (Phase A). Souris ABSOLUE (report 0x03 : 5 boutons, X/Y 16 bits absolus 0..32767, molette relative) + clavier boot (report 0x07 : 8 modificateurs, LEDs, 6 scancodes) sur UNE interface HID, un device par joueur (cles d'identite P1..P4). Descripteur repris OCTET POUR OCTET du driver vmulti (WiimoteGun/_sources/_vmulti-master_/sys/vmulti.h, blocs Mouse + Keyboard) pour une compatibilite maximale avec les jeux/Emulateurs/DemulShooter qui fonctionnent deja avec vmulti a/b/c/d. VID/PID vmulti conserves (0x00FF/0xBACC). Soumission des rapports via HMController.SubmitRawExtendedReport (frames completes, report ID inclus, chemin verbatim du driver UMDF2). Type 'other' : le SDK ne cree pas de companion XInput pour ce VID."
+}

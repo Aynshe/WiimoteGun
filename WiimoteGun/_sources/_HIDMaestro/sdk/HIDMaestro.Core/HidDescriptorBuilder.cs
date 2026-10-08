@@ -1,0 +1,742 @@
+﻿using System;
+using System.Collections.Generic;
+
+namespace HIDMaestro;
+
+/// <summary>
+/// Fluent builder for constructing valid HID report descriptors from semantic
+/// building blocks. The user never touches hex: they describe what they want
+/// (sticks, buttons, hat, triggers) and the builder emits the correct HID
+/// descriptor bytes.
+///
+/// <para>Example: a 5-button gamepad with two sticks and a hat:</para>
+/// <code>
+/// byte[] desc = new HidDescriptorBuilder()
+///     .Gamepad()
+///     .AddStick("Left", bits: 16)
+///     .AddStick("Right", bits: 16)
+///     .AddButtons(5)
+///     .AddHat()
+///     .Build();
+/// </code>
+///
+/// <para>The output can be passed to <see cref="HMProfileBuilder.Descriptor(byte[])"/>
+/// to create a fully custom virtual controller.</para>
+/// </summary>
+public sealed class HidDescriptorBuilder
+{
+    private readonly List<byte> _bytes = new();
+    private bool _collectionOpen;
+    private int _totalInputBits;
+    // The application TLC Usage byte (0x04 = Joystick, 0x05 = Gamepad).
+    // 0 means no TLC opened yet via Joystick()/Gamepad(): caller assembled
+    // the descriptor entirely with AddRaw and we can't introspect intent.
+    private byte _tlcUsage;
+    // Position immediately after the `A1 01` Collection (Application) bytes.
+    // AddPidFfbBlock injects a `85 01` Report ID prefix here when no Report
+    // ID has been emitted yet, so input items get tagged matching the FFB
+    // block's tagged Output reports.
+    private int _appCollectionEndPos;
+
+    // Per-Usage claim flags so AddStick/AddTrigger can pull from a fixed pool
+    // without ever emitting duplicate Usage codes. v1.3.15 (#124): repeated
+    // AddStick("Right") used to emit the same Usage pair every time; consumers
+    // with 3+ stick configs (PadForge Extended 4-stick) saw their wire bytes
+    // collapse to two axes in joy.cpl because the HID parser folds duplicate
+    // Usages. The eight tracked Usages are the full DIJOYSTATE2 position-
+    // aspect vocabulary per Microsoft's DirectInput model:
+    //   lX, lY, lZ, lRx, lRy, lRz, rglSlider[0], rglSlider[1]
+    // mapped to Generic Desktop Usages 0x30, 0x31, 0x32, 0x33, 0x34, 0x35,
+    // 0x36 (Slider), 0x37 (Dial). Wine's enum_objects packs Slider AND Dial
+    // both into rglSlider[0..1] via a shared counter, so they cleanly serve
+    // as the 4th paired-stick fallback. joy.cpl labels them "Slider"/"Dial"
+    // rather than "X Rotation 2"/etc: cosmetic mismatch with PadForge's
+    // "Stick 4 X/Y" UI labels; the bytes flow regardless.
+    private bool _xUsed, _yUsed, _zUsed, _rxUsed, _ryUsed, _rzUsed,
+                 _sliderUsed, _dialUsed;
+
+    // Allocate the next available paired-stick Usage pair. "Left" name biases
+    // the first stick to X/Y; "Right" or any other name biases the first stick
+    // to Z/Rz (v1.3.14's RumblePad/vJoy convention preserved for the common
+    // 2-stick case). When both biased slots are taken, fall through the pool
+    // in priority order: X/Y → Z/Rz → Rx/Ry → Slider/Dial. Returns null when
+    // all four pairs are exhausted.
+    private (byte u1, byte u2)? AllocateStickPair(bool isLeft)
+    {
+        if (isLeft && !_xUsed && !_yUsed) { _xUsed = _yUsed = true; return (0x30, 0x31); }
+        if (!isLeft && !_zUsed && !_rzUsed) { _zUsed = _rzUsed = true; return (0x32, 0x35); }
+        if (!_xUsed && !_yUsed) { _xUsed = _yUsed = true; return (0x30, 0x31); }
+        if (!_zUsed && !_rzUsed) { _zUsed = _rzUsed = true; return (0x32, 0x35); }
+        if (!_rxUsed && !_ryUsed) { _rxUsed = _ryUsed = true; return (0x33, 0x34); }
+        if (!_sliderUsed && !_dialUsed) { _sliderUsed = _dialUsed = true; return (0x36, 0x37); }
+        return null;
+    }
+
+    // Allocate the next available trigger-slot Usage. "Left" name biases the
+    // first call to Rx (0x33); "Right" or any other name biases to Ry (0x34)
+    //: preserves v1.3.14's (LT=Rx, RT=Ry) layout for the 2-stick + 2-trigger
+    // common case. When sticks 3+ consume Rx/Ry as a paired stick, triggers
+    // cascade onto Slider then Dial in encounter order. Returns null when all
+    // four single-axis trigger slots are exhausted.
+    private byte? AllocateTriggerSlot(bool isLeft)
+    {
+        if (isLeft  && !_rxUsed) { _rxUsed = true; return 0x33; }
+        if (!isLeft && !_ryUsed) { _ryUsed = true; return 0x34; }
+        if (!_rxUsed) { _rxUsed = true; return 0x33; }
+        if (!_ryUsed) { _ryUsed = true; return 0x34; }
+        if (!_sliderUsed) { _sliderUsed = true; return 0x36; }
+        if (!_dialUsed) { _dialUsed = true; return 0x37; }
+        return null;
+    }
+
+    /// <summary>Begin a Gamepad application collection (Usage Page 0x01, Usage 0x05).
+    /// Note: <see cref="AddPidFfbBlock"/> rejects a Gamepad TLC because DirectInput's
+    /// pid.dll PID FFB enumerator AVs against it; use <see cref="Joystick"/> for
+    /// FFB-capable virtuals.</summary>
+    public HidDescriptorBuilder Gamepad()
+    {
+        _bytes.AddRange(new byte[] { 0x05, 0x01 });       // Usage Page (Generic Desktop)
+        _bytes.AddRange(new byte[] { 0x09, 0x05 });       // Usage (Game Pad)
+        _bytes.AddRange(new byte[] { 0xA1, 0x01 });       // Collection (Application)
+        _appCollectionEndPos = _bytes.Count;
+        _tlcUsage = 0x05;
+        _collectionOpen = true;
+        return this;
+    }
+
+    /// <summary>Begin a Joystick application collection (Usage Page 0x01, Usage 0x04).</summary>
+    public HidDescriptorBuilder Joystick()
+    {
+        _bytes.AddRange(new byte[] { 0x05, 0x01 });       // Usage Page (Generic Desktop)
+        _bytes.AddRange(new byte[] { 0x09, 0x04 });       // Usage (Joystick)
+        _bytes.AddRange(new byte[] { 0xA1, 0x01 });       // Collection (Application)
+        _appCollectionEndPos = _bytes.Count;
+        _tlcUsage = 0x04;
+        _collectionOpen = true;
+        return this;
+    }
+
+    /// <summary>Add a paired-axis stick inside a Physical collection. The Usage
+    /// pair is drawn from the four-slot pool [X/Y, Z/Rz, Rx/Ry, Slider/Dial] in
+    /// priority order; each call claims the next free pair so repeated
+    /// AddStick calls never emit duplicate Usage codes.</summary>
+    /// <param name="name">"Left" biases the first call to X/Y (0x30/0x31).
+    /// "Right" or any other name biases the first call to Z/Rz (0x32/0x35)
+    /// the Logitech RumblePad / vJoy stick-2 convention preserved from v1.3.14
+    /// (issue #27): pre-Xbox-360-era DirectInput games bind the right stick
+    /// from DIJOYSTATE.lZ/lRz. Subsequent calls fall through the pool: stick 3
+    /// → Rx/Ry, stick 4 → Slider/Dial. joy.cpl labels stick 4 as
+    /// "Slider"/"Dial" (HUT 1.5 Section 4.3 Miscellaneous Controls), not
+    /// "X Rotation 2"/etc: cosmetic mismatch with consumer-side "Stick 4 X/Y"
+    /// UI labels; the wire bytes are addressable by HMAxis.Slider/Dial. After
+    /// 4 sticks the pool throws: DirectInput's DIJOYSTATE2 has exactly 8
+    /// position-aspect slots (lX..lRz + rglSlider[2]) and no axis Usage
+    /// remains. Real Xbox 360 / DualSense profiles override the pool via
+    /// their JSON layout + axisMap fields.</param>
+    /// <param name="bits">Axis resolution: 8 for [0..255], 16 for [0..65535].</param>
+    public HidDescriptorBuilder AddStick(string name, int bits = 16)
+    {
+        bool isLeft = name.Equals("Left", StringComparison.OrdinalIgnoreCase)
+                   || name.Equals("L", StringComparison.OrdinalIgnoreCase);
+        var pair = AllocateStickPair(isLeft);
+        if (pair == null)
+            throw new InvalidOperationException(
+                "HidDescriptorBuilder.AddStick: all four paired-stick Usage slots " +
+                "(X+Y, Z+Rz, Rx+Ry, Slider+Dial) are already claimed. Microsoft's " +
+                "DIJOYSTATE2 has exactly 8 position-aspect axes; no additional " +
+                "paired-stick allocation is possible. Use AddAxis(HMAxis.*) for " +
+                "extra single-axis controls (rudders, throttles, brake/clutch pedals).");
+        byte usage1 = pair.Value.u1, usage2 = pair.Value.u2;
+
+        int logMax = (1 << bits) - 1;
+
+        _bytes.AddRange(new byte[] { 0xA1, 0x00 });       // Collection (Physical)
+        _bytes.AddRange(new byte[] { 0x09, usage1 });      // Usage (X or Z)
+        _bytes.AddRange(new byte[] { 0x09, usage2 });      // Usage (Y or Rz)
+        _bytes.AddRange(new byte[] { 0x15, 0x00 });        // Logical Minimum (0)
+        if (bits <= 8)
+        {
+            _bytes.AddRange(new byte[] { 0x26, (byte)(logMax & 0xFF), (byte)(logMax >> 8) });
+        }
+        else
+        {
+            _bytes.AddRange(new byte[] { 0x27, (byte)(logMax & 0xFF), (byte)((logMax >> 8) & 0xFF),
+                                                (byte)((logMax >> 16) & 0xFF), (byte)(logMax >> 24) });
+        }
+        _bytes.AddRange(new byte[] { 0x95, 0x02 });        // Report Count (2)
+        _bytes.AddRange(new byte[] { 0x75, (byte)bits });   // Report Size (bits)
+        _bytes.AddRange(new byte[] { 0x81, 0x02 });        // Input (Data,Var,Abs)
+        _bytes.Add(0xC0);                                   // End Collection
+
+        _totalInputBits += bits * 2;
+        return this;
+    }
+
+    /// <summary>Add a single-axis trigger. The Usage is drawn from the four-
+    /// slot trigger pool [Rx, Ry, Slider, Dial] in priority order, cascading
+    /// past any slots already claimed by AddStick. For the common 2-stick +
+    /// 2-trigger gamepad layout this still yields the v1.3.14 Rx/Ry trigger
+    /// pair; when 3 sticks already consumed Rx/Ry as a paired stick, triggers
+    /// fall to Slider/Dial. After 4 sticks the trigger pool is empty and this
+    /// throws: consumers should reduce stick count or combine triggers.</summary>
+    /// <param name="name">"Left" biases the first call to Rx (0x33),
+    /// "Right" to Ry (0x34): preserves v1.3.14's (LT=Rx, RT=Ry) layout for
+    /// the 2-stick + 2-trigger common case. Beyond the Rx/Ry slots (when
+    /// sticks 3+ consume them, or when both Rx/Ry are already trigger-
+    /// claimed) the allocator cascades onto Slider then Dial regardless of
+    /// name.</param>
+    /// <param name="bits">Axis resolution: 8 for [0..255], 16 for [0..65535].
+    /// Must be a multiple of 8 to keep the report byte-aligned. 10-bit or
+    /// other non-aligned sizes would force a Const pad item that Chromium's
+    /// RawInput parser surfaces as a phantom axis (see issue #6).</param>
+    public HidDescriptorBuilder AddTrigger(string name, int bits = 8)
+    {
+        if (bits % 8 != 0)
+            throw new ArgumentException(
+                $"AddTrigger bits must be a multiple of 8 (got {bits}). " +
+                "Non-aligned sizes introduce phantom axes in Chromium's Gamepad API.",
+                nameof(bits));
+
+        bool isLeft = name.Equals("Left", StringComparison.OrdinalIgnoreCase)
+                   || name.Equals("L", StringComparison.OrdinalIgnoreCase);
+        var allocated = AllocateTriggerSlot(isLeft);
+        if (allocated == null)
+            throw new InvalidOperationException(
+                "HidDescriptorBuilder.AddTrigger: trigger pool [Rx, Ry, Slider, Dial] " +
+                "is exhausted by prior AddStick/AddTrigger calls. Reduce stick count " +
+                "or combine triggers into a single signed axis.");
+        byte usage = allocated.Value;
+
+        int logMax = (1 << bits) - 1;
+
+        _bytes.AddRange(new byte[] { 0x05, 0x01 });        // Usage Page (Generic Desktop)
+        _bytes.AddRange(new byte[] { 0x09, usage });        // Usage (Rx or Ry)
+        _bytes.AddRange(new byte[] { 0x15, 0x00 });        // Logical Minimum (0)
+        if (bits <= 8)
+            _bytes.AddRange(new byte[] { 0x26, (byte)(logMax & 0xFF), (byte)(logMax >> 8) });
+        else
+            _bytes.AddRange(new byte[] { 0x27, (byte)(logMax & 0xFF), (byte)((logMax >> 8) & 0xFF),
+                                                (byte)((logMax >> 16) & 0xFF), (byte)(logMax >> 24) });
+        _bytes.AddRange(new byte[] { 0x95, 0x01 });        // Report Count (1)
+        _bytes.AddRange(new byte[] { 0x75, (byte)bits });   // Report Size (bits)
+        _bytes.AddRange(new byte[] { 0x81, 0x02 });        // Input (Data,Var,Abs)
+
+        _totalInputBits += bits;
+
+        return this;
+    }
+
+    /// <summary>Add an analog axis identified by HID usage. Covers everything
+    /// outside the standard sticks-and-triggers layout: throttle sliders,
+    /// rudders, separate brake/throttle/clutch pedals, steering wheels,
+    /// flight-stick rudder pedals, etc. The matching <see cref="HMAxis"/>
+    /// becomes addressable via <see cref="HMGamepadState.ExtraAxes"/> at
+    /// runtime.
+    ///
+    /// <para><c>bits</c> must be a multiple of 8 to keep the report byte-aligned
+    /// (see <see cref="AddTrigger"/> for the same Chromium phantom-axis
+    /// constraint). <c>logicalMin</c>/<c>logicalMax</c> default to
+    /// [0..(2^bits)-1]: the typical convention for unidirectional axes.
+    /// Pass an explicit signed range for centered axes (e.g. wheels:
+    /// [-32768..32767] at 16 bits).</para></summary>
+    public HidDescriptorBuilder AddAxis(HMAxis axis, int bits = 8,
+                                        int? logicalMin = null,
+                                        int? logicalMax = null)
+    {
+        if (axis == HMAxis.None)
+            throw new ArgumentException("HMAxis.None is not a valid axis.", nameof(axis));
+        if (bits % 8 != 0)
+            throw new ArgumentException(
+                $"AddAxis bits must be a multiple of 8 (got {bits}). " +
+                "Non-aligned sizes introduce phantom axes in Chromium's Gamepad API.",
+                nameof(bits));
+
+        byte page  = (byte)((ushort)axis >> 8);
+        byte usage = (byte)((ushort)axis & 0xFF);
+        int min = logicalMin ?? 0;
+        int max = logicalMax ?? (int)((1L << bits) - 1);
+
+        _bytes.AddRange(new byte[] { 0x05, page });        // Usage Page
+        _bytes.AddRange(new byte[] { 0x09, usage });       // Usage
+
+        // Logical Minimum: pick the smallest item form that fits.
+        if (min >= sbyte.MinValue && min <= sbyte.MaxValue)
+            _bytes.AddRange(new byte[] { 0x15, (byte)min });
+        else if (min >= short.MinValue && min <= short.MaxValue)
+            _bytes.AddRange(new byte[] { 0x16, (byte)(min & 0xFF), (byte)((min >> 8) & 0xFF) });
+        else
+            _bytes.AddRange(new byte[] { 0x17, (byte)min, (byte)(min >> 8),
+                                                 (byte)(min >> 16), (byte)(min >> 24) });
+
+        // Logical Maximum: same item-size selection rule.
+        if (max >= 0 && max <= sbyte.MaxValue)
+            _bytes.AddRange(new byte[] { 0x25, (byte)max });
+        else if (max >= 0 && max <= ushort.MaxValue)
+            _bytes.AddRange(new byte[] { 0x26, (byte)(max & 0xFF), (byte)((max >> 8) & 0xFF) });
+        else
+            _bytes.AddRange(new byte[] { 0x27, (byte)max, (byte)(max >> 8),
+                                                 (byte)(max >> 16), (byte)(max >> 24) });
+
+        _bytes.AddRange(new byte[] { 0x95, 0x01 });        // Report Count (1)
+        _bytes.AddRange(new byte[] { 0x75, (byte)bits });  // Report Size
+        _bytes.AddRange(new byte[] { 0x81, 0x02 });        // Input (Data,Var,Abs)
+
+        _totalInputBits += bits;
+        return this;
+    }
+
+    /// <summary>Add N buttons (Button Page, Usage 1..N, 1 bit each). The
+    /// declared Report Count is rounded UP to the next multiple of 8 (with
+    /// extra Usage Max bump so the round-up bits are "dummy" buttons the
+    /// caller never sets). No Const pad item follows: Chromium's RawInput
+    /// parser surfaces any trailing Const Input item as a phantom axis,
+    /// even on the Vendor-Defined Usage Page. Absorbing the pad as
+    /// additional buttons keeps the report byte-aligned without introducing
+    /// a Const item. See issue #6: the round-up approach eliminates the
+    /// "AXIS 9 = 1227133568" phantom seen in Chrome's Gamepad API.</summary>
+    public HidDescriptorBuilder AddButtons(int count)
+    {
+        // Round the total bits after this block up to the next byte boundary
+        // by declaring extra "dummy" buttons. User still wires `count` real
+        // buttons; the extras stay zero.
+        int bitsBefore = _totalInputBits;
+        int declaredCount = count;
+        int total = bitsBefore + count;
+        int pad = (8 - (total % 8)) % 8;
+        declaredCount += pad;
+
+        _bytes.AddRange(new byte[] { 0x05, 0x09 });        // Usage Page (Button)
+        _bytes.AddRange(new byte[] { 0x19, 0x01 });        // Usage Minimum (1)
+        _bytes.AddRange(new byte[] { 0x29, (byte)declaredCount }); // Usage Maximum (declaredCount)
+        _bytes.AddRange(new byte[] { 0x15, 0x00 });        // Logical Minimum (0)
+        _bytes.AddRange(new byte[] { 0x25, 0x01 });        // Logical Maximum (1)
+        _bytes.AddRange(new byte[] { 0x95, (byte)declaredCount }); // Report Count
+        _bytes.AddRange(new byte[] { 0x75, 0x01 });        // Report Size (1)
+        _bytes.AddRange(new byte[] { 0x81, 0x02 });        // Input (Data,Var,Abs)
+
+        _totalInputBits += declaredCount;
+
+        return this;
+    }
+
+    /// <summary>Add a hat switch (D-pad / POV) with the given number of
+    /// distinct positions. Default 8 (octants). Useful values:
+    /// 8 (gamepad d-pad / standard 8-way), 16 (HOTAS 22.5° hats), 360 or
+    /// higher (pro flight-stick continuous hats). Uses Report Size 8 for
+    /// byte-aligned wire format when positions ≤ 256; auto-extends to
+    /// Report Size 16 for higher resolutions. Declares LogicalMin=0,
+    /// LogicalMax=positions-1 (the HID standard convention), so values
+    /// 0..positions-1 encode the positions and any value outside that
+    /// range (via the Null-state flag) is null. No following Const pad
+    /// item: see AddButtons docs for rationale.
+    ///
+    /// <para>v1.3.4: added <paramref name="positions"/> parameter.
+    /// Pre-v1.3.4 this declared LogicalMax=8 for an 8-position hat
+    /// (one too many: wasted one wire value); v1.3.4 corrects to
+    /// LogicalMax=7 to match Xbox 360 / standard HID convention. The
+    /// on-wire byte values for the eight HMHat directions are
+    /// unchanged (encoder writes 0..7 either way), but consumers that
+    /// inspect the descriptor's LogicalMax will see 7 instead of 8.</para>
+    /// </summary>
+    public HidDescriptorBuilder AddHat(int positions = 8)
+    {
+        if (positions < 4)
+            throw new ArgumentOutOfRangeException(nameof(positions),
+                "Hat must declare at least 4 positions.");
+
+        // Wire size: 8-bit accommodates up to 256 positions; beyond that
+        // we extend to 16-bit. The encoder's WriteBits handles both.
+        bool wide = positions > 256;
+        byte reportSize = wide ? (byte)16 : (byte)8;
+        int logicalMax = positions - 1;
+        // Physical Max in degrees, the conventional formula:
+        // (positions-1) * 360 / positions. 8 → 315, 16 → 337, 360 → 359.
+        int physicalMax = (positions - 1) * 360 / positions;
+
+        _bytes.AddRange(new byte[] { 0x05, 0x01 });        // Usage Page (Generic Desktop)
+        _bytes.AddRange(new byte[] { 0x09, 0x39 });        // Usage (Hat switch)
+        _bytes.AddRange(new byte[] { 0x15, 0x00 });        // Logical Minimum (0)
+        if (logicalMax <= 0x7F)
+        {
+            _bytes.AddRange(new byte[] { 0x25, (byte)logicalMax });         // Logical Maximum (1-byte)
+        }
+        else
+        {
+            _bytes.AddRange(new byte[] { 0x26, (byte)(logicalMax & 0xFF),
+                                                (byte)((logicalMax >> 8) & 0xFF) }); // Logical Maximum (2-byte)
+        }
+        _bytes.AddRange(new byte[] { 0x35, 0x00 });        // Physical Minimum (0)
+        _bytes.AddRange(new byte[] { 0x46, (byte)(physicalMax & 0xFF),
+                                            (byte)((physicalMax >> 8) & 0xFF) }); // Physical Maximum
+        _bytes.AddRange(new byte[] { 0x66, 0x14, 0x00 });  // Unit (Degrees)
+        _bytes.AddRange(new byte[] { 0x75, reportSize });  // Report Size
+        _bytes.AddRange(new byte[] { 0x95, 0x01 });        // Report Count (1)
+        _bytes.AddRange(new byte[] { 0x81, 0x42 });        // Input (Data,Var,Abs,Null)
+
+        _totalInputBits += reportSize;
+
+        // Reset physical max and unit so they don't bleed into subsequent items.
+        _bytes.AddRange(new byte[] { 0x45, 0x00 });        // Physical Maximum (0)
+        _bytes.AddRange(new byte[] { 0x65, 0x00 });        // Unit (None)
+
+        return this;
+    }
+
+    /// <summary>Add raw descriptor bytes. For advanced use: appends arbitrary
+    /// HID descriptor items without validation.</summary>
+    public HidDescriptorBuilder AddRaw(byte[] bytes)
+    {
+        _bytes.AddRange(bytes);
+        return this;
+    }
+
+    /// <summary>Append the HID PID 1.0 force-feedback report block to the
+    /// descriptor. Emits the full Output-report set the DirectInput PID
+    /// mapper (<c>pid.dll</c>) drives: Set Effect (0x11), Set Envelope
+    /// (0x12), Set Condition (0x13), Set Periodic (0x14), Set Constant
+    /// Force (0x15), Set Ramp Force (0x16), Custom Force Data (0x17),
+    /// Download Force Sample (0x18), Effect Operation (0x1A), Block Free
+    /// (0x1B), Device Control (0x1C), Device Gain (0x1D), Set Custom
+    /// Force (0x1E): plus the single Feature report Create New Effect
+    /// (0x11) used for effect allocation.
+    ///
+    /// <para><b>Joystick TLC required.</b> Call <see cref="Joystick"/>
+    /// (Usage 0x04) before <see cref="AddPidFfbBlock"/>. DirectInput's
+    /// <c>pid.dll</c> PID FFB enumerator was written against the
+    /// Joystick TLC corpus (vJoy, SideWinder Force Feedback, Logitech
+    /// wheels, Thrustmaster wheels) and AVs inside
+    /// <c>pid!PID_EffectOperation+0x52</c> when CreateEffect is called
+    /// against a Gamepad TLC. The behavior is pid.dll-architectural
+    /// (DirectX 8-era FFB enumeration code, not OS-build-gated)
+    /// verified empirically on Windows 11 26100 but has been baked
+    /// into pid.dll since FFB enumeration shipped. This method throws
+    /// <see cref="InvalidOperationException"/> if called from a
+    /// <see cref="Gamepad"/> TLC.</para>
+    ///
+    /// <para><b>Report ID prefix on input is required and auto-injected.</b>
+    /// HID validation rejects a descriptor that mixes untagged input
+    /// items with the FFB block's tagged Output reports (0x11, 0x14,
+    /// 0x15, ...). If no Report ID has been emitted at the time
+    /// <c>AddPidFfbBlock</c> is called, this method inserts <c>85 01</c>
+    /// (Report ID 0x01) immediately after the Application Collection
+    /// open so all preceding input items pick up the tag. The total
+    /// wire input report size is then <c>InputReportByteSize + 1</c>;
+    /// <see cref="HMProfileBuilder.FromDescriptorBuilder"/> derives
+    /// this automatically.</para>
+    ///
+    /// <para><b>Why only one Feature report?</b> The vJoy / vJoy-Brunner
+    /// reference descriptor (<c>hidReportDescFfb.h</c>) declares four
+    /// sibling Feature reports: Create New Effect (0x11), Block Load
+    /// (0x12), PID Pool (0x13), PID State (0x14). With HIDMaestro's
+    /// UMDF2 shared-section transport, the four-feature variant causes
+    /// pid.dll to AV inside <c>PID_EffectOperation+0x52</c> the first
+    /// time the consumer calls CreateEffect via DirectInput8 / SharpDX
+    /// (issue #16). The crash reproduces with the exact bytes vJoy
+    /// ships. The block emitted here drops 0x12, 0x13, 0x14 from the
+    /// Feature side and serves them via shared-section
+    /// <c>HidD_GetFeature</c> handling in the driver instead: the
+    /// only configuration that does not AV.</para>
+    ///
+    /// <para><b>Don't add additional Feature reports inside the same
+    /// Application Collection.</b> If you need extra metadata
+    /// reachable via <c>HidD_GetFeature</c>, expose it through
+    /// <see cref="HMController.PublishPidPool"/>,
+    /// <see cref="HMController.PublishPidBlockLoad"/>, or
+    /// <see cref="HMController.PublishPidState"/>: those are served
+    /// by the driver from a separate shared-section path that doesn't
+    /// touch pid.dll's preparsed-data parser.</para>
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if the current Application Collection is a Gamepad TLC.
+    /// </exception>
+    public HidDescriptorBuilder AddPidFfbBlock()
+    {
+        if (_tlcUsage == 0x05)
+        {
+            throw new InvalidOperationException(
+                "AddPidFfbBlock() requires a Joystick (Usage 0x04) Application Collection. " +
+                "DirectInput's pid.dll PID FFB enumerator AVs inside PID_EffectOperation+0x52 " +
+                "when CreateEffect is called against a Gamepad (Usage 0x05) TLC. The behavior " +
+                "is pid.dll-architectural (DirectX 8-era code, not OS-build-gated). Use " +
+                "HidDescriptorBuilder.Joystick() instead, or use Gamepad() for an XInput/WGI " +
+                "rumble path that doesn't go through DirectInput PID FFB.");
+        }
+
+        // Auto-inject Report ID 0x01 prefix on input items if no Report
+        // ID has been emitted yet. The FFB block's tagged Output reports
+        // (0x11, 0x14, 0x15, ...) require input items to also be tagged
+        // or HID validation rejects the mix. Position: immediately after
+        // the Application Collection open, so every prior input item
+        // inherits the tag. If the caller already emitted a Report ID
+        // via AddRaw or by manually composing items, we leave it alone.
+        if (_appCollectionEndPos > 0 && !DescriptorContainsReportId())
+        {
+            _bytes.Insert(_appCollectionEndPos, 0x85);
+            _bytes.Insert(_appCollectionEndPos + 1, 0x01);
+        }
+
+        _bytes.AddRange(MinimumViablePidFfbBlock);
+        return this;
+    }
+
+    /// <summary>True if the descriptor (as built so far) contains at least
+    /// one HID Report ID Global item (<c>0x85 NN</c>). Used by
+    /// <see cref="HMProfileBuilder.FromDescriptorBuilder"/> to decide
+    /// whether the wire input report size needs the +1 byte for the
+    /// Report ID prefix.</summary>
+    public bool DescriptorContainsReportId()
+    {
+        int i = 0;
+        int n = _bytes.Count;
+        while (i < n)
+        {
+            byte head = _bytes[i++];
+            if (head == 0xFE)
+            {
+                // Long item: 0xFE bDataSize bLongItemTag <data>
+                if (i + 1 >= n) break;
+                int longSize = _bytes[i];
+                i += 2 + longSize;
+                continue;
+            }
+            int bSize = head & 0x03;
+            int dataLen = bSize == 3 ? 4 : bSize;
+            // Report ID = type Global (01), tag 1000 -> bits [7:2] = 0b100001
+            // (head & 0xFC) == 0x84. bSize must be >= 1 (one byte of data).
+            if ((head & 0xFC) == 0x84 && bSize >= 1) return true;
+            i += dataLen;
+        }
+        return false;
+    }
+
+    /// <summary>The exact descriptor bytes <see cref="AddPidFfbBlock"/>
+    /// appends. Exposed for probe and test code that needs to verify
+    /// the canonical block byte-for-byte; consumers should call the
+    /// fluent <see cref="AddPidFfbBlock"/> method instead.</summary>
+    public static byte[] MinimumViablePidFfbBlock { get; } = BuildMinimumViablePidFfbBlock();
+
+    private static byte[] BuildMinimumViablePidFfbBlock()
+    {
+        var d = new List<byte>(640);
+        d.AddRange(new byte[] { 0x05, 0x0F });                 // Usage Page Physical Interface
+
+        // Set Effect Report (Output, ID 0x11)
+        d.AddRange(new byte[] { 0x09, 0x21, 0xA1, 0x02, 0x85, 0x11 });
+        d.AddRange(new byte[] { 0x09, 0x22, 0x15, 0x01, 0x25, 0x28, 0x35, 0x01, 0x45, 0x28 });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x25, 0xA1, 0x02 });
+        d.AddRange(new byte[] {
+            0x09, 0x26, 0x09, 0x27, 0x09, 0x30, 0x09, 0x31, 0x09, 0x32,
+            0x09, 0x33, 0x09, 0x34, 0x09, 0x40, 0x09, 0x41, 0x09, 0x42,
+            0x09, 0x43, 0x09, 0x29
+        });
+        d.AddRange(new byte[] { 0x25, 0x0C, 0x15, 0x01, 0x35, 0x01, 0x45, 0x0C });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x01, 0x91, 0x00 });
+        d.Add(0xC0);
+        d.AddRange(new byte[] { 0x09, 0x50, 0x09, 0x54, 0x09, 0x51, 0x09, 0xA7 });
+        d.AddRange(new byte[] { 0x15, 0x00, 0x26, 0xFF, 0x7F, 0x35, 0x00, 0x46, 0xFF, 0x7F });
+        d.AddRange(new byte[] { 0x66, 0x03, 0x10, 0x55, 0xFD });
+        d.AddRange(new byte[] { 0x75, 0x10, 0x95, 0x04, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x55, 0x00, 0x66, 0x00, 0x00 });
+        d.AddRange(new byte[] { 0x09, 0x52 });
+        d.AddRange(new byte[] { 0x15, 0x00, 0x26, 0xFF, 0x00, 0x35, 0x00, 0x46, 0x10, 0x27 });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x53 });
+        d.AddRange(new byte[] { 0x15, 0x01, 0x25, 0x08, 0x35, 0x01, 0x45, 0x08 });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x55, 0xA1, 0x02 });
+        d.AddRange(new byte[] { 0x05, 0x01 });
+        d.AddRange(new byte[] { 0x09, 0x30, 0x09, 0x31 });
+        d.AddRange(new byte[] { 0x15, 0x00, 0x25, 0x01 });
+        d.AddRange(new byte[] { 0x75, 0x01, 0x95, 0x02, 0x91, 0x02 });
+        d.Add(0xC0);
+        d.AddRange(new byte[] { 0x05, 0x0F });
+        d.AddRange(new byte[] { 0x09, 0x56, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x95, 0x05, 0x91, 0x03 });
+        d.AddRange(new byte[] { 0x09, 0x57, 0xA1, 0x02 });
+        d.AddRange(new byte[] { 0x0B, 0x01, 0x00, 0x0A, 0x00 });
+        d.AddRange(new byte[] { 0x0B, 0x02, 0x00, 0x0A, 0x00 });
+        d.AddRange(new byte[] { 0x66, 0x14, 0x00, 0x55, 0xFE });
+        d.AddRange(new byte[] { 0x15, 0x00, 0x27, 0xFF, 0x7F, 0x00, 0x00 });
+        d.AddRange(new byte[] { 0x35, 0x00, 0x47, 0xA0, 0x8C, 0x00, 0x00 });
+        d.AddRange(new byte[] { 0x66, 0x00, 0x00 });
+        d.AddRange(new byte[] { 0x75, 0x10, 0x95, 0x02, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x55, 0x00, 0x66, 0x00, 0x00 });
+        d.Add(0xC0);
+        d.AddRange(new byte[] { 0x05, 0x0F, 0x09, 0x58, 0xA1, 0x02 });
+        d.AddRange(new byte[] { 0x0B, 0x01, 0x00, 0x0A, 0x00 });
+        d.AddRange(new byte[] { 0x0B, 0x02, 0x00, 0x0A, 0x00 });
+        d.AddRange(new byte[] { 0x26, 0xFD, 0x7F, 0x75, 0x10, 0x95, 0x02, 0x91, 0x02 });
+        d.Add(0xC0);
+        d.Add(0xC0);
+
+        // Set Envelope (Output, ID 0x12)
+        d.AddRange(new byte[] { 0x09, 0x5A, 0xA1, 0x02, 0x85, 0x12 });
+        d.AddRange(new byte[] { 0x09, 0x22, 0x15, 0x01, 0x25, 0x28, 0x35, 0x01, 0x45, 0x28 });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x5B, 0x09, 0x5D });
+        d.AddRange(new byte[] { 0x16, 0x00, 0x00, 0x26, 0x10, 0x27, 0x36, 0x00, 0x00, 0x46, 0x10, 0x27 });
+        d.AddRange(new byte[] { 0x75, 0x10, 0x95, 0x02, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x5C, 0x09, 0x5E });
+        d.AddRange(new byte[] { 0x66, 0x03, 0x10, 0x55, 0xFD });
+        d.AddRange(new byte[] { 0x27, 0xFF, 0x7F, 0x00, 0x00, 0x47, 0xFF, 0x7F, 0x00, 0x00 });
+        d.AddRange(new byte[] { 0x75, 0x20, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x45, 0x00, 0x66, 0x00, 0x00, 0x55, 0x00 });
+        d.Add(0xC0);
+
+        // Set Condition (Output, ID 0x13)
+        d.AddRange(new byte[] { 0x09, 0x5F, 0xA1, 0x02, 0x85, 0x13 });
+        d.AddRange(new byte[] { 0x09, 0x22, 0x15, 0x01, 0x25, 0x28, 0x35, 0x01, 0x45, 0x28 });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x23, 0x15, 0x00, 0x25, 0x03, 0x35, 0x00, 0x45, 0x03 });
+        d.AddRange(new byte[] { 0x75, 0x04, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x58, 0xA1, 0x02 });
+        d.AddRange(new byte[] { 0x0B, 0x01, 0x00, 0x0A, 0x00, 0x0B, 0x02, 0x00, 0x0A, 0x00 });
+        d.AddRange(new byte[] { 0x75, 0x02, 0x95, 0x02, 0x91, 0x02 });
+        d.Add(0xC0);
+        d.AddRange(new byte[] { 0x16, 0xF0, 0xD8, 0x26, 0x10, 0x27, 0x36, 0xF0, 0xD8, 0x46, 0x10, 0x27 });
+        d.AddRange(new byte[] { 0x09, 0x60, 0x75, 0x10, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x36, 0xF0, 0xD8, 0x46, 0x10, 0x27 });
+        d.AddRange(new byte[] { 0x09, 0x61, 0x09, 0x62, 0x95, 0x02, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x16, 0x00, 0x00, 0x26, 0x10, 0x27, 0x36, 0x00, 0x00, 0x46, 0x10, 0x27 });
+        d.AddRange(new byte[] { 0x09, 0x63, 0x09, 0x64, 0x75, 0x10, 0x95, 0x02, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x65 });
+        d.AddRange(new byte[] { 0x16, 0x00, 0x00, 0x26, 0x10, 0x27, 0x36, 0x00, 0x00, 0x46, 0x10, 0x27 });
+        d.AddRange(new byte[] { 0x95, 0x01, 0x91, 0x02 });
+        d.Add(0xC0);
+
+        // Set Periodic (Output, ID 0x14)
+        d.AddRange(new byte[] { 0x09, 0x6E, 0xA1, 0x02, 0x85, 0x14 });
+        d.AddRange(new byte[] { 0x09, 0x22, 0x15, 0x01, 0x25, 0x28, 0x35, 0x01, 0x45, 0x28 });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x70, 0x16, 0x00, 0x00, 0x26, 0x10, 0x27, 0x36, 0x00, 0x00, 0x46, 0x10, 0x27 });
+        d.AddRange(new byte[] { 0x75, 0x10, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x6F, 0x16, 0xF0, 0xD8, 0x26, 0x10, 0x27, 0x36, 0xF0, 0xD8, 0x46, 0x10, 0x27 });
+        d.AddRange(new byte[] { 0x95, 0x01, 0x75, 0x10, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x71, 0x66, 0x14, 0x00, 0x55, 0xFE });
+        d.AddRange(new byte[] { 0x15, 0x00, 0x27, 0x9F, 0x8C, 0x00, 0x00, 0x35, 0x00, 0x47, 0x9F, 0x8C, 0x00, 0x00 });
+        d.AddRange(new byte[] { 0x75, 0x10, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x72, 0x15, 0x00, 0x27, 0xFF, 0x7F, 0x00, 0x00 });
+        d.AddRange(new byte[] { 0x35, 0x00, 0x47, 0xFF, 0x7F, 0x00, 0x00 });
+        d.AddRange(new byte[] { 0x66, 0x03, 0x10, 0x55, 0xFD });
+        d.AddRange(new byte[] { 0x75, 0x20, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x66, 0x00, 0x00, 0x55, 0x00 });
+        d.Add(0xC0);
+
+        // Set Constant Force (Output, ID 0x15)
+        d.AddRange(new byte[] { 0x09, 0x73, 0xA1, 0x02, 0x85, 0x15 });
+        d.AddRange(new byte[] { 0x09, 0x22, 0x15, 0x01, 0x25, 0x28, 0x35, 0x01, 0x45, 0x28 });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x70 });
+        d.AddRange(new byte[] { 0x16, 0xF0, 0xD8, 0x26, 0x10, 0x27, 0x36, 0xF0, 0xD8, 0x46, 0x10, 0x27 });
+        d.AddRange(new byte[] { 0x75, 0x10, 0x95, 0x01, 0x91, 0x02 });
+        d.Add(0xC0);
+
+        // Set Ramp Force (Output, ID 0x16)
+        d.AddRange(new byte[] { 0x09, 0x74, 0xA1, 0x02, 0x85, 0x16 });
+        d.AddRange(new byte[] { 0x09, 0x22, 0x15, 0x01, 0x25, 0x28, 0x35, 0x01, 0x45, 0x28 });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x75, 0x09, 0x76 });
+        d.AddRange(new byte[] { 0x16, 0xF0, 0xD8, 0x26, 0x10, 0x27, 0x36, 0xF0, 0xD8, 0x46, 0x10, 0x27 });
+        d.AddRange(new byte[] { 0x75, 0x10, 0x95, 0x02, 0x91, 0x02 });
+        d.Add(0xC0);
+
+        // Custom Force Data (Output, ID 0x17)
+        d.AddRange(new byte[] { 0x09, 0x68, 0xA1, 0x02, 0x85, 0x17 });
+        d.AddRange(new byte[] { 0x09, 0x22, 0x15, 0x01, 0x25, 0x28, 0x35, 0x01, 0x45, 0x28 });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x6C, 0x15, 0x00, 0x26, 0x10, 0x27, 0x35, 0x00, 0x46, 0x10, 0x27 });
+        d.AddRange(new byte[] { 0x75, 0x10, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x69, 0x15, 0x81, 0x25, 0x7F, 0x35, 0x00, 0x46, 0xFF, 0x00 });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x0C, 0x92, 0x02, 0x01 });
+        d.Add(0xC0);
+
+        // Download Force Sample (Output, ID 0x18)
+        d.AddRange(new byte[] { 0x09, 0x66, 0xA1, 0x02, 0x85, 0x18 });
+        d.AddRange(new byte[] { 0x05, 0x01, 0x09, 0x30, 0x09, 0x31 });
+        d.AddRange(new byte[] { 0x15, 0x81, 0x25, 0x7F, 0x35, 0x00, 0x46, 0xFF, 0x00 });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x02, 0x91, 0x02 });
+        d.Add(0xC0);
+
+        // Effect Operation (Output, ID 0x1A)
+        d.AddRange(new byte[] { 0x05, 0x0F });
+        d.AddRange(new byte[] { 0x09, 0x77, 0xA1, 0x02, 0x85, 0x1A });
+        d.AddRange(new byte[] { 0x09, 0x22, 0x15, 0x01, 0x25, 0x28, 0x35, 0x01, 0x45, 0x28 });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x78, 0xA1, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x79, 0x09, 0x7A, 0x09, 0x7B });
+        d.AddRange(new byte[] { 0x15, 0x01, 0x25, 0x03, 0x75, 0x08, 0x95, 0x01, 0x91, 0x00 });
+        d.Add(0xC0);
+        d.AddRange(new byte[] { 0x09, 0x7C });
+        d.AddRange(new byte[] { 0x15, 0x00, 0x26, 0xFF, 0x00, 0x35, 0x00, 0x46, 0xFF, 0x00 });
+        d.AddRange(new byte[] { 0x91, 0x02 });
+        d.Add(0xC0);
+
+        // PID Block Free (Output, ID 0x1B)
+        d.AddRange(new byte[] { 0x09, 0x90, 0xA1, 0x02, 0x85, 0x1B });
+        d.AddRange(new byte[] { 0x09, 0x22, 0x25, 0x28, 0x15, 0x01, 0x35, 0x01, 0x45, 0x28 });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x01, 0x91, 0x02 });
+        d.Add(0xC0);
+
+        // PID Device Control (Output, ID 0x1C)
+        d.AddRange(new byte[] { 0x09, 0x96, 0xA1, 0x02, 0x85, 0x1C });
+        d.AddRange(new byte[] { 0x09, 0x97, 0x09, 0x98, 0x09, 0x99, 0x09, 0x9A, 0x09, 0x9B, 0x09, 0x9C });
+        d.AddRange(new byte[] { 0x15, 0x01, 0x25, 0x06, 0x75, 0x08, 0x95, 0x01, 0x91, 0x00 });
+        d.Add(0xC0);
+
+        // Device Gain (Output, ID 0x1D)
+        d.AddRange(new byte[] { 0x09, 0x7D, 0xA1, 0x02, 0x85, 0x1D });
+        d.AddRange(new byte[] { 0x09, 0x7E, 0x15, 0x00, 0x26, 0xFF, 0x00, 0x35, 0x00, 0x46, 0x10, 0x27 });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x01, 0x91, 0x02 });
+        d.Add(0xC0);
+
+        // Set Custom Force (Output, ID 0x1E)
+        d.AddRange(new byte[] { 0x09, 0x6B, 0xA1, 0x02, 0x85, 0x1E });
+        d.AddRange(new byte[] { 0x09, 0x22, 0x15, 0x01, 0x25, 0x28, 0x35, 0x01, 0x45, 0x28 });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x6D, 0x15, 0x00, 0x26, 0xFF, 0x00, 0x35, 0x00, 0x46, 0xFF, 0x00 });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x09, 0x51, 0x66, 0x03, 0x10, 0x55, 0xFD });
+        d.AddRange(new byte[] { 0x15, 0x00, 0x26, 0xFF, 0x7F, 0x35, 0x00, 0x46, 0xFF, 0x7F });
+        d.AddRange(new byte[] { 0x75, 0x10, 0x95, 0x01, 0x91, 0x02 });
+        d.AddRange(new byte[] { 0x55, 0x00, 0x66, 0x00, 0x00 });
+        d.Add(0xC0);
+
+        // Create New Effect (Feature, ID 0x11): the ONLY Feature report
+        // declared inside the TLC. See AddPidFfbBlock summary for why
+        // adding 0x12 / 0x13 / 0x14 Feature reports here AVs pid.dll.
+        d.AddRange(new byte[] { 0x09, 0xAB, 0xA1, 0x02, 0x85, 0x11 });
+        d.AddRange(new byte[] { 0x09, 0x25, 0xA1, 0x02 });
+        d.AddRange(new byte[] {
+            0x09, 0x26, 0x09, 0x27, 0x09, 0x30, 0x09, 0x31, 0x09, 0x32,
+            0x09, 0x33, 0x09, 0x34, 0x09, 0x40, 0x09, 0x41, 0x09, 0x42,
+            0x09, 0x43, 0x09, 0x29
+        });
+        d.AddRange(new byte[] { 0x25, 0x0C, 0x15, 0x01, 0x35, 0x01, 0x45, 0x0C });
+        d.AddRange(new byte[] { 0x75, 0x08, 0x95, 0x01, 0xB1, 0x00 });
+        d.Add(0xC0);
+        d.AddRange(new byte[] { 0x05, 0x01, 0x09, 0x3B });
+        d.AddRange(new byte[] { 0x15, 0x00, 0x26, 0xFF, 0x01, 0x35, 0x00, 0x46, 0xFF, 0x01 });
+        d.AddRange(new byte[] { 0x75, 0x0A, 0x95, 0x01, 0xB1, 0x02 });
+        d.AddRange(new byte[] { 0x75, 0x06, 0xB1, 0x01 });
+        d.Add(0xC0);
+
+        return d.ToArray();
+    }
+
+    /// <summary>Build the descriptor. Closes the Application Collection if open
+    /// and returns the raw byte array suitable for <see cref="HMProfileBuilder.Descriptor(byte[])"/>.</summary>
+    public byte[] Build()
+    {
+        var result = new List<byte>(_bytes);
+        if (_collectionOpen)
+            result.Add(0xC0); // End Collection (Application)
+        return result.ToArray();
+    }
+
+    /// <summary>The total number of input bits declared so far (for computing report size).</summary>
+    public int TotalInputBits => _totalInputBits;
+
+    /// <summary>The input report size in bytes (rounded up from bits).</summary>
+    public int InputReportByteSize => (_totalInputBits + 7) / 8;
+}

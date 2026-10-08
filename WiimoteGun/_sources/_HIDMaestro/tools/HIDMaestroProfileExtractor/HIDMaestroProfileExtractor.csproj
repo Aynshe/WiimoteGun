@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <RuntimeIdentifier>win-$(HMTargetArchitecture)</RuntimeIdentifier>
+    <PlatformTarget>$(HMTargetArchitecture)</PlatformTarget>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <RootNamespace>HIDMaestro.ProfileExtractor</RootNamespace>
+    <AssemblyName>HIDMaestroProfileExtractor</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- No admin required; the extractor is pure read-only HID inspection. -->
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\sdk\HIDMaestro.Core\HIDMaestro.Core.csproj" />
+  </ItemGroup>
+</Project>

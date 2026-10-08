@@ -1,0 +1,284 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Text;
+
+namespace HIDMaestro.Internal.Usbip;
+
+/// <summary>Talks to usbip-win2's vhci host controller through its public
+/// device-interface ioctl API (issue #39). The interface GUID and every
+/// struct layout are <c>include/usbip/vhci.h</c>.
+///
+/// <para>The layouts are not stable across releases, so the client speaks
+/// three of them and asks the driver which one it has. 0.9.8.0 appended a
+/// serial and a flag to the attach request and to each imported-device
+/// row. 0.9.8.1 put a <c>location_hash</c> after <c>port</c> in the
+/// location that attach, stop and every row carry, which moves busid,
+/// service and host 4 bytes on. Each size and offset in
+/// <see cref="Layouts"/> was checked by compiling that tag's own header
+/// with MSVC for x64 and ARM64. The driver compares every request's size
+/// field with its own <c>sizeof</c> and refuses a mismatch before acting
+/// on it (vhci_ioctl.cpp in all three tags), so a probe with the wrong
+/// size is harmless.</para>
+///
+/// <para>Attach uses PLUGIN_HARDWARE_ONCE (function 0x806): one attempt,
+/// no background retry loop, because this SDK owns the server lifecycle
+/// and a failed attach should surface as an exception, not as the
+/// driver's own persistent-device machinery. Detach is PLUGOUT_HARDWARE.
+/// STOP_ATTACH_ATTEMPTS exists for crash recovery: when a prior process
+/// died without a plugout, the driver's socket-loss path queues re-attach
+/// attempts against the dead loopback server (device.cpp detach →
+/// start_attach_attempts) and this cancels them by exact location.</para>
+///
+/// <para>Presence of the device interface doubles as backend
+/// availability detection: no usbip-win2, no interface, no backend.</para></summary>
+internal static class VhciClient
+{
+    // include/usbip/vhci.h GUID_DEVINTERFACE_USB_HOST_CONTROLLER, renamed
+    // GUID_DEVINTERFACE_USBIP_VHCI in 0.9.8.1 with the same value.
+    private static readonly Guid VhciInterfaceGuid = new(0xB4030C06, 0xDC5F, 0x4FCC,
+        0x87, 0xEB, 0xE5, 0x51, 0x5A, 0x09, 0x35, 0xC0);
+
+    // CTL_CODE(FILE_DEVICE_UNKNOWN, fn, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA),
+    // the same in every tag. 0x806 is plugin_hardware_internal in 0.9.7.x
+    // and plugin_hardware_once from 0.9.8.0: one attempt, no retry loop.
+    private const uint PLUGIN_HARDWARE = 0x0022E000;         // fn 0x800
+    private const uint PLUGOUT_HARDWARE = 0x0022E004;        // fn 0x801
+    private const uint GET_IMPORTED_DEVICES = 0x0022E008;    // fn 0x802
+    private const uint STOP_ATTACH_ATTEMPTS = 0x0022E014;    // fn 0x805
+    private const uint PLUGIN_HARDWARE_ONCE = 0x0022E018;    // fn 0x806
+
+    private const int BusIdSize = 32;    // consts.h BUS_ID_SIZE
+    private const int ServiceSize = 32;  // NI_MAXSERV
+    private const int HostSize = 1025;   // NI_MAXHOST
+
+    // Every request starts with ULONG size, and the location that follows
+    // starts with int port, so the port an attach returns is at offset 4
+    // in all three layouts, and so is the first imported-device row.
+    private const int HeaderSize = 4;
+    private const int PlugoutStructSize = 8;
+
+    // vhci.cpp set_usb_ports_cnt: MAX_TOTAL_PORTS is 255. The driver fails
+    // GET_IMPORTED_DEVICES with STATUS_BUFFER_TOO_SMALL when more devices
+    // are attached than the buffer holds, so a buffer this size cannot
+    // make the layout probe fail for that reason.
+    private const int MaxPorts = 255;
+
+    /// <summary>One release family's layout. <c>PluginSize</c>,
+    /// <c>StopSize</c> and <c>RowSize</c> are sizeof
+    /// plugin_hardware, stop_attach_attempts and imported_device.
+    /// <c>BusIdOffset</c> is where busid starts inside the location.</summary>
+    internal sealed record Layout(string Name, int PluginSize, int StopSize, int RowSize, int BusIdOffset);
+
+    /// <summary>Newest first, which is the order the probe tries them.</summary>
+    internal static readonly Layout[] Layouts =
+    {
+        new("0.9.8.1", PluginSize: 1124, StopSize: 1108, RowSize: 1132, BusIdOffset: 8),
+        new("0.9.8.0", PluginSize: 1120, StopSize: 1104, RowSize: 1128, BusIdOffset: 4),
+        new("0.9.7.x", PluginSize: 1100, StopSize: 1104, RowSize: 1108, BusIdOffset: 4),
+    };
+
+    /// <summary>True when usbip-win2's vhci controller is present and
+    /// running. Requires no elevation.</summary>
+    public static bool IsAvailable() => TryGetInterfacePath() != null;
+
+    public static string? TryGetInterfacePath()
+    {
+        var guid = VhciInterfaceGuid;
+        uint cr = CM_Get_Device_Interface_List_SizeW(out uint len, ref guid, null,
+            CM_GET_DEVICE_INTERFACE_LIST_PRESENT);
+        if (cr != 0 || len <= 1) return null;
+        var buf = new char[len];
+        cr = CM_Get_Device_Interface_ListW(ref guid, null, buf, len,
+            CM_GET_DEVICE_INTERFACE_LIST_PRESENT);
+        if (cr != 0) return null;
+        int end = Array.IndexOf(buf, '\0');
+        if (end <= 0) return null;
+        return new string(buf, 0, end);
+    }
+
+    private static SafeHandleWrapper Open()
+    {
+        string path = TryGetInterfacePath()
+            ?? throw new InvalidOperationException(
+                "The virtual USB host controller is not present. It ships inside HIDMaestro.Core.dll " +
+                "and installs on first use; see UsbipDriverInstaller.EnsureInstalled.");
+        IntPtr h = CreateFileW(path, 0xC0000000 /* GENERIC_READ|WRITE */, 0, IntPtr.Zero,
+            3 /* OPEN_EXISTING */, 0, IntPtr.Zero);
+        if (h == new IntPtr(-1))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), $"CreateFile('{path}') failed.");
+        return new SafeHandleWrapper(h);
+    }
+
+    private static void WriteLocation(byte[] buf, int offset, string busid, string service, string host)
+    {
+        Encoding.UTF8.GetBytes(busid).AsSpan(0, Math.Min(busid.Length, BusIdSize - 1))
+            .CopyTo(buf.AsSpan(offset));
+        Encoding.UTF8.GetBytes(service).AsSpan(0, Math.Min(service.Length, ServiceSize - 1))
+            .CopyTo(buf.AsSpan(offset + BusIdSize));
+        Encoding.UTF8.GetBytes(host).AsSpan(0, Math.Min(host.Length, HostSize - 1))
+            .CopyTo(buf.AsSpan(offset + BusIdSize + ServiceSize));
+    }
+
+    /// <summary>Find the layout the installed driver speaks. Every tag
+    /// answers GET_IMPORTED_DEVICES only when the size field equals its own
+    /// sizeof(get_imported_devices), the header plus one row, and the call
+    /// changes nothing, so the first candidate that succeeds is the one.
+    /// The rows it returned are handed back for <see cref="GetImportedDevices"/>.</summary>
+    internal static Layout Probe(IntPtr handle, out byte[] rows, out uint written)
+    {
+        int lastError = 0;
+        foreach (var layout in Layouts)
+        {
+            var buf = new byte[HeaderSize + layout.RowSize * MaxPorts];
+            BitConverter.GetBytes((uint)(HeaderSize + layout.RowSize)).CopyTo(buf, 0);
+            if (DeviceIoControl(handle, GET_IMPORTED_DEVICES, buf, (uint)buf.Length,
+                    buf, (uint)buf.Length, out written, IntPtr.Zero))
+            {
+                rows = buf;
+                return layout;
+            }
+            lastError = Marshal.GetLastWin32Error();
+        }
+        throw new InvalidOperationException(
+            "The usbip-win2 host controller accepted none of the request layouts this SDK knows " +
+            $"(0.9.8.1, 0.9.8.0, 0.9.7.x). Last error 0x{lastError:X8}.");
+    }
+
+    /// <summary>The layout the installed driver speaks, for diagnostics
+    /// and tests. Null when no host controller answers.</summary>
+    public static string? InstalledLayout()
+    {
+        try
+        {
+            using var h = Open();
+            return Probe(h.Handle, out _, out _).Name;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Attach one exported device. Blocks until the driver has
+    /// connected to the server, completed the import handshake, and
+    /// plugged the UDE device in. Returns the vhci port for detach.</summary>
+    public static int Attach(string host, int port, string busid)
+    {
+        using var h = Open();
+        var layout = Probe(h.Handle, out _, out _);
+        var buf = new byte[layout.PluginSize];
+        BitConverter.GetBytes((uint)layout.PluginSize).CopyTo(buf, 0);
+        WriteLocation(buf, HeaderSize + layout.BusIdOffset, busid, port.ToString(), host);
+        // 0.9.8.x serial and wsk_events stay zero. An empty serial leaves
+        // the device's own serial string in place (wsk_receive.cpp only
+        // substitutes a non-empty one), and wsk_events false keeps the IRP
+        // receive path rather than WSK event callbacks (vhci_ioctl.cpp).
+
+        if (!DeviceIoControl(h.Handle, PLUGIN_HARDWARE_ONCE, buf, (uint)buf.Length,
+                buf, (uint)buf.Length, out _, IntPtr.Zero))
+            throw new Win32Exception(Marshal.GetLastWin32Error(),
+                $"usbip-win2 {layout.Name} attach of {busid} at {host}:{port} failed.");
+
+        int vhciPort = BitConverter.ToInt32(buf, HeaderSize);
+        if (vhciPort < 1)
+            throw new InvalidOperationException($"usbip-win2 attach of {busid} returned port {vhciPort}.");
+        return vhciPort;
+    }
+
+    /// <summary>Detach the device on a vhci port. portOrZero &lt;= 0
+    /// detaches every imported device (used only by explicit cleanup).</summary>
+    public static void Detach(int portOrZero)
+    {
+        using var h = Open();
+        var buf = new byte[PlugoutStructSize];
+        BitConverter.GetBytes((uint)PlugoutStructSize).CopyTo(buf, 0);
+        BitConverter.GetBytes(portOrZero).CopyTo(buf, 4);
+        DeviceIoControl(h.Handle, PLUGOUT_HARDWARE, buf, (uint)buf.Length,
+            IntPtr.Zero, 0, out _, IntPtr.Zero);
+    }
+
+    /// <summary>Cancel the driver's background re-attach attempts for one
+    /// exact location. Safe to call when none exist.</summary>
+    public static void StopAttachAttempts(string host, int port, string busid)
+    {
+        try
+        {
+            using var h = Open();
+            var layout = Probe(h.Handle, out _, out _);
+            var buf = new byte[layout.StopSize];
+            BitConverter.GetBytes((uint)layout.StopSize).CopyTo(buf, 0);
+            WriteLocation(buf, HeaderSize + layout.BusIdOffset, busid, port.ToString(), host);
+            DeviceIoControl(h.Handle, STOP_ATTACH_ATTEMPTS, buf, (uint)buf.Length,
+                buf, (uint)buf.Length, out _, IntPtr.Zero);
+        }
+        catch { /* cleanup path; absence of the driver is fine */ }
+    }
+
+    /// <summary>Rows from GET_IMPORTED_DEVICES: (port, busid, service,
+    /// host). Used by crash recovery to find and plug out stale imports
+    /// that point at this SDK's server range.</summary>
+    public static List<(int Port, string BusId, string Service, string Host)> GetImportedDevices()
+    {
+        var result = new List<(int, string, string, string)>();
+        try
+        {
+            using var h = Open();
+            // The probe's successful call is the listing: a header of ULONG
+            // size, then one imported_device row per attached device.
+            var layout = Probe(h.Handle, out byte[] buf, out uint written);
+            int rows = written >= HeaderSize ? (int)((written - HeaderSize) / layout.RowSize) : 0;
+            for (int i = 0; i < rows; i++)
+            {
+                int off = HeaderSize + i * layout.RowSize;
+                int port = BitConverter.ToInt32(buf, off);
+                int busidAt = off + layout.BusIdOffset;
+                string busid = ReadUtf8(buf, busidAt, BusIdSize);
+                string service = ReadUtf8(buf, busidAt + BusIdSize, ServiceSize);
+                string host = ReadUtf8(buf, busidAt + BusIdSize + ServiceSize, HostSize);
+                if (port >= 1) result.Add((port, busid, service, host));
+            }
+        }
+        catch { /* detection is best-effort */ }
+        return result;
+    }
+
+    private static string ReadUtf8(byte[] buf, int offset, int max)
+    {
+        int end = Array.IndexOf(buf, (byte)0, offset, max);
+        int len = end < 0 ? max : end - offset;
+        return Encoding.UTF8.GetString(buf, offset, len);
+    }
+
+    private sealed class SafeHandleWrapper : IDisposable
+    {
+        public IntPtr Handle { get; }
+        public SafeHandleWrapper(IntPtr h) => Handle = h;
+        public void Dispose() => CloseHandle(Handle);
+    }
+
+    private const uint CM_GET_DEVICE_INTERFACE_LIST_PRESENT = 0;
+
+    [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint CM_Get_Device_Interface_List_SizeW(out uint len, ref Guid interfaceClassGuid,
+        string? deviceId, uint flags);
+
+    [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint CM_Get_Device_Interface_ListW(ref Guid interfaceClassGuid, string? deviceId,
+        [Out] char[] buffer, uint bufferLen, uint flags);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern IntPtr CreateFileW(string fileName, uint access, uint share, IntPtr sa,
+        uint creation, uint flags, IntPtr template);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool DeviceIoControl(IntPtr device, uint ioControlCode,
+        byte[]? inBuffer, uint inSize, byte[]? outBuffer, uint outSize,
+        out uint bytesReturned, IntPtr overlapped);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool DeviceIoControl(IntPtr device, uint ioControlCode,
+        byte[]? inBuffer, uint inSize, IntPtr outBuffer, uint outSize,
+        out uint bytesReturned, IntPtr overlapped);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr h);
+}

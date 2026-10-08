@@ -1,0 +1,36 @@
+build/
+test/bin/
+test/obj/
+test/publish_out/
+test/probes/*/bin/
+test/probes/*/obj/
+test/sandbox/*/bin/
+test/sandbox/*/obj/
+test/probes/*/*/bin/
+test/probes/*/*/obj/
+test/probes/*/*.exe
+test/probes/*/*.ilk
+test/probes/*/*.pdb
+test/probes/*/vc140.pdb
+example/SdkDemo/bin/
+example/SdkDemo/obj/
+sdk/HIDMaestro.Core/bin/
+sdk/HIDMaestro.Core/obj/
+tools/*/bin/
+tools/*/obj/
+# Resources/ is populated by csproj <PackResources> target before build
+sdk/HIDMaestro.Core/Resources/
+*.cer
+*.cat
+*.user
+*.suo
+*.obj
+*.log
+*.log.*
+.vs/
+publish_out/
+.claude/
+
+# Python
+__pycache__/
+*.pyc
