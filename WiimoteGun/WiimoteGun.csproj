@@ -334,6 +334,13 @@
     <None Include="WiimoteLib\WiimoteOld\WiimoteOld.Settings.cs" />
     <None Include="WiimoteLib\WiimoteOld\WiimoteOld.Parsing.cs" />
     <None Include="WiimoteLib\WiimoteOld\WiimoteOld.IO.cs" />
+    <!-- [3.1.0.0-hotfix] EN: App.config was NEVER included in the project - no .exe.config
+         was ever deployed (the SRE binding redirect that fixes the startup FileLoadException
+         needs to ship next to the exe as WiimoteGun.exe.config).
+         FR: App.config n'a JAMAIS été inclus au projet - aucun .exe.config n'était
+         déployé (la redirection de binding SRE qui corrige le FileLoadException au
+         démarrage doit voyager à côté de l'exe en WiimoteGun.exe.config). -->
+    <None Include="App.config" />
     <None Include="WiimoteLib\WiimoteOld\WiimoteOld.cs" />
     <None Include="WiimoteLib\WiimoteOld\WiimoteCollection.cs" />
     <None Include="WiimoteLib\Native\HIDapi.cs" />
