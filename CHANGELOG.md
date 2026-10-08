@@ -4,6 +4,13 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+# Wiimote4Guns v3.1.0.0
+
+- **New RawInput (UMDF2) driver** replaces the legacy vmulti kernel driver (installed silently by the service, no reboot — requires the free [.NET Runtime 10 x64](https://dotnet.microsoft.com/download/dotnet/10.0); vmulti stays optional for Windows 10 / Win11 < 26H02)
+- **Virtual GamePads per player** — the new driver gives each virtual pad its own name (« GamePad Wiimote4Guns P1..P4 »), visible in the Windows system like real controllers
+- **Setup Wizard opens once after updating from a previous Wiimote4Guns version** — it proposes to uninstall vmulti before Windows 11 26H02 blocks it
+- **UI zoom** −/+ on the home page (80-150%) and misc fixes (mouse truly hidden in GamePad mode, no stuck button, reboots keep the UMDF2 mode)
+
 ## [3.0.0.21] - 2026-10-03
 
 ### Added
@@ -19,7 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2.3.5.3] - 2026-08-26
+## [2.3.5.3] - 2026-09-30
 
 ### Added
 - **Bluetooth pairing (V2 Wiimote / RVL-CNT-01-TR)** — Support for the red sync button, PIN-less SSP authentication and device name refresh. Automatic pairing of the V2 Wiimote works exclusively via the red sync button (**required on every use** — the 1+2 connection method does not work on this hardware; DolphinBar / Mayflash connection: OK).

@@ -1,0 +1,106 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- [V57d] HmHost - virtual HID host (UMDF2/HIDMaestro) for Wiimote4Guns.
+       .NET 10 x64 console, spawned and supervised by WiimoteGun.Service (SYSTEM).
+       The lib\ DLLs come from the HIDMaestro v1.10.1 release (SHA-256 verified). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>HmHost</AssemblyName>
+    <RootNamespace>HmHost</RootNamespace>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <Version>3.1.0.0</Version>
+    <NoWarn>CA1416;CS9191</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="HIDMaestro.Core">
+      <HintPath>..\WiimoteGun\_sources\_HIDMaestro\poc\lib\HIDMaestro.Core.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\WiimoteGun\_sources\_HIDMaestro\poc\lib\Microsoft.Windows.SDK.NET.dll" CopyToOutputDirectory="PreserveNewest" Link="Microsoft.Windows.SDK.NET.dll" />
+    <None Include="..\WiimoteGun\_sources\_HIDMaestro\poc\lib\WinRT.Runtime.dll" CopyToOutputDirectory="PreserveNewest" Link="WinRT.Runtime.dll" />
+    <!-- [V57d] EN: One profile per player, unique VID (001F/002F/003F/004F - vmulti VIDs)
+         FR: Un profil par joueur, VID unique (001F/002F/003F/004F - les VID vmulti) -->
+    <None Include="profiles\wiimotegun-mkb-p1.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="profiles\wiimotegun-mkb-p2.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="profiles\wiimotegun-mkb-p3.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="profiles\wiimotegun-mkb-p4.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- [V57g] EN: GamePad profiles - one DInput (vmulti Joystick descriptor) and one
+         XInput (xbox-360-wired + XUSB companion) per player, identity keys GP1..GP4.
+         FR: Profils gamepad - un DInput (descripteur Joystick vmulti) et un XInput
+         (xbox-360-wired + companion XUSB) par joueur, clés d'identité GP1..GP4. -->
+    <None Include="profiles\wiimotegun-gp-p1.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="profiles\wiimotegun-gp-p2.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="profiles\wiimotegun-gp-p3.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="profiles\wiimotegun-gp-p4.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="profiles\wiimotegun-x360-p1.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="profiles\wiimotegun-x360-p2.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="profiles\wiimotegun-x360-p3.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="profiles\wiimotegun-x360-p4.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- [V57h] EN: Keyboard-only profiles - the REMOVE_MOUSE_P parity for UMDF2: the
+         player's device is swapped mkb -> kb-only at the same identity key when the
+         mouse must disappear while the keyboard stays (GamePad non-hybrid, Keyboardpad,
+         Disabled). PID 0xBA1E (Col01 of a kb-only device must not match the ES lightgun
+         path VID_001F&PID_BACC&Col01).
+         FR: Profils clavier-seul - la parité REMOVE_MOUSE_P pour UMDF2 : le device du
+         joueur est échangé mkb -> kb-seul à la même clé d'identité quand la souris doit
+         disparaître en gardant le clavier (GamePad non-hybride, Keyboardpad, Disabled).
+         PID 0xBA1E (le Col01 d'un device kb-seul ne doit pas matcher le chemin lightgun
+         ES VID_001F&PID_BACC&Col01). -->
+    <None Include="profiles\wiimotegun-kb-p1.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="profiles\wiimotegun-kb-p2.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="profiles\wiimotegun-kb-p3.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="profiles\wiimotegun-kb-p4.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- [V57d/V57i] EN: Auto-deploy the built HmHost (apphost + SDK dependencies + profiles)
+       into the WiimoteGun.Service output folders, so the service can spawn it right after a
+       solution build. [V57i] Per user decision HmHost stays FRAMEWORK-DEPENDENT: the .NET 10
+       runtime is a machine prerequisite, NOT a self-contained deployment. WiimoteGun checks
+       the machine at the RawInput (UMDF2) mode activation (WiimoteGun.Core.DotNetRuntimeChecker)
+       and proposes the official ".NET Runtime 10.0.x Windows x64" download when missing; the
+       service logs an explicit diagnostic when HmHost dies from a missing runtime (session 0
+       shows no native dialog).
+       FR: Déploiement automatique du HmHost compilé (apphost + dépendances SDK + profils)
+       dans les dossiers de sortie de WiimoteGun.Service, pour que le service puisse le
+       lancer juste après un build de la solution. [V57i] Par décision utilisateur HmHost
+       reste FRAMEWORK-DEPENDENT : le runtime .NET 10 est un prérequis machine, PAS un
+       déploiement self-contained. WiimoteGun vérifie la machine à l'activation du mode
+       RawInput (UMDF2) (WiimoteGun.Core.DotNetRuntimeChecker) et propose le téléchargement
+       officiel « .NET Runtime 10.0.x Windows x64 » s'il manque ; le service journalise un
+       diagnostic explicite quand HmHost meurt d'un runtime manquant (la session 0
+       n'affiche aucun dialogue natif). -->
+  <Target Name="DeployToServiceOutput" AfterTargets="Build" Condition="'$(NoDeploy)' != 'true'">
+    <ItemGroup>
+      <HmHostPayload Include="$(TargetDir)**\*.*" Exclude="$(TargetDir)\*.pdb" />
+    </ItemGroup>
+    <PropertyGroup>
+      <ServiceProjectRoot>$(MSBuildProjectDirectory)\..\WiimoteGun.Service</ServiceProjectRoot>
+    </PropertyGroup>
+    <Copy SourceFiles="@(HmHostPayload)"
+          DestinationFiles="@(HmHostPayload->'$(ServiceProjectRoot)\bin\$(Configuration)\HmHost\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(HmHostPayload)"
+          DestinationFiles="@(HmHostPayload->'$(ServiceProjectRoot)\bin\x64\$(Configuration)\HmHost\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <!-- [V57d] EN: Also stage into update_service so UpdateService.ps1 can deploy the host
+         next to the installed service (build-order independent).
+         FR: Stager aussi dans update_service pour que UpdateService.ps1 déploie l'hôte à
+         côté du service installé (indépendant de l'ordre de build). -->
+    <Copy SourceFiles="@(HmHostPayload)"
+          DestinationFiles="@(HmHostPayload->'$(ServiceProjectRoot)\bin\$(Configuration)\update_service\HmHost\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(HmHostPayload)"
+          DestinationFiles="@(HmHostPayload->'$(ServiceProjectRoot)\bin\x64\$(Configuration)\update_service\HmHost\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="[V57d] HmHost deployed to WiimoteGun.Service output folders ($(Configuration))." />
+  </Target>
+
+</Project>

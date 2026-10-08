@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 using WiimoteLib;
@@ -17,6 +17,7 @@ namespace WiimoteGun.UI.Legacy
         public IRVisualizerForm()
         {
             InitializeComponent();
+            WiimoteGun.UI.UiScaler.ApplyForm(this); // [V57n] UI zoom (bounds, fonts, screen clamp)
 
             // Position on correct screen (EN/FR: Positionner sur le bon écran)
             int screenIndex = Options.Instance.MonitorId;

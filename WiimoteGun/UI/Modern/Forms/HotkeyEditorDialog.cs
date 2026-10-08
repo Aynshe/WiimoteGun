@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -24,6 +24,7 @@ namespace WiimoteGun
             _hotkeyProfile = HotkeyManager.GetProfile(playerIndex);
             
             InitializeComponent();
+            WiimoteGun.UI.UiScaler.ApplyForm(this); // [V57n] UI zoom (bounds, fonts, screen clamp)
             InitializeCustomControls();
             
             // Dynamic Title setting

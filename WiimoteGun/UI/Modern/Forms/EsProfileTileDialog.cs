@@ -67,6 +67,16 @@ namespace WiimoteGun.UI.Modern.Forms
                 return;
             }
 
+            // [V57n] EN: Scale the STATIC dialog frame BEFORE the tiles are built: the
+            //     tiles are created zoom-aware (UiScaler.S/Factor), including when
+            //     PopulateTiles re-runs after navigation - no double scaling, nothing
+            //     left unscaled.
+            //     FR: Scale le cadre STATIQUE de la modale AVANT la construction des
+            //     tuiles : les tuiles sont créées zoom-aware (UiScaler.S/Factor), y
+            //     compris quand PopulateTiles se rejoue après navigation - aucun double
+            //     scale, rien de non scalé.
+            WiimoteGun.UI.UiScaler.ApplyForm(this);
+
             BuildLogic();
         }
 
@@ -103,12 +113,12 @@ namespace WiimoteGun.UI.Modern.Forms
         {
             var tile = new Button
             {
-                Size = new Size(165, 60),
-                Margin = new Padding(6),
+                Size = new Size(WiimoteGun.UI.UiScaler.S(165), WiimoteGun.UI.UiScaler.S(60)),
+                Margin = new Padding(WiimoteGun.UI.UiScaler.S(6)),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = back,
                 ForeColor = fore,
-                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                Font = new Font("Segoe UI", 9f * WiimoteGun.UI.UiScaler.Factor, FontStyle.Bold),
                 Text = text,
                 TextAlign = ContentAlignment.MiddleCenter
             };
@@ -464,12 +474,12 @@ namespace WiimoteGun.UI.Modern.Forms
 
             var tile = new Button
             {
-                Size = new Size(165, 60),
-                Margin = new Padding(6),
+                Size = new Size(WiimoteGun.UI.UiScaler.S(165), WiimoteGun.UI.UiScaler.S(60)),
+                Margin = new Padding(WiimoteGun.UI.UiScaler.S(6)),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = _tileBack,
                 ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                Font = new Font("Segoe UI", 9f * WiimoteGun.UI.UiScaler.Factor, FontStyle.Bold),
                 Text = Path.GetFileNameWithoutExtension(fileName) + "\n" + (string.IsNullOrEmpty(subfolder) ? "(root)" : subfolder),
                 TextAlign = ContentAlignment.MiddleCenter,
                 Tag = "profile:" + normalized
@@ -510,12 +520,12 @@ namespace WiimoteGun.UI.Modern.Forms
         {
             var tile = new Button
             {
-                Size = new Size(165, 60),
-                Margin = new Padding(6),
+                Size = new Size(WiimoteGun.UI.UiScaler.S(165), WiimoteGun.UI.UiScaler.S(60)),
+                Margin = new Padding(WiimoteGun.UI.UiScaler.S(6)),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = _folderBack,
                 ForeColor = Color.FromArgb(200, 220, 255),
-                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                Font = new Font("Segoe UI", 9f * WiimoteGun.UI.UiScaler.Factor, FontStyle.Bold),
                 Text = "📁 " + displayName,
                 TextAlign = ContentAlignment.MiddleCenter,
                 Tag = "folder:" + relativePath
@@ -542,12 +552,12 @@ namespace WiimoteGun.UI.Modern.Forms
 
             var tile = new Button
             {
-                Size = new Size(165, 60),
-                Margin = new Padding(6),
+                Size = new Size(WiimoteGun.UI.UiScaler.S(165), WiimoteGun.UI.UiScaler.S(60)),
+                Margin = new Padding(WiimoteGun.UI.UiScaler.S(6)),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = _tileBack,
                 ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                Font = new Font("Segoe UI", 9f * WiimoteGun.UI.UiScaler.Factor, FontStyle.Bold),
                 Text = Path.GetFileNameWithoutExtension(profileName),
                 TextAlign = ContentAlignment.MiddleCenter,
                 Tag = "profile:" + relPath
@@ -569,27 +579,27 @@ namespace WiimoteGun.UI.Modern.Forms
         private void UpdateApiSwapLabel()
         {
             bool useXInput = Options.Instance.P1GamePadMappings?.UseXInput ?? false;
-            btnApiSwap.Text = "GamePad API: " + (useXInput ? "XInput" : "DInput (VMulti)") + "  [SWITCH]";
+            // [V57g] EN: Dynamic DInput label - the UMDF2/HIDMaestro mode has no VMulti
+            //     device at all, the label must not lie about the active backend.
+            //     FR: Libellé DInput dynamique - le mode UMDF2/HIDMaestro n'a aucun device
+            //     VMulti, le libellé ne doit pas mentir sur le backend actif.
+            bool umdf2 = Options.Instance.DefaultMouseMode == MouseMode.RawInputUmdf;
+            btnApiSwap.Text = "GamePad API: " + (useXInput ? "XInput" : (umdf2 ? "DInput (UMDF2)" : "DInput (VMulti)")) + "  [SWITCH]";
             btnApiSwap.BackColor = useXInput ? Color.FromArgb(0, 100, 60) : Color.FromArgb(90, 60, 20);
         }
 
         private void BtnApiSwap_Click(object sender, EventArgs e)
         {
             // Toggle XInput/DInput for ALL players (EN/FR: Bascule XInput/DInput pour TOUS les players)
-            var all = new[]
-            {
-                Options.Instance.P1GamePadMappings,
-                Options.Instance.P2GamePadMappings,
-                Options.Instance.P3GamePadMappings,
-                Options.Instance.P4GamePadMappings
-            };
-            bool newValue = !(all[0]?.UseXInput ?? false);
-            foreach (var m in all)
-            {
-                if (m != null) m.UseXInput = newValue;
-            }
-            Options.Instance.Save();
-            SimpleLogger.Instance.Info($"[ES Tile] GamePad API switched to {(newValue ? "XInput" : "DInput (VMulti)")} for all players");
+            bool newValue = !(Options.Instance.P1GamePadMappings?.UseXInput ?? false);
+            // [V57g] EN: The modal uses THE SAME shared function as the "Use XInput"
+            //     checkbox of the GamePad mapping profiles (Program.SetGamePadOutputApi):
+            //     one writer, one save, one runtime swap path for every mode.
+            //     FR: La modale utilise LA MÊME fonction partagée que la case « Use XInput »
+            //     des profils de mapping GamePad (Program.SetGamePadOutputApi) : un seul
+            //     écrivain, une seule sauvegarde, un seul chemin de bascule runtime pour
+            //     tous les modes.
+            Program.SetGamePadOutputApi(new[] { 1, 2, 3, 4 }, newValue, save: true);
             UpdateApiSwapLabel();
         }
 

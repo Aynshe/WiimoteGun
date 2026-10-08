@@ -896,7 +896,8 @@ namespace WiimoteGun.Controls
             this.optMouseMode.FormattingEnabled = true;
             this.optMouseMode.Items.AddRange(new object[] {
             "SendInput",
-            "RawInput"});
+            "RawInput (VMulti)",
+            "RawInput (UMDF2)"});
             this.optMouseMode.Location = new System.Drawing.Point(140, 22);
             this.optMouseMode.Name = "optMouseMode";
             this.optMouseMode.Size = new System.Drawing.Size(200, 23);

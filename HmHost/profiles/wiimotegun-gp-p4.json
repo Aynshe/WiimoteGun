@@ -1,0 +1,14 @@
+{
+  "id": "wiimotegun-gp-p4",
+  "name": "GamePad Wiimote4Guns P4",
+  "vendor": "Wiimote4Guns",
+  "vid": "0x004F",
+  "pid": "0xBA1D",
+  "productString": "GamePad Wiimote4Guns P4",
+  "manufacturerString": "Wiimote4Guns",
+  "type": "other",
+  "connection": "usb",
+  "descriptor": "050115000904a1018506050209bb1581257f75089501810205010901a1000930093195028102c0a1000939150126ff003500460e016514750895018102093395018102093495018102c00509190129101500250175019510550065008102c0",
+  "inputReportSize": 9,
+  "notes": "[V57g/V57h] GamePad DInput profile - Player 4. Same descriptor and rules as wiimotegun-gp-p1 (see that profile's notes): vmulti Joystick collection verbatim (report 0x06), PID 0xBA1D distinct from the mkb PID. [V57h] DEDICATED name 'GamePad Wiimote4Guns P4' per user decision - the Dolphin -wiimotegun.ini Device lines are patched to this name in UMDF2 mode. Identity key 'GPW4'."
+}

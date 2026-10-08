@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -9,6 +9,7 @@ namespace WiimoteGun
         public WelcomeDialog()
         {
             InitializeComponent();
+            WiimoteGun.UI.UiScaler.ApplyForm(this); // [V57n] UI zoom (bounds, fonts, screen clamp)
             PopulateContent();
             
             // Clean up FlatAppearance border size (moved from InitializeComponent)

@@ -16,6 +16,90 @@ namespace WiimoteGun.Core
     {
         private static readonly Regex DInputRegex = new Regex(@"DInput-(\d+)", RegexOptions.Compiled);
 
+        // [V57g] EN: Full DInput binding token regex: captures the source ("DInput-<n>")
+        //     and the sub-binding ("Button<N>" / "<sign>Axis<N>") so an XInput player's
+        //     gun section can be rewritten to "XInput-<slot>/<translated-binding>".
+        //     FR: Regex du token de binding DInput complet : capture la source
+        //     (« DInput-<n> ») et le sous-binding (« Button<N> » / « <signe>Axis<N> »)
+        //     pour réécrire la section gun d'un joueur XInput en
+        //     « XInput-<slot>/<binding-traduit> ».
+        private static readonly Regex DInputBindingRegex = new Regex(@"DInput-\d+(/[-+\w]+)", RegexOptions.Compiled);
+
+        // [V57g] EN: DInput -> XInput binding-name translation (vmulti DInput Button<N> is
+        //     vmulti bit N; the XInput token names follow each emulator's XInput source
+        //     enumeration). TO VERIFY ON TARGET (plan P5.5): bind one guncon2 input BY
+        //     HAND in DuckStation/PCSX2 with a physical XInput pad, read the profile the
+        //     emulator writes, and adjust these tables if the tokens differ - they are
+        //     the single point of correction. DuckStation: buttons follow the XINPUT_GAMEPAD
+        //     wButtons order (Button0=DPadUp..Button13=Y), triggers are analog axes
+        //     (Axis4=LT, Axis5=RT), sticks Axis0..Axis3 = LX/LY/RX/RY (same positional
+        //     layout as the DInput profile, so the IR-driven relative axes keep working).
+        //     FR: Traduction des noms de bindings DInput -> XInput (le Button<N> DInput
+        //     vmulti est le bit N vmulti ; les tokens XInput suivent l'énumération de la
+        //     source XInput de chaque émulateur). À VÉRIFIER SUR CIBLE (plan P5.5) :
+        //     binder UNE entrée guncon2 À LA MAIN dans DuckStation/PCSX2 avec une manette
+        //     XInput physique, lire le profil écrit par l'émulateur, et corriger ces
+        //     tables si les tokens diffèrent - elles sont le point de correction unique.
+        //     DuckStation : les boutons suivent l'ordre wButtons de XINPUT_GAMEPAD
+        //     (Button0=DPadUp..Button13=Y), les gâchettes sont des axes analogiques
+        //     (Axis4=LT, Axis5=RT), les sticks Axis0..Axis3 = LX/LY/RX/RY (même layout
+        //     positionnel que le profil DInput, les axes relatifs pilotés par l'IR
+        //     continuent donc de fonctionner).
+        private static readonly Dictionary<string, string> DuckStationXInputMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            // vmulti DInput button bit -> DuckStation XInput button token
+            // (EN/FR: bit bouton DInput vmulti -> token bouton XInput DuckStation)
+            { "Button0",  "Button10" },  // A          (wButtons idx 10)
+            { "Button1",  "Button11" },  // B          (idx 11) - guncon2 Trigger (wiimote B)
+            { "Button2",  "Button12" },  // X          (idx 12)
+            { "Button3",  "Button13" },  // Y          (idx 13)
+            { "Button4",  "Button8"  },  // LB         (idx 8)
+            { "Button5",  "Button9"  },  // RB         (idx 9)
+            { "Button6",  "+Axis4"   },  // LT digital -> analog trigger pull (Axis4)
+            { "Button7",  "+Axis5"   },  // RT digital -> analog trigger pull (Axis5)
+            { "Button8",  "Button5"  },  // Back       (idx 5)
+            { "Button9",  "Button4"  },  // Start      (idx 4)
+            { "Button10", "Button6"  },  // L3         (idx 6)
+            { "Button11", "Button7"  },  // R3         (idx 7)
+            { "Button12", "Button0"  },  // DPadUp     (idx 0)
+            { "Button13", "Button1"  },  // DPadDown   (idx 1)
+            { "Button14", "Button2"  },  // DPadLeft   (idx 2)
+            { "Button15", "Button3"  },  // DPadRight  (idx 3)
+            // axes: same positional layout (LX, LY, RX, RY)
+            // (EN/FR: axes : même layout positionnel (LX, LY, RX, RY))
+            { "Axis0", "Axis0" },
+            { "Axis1", "Axis1" },
+            { "Axis2", "Axis2" },
+            { "Axis3", "Axis3" },
+        };
+
+        // [V57g] PCSX2: best-knowledge tokens pending the same on-target verification.
+        //     (EN/FR: PCSX2 : tokens au mieux de nos connaissances, en attente de la
+        //     même vérification sur cible.)
+        private static readonly Dictionary<string, string> Pcsx2XInputMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "Button0",  "Button10" },  // A
+            { "Button1",  "Button11" },  // B - guncon2 Trigger
+            { "Button2",  "Button12" },  // X
+            { "Button3",  "Button13" },  // Y
+            { "Button4",  "Button8"  },  // LB
+            { "Button5",  "Button9"  },  // RB
+            { "Button6",  "+Axis4"   },  // LT digital -> analog
+            { "Button7",  "+Axis5"   },  // RT digital -> analog
+            { "Button8",  "Button5"  },  // Back/Select
+            { "Button9",  "Button4"  },  // Start
+            { "Button10", "Button6"  },  // L3
+            { "Button11", "Button7"  },  // R3
+            { "Button12", "Button0"  },  // DPadUp
+            { "Button13", "Button1"  },  // DPadDown
+            { "Button14", "Button2"  },  // DPadLeft
+            { "Button15", "Button3"  },  // DPadRight
+            { "Axis0", "Axis0" },
+            { "Axis1", "Axis1" },
+            { "Axis2", "Axis2" },
+            { "Axis3", "Axis3" },
+        };
+
         // EN: Mapping dictionary GameId -> FriendlyName for Dolphin profiles
         // FR: Dictionnaire de correspondance GameId -> Nom convivial pour les profils Dolphin
         private static readonly Dictionary<string, string> DolphinGameMappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -79,17 +163,50 @@ namespace WiimoteGun.Core
             {
                 var controllerList = controllers.ToList();
                 var dinputIndices = new Dictionary<int, int>(); // playerIndex -> dinputIndex (1-based)
+                var xinputSlots = new Dictionary<int, int>();  // [V57g] playerIndex -> XInput slot (0-based)
                 bool anyGamePadActive = false;
+                bool anyXInputActive = false; // [V57g]
 
                 foreach (var c in controllerList)
                 {
-                    // Filter active gamepads: Only controllers in GamePad mode with a valid DInput index 
+                    bool isGamePadMode = (c.Mode == WiiMoteMode.GamePad || c.Mode == WiiMoteMode.GamePad43 || c.Mode == WiiMoteMode.GamePadFPS);
+                    if (!isGamePadMode)
+                        continue;
+
+                    // Filter active gamepads: Only controllers in GamePad mode with a valid DInput index
                     // (EN/FR: Filtrer gamepads actifs : Uniquement contrôleurs en mode GamePad avec index DInput valide)
-                    if (c.DInputIndex > 0 && (c.Mode == WiiMoteMode.GamePad || c.Mode == WiiMoteMode.GamePad43 || c.Mode == WiiMoteMode.GamePadFPS))
+                    if (c.DInputIndex > 0)
                     {
                         dinputIndices[c.PlayerIndex] = c.DInputIndex;
                         anyGamePadActive = true;
                     }
+
+                    // [V57g] EN: XInput players (UMDF2 XUSB slot detected, or ViGEm in the
+                    //     VMulti mode) count as active gamepads too - DuckStation/PCSX2 gun
+                    //     profiles must NOT be inhibited for them. The slot (not the player
+                    //     number) is what the bindings address.
+                    //     FR: Les joueurs XInput (slot XUSB UMDF2 détecté, ou ViGEm en mode
+                    //     VMulti) comptent aussi comme gamepads actifs - les profils gun
+                    //     DuckStation/PCSX2 ne doivent PAS être inhibés pour eux. Le slot
+                    //     (pas le numéro de joueur) est ce que les bindings adressent.
+                    if (c.UsesXInputOutput && c.XInputSlot >= 0)
+                    {
+                        xinputSlots[c.PlayerIndex] = c.XInputSlot;
+                        anyGamePadActive = true;
+                        anyXInputActive = true;
+                    }
+                }
+
+                // [V57g] EN: Dolphin's emulated-wiimote backend is DInput-only: an XInput
+                //     device (UMDF2 XUSB or ViGEm) cannot be bound by the generated Wiimote
+                //     profiles, so they stay inhibited for XInput players - said explicitly.
+                //     FR: Le backend wiimote émulée de Dolphin est DInput uniquement : un
+                //     device XInput (XUSB UMDF2 ou ViGEm) ne peut pas être bindé par les
+                //     profils Wiimote générés, ils restent donc inhibés pour les joueurs
+                //     XInput - dit explicitement.
+                if (anyXInputActive)
+                {
+                    SimpleLogger.Instance.Info("[ProfileAutomator] XInput mode: Dolphin emulated-wiimote profiles cannot use XInput devices (DInput backend) - left inhibited.");
                 }
 
                 // Removed early return to allow "cleanup" (tagging) in Mouse mode
@@ -165,10 +282,10 @@ namespace WiimoteGun.Core
                     
                     // Update input profiles (EN/FR: Mettre à jour les profils d'entrée)
                     string dsProfileDir = FindEmulatorSubDir(root, "duckstation", "inputprofiles");
-                    if (dsProfileDir != null) UpdateDuckStationProfiles(dsProfileDir, dinputIndices);
+                    if (dsProfileDir != null) UpdateDuckStationProfiles(dsProfileDir, dinputIndices, xinputSlots);
 
                     string ps2ProfileDir = FindEmulatorSubDir(root, "pcsx2", "inputprofiles");
-                    if (ps2ProfileDir != null) UpdatePCSX2Profiles(ps2ProfileDir, dinputIndices);
+                    if (ps2ProfileDir != null) UpdatePCSX2Profiles(ps2ProfileDir, dinputIndices, xinputSlots);
 
                     // Update game settings (EN/FR: Mettre à jour les paramètres de jeu)
                     string dsSettingsDir = FindEmulatorSubDir(root, "duckstation", "gamesettings");
@@ -193,8 +310,41 @@ namespace WiimoteGun.Core
                             if (!Directory.Exists(dolphinSettingsDir)) Directory.CreateDirectory(dolphinSettingsDir);
 
                             UpdateDolphinProfiles(dolphinConfigDir, dolphinProfilesDir, dinputIndices);
+                            // [V57h] EN: Patch the `Device = DInput/0/<name> HID` line of
+                            //     EVERY *-wiimotegun.ini (hard-coded templates AND the
+                            //     profiles the user created from them) to the gamepad
+                            //     device name of the selected driver mode - re-run on every
+                            //     UpdateProfiles so a mode change is always reflected.
+                            //     FR: Patche la ligne « Device = DInput/0/<nom> HID » de
+                            //     TOUS les *-wiimotegun.ini (templates codés en dur ET
+                            //     profils créés par l'utilisateur) vers le nom de device
+                            //     gamepad du mode pilote sélectionné - rejoué à chaque
+                            //     UpdateProfiles pour qu'un changement de mode soit
+                            //     toujours répercuté.
+                            PatchDolphinDeviceNames(dolphinProfilesDir);
                             GenerateMissingDolphinSettings(dolphinSettingsDir, dolphinProfilesDir);
-                            UpdateDolphinGameSettings(dolphinSettingsDir, anyGamePadActive);
+                            // [V57h] EN: Dolphin masks follow the DINPUT players ONLY: the
+                            //     emulated-wiimote backend cannot bind an XInput device
+                            //     (UMDF2 XUSB or ViGEm), so an XInput-only player must NOT
+                            //     unmask Dolphin profiles pointing at a DInput device that
+                            //     does not exist in that mode (matches the explicit V57g log).
+                            //     FR: Le masquage Dolphin suit UNIQUEMENT les joueurs DINPUT :
+                            //     le backend wiimote émulée ne peut pas binder un device
+                            //     XInput (XUSB UMDF2 ou ViGEm), un joueur XInput seul ne
+                            //     doit donc PAS démasquer des profils Dolphin pointant un
+                            //     device DInput inexistant dans ce mode (cohérent avec le
+                            //     log V57g explicite).
+                            UpdateDolphinGameSettings(dolphinSettingsDir, dinputIndices.Count > 0);
+
+                            // [V57q] EN: Register the Wiimote4Guns DInput gamepads in ES's
+                            //     es_input.cfg (text-level idempotent patch, one-time backup,
+                            //     never touches existing entries) so EmulationStation
+                            //     detects them automatically.
+                            //     FR: Enregistre les gamepads DInput Wiimote4Guns dans l'
+                            //     es_input.cfg d'ES (patch texte idempotent, sauvegarde
+                            //     unique, ne touche jamais les entrées existantes) pour
+                            //     qu'EmulationStation les détecte automatiquement.
+                            EsInputConfigurator.EnsureGamepadEntries();
                         }
                         catch (Exception dex)
                         {
@@ -281,6 +431,100 @@ namespace WiimoteGun.Core
                         SimpleLogger.Instance.Error(string.Format("[ProfileAutomator] Error creating Dolphin profile {0}: {1}", fileName, ex.Message));
                     }
                 }
+            }
+        }
+
+        // [V57h] EN: Patch the `Device = DInput/0/<name> HID` line of EVERY *-wiimotegun.ini
+        //     in the Dolphin Wiimote profiles folder - the hard-coded templates AND the
+        //     profiles the user created from them (any file matching the pattern). The
+        //     device name follows the DRIVER MODE selected by the user:
+        //       - RawInput (VMulti):  DInput/0/vmulti{a|b|c|d} HID   (per-player suffix)
+        //       - RawInput (UMDF2):   DInput/0/GamePad Wiimote4Guns P<n> HID
+        //     The pass is IDEMPOTENT and re-runs on every UpdateProfiles (device changes,
+        //     mode switches): a mode change is always reflected, back and forth.
+        //     FR: Patche la ligne « Device = DInput/0/<nom> HID » de TOUS les
+        //     *-wiimotegun.ini du dossier de profils Wiimote de Dolphin - les templates
+        //     codés en dur ET les profils créés par l'utilisateur (tout fichier matchant
+        //     le motif). Le nom du device suit le MODE PILOTE sélectionné par
+        //     l'utilisateur :
+        //       - RawInput (VMulti) :  DInput/0/vmulti{a|b|c|d} HID   (suffixe par joueur)
+        //       - RawInput (UMDF2)  :  DInput/0/GamePad Wiimote4Guns P<n> HID
+        //     La passe est IDEMPOTENTE et rejouée à chaque UpdateProfiles (changements de
+        //     devices, de mode) : un changement de mode est toujours répercuté, dans un
+        //     sens comme dans l'autre.
+        private static void PatchDolphinDeviceNames(string profilesDir)
+        {
+            try
+            {
+                if (!Directory.Exists(profilesDir))
+                    return;
+
+                bool umdf2 = Options.Instance.DefaultMouseMode == MouseMode.RawInputUmdf;
+                string[] files = Directory.GetFiles(profilesDir, "*-wiimotegun.ini");
+                if (files.Length == 0)
+                    return;
+
+                var deviceRegex = new Regex(@"^Device\s*=\s*DInput/0/(\S.*?)\s*HID\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+                int patched = 0;
+
+                foreach (string file in files)
+                {
+                    try
+                    {
+                        // EN: Derive the player from the file name: "P<n>-wiimotegun.ini"
+                        //     or "<prefix>_P<n>-wiimotegun.ini" (CreateDolphinWiimoteProfiles
+                        //     naming; user copies keep it).
+                        //     FR: Déduit le joueur du nom de fichier : « P<n>-wiimotegun.ini »
+                        //     ou « <prefix>_P<n>-wiimotegun.ini » (nommage de
+                        //     CreateDolphinWiimoteProfiles ; les copies utilisateur le
+                        //     conservent).
+                        Match m = Regex.Match(Path.GetFileName(file), @"P(\d)-wiimotegun\.ini$", RegexOptions.IgnoreCase);
+                        if (!m.Success)
+                            continue;
+                        int player = int.Parse(m.Groups[1].Value);
+                        if (player < 1 || player > 4)
+                            continue;
+
+                        string desired = umdf2
+                            ? "GamePad Wiimote4Guns P" + player
+                            : "vmulti" + "abcd"[player - 1];
+
+                        string[] lines = File.ReadAllLines(file);
+                        bool changed = false;
+                        for (int i = 0; i < lines.Length; i++)
+                        {
+                            Match dm = deviceRegex.Match(lines[i].Trim());
+                            if (!dm.Success)
+                                continue;
+                            string currentName = dm.Groups[1].Value.Trim();
+                            if (!string.Equals(currentName, desired, StringComparison.Ordinal))
+                            {
+                                lines[i] = "Device = DInput/0/" + desired + " HID";
+                                changed = true;
+                            }
+                        }
+
+                        if (changed)
+                        {
+                            File.WriteAllLines(file, lines, Encoding.UTF8);
+                            patched++;
+                            SimpleLogger.Instance.Info(string.Format(
+                                "[ProfileAutomator] Dolphin device name patched: {0} -> {1} [{2} mode]",
+                                Path.GetFileName(file), desired, umdf2 ? "UMDF2" : "VMulti"));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        SimpleLogger.Instance.Error(string.Format("[ProfileAutomator] Error patching Dolphin device name in {0}: {1}", file, ex.Message));
+                    }
+                }
+
+                if (patched > 0)
+                    SimpleLogger.Instance.Info(string.Format("[ProfileAutomator] Dolphin Device lines patched in {0} profile(s) for the {1} driver mode.", patched, umdf2 ? "UMDF2 (GamePad Wiimote4Guns Pn)" : "VMulti (vmultia..d)"));
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error("[ProfileAutomator] PatchDolphinDeviceNames error: " + ex.Message);
             }
         }
 
@@ -815,7 +1059,7 @@ guncon2_Trigger = DInput-0/Button1
 EnableMouseMapping = false
 ";
 
-        private static void UpdateDuckStationProfiles(string profileDir, Dictionary<int, int> dinputIndices)
+        private static void UpdateDuckStationProfiles(string profileDir, Dictionary<int, int> dinputIndices, Dictionary<int, int> xinputSlots)
         {
 
             string defaultProfile = Path.Combine(profileDir, "gamepad-wiimotegun.ini");
@@ -838,7 +1082,7 @@ EnableMouseMapping = false
                 try
                 {
                     string content = File.ReadAllText(file);
-                    string updatedContent = UpdateIniContent(content, "DuckStation", dinputIndices);
+                    string updatedContent = UpdateIniContent(content, "DuckStation", dinputIndices, xinputSlots);
 
                     if (content != updatedContent)
                     {
@@ -853,7 +1097,7 @@ EnableMouseMapping = false
             }
         }
 
-        private static void UpdatePCSX2Profiles(string profileDir, Dictionary<int, int> dinputIndices)
+        private static void UpdatePCSX2Profiles(string profileDir, Dictionary<int, int> dinputIndices, Dictionary<int, int> xinputSlots)
         {
 
             string defaultProfile = Path.Combine(profileDir, "gamepad-wiimotegun.ini");
@@ -876,7 +1120,7 @@ EnableMouseMapping = false
                 try
                 {
                     string content = File.ReadAllText(file);
-                    string updatedContent = UpdateIniContent(content, "PCSX2", dinputIndices);
+                    string updatedContent = UpdateIniContent(content, "PCSX2", dinputIndices, xinputSlots);
 
                     if (content != updatedContent)
                     {
@@ -919,10 +1163,10 @@ EnableMouseMapping = false
             TagMemoryStore.PruneDirectory(emuName, settingsDir);
         }
 
-        private static string UpdateIniContent(string content, string emulator, Dictionary<int, int> dinputIndices)
+        private static string UpdateIniContent(string content, string emulator, Dictionary<int, int> dinputIndices, Dictionary<int, int> xinputSlots)
         {
             string[] lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-            
+
             // First pass: Analyze sections to identify gun types (EN/FR: Première passe : Analyser les sections)
             var sectionTypes = new Dictionary<string, string>(); // Section -> Type value
             string currentSection = "";
@@ -940,8 +1184,16 @@ EnableMouseMapping = false
             }
 
             // Identify active gamepad players (EN/FR: Identifier les joueurs gamepad actifs)
-            // We assume dinputIndices only contains active virtual gamepads
-            var gamepadPlayers = dinputIndices.Keys.OrderBy(k => k).ToList();
+            // [V57g] EN: The active list is the UNION of DInput and XInput players - a gun
+            //     section must never be inhibited just because its player chose XInput.
+            //     FR: La liste active est l'UNION des joueurs DInput et XInput - une
+            //     section gun ne doit jamais être inhibée parce que son joueur a choisi
+            //     XInput.
+            var gamepadPlayers = dinputIndices.Keys
+                .Union(xinputSlots.Keys)
+                .OrderBy(k => k)
+                .ToList();
+            var xinputMap = (emulator == "DuckStation") ? DuckStationXInputMap : Pcsx2XInputMap;
 
             StringBuilder sb = new StringBuilder();
             currentSection = "";
@@ -974,11 +1226,23 @@ EnableMouseMapping = false
                     continue;
                 }
 
+                // [V57g] EN: Enable the XInput source whenever at least one player is an
+                //     XInput output, so the rewritten bindings can resolve. DInput stays
+                //     enabled for physical pads.
+                //     FR: Active la source XInput dès qu'au moins un joueur est une
+                //     sortie XInput, pour que les bindings réécrits se résolvent. DInput
+                //     reste activé pour les manettes physiques.
+                if (inInputSources && xinputSlots.Count > 0 && trimmedLine.StartsWith("XInput"))
+                {
+                    sb.AppendLine("XInput = true");
+                    continue;
+                }
+
                 if (sectionPlayerIdx > 0 && trimmedLine.StartsWith("Type"))
                 {
                     string typeValue = sectionTypes.ContainsKey(currentSection) ? sectionTypes[currentSection] : "";
                     string normalizedType = typeValue.Replace("-wiimotegun", "");
-                    bool isGun = normalizedType.Equals("GunCon", StringComparison.OrdinalIgnoreCase) || 
+                    bool isGun = normalizedType.Equals("GunCon", StringComparison.OrdinalIgnoreCase) ||
                                  normalizedType.Equals("Justifier", StringComparison.OrdinalIgnoreCase) ||
                                  normalizedType.Equals("guncon2", StringComparison.OrdinalIgnoreCase);
 
@@ -991,7 +1255,7 @@ EnableMouseMapping = false
                             int activeP = gamepadPlayers[0];
                             // Redirection logic (EN/FR: Logique de redirection)
                             shouldBeActive = (sectionPlayerIdx == activeP);
-                            
+
                             // Check for P1=none, P2=active redirection
                             if (!shouldBeActive)
                             {
@@ -1010,7 +1274,7 @@ EnableMouseMapping = false
                             sb.AppendLine(trimmedLine.Replace("-wiimotegun", "")); // Active: Ensure no tag
                         else
                             sb.AppendLine(trimmedLine.EndsWith("-wiimotegun") ? originalLine : originalLine + "-wiimotegun"); // Inhibit: Add tag if missing
-                        
+
                         continue;
                     }
                 }
@@ -1021,7 +1285,7 @@ EnableMouseMapping = false
                     string typeValue = sectionTypes.ContainsKey(currentSection) ? sectionTypes[currentSection] : "";
                     string normalizedType = typeValue.Replace("-wiimotegun", "");
 
-                    bool isGun = normalizedType.Equals("GunCon", StringComparison.OrdinalIgnoreCase) || 
+                    bool isGun = normalizedType.Equals("GunCon", StringComparison.OrdinalIgnoreCase) ||
                                  normalizedType.Equals("Justifier", StringComparison.OrdinalIgnoreCase) ||
                                  normalizedType.Equals("guncon2", StringComparison.OrdinalIgnoreCase);
 
@@ -1032,6 +1296,42 @@ EnableMouseMapping = false
                         {
                             // Redirection for single player (EN/FR: Redirection pour joueur unique)
                             targetPlayer = gamepadPlayers[0];
+                        }
+
+                        // [V57g] EN: XInput player - rewrite the WHOLE binding token
+                        //     ("DInput-<n>/<sub>" -> "XInput-<slot>/<translated sub>") using
+                        //     the emulator's translation table. DInput players keep the
+                        //     existing index rewrite.
+                        //     FR: Joueur XInput - réécrit le token de binding COMPLET
+                        //     (« DInput-<n>/<sub> » -> « XInput-<slot>/<sub traduit> »)
+                        //     via la table de traduction de l'émulateur. Les joueurs
+                        //     DInput conservent la réécriture d'index existante.
+                        if (xinputSlots.ContainsKey(targetPlayer))
+                        {
+                            int slot = xinputSlots[targetPlayer];
+                            string rewritten = DInputBindingRegex.Replace(originalLine, m =>
+                            {
+                                string sub = m.Groups[1].Value; // "/ButtonN" or "/-AxisN"
+                                string core = sub.TrimStart('/');
+                                char sign = core[0];
+                                if (sign == '-' || sign == '+')
+                                {
+                                    core = core.Substring(1);
+                                    string mapped;
+                                    if (xinputMap.TryGetValue(core, out mapped))
+                                        return "XInput-" + slot + "/" + sign + mapped;
+                                    // A signed axis entry that maps to a signed axis keeps
+                                    // its direction; an unsigned mapping (e.g. analog
+                                    // trigger "+Axis4") overrides the sign.
+                                    // (EN/FR: Une entrée d'axe signée mappée sur un axe
+                                    // signé garde sa direction ; un mappage non signé (ex.
+                                    // gâchette analogique « +Axis4 ») prime sur le signe.)
+                                    return "XInput-" + slot + "/" + sign + core;
+                                }
+                                return "XInput-" + slot + "/" + (xinputMap.TryGetValue(core, out string mappedBtn) ? mappedBtn : core);
+                            });
+                            sb.AppendLine(rewritten);
+                            continue;
                         }
 
                         if (dinputIndices.ContainsKey(targetPlayer))

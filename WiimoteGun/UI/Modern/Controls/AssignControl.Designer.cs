@@ -1,4 +1,4 @@
-namespace WiimoteGun.Controls
+﻿namespace WiimoteGun.Controls
 {
     partial class AssignControl
     {
@@ -34,7 +34,6 @@ namespace WiimoteGun.Controls
             this.chkRumble1 = new System.Windows.Forms.CheckBox();
             this.lblRumble1 = new System.Windows.Forms.Label();
             this.btnLock1 = new System.Windows.Forms.Button();
-            this.btnDevices1 = new System.Windows.Forms.Button();
             this.btnIdentify1 = new System.Windows.Forms.Button();
             this.lblBattery1 = new System.Windows.Forms.Label();
             this.lblDeviceInfo1 = new System.Windows.Forms.Label();
@@ -52,7 +51,6 @@ namespace WiimoteGun.Controls
             this.chkRumble2 = new System.Windows.Forms.CheckBox();
             this.lblRumble2 = new System.Windows.Forms.Label();
             this.btnLock2 = new System.Windows.Forms.Button();
-            this.btnDevices2 = new System.Windows.Forms.Button();
             this.btnIdentify2 = new System.Windows.Forms.Button();
             this.lblBattery2 = new System.Windows.Forms.Label();
             this.lblDeviceInfo2 = new System.Windows.Forms.Label();
@@ -70,7 +68,6 @@ namespace WiimoteGun.Controls
             this.chkRumble3 = new System.Windows.Forms.CheckBox();
             this.lblRumble3 = new System.Windows.Forms.Label();
             this.btnLock3 = new System.Windows.Forms.Button();
-            this.btnDevices3 = new System.Windows.Forms.Button();
             this.btnIdentify3 = new System.Windows.Forms.Button();
             this.lblBattery3 = new System.Windows.Forms.Label();
             this.lblDeviceInfo3 = new System.Windows.Forms.Label();
@@ -87,7 +84,6 @@ namespace WiimoteGun.Controls
             this.chkRumble4 = new System.Windows.Forms.CheckBox();
             this.lblRumble4 = new System.Windows.Forms.Label();
             this.btnLock4 = new System.Windows.Forms.Button();
-            this.btnDevices4 = new System.Windows.Forms.Button();
             this.btnIdentify4 = new System.Windows.Forms.Button();
             this.lblBattery4 = new System.Windows.Forms.Label();
             this.lblDeviceInfo4 = new System.Windows.Forms.Label();
@@ -147,7 +143,6 @@ namespace WiimoteGun.Controls
             this.panelPlayer1.Controls.Add(this.chkRumble1);
             this.panelPlayer1.Controls.Add(this.lblRumble1);
             this.panelPlayer1.Controls.Add(this.btnLock1);
-            this.panelPlayer1.Controls.Add(this.btnDevices1);
             this.panelPlayer1.Controls.Add(this.btnIdentify1);
             this.panelPlayer1.Controls.Add(this.lblBattery1);
             this.panelPlayer1.Controls.Add(this.lblDeviceInfo1);
@@ -274,19 +269,6 @@ namespace WiimoteGun.Controls
             this.btnLock1.Text = "🔓 Unlock";
             this.btnLock1.UseVisualStyleBackColor = false;
             // 
-            // btnDevices1
-            // 
-            this.btnDevices1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(204)))));
-            this.btnDevices1.FlatAppearance.BorderSize = 0;
-            this.btnDevices1.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnDevices1.ForeColor = System.Drawing.Color.White;
-            this.btnDevices1.Location = new System.Drawing.Point(400, 44);
-            this.btnDevices1.Name = "btnDevices1";
-            this.btnDevices1.Size = new System.Drawing.Size(90, 30);
-            this.btnDevices1.TabIndex = 10;
-            this.btnDevices1.Text = "⚙️ Devices";
-            this.btnDevices1.UseVisualStyleBackColor = false;
-            // 
             // btnIdentify1
             // 
             this.btnIdentify1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
@@ -356,7 +338,6 @@ namespace WiimoteGun.Controls
             this.panelPlayer2.Controls.Add(this.chkRumble2);
             this.panelPlayer2.Controls.Add(this.lblRumble2);
             this.panelPlayer2.Controls.Add(this.btnLock2);
-            this.panelPlayer2.Controls.Add(this.btnDevices2);
             this.panelPlayer2.Controls.Add(this.btnIdentify2);
             this.panelPlayer2.Controls.Add(this.lblBattery2);
             this.panelPlayer2.Controls.Add(this.lblDeviceInfo2);
@@ -498,19 +479,6 @@ namespace WiimoteGun.Controls
             this.btnLock2.Text = "🔓 Unlock";
             this.btnLock2.UseVisualStyleBackColor = false;
             // 
-            // btnDevices2
-            // 
-            this.btnDevices2.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(204)))));
-            this.btnDevices2.FlatAppearance.BorderSize = 0;
-            this.btnDevices2.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnDevices2.ForeColor = System.Drawing.Color.White;
-            this.btnDevices2.Location = new System.Drawing.Point(400, 44);
-            this.btnDevices2.Name = "btnDevices2";
-            this.btnDevices2.Size = new System.Drawing.Size(90, 30);
-            this.btnDevices2.TabIndex = 11;
-            this.btnDevices2.Text = "⚙️ Devices";
-            this.btnDevices2.UseVisualStyleBackColor = false;
-            // 
             // btnIdentify2
             // 
             this.btnIdentify2.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
@@ -580,7 +548,6 @@ namespace WiimoteGun.Controls
             this.panelPlayer3.Controls.Add(this.chkRumble3);
             this.panelPlayer3.Controls.Add(this.lblRumble3);
             this.panelPlayer3.Controls.Add(this.btnLock3);
-            this.panelPlayer3.Controls.Add(this.btnDevices3);
             this.panelPlayer3.Controls.Add(this.btnIdentify3);
             this.panelPlayer3.Controls.Add(this.lblBattery3);
             this.panelPlayer3.Controls.Add(this.lblDeviceInfo3);
@@ -722,19 +689,6 @@ namespace WiimoteGun.Controls
             this.btnLock3.Text = "🔓 Unlock";
             this.btnLock3.UseVisualStyleBackColor = false;
             // 
-            // btnDevices3
-            // 
-            this.btnDevices3.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(204)))));
-            this.btnDevices3.FlatAppearance.BorderSize = 0;
-            this.btnDevices3.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnDevices3.ForeColor = System.Drawing.Color.White;
-            this.btnDevices3.Location = new System.Drawing.Point(400, 44);
-            this.btnDevices3.Name = "btnDevices3";
-            this.btnDevices3.Size = new System.Drawing.Size(90, 30);
-            this.btnDevices3.TabIndex = 11;
-            this.btnDevices3.Text = "⚙️ Devices";
-            this.btnDevices3.UseVisualStyleBackColor = false;
-            // 
             // btnIdentify3
             // 
             this.btnIdentify3.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
@@ -803,7 +757,6 @@ namespace WiimoteGun.Controls
             this.panelPlayer4.Controls.Add(this.chkRumble4);
             this.panelPlayer4.Controls.Add(this.lblRumble4);
             this.panelPlayer4.Controls.Add(this.btnLock4);
-            this.panelPlayer4.Controls.Add(this.btnDevices4);
             this.panelPlayer4.Controls.Add(this.btnIdentify4);
             this.panelPlayer4.Controls.Add(this.lblBattery4);
             this.panelPlayer4.Controls.Add(this.lblDeviceInfo4);
@@ -930,19 +883,6 @@ namespace WiimoteGun.Controls
             this.btnLock4.Text = "🔓 Unlock";
             this.btnLock4.UseVisualStyleBackColor = false;
             // 
-            // btnDevices4
-            // 
-            this.btnDevices4.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(204)))));
-            this.btnDevices4.FlatAppearance.BorderSize = 0;
-            this.btnDevices4.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnDevices4.ForeColor = System.Drawing.Color.White;
-            this.btnDevices4.Location = new System.Drawing.Point(400, 43);
-            this.btnDevices4.Name = "btnDevices4";
-            this.btnDevices4.Size = new System.Drawing.Size(90, 30);
-            this.btnDevices4.TabIndex = 10;
-            this.btnDevices4.Text = "⚙️ Devices";
-            this.btnDevices4.UseVisualStyleBackColor = false;
-            // 
             // btnIdentify4
             // 
             this.btnIdentify4.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
@@ -1058,7 +998,6 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.Label lblDeviceInfo1;
         private System.Windows.Forms.Label lblBattery1;
         private System.Windows.Forms.Button btnIdentify1;
-        private System.Windows.Forms.Button btnDevices1;
         private System.Windows.Forms.Button btnLock1;
         private System.Windows.Forms.Label lblRumble1;
         private System.Windows.Forms.CheckBox chkRumble1;
@@ -1075,7 +1014,6 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.Label lblDeviceInfo2;
         private System.Windows.Forms.Label lblBattery2;
         private System.Windows.Forms.Button btnIdentify2;
-        private System.Windows.Forms.Button btnDevices2;
         private System.Windows.Forms.Button btnLock2;
         private System.Windows.Forms.Label lblRumble2;
         private System.Windows.Forms.CheckBox chkRumble2;
@@ -1092,7 +1030,6 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.Label lblDeviceInfo3;
         private System.Windows.Forms.Label lblBattery3;
         private System.Windows.Forms.Button btnIdentify3;
-        private System.Windows.Forms.Button btnDevices3;
         private System.Windows.Forms.Button btnLock3;
         private System.Windows.Forms.Label lblRumble3;
         private System.Windows.Forms.CheckBox chkRumble3;
@@ -1109,7 +1046,6 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.Label lblDeviceInfo4;
         private System.Windows.Forms.Label lblBattery4;
         private System.Windows.Forms.Button btnIdentify4;
-        private System.Windows.Forms.Button btnDevices4;
         private System.Windows.Forms.Button btnLock4;
         private System.Windows.Forms.Label lblRumble4;
         private System.Windows.Forms.CheckBox chkRumble4;

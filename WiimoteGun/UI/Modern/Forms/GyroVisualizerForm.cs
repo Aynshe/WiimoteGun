@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
@@ -55,6 +55,7 @@ namespace WiimoteGun.UI.Modern.Forms
         public GyroVisualizerForm()
         {
             InitializeComponent();
+            WiimoteGun.UI.UiScaler.ApplyForm(this); // [V57n] UI zoom (bounds, fonts, screen clamp)
             
             this.TopMost = true; // EN/FR: Toujours au premier plan (Always on top)
             

@@ -203,12 +203,6 @@
     <Compile Include="UI\Modern\Forms\KeySelectorDialog.Designer.cs">
       <DependentUpon>KeySelectorDialog.cs</DependentUpon>
     </Compile>
-    <Compile Include="UI\Modern\Forms\PlayerDeviceDialog.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="UI\Modern\Forms\PlayerDeviceDialog.Designer.cs">
-      <DependentUpon>PlayerDeviceDialog.cs</DependentUpon>
-    </Compile>
     <Compile Include="UI\Modern\Controls\HomeControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -356,6 +350,13 @@
     <Compile Include="Core\VMultiReport.cs" />
     <Compile Include="Core\VirtualVMultiMouse.cs" />
     <Compile Include="Core\VirtualVMultiKeyboard.cs" />
+    <Compile Include="Core\VirtualHmMouse.cs" />
+    <Compile Include="Core\VirtualHmKeyboard.cs" />
+    <Compile Include="Core\HmGamepad.cs" />
+    <Compile Include="Core\DotNetRuntimeChecker.cs" />
+    <Compile Include="Core\EsInputConfigurator.cs" />
+    <Compile Include="UI\UiScaler.cs" />
+    <Compile Include="UI\WheelSuppressor.cs" />
     <Compile Include="Core\VMultiDeviceCleanup.cs" />
     <Compile Include="UI\Modern\Forms\VirtualKeyboard.cs">
       <SubType>Form</SubType>

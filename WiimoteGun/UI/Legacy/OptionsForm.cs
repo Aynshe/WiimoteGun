@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Security.Principal;
@@ -14,6 +14,7 @@ namespace WiimoteGun
         {
             InitializeComponent();
             Font = SystemFonts.MessageBoxFont;
+            WiimoteGun.UI.UiScaler.ApplyForm(this); // [V57n] UI zoom - AFTER the root font assignment so nothing resets it
 
             numericUpDown1.Minimum = 0;  
             numericUpDown1.Maximum = Screen.AllScreens.Length - 1;

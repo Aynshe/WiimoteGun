@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Diagnostics;
@@ -14,11 +14,51 @@ namespace WiimoteGun.Controls
         // [V54] Tooltips for the Gestures checkboxes (EN/FR: Bulles des cases Gestures)
         private ToolTip _toolTips = new ToolTip();
 
+        // [V57d] UMDF2 selection-time activation flow state
+        // (EN/FR: État du flux d'activation UMDF2 au moment de la sélection)
+        private bool _hmActivationFlowActive;   // reentrancy guard / garde de réentrance
+        private bool _hmActivatedThisSession;   // activated at selection time / activé dès la sélection
+
         public OptionsControl()
         {
             InitializeComponent();
+            // [V57o3] EN: UiScaler owns ALL scaling on this page: with the Designer's AutoScaleMode.Font,
+            //     changing the page's root font (ApplyFonts) made WinForms RE-SCALE the children
+            //     on top of our own Scale (double-scale). None disables that interference.
+            //     FR: UiScaler possede TOUT le scaling de cette page : avec l'AutoScaleMode.Font
+            //     du Designer, le changement de police racine (ApplyFonts) faisait RE-SCALER les
+            //     enfants par WinForms PAR-DESSUS notre Scale (double-scale). None supprime cette
+            //     interference.
+            this.AutoScaleMode = AutoScaleMode.None;
             BindEvents();
             LoadOptionsFromInstance();
+
+            // [V57d] EN: Propose the UMDF2 install IMMEDIATELY when the mode is selected
+            //     (user request), not only at Apply time. Wired AFTER the initial load so
+            //     the programmatic selection does not trigger the flow.
+            //     FR: Proposer l'installation UMDF2 IMMÉDIATEMENT à la sélection du mode
+            //     (demande utilisateur), pas seulement au Apply. Câblé APRÈS le chargement
+            //     initial pour que la sélection programmatique ne déclenche pas le flux.
+            optMouseMode.SelectedIndexChanged += OptMouseMode_SelectedIndexChanged;
+
+            // [V57d] EN: Tooltip for the input mode dropdown (General tab)
+            //     FR: Bulle d'aide pour le mode d'input (onglet Général)
+            _toolTips.SetToolTip(optMouseMode,
+                "INPUT MODE:\r\n" +
+                "- SendInput: legacy single-player injection (merged input).\r\n" +
+                "- RawInput (VMulti): multi-player via the vmulti a/b/c/d drivers.\r\n" +
+                "- RawInput (UMDF2): multi-player via the UMDF2/HIDMaestro host - no signed\r\n" +
+                "  kernel driver, no test mode, no UAC (installed silently by the service).\r\n" +
+                "Each player keeps the SAME virtual mouse+keyboard across sessions (P1..P4).\r\n" +
+                "Takes effect on the next Wiimote connection / app restart.\r\n" +
+                "\r\n" +
+                "MODE D'INPUT :\r\n" +
+                "- SendInput : injection legacy mono-joueur (flux fusionné).\r\n" +
+                "- RawInput (VMulti) : multi-joueur via les pilotes vmulti a/b/c/d.\r\n" +
+                "- RawInput (UMDF2) : multi-joueur via l'hôte UMDF2/HIDMaestro - aucun pilote\r\n" +
+                "  kernel signé, aucun test mode, aucun UAC (installé silencieusement par le service).\r\n" +
+                "Chaque joueur garde LA MÊME souris+clavier virtuels entre les sessions (P1..P4).\r\n" +
+                "Prend effet à la prochaine connexion de Wiimote / relance de l'app.");
 
             // [V54] Explanatory tooltips for the two Off-Screen Reload options
             // (EN/FR: Bulles d'explication pour les deux options de rechargement hors-écran)
@@ -311,7 +351,7 @@ namespace WiimoteGun.Controls
         public void LoadOptionsFromInstance()
         {
             // General
-            optMouseMode.SelectedItem = Options.Instance.DefaultMouseMode.ToString();
+            optMouseMode.SelectedItem = MouseModeToLabel(Options.Instance.DefaultMouseMode);
             optMonitorId.Value = Math.Min(Math.Max(Options.Instance.MonitorId, optMonitorId.Minimum), optMonitorId.Maximum);
             optLEDLayout.SelectedItem = GetLEDLayoutName(Options.Instance.LEDLayout);
             optIRSensitivity.Value = Math.Min(Math.Max(Options.Instance.IRSensitivity, optIRSensitivity.Minimum), optIRSensitivity.Maximum);
@@ -584,13 +624,279 @@ namespace WiimoteGun.Controls
 
         private Label lblGestureLockReason;
 
+        // [V57d] EN: Propose installing/activating the UMDF2 host as soon as the mode is
+        //     selected in the dropdown (user request) instead of waiting for Apply.
+        //     On refuse/failure the selection reverts to the current mode; moving away
+        //     from UMDF2 after an activation deactivates the devices right away.
+        //     FR: Proposer l'installation/activation de l'hôte UMDF2 dès la sélection du
+        //     mode dans la liste (demande utilisateur) au lieu d'attendre le Apply. En cas
+        //     de refus/échec, la sélection revient au mode courant ; quitter UMDF2 après
+        //     une activation stoppe les périphériques immédiatement.
+        private void OptMouseMode_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (_hmActivationFlowActive)
+                return;
+
+            string selected = optMouseMode.SelectedItem as string;
+            if (selected == null)
+                return;
+
+            MouseMode selectedMode = MouseModeFromLabel(selected);
+
+            if (selectedMode == MouseMode.RawInputUmdf)
+            {
+                // EN: Already the saved mode, or already activated this session -> nothing to propose
+                // FR: Déjà le mode enregistré, ou déjà activé dans cette session -> rien à proposer
+                if (Options.Instance.DefaultMouseMode == MouseMode.RawInputUmdf || _hmActivatedThisSession)
+                    return;
+
+                _hmActivationFlowActive = true;
+                try
+                {
+                    if (ApplyMouseModeChange(MouseMode.RawInputUmdf))
+                    {
+                        _hmActivatedThisSession = true;
+                        SimpleLogger.Instance.Info("[V57d] UMDF2 proposed and activated at selection time.");
+                    }
+                    else
+                    {
+                        // EN: Refused or failed - revert the dropdown to the current mode
+                        // FR: Refusé ou échoué - ramener la liste au mode courant
+                        optMouseMode.SelectedItem = MouseModeToLabel(Options.Instance.DefaultMouseMode);
+                    }
+                }
+                finally
+                {
+                    _hmActivationFlowActive = false;
+                }
+            }
+            else if (Options.Instance.DefaultMouseMode != MouseMode.RawInputUmdf && _hmActivatedThisSession)
+            {
+                // EN: The user moved away from UMDF2 after an activation this session:
+                //     stop the devices right away so nothing lingers.
+                // FR: L'utilisateur a quitté UMDF2 après une activation dans cette
+                //     session : stopper les périphériques immédiatement.
+                _hmActivatedThisSession = false;
+                ServiceClient.HmDeactivate();
+                SimpleLogger.Instance.Info("[V57d] UMDF2 deactivated (user moved away from the mode).");
+            }
+        }
+
+        // [V57d] EN: Display labels for the input mode dropdown (General tab).
+        //     FR: Libellés d'affichage pour le mode d'input (onglet Général).
+        private static string MouseModeToLabel(MouseMode mode)
+        {
+            if (mode == MouseMode.SendInput) return "SendInput";
+            if (mode == MouseMode.RawInputUmdf) return "RawInput (UMDF2)";
+            return "RawInput (VMulti)";
+        }
+
+        private static MouseMode MouseModeFromLabel(string label)
+        {
+            if (label == "SendInput") return MouseMode.SendInput;
+            if (label == "RawInput (UMDF2)") return MouseMode.RawInputUmdf;
+            return MouseMode.RawInput; // EN/FR: unknown label falls back to VMulti RawInput
+        }
+
+        /// <summary>
+        /// [V57d] EN: Handles the input mode transition with user validation for UMDF2.
+        ///     Selecting "RawInput (UMDF2)" proposes installing the UMDF2 driver and its
+        ///     locally-trusted self-signed certificate (through the service, WITHOUT any
+        ///     UAC prompt or reboot). Leaving UMDF2 deactivates the virtual devices.
+        ///     Returns true when the new mode can be saved.
+        ///     FR: Gère la transition de mode d'input avec validation utilisateur pour
+        ///     UMDF2. Choisir « RawInput (UMDF2) » propose d'installer le pilote UMDF2
+        ///     et son certificat auto-signé trusté machine (via le service, SANS UAC ni
+        ///     reboot). Quitter UMDF2 désactive les périphériques virtuels. Retourne
+        ///     vrai si le nouveau mode peut être sauvegardé.
+        /// </summary>
+        private bool ApplyMouseModeChange(MouseMode newMode)
+        {
+            MouseMode current = Options.Instance.DefaultMouseMode;
+
+            if (newMode == current)
+                return true;
+
+            // [V57d] EN: Already proposed and activated at selection time -> save without asking again
+            //     FR: Déjà proposé et activé à la sélection -> sauvegarder sans redemander
+            if (newMode == MouseMode.RawInputUmdf && _hmActivatedThisSession)
+                return true;
+
+            if (newMode == MouseMode.RawInputUmdf)
+            {
+                // [V57i] EN: HmHost (the UMDF2 virtual input host) is a FRAMEWORK-DEPENDENT
+                //     .NET 10 x64 program - per user decision the runtime is a machine
+                //     prerequisite, NOT a self-contained deployment. Check the machine
+                //     BEFORE proposing the mode: without the runtime, HmHost can never
+                //     start (it dies silently in session 0, no native Windows dialog). The
+                //     prompt NEVER shows when the runtime is already installed.
+                //     FR: HmHost (l'hôte d'entrée virtuelle UMDF2) est un programme .NET 10
+                //     x64 FRAMEWORK-DEPENDENT - par décision utilisateur le runtime est un
+                //     prérequis machine, PAS un déploiement self-contained. Vérifier la
+                //     machine AVANT de proposer le mode : sans runtime, HmHost ne peut
+                //     jamais démarrer (il meurt silencieusement en session 0, aucun dialogue
+                //     natif Windows). Le prompt ne s'affiche JAMAIS si le runtime est déjà
+                //     installé.
+                if (!Core.DotNetRuntimeChecker.IsNet10RuntimeInstalled())
+                {
+                    string runtimePrompt =
+                        "The RawInput (UMDF2) mode relies on HmHost, its virtual input host (a .NET 10 program).\n" +
+                        "This machine does NOT have the .NET 10 runtime installed - HmHost cannot start.\n\n" +
+                        "Download (free) from the official page:\n" +
+                        "https://dotnet.microsoft.com/download/dotnet/10.0\n" +
+                        "Column 'Run apps - Runtime' -> '.NET Runtime 10.0.x' -> button 'x64'\n" +
+                        "(NOT the 'SDK', NOT 'ASP.NET Core Runtime', NOT '.NET Desktop Runtime')\n\n" +
+                        "[Yes]    = Open the official download page\n" +
+                        "[No]     = Continue anyway (activation will fail until the runtime is installed)\n" +
+                        "[Cancel] = Abort\n\n" +
+                        "--------------------------------\n\n" +
+                        "Le mode RawInput (UMDF2) repose sur HmHost, son hôte d'entrée virtuelle (programme .NET 10).\n" +
+                        "Cette machine n'a PAS le runtime .NET 10 installé - HmHost ne peut pas démarrer.\n\n" +
+                        "Téléchargement (gratuit) depuis la page officielle :\n" +
+                        "https://dotnet.microsoft.com/download/dotnet/10.0\n" +
+                        "Colonne « Run apps - Runtime » -> « .NET Runtime 10.0.x » -> bouton « x64 »\n" +
+                        "(PAS le « SDK », PAS « ASP.NET Core Runtime », PAS « .NET Desktop Runtime »)\n\n" +
+                        "[Oui]    = Ouvrir la page de téléchargement officielle\n" +
+                        "[Non]    = Continuer quand même (l'activation échouera tant que le runtime n'est pas installé)\n" +
+                        "[Annuler] = Abandonner";
+
+                    DialogResult rt = MessageBox.Show(this, runtimePrompt, ".NET 10 Runtime required / Runtime .NET 10 requis",
+                        MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
+
+                    if (rt == DialogResult.Yes)
+                    {
+                        // EN: Open the official .NET 10 download page, then abort the mode
+                        //     selection - the user re-selects RawInput (UMDF2) after installing.
+                        //     FR: Ouvre la page officielle de téléchargement .NET 10, puis
+                        //     abandonne la sélection du mode - l'utilisateur re-sélectionnera
+                        //     RawInput (UMDF2) après installation.
+                        try
+                        {
+                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                            {
+                                FileName = "https://dotnet.microsoft.com/download/dotnet/10.0",
+                                UseShellExecute = true
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            SimpleLogger.Instance.Error("[V57i] Failed to open the .NET download page: " + ex.Message);
+                        }
+                        return false;
+                    }
+                    if (rt == DialogResult.Cancel)
+                        return false;
+                    // EN: DialogResult.No = continue anyway -> fall through to the normal
+                    //     activation flow (which will surface the diagnostic on failure).
+                    //     FR: DialogResult.No = continuer quand même -> poursuivre le flux
+                    //     d'activation normal (qui affichera le diagnostic en cas d'échec).
+                    SimpleLogger.Instance.Warning("[V57i] UMDF2 selected without the .NET 10 runtime - continuing anyway at the user's request.");
+                }
+
+                string confirm =
+                    "Enable the RawInput (UMDF2) input mode?\n\n" +
+                    "This installs the UMDF2 virtual HID driver and its self-signed certificate\n" +
+                    "(machine Root + TrustedPublisher stores) through the WiimoteGun Service.\n" +
+                    "No UAC prompt, no test mode, no reboot. First activation can take a few seconds.\n" +
+                    "Takes effect on the next Wiimote connection / app restart.\n\n" +
+                    "Activer le mode d'input RawInput (UMDF2) ?\n\n" +
+                    "Cela installe le pilote HID virtuel UMDF2 et son certificat auto-signé\n" +
+                    "(magasins Root + TrustedPublisher de la machine) via le service WiimoteGun.\n" +
+                    "Aucun UAC, aucun test mode, aucun reboot. La première activation peut prendre\n" +
+                    "quelques secondes. Prend effet à la prochaine connexion de Wiimote / relance.";
+
+                DialogResult choice = MessageBox.Show(this, confirm, "RawInput (UMDF2)",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+                if (choice != DialogResult.Yes)
+                    return false;
+
+                this.Cursor = Cursors.WaitCursor;
+                string resp = ServiceClient.HmActivate();
+                this.Cursor = Cursors.Default;
+
+                if (resp == null || !resp.StartsWith("OK"))
+                {
+                    MessageBox.Show(this,
+                        "UMDF2 activation failed:\n" + (resp ?? "Service not running or too old (update the service).") +
+                        "\n\nThe previous input mode is kept.\n\n" +
+                        "Échec de l'activation UMDF2 - le mode d'input précédent est conservé.",
+                        "RawInput (UMDF2)", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return false;
+                }
+
+                SimpleLogger.Instance.Info("[V57d] UMDF2 mode activated: " + resp);
+
+                // [V57j] EN: Confirm the activation ONCE (instead of the silent
+                //     WaitCursor-then-nothing flow) and let the user restart the app now -
+                //     the mode takes effect on the next Wiimote connection / app restart,
+                //     and a restart applies it immediately (the new instance re-activates
+                //     HmHost silently and creates the devices per connected wiimote).
+                //     FR: Confirmer l'activation UNE FOIS (au lieu du flux silencieux
+                //     WaitCursor-puis-rien) et faire confirmer par l'utilisateur le
+                //     redémarrage de l'app - le mode prend effet à la prochaine connexion
+                //     de Wiimote / au redémarrage, et un redémarrage l'applique
+                //     immédiatement (la nouvelle instance réactive HmHost silencieusement
+                //     et crée les devices par wiimote connectée).
+                string successMsg =
+                    "RawInput (UMDF2) activated successfully.\n" +
+                    "The mode takes effect on the next Wiimote connection or app restart.\n\n" +
+                    "Restart Wiimote4Guns now?\n\n" +
+                    "--------------------------------\n\n" +
+                    "RawInput (UMDF2) activé avec succès.\n" +
+                    "Le mode prend effet à la prochaine connexion de Wiimote ou au redémarrage de l'app.\n\n" +
+                    "Redémarrer Wiimote4Guns maintenant ?";
+                DialogResult restart = MessageBox.Show(this, successMsg, "RawInput (UMDF2)",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                if (restart == DialogResult.Yes)
+                {
+                    // EN: Save the freshly validated mode BEFORE restarting - neither the
+                    //     selection-time flow nor BtnApply has persisted it yet, and the
+                    //     restart batch reloads the options from XML (without this save
+                    //     the restart would undo the user's selection).
+                    //     FR: Sauvegarder le mode fraîchement validé AVANT de redémarrer -
+                    //     ni le flux de sélection ni le BtnApply ne l'ont encore persisté,
+                    //     et le batch de redémarrage recharge les options depuis le XML
+                    //     (sans cette sauvegarde, le redémarrage annulerait la sélection
+                    //     de l'utilisateur).
+                    Options.Instance.DefaultMouseMode = MouseMode.RawInputUmdf;
+                    Options.Instance.Save();
+                    // EN: Reloads the options and relaunches via the restart batch (the
+                    //     current instance exits cleanly; the new one applies the mode).
+                    //     FR: Recharge les options et relance via le batch de redémarrage
+                    //     (l'instance courante quitte proprement ; la nouvelle applique le
+                    //     mode).
+                    Program.RestartApplication();
+                }
+                return true;
+            }
+
+            // EN: Leaving UMDF2 - stop the virtual devices through the service
+            // FR: Sortie d'UMDF2 - stopper les périphériques virtuels via le service
+            if (current == MouseMode.RawInputUmdf)
+            {
+                ServiceClient.HmDeactivate();
+                SimpleLogger.Instance.Info("[V57d] UMDF2 mode deactivated (switched to " + newMode + ").");
+            }
+
+            return true;
+        }
+
         private void BtnApplyOptions_Click(object sender, EventArgs e)
         {
             try 
             {
                 // General
                 if (optMouseMode.SelectedItem != null)
-                    Options.Instance.DefaultMouseMode = (MouseMode)Enum.Parse(typeof(MouseMode), optMouseMode.SelectedItem.ToString());
+                {
+                    // [V57d] EN: Label<->enum mapping + UMDF2 activation flow with user validation
+                    //     FR: Mapping libellé<->enum + flux d'activation UMDF2 avec validation utilisateur
+                    MouseMode newMouseMode = MouseModeFromLabel(optMouseMode.SelectedItem.ToString());
+                    if (ApplyMouseModeChange(newMouseMode))
+                        Options.Instance.DefaultMouseMode = newMouseMode;
+                    else
+                        optMouseMode.SelectedItem = MouseModeToLabel(Options.Instance.DefaultMouseMode);
+                }
                 
                 Options.Instance.MonitorId = (int)optMonitorId.Value;
                 

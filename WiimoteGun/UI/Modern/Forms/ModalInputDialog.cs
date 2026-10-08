@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
@@ -24,6 +24,7 @@ namespace WiimoteGun
         public ModalInputDialog()
         {
             InitializeComponent();
+            WiimoteGun.UI.UiScaler.ApplyForm(this); // [V57n] UI zoom (bounds, fonts, screen clamp)
             
             // Set FlatAppearance border sizes (Designer doesn't support this)
             _okButton.FlatAppearance.BorderSize = 0;

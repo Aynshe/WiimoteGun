@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
@@ -14,6 +14,7 @@ namespace WiimoteGun
         {
             InitializeComponent();
             Font = SystemFonts.MessageBoxFont;
+            WiimoteGun.UI.UiScaler.ApplyForm(this); // [V57n] UI zoom (bounds, fonts, screen clamp) - AFTER the root font assignment so nothing resets it
 
             PopulateComboBoxes();
             

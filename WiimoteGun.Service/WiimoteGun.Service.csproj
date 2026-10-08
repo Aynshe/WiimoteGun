@@ -68,6 +68,7 @@
   <ItemGroup>
     <Compile Include="CrashWatchdog.cs" />
     <Compile Include="DriverController.cs" />
+    <Compile Include="HmHostSupervisor.cs" />
     <Compile Include="PipeServer.cs" />
     <Compile Include="ServiceMain.cs">
       <SubType>Component</SubType>
@@ -98,6 +99,11 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="if not exist &quot;$(TargetDir)update_service&quot; mkdir &quot;$(TargetDir)update_service&quot;&#xD;&#xA;copy /Y &quot;$(TargetPath)&quot; &quot;$(TargetDir)update_service\&quot;" />
+    <!-- [V57d] EN: Same mkdir + copy as the historical Exec, expressed as pure MSBuild
+         tasks (no cmd.exe quoting involved).
+         FR: Identique au mkdir + copy historique, en taches MSBuild pures (aucun quoting
+         cmd.exe). -->
+    <MakeDir Directories="$(TargetDir)update_service" Condition="!Exists('$(TargetDir)update_service')" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(TargetDir)update_service\" SkipUnchangedFiles="true" />
   </Target>
 </Project>

@@ -1,0 +1,14 @@
+{
+  "id": "wiimotegun-mkb-p3",
+  "name": "Wiimote4Guns P3",
+  "vendor": "Wiimote4Guns",
+  "vid": "0x003F",
+  "pid": "0xBACC",
+  "productString": "Wiimote4Guns P3",
+  "manufacturerString": "Wiimote4Guns",
+  "type": "other",
+  "connection": "usb",
+  "descriptor": "05010902a10185030901a1000509190129051500250175019505810295038103050126ff7f75109501550f6511350045000930810209318102050109381581257f750895018106c0c005010906a1018507050719e029e71500250175019508810295017508810395057501050819012905910295017503910395067508150025650507190029658100c0",
+  "inputReportSize": 8,
+  "notes": "[V57d] Production profile - Player 3. UNIQUE VID 0x003F (the exact VID vmulti uses for 'vmultic'/P3). See wiimotegun-mkb-p1.json notes for the full rationale: absolute mouse (report 0x03) + boot keyboard (report 0x07) only, descriptor byte-for-byte from vmulti.h, verbatim submission, frame-loss watchdog, identity key 'P3'."
+}

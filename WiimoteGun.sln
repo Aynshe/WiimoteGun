@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WiimoteGun", "WiimoteGun\Wi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WiimoteGun.Service", "WiimoteGun.Service\WiimoteGun.Service.csproj", "{492D6054-F2D7-4940-97AD-0077271F190D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HmHost", "HmHost\HmHost.csproj", "{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,6 +43,21 @@ Global
 		{492D6054-F2D7-4940-97AD-0077271F190D}.Release|x64.Build.0 = Release|x64
 		{492D6054-F2D7-4940-97AD-0077271F190D}.Release|x86.ActiveCfg = Release|Any CPU
 		{492D6054-F2D7-4940-97AD-0077271F190D}.Release|x86.Build.0 = Release|Any CPU
+		{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}.Debug|x64.Build.0 = Debug|Any CPU
+		{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}.Debug|x86.Build.0 = Debug|Any CPU
+		{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}.Release|x64.ActiveCfg = Release|Any CPU
+		{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}.Release|x64.Build.0 = Release|Any CPU
+		{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}.Release|x86.ActiveCfg = Release|Any CPU
+		{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}.Release|x86.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectDependencies) = postSolution
+		{492D6054-F2D7-4940-97AD-0077271F190D} = {7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

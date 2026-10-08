@@ -109,6 +109,36 @@ namespace WiimoteGun
         private int _lastDInputIndex = 0;
         public int DInputIndex { get { return _lastDInputIndex; } }
 
+        /// <summary>
+        /// [V57g] EN: True when the live virtual gamepad is an XInput output (ViGEmBus in
+        ///     RawInput/VMulti mode, HIDMaestro XUSB in RawInputUmdf mode).
+        ///     FR: Vrai quand la manette virtuelle vivante est une sortie XInput (ViGEmBus
+        ///     en mode RawInput/VMulti, XUSB HIDMaestro en mode RawInputUmdf).
+        /// </summary>
+        public bool UsesXInputOutput
+        {
+            get
+            {
+                return (_virtualGamepad is ViGEmGamepad) ||
+                       (_virtualGamepad is HmGamepad hmGp && hmGp.UsesXInput);
+            }
+        }
+
+        /// <summary>
+        /// [V57g] EN: The XInput slot (0..3) of the UMDF2 XUSB gamepad, -1 when unknown or
+        ///     not applicable (DInput players / VMulti ViGEm players). XInput slots follow
+        ///     the companion CREATION order, not the player number, so the emulator
+        ///     profile automation reads this per player.
+        ///     FR: Le slot XInput (0..3) du gamepad XUSB UMDF2, -1 si inconnu ou non
+        ///     applicable (joueurs DInput / joueurs ViGEm du mode VMulti). Les slots XInput
+        ///     suivent l'ordre de CRÉATION des companions, pas le numéro de joueur :
+        ///     l'automatisation des profils émulateurs le lit par joueur.
+        /// </summary>
+        public int XInputSlot
+        {
+            get { return (_virtualGamepad is HmGamepad hmGp) ? hmGp.LastXInputSlot : -1; }
+        }
+
         // High Performance Timer (EN/FR: Timer haute performance)
         // Replaces DateTime.Now calls in hot path when enabled
         // (EN/FR: Remplace les appels DateTime.Now dans le chemin critique quand activé)
@@ -543,6 +573,44 @@ namespace WiimoteGun
                     // PHASE 0: VMulti Initialization (if in RawInput mode)
                     // (EN/FR: PHASE 0 : Initialisation VMulti (si mode RawInput))
                     // -------------------------------------------------------------------
+                    // [V57e] EN: UMDF2/HIDMaestro mode - enable the player's device through
+                    //     the service. The service asks HmHost to CREATE the player's device
+                    //     with its stable identity (P<n>): devices exist ONLY for connected
+                    //     wiimotes, exactly like the vmulti enable/disable flow, so Emulation
+                    //     Station never sees "phantom" lightguns for empty players.
+                    //     FR: Mode UMDF2/HIDMaestro - activer le périphérique du joueur via
+                    //     le service. Le service demande à HmHost de CRÉER le device du
+                    //     joueur avec son identité stable (P<n>) : les devices n'existent QUE
+                    //     pour les wiimotes connectées, exactement comme le flux
+                    //     enable/disable vmulti - EmulationStation ne voit jamais de
+                    //     lightguns « fantômes » pour les joueurs inoccupés.
+                    if (Options.Instance.DefaultMouseMode == MouseMode.RawInputUmdf)
+                    {
+                        // [V57h] EN: Guard against the reboot race reported by the user: the
+                        //     app fires HM_ACTIVATE in the background at startup, but a
+                        //     wiimote can auto-reconnect and send ENABLE_P BEFORE the service
+                        //     flagged the UMDF2 host active - the command then fell to the
+                        //     legacy vmulti devcon path (activate vmulti drivers). The guard
+                        //     makes the connect flow self-healing: ensure the host is active
+                        //     (HmActivate is idempotent) BEFORE requesting the device.
+                        //     FR: Garde-fou contre la course de reboot rapportée par
+                        //     l'utilisateur : l'app déclenche HM_ACTIVATE en arrière-plan au
+                        //     démarrage, mais une wiimote peut se reconnecter automatiquement
+                        //     et envoyer ENABLE_P AVANT que le service n'ait flaggé l'hôte
+                        //     UMDF2 actif - la commande tombait alors sur le chemin devcon
+                        //     vmulti legacy (activation des pilotes vmulti). Le garde-fou rend
+                        //     le flux de connexion auto-réparant : s'assurer que l'hôte est
+                        //     actif (HmActivate est idempotent) AVANT de demander le device.
+                        if (!ServiceClient.HmIsActive())
+                        {
+                            SimpleLogger.Instance.Warning("[V57h] UMDF2: host not active at wiimote connect - re-activating before ENABLE_P (HmActivate is idempotent)...");
+                            string act = ServiceClient.HmActivate();
+                            SimpleLogger.Instance.Info("[V57h] UMDF2: re-activation -> " + (act ?? "no reply"));
+                        }
+                        ServiceClient.EnablePlayer(PlayerIndex);
+                        SimpleLogger.Instance.Info($"[V57e] UMDF2: P{PlayerIndex} device activation requested via the service (HmHost identity P{PlayerIndex}, stable paths).");
+                    }
+
                     if (Options.Instance.DefaultMouseMode == MouseMode.RawInput)
                     {
                         ServiceClient.EnablePlayer(PlayerIndex);
@@ -617,6 +685,20 @@ namespace WiimoteGun
                             {
                                 sendInputMouse.OnLeftMouseButtonChanged += HandleTriggerButton;
                             }
+                        }
+                    }
+                    else if (Options.Instance.DefaultMouseMode == MouseMode.RawInputUmdf)
+                    {
+                        // [V57d] RawInput UMDF2/HIDMaestro mode: all players get an independent
+                        // keyboard and mouse, hosted by HmHost (service-supervised, no UAC).
+                        // (EN/FR: Mode RawInput UMDF2/HIDMaestro : clavier et souris indépendants
+                        // par joueur, hébergés par HmHost - supervisé par le service, sans UAC.)
+                        _joy = new VirtualHmKeyboard(PlayerIndex);
+                        _virtualMouse = new VirtualHmMouse(PlayerIndex);
+
+                        if (_virtualMouse is VirtualHmMouse hmMouse)
+                        {
+                            hmMouse.OnLeftMouseButtonChanged += HandleTriggerButton;
                         }
                     }
                     else
@@ -746,7 +828,11 @@ namespace WiimoteGun
             Wiimote.ExtensionChanged += OnWiiMoteExtensionChanged;
 
             // Display connection notification with mouse mode (EN/FR: Afficher notification connexion avec mode souris)
-            string mouseMode = Options.Instance.DefaultMouseMode == MouseMode.SendInput ? "SendInput (Legacy)" : "VMulti (Multi-Player)";
+            // [V57d] EN: Include the UMDF2 mode in the connection notification
+            //     FR: Inclure le mode UMDF2 dans la notification de connexion
+            string mouseMode = Options.Instance.DefaultMouseMode == MouseMode.SendInput
+                ? "SendInput (Legacy)"
+                : (Options.Instance.DefaultMouseMode == MouseMode.RawInputUmdf ? "UMDF2 HIDMaestro (Multi-Player)" : "VMulti (Multi-Player)");
             string connType = Wiimote.Device.IsBluetooth ? "Bluetooth" : "DolphinBar";
             
             Program.Notify(string.Format("Wiimote P{0} connected ({1}) - {2}", PlayerIndex, connType, mouseMode));
@@ -762,7 +848,7 @@ namespace WiimoteGun
                     _hiddenWnd.SetMode(((int)_mode) + 1);
                 });
             }
-            else if (_hiddenWnd != null && Options.Instance.DefaultMouseMode == MouseMode.RawInput)
+            else if (_hiddenWnd != null && Options.Instance.DefaultMouseMode != MouseMode.SendInput) // [V57d] EN/FR: dispose the hidden window for every non-SendInput mode (RawInput + UMDF2)
             {
                 var wnd = _hiddenWnd;
                 _hiddenWnd = null;
@@ -869,6 +955,20 @@ namespace WiimoteGun
                 // Persistent mode: Keep device enabled to avoid Windows PnP instability
                 // (EN/FR: Mode persistant : Garder activé pour éviter l'instabilité PnP Windows)
                 SimpleLogger.Instance.Info($"[Persistent P{PlayerIndex}] Keeping VMulti device enabled.");
+            }
+            else if (Options.Instance.DefaultMouseMode == MouseMode.RawInputUmdf)
+            {
+                // [V57e] EN: UMDF2 - remove the player's device on wiimote disconnect.
+                //     HmHost disposes the controller; the stable identity recreates it
+                //     with the SAME paths on the next connect, so nothing lingers
+                //     between sessions and EmulationStation never sees an empty gun.
+                //     FR: UMDF2 - supprimer le device du joueur à la déconnexion de la
+                //     wiimote. HmHost supprime le controller ; l'identité stable le
+                //     recrée avec les MÊMES chemins à la prochaine connexion : rien ne
+                //     subsiste entre les sessions et EmulationStation ne voit jamais
+                //     de gun fantôme.
+                ServiceClient.DisablePlayer(PlayerIndex);
+                SimpleLogger.Instance.Info($"[V57e] UMDF2: P{PlayerIndex} device removed (wiimote disconnected).");
             }
         }
 
@@ -2625,7 +2725,23 @@ namespace WiimoteGun
                         _virtualGamepad.Disconnect();
                     }
 
-                    if (!Options.Instance.PersistentGamePads || !Options.Instance.EnableGamePadSwapMode)
+                    if (Options.Instance.DefaultMouseMode == MouseMode.RawInputUmdf)
+                    {
+                        // [V57g] EN: In UMDF2 mode the gamepad device is ALWAYS removed when
+                        //     leaving GamePad mode (spec parity with the rawinput mouse: the
+                        //     gamepad exists ONLY while the wiimote is in GamePad mode, so
+                        //     EmulationStation/gun games never see a phantom controller).
+                        //     PersistentGamePads is a vmulti Col06 concept and is bypassed.
+                        //     FR: En mode UMDF2 le device gamepad est TOUJOURS supprimé en
+                        //     quittant le mode GamePad (parité spec avec la souris rawinput :
+                        //     le gamepad n'existe QUE tant que la wiimote est en mode GamePad,
+                        //     EmulationStation/les jeux gun ne voient jamais de manette
+                        //     fantôme). PersistentGamePads est un concept Col06 vmulti,
+                        //     contourné ici.
+                        WiimoteGun.ServiceClient.RemoveGamepad(PlayerIndex);
+                        SimpleLogger.Instance.Info(string.Format("[GamePad P{0}] UMDF2: gamepad device removed (mouse mode back).", PlayerIndex));
+                    }
+                    else if (!Options.Instance.PersistentGamePads || !Options.Instance.EnableGamePadSwapMode)
                     {
                         WiimoteGun.ServiceClient.RemoveGamepad(PlayerIndex);
                     }
@@ -2700,8 +2816,29 @@ namespace WiimoteGun
                     }
 
                     // Initialize Virtual Gamepad if needed (EN/FR: Initialiser le Gamepad Virtuel si nécessaire)
+                    // [V57g] EN: In RawInputUmdf mode HmGamepad drives BOTH apis (HmHost creates
+                    //     or swaps the HIDMaestro gamepad device; the service routes the suffixed
+                    //     command). The mouse device stays alive but inert in non-hybrid GamePad
+                    //     mode: send a NEUTRAL mouse frame so a button held at the switch cannot
+                    //     stay stuck forever (the HmHost watchdog re-submits held frames).
+                    //     FR: En mode RawInputUmdf, HmGamepad pilote les DEUX apis (HmHost crée ou
+                    //     échange le device gamepad HIDMaestro ; le service route la commande
+                    //     suffixée). Le device souris reste vivant mais inerte en mode GamePad
+                    //     non-hybride : envoyer une frame souris NEUTRE pour qu'un bouton tenu
+                    //     au moment de la bascule ne reste pas bloqué à vie (le watchdog HmHost
+                    //     re-soumet les frames tenues).
+                    bool umdf2 = Options.Instance.DefaultMouseMode == MouseMode.RawInputUmdf;
+                    if (umdf2)
+                    {
+                        WiimoteGun.ServiceClient.EnableGamepad(PlayerIndex, useXInput ? "XINPUT" : "DINPUT");
+                        if (!hybridWantsMouse)
+                        {
+                            (_virtualMouse as VirtualHmMouse)?.ResetAll();
+                        }
+                    }
 
-                    if (_virtualGamepad == null || (useXInput != (_virtualGamepad is ViGEmGamepad)))
+                    bool gpOutputMismatch = GamePadOutputApiMismatch(useXInput);
+                    if (_virtualGamepad == null || gpOutputMismatch)
                     {
                         if (_virtualGamepad != null)
                         {
@@ -2709,7 +2846,11 @@ namespace WiimoteGun
                             _virtualGamepad.Dispose();
                         }
 
-                        if (useXInput)
+                        if (umdf2)
+                        {
+                            _virtualGamepad = new HmGamepad(PlayerIndex, useXInput);
+                        }
+                        else if (useXInput)
                         {
                             _virtualGamepad = new ViGEmGamepad(PlayerIndex);
                         }
@@ -3618,31 +3759,25 @@ namespace WiimoteGun
                     {
                         SimpleLogger.Instance.Info(string.Format("[P{0}] Non-Hybrid Profile detected at runtime - Disabling VMulti Mouse", PlayerIndex));
                         WiimoteGun.ServiceClient.RemoveMouseForPlayer(PlayerIndex);
+                        // [V57g] EN: Neutral mouse frame in UMDF2 so a held button cannot stay
+                        //     stuck once the mouse frames stop (HmHost watchdog parity).
+                        //     FR: Frame souris neutre en UMDF2 pour qu'un bouton tenu ne
+                        //     reste pas bloqué quand les frames souris s'arrêtent (parité
+                        //     watchdog HmHost).
+                        (_virtualMouse as VirtualHmMouse)?.ResetAll();
                     }
                 }
 
                 // Check if user changed XInput mode at runtime
-                if (mappings.UseXInput != (_virtualGamepad is ViGEmGamepad))
+                // [V57g] EN: One unified re-init for every output path (VMulti Col06,
+                //     ViGEm XInput, UMDF2 HIDMaestro) - also invoked directly by
+                //     Program.SetGamePadOutputApi (modal swap / mapping checkbox).
+                //     FR: Une seule réinit pour tous les chemins de sortie (Col06 vmulti,
+                //     ViGEm XInput, HIDMaestro UMDF2) - aussi appelée directement par
+                //     Program.SetGamePadOutputApi (bascule modale / case mapping).
+                if (GamePadOutputApiMismatch(mappings.UseXInput))
                 {
-                    SimpleLogger.Instance.Info($"[GamePad P{PlayerIndex}] Output mode changed at runtime. Re-initializing virtual gamepad...");
-                    _virtualGamepad.Disconnect();
-                    _virtualGamepad.Dispose();
-                    
-                    if (mappings.UseXInput)
-                    {
-                        _virtualGamepad = new ViGEmGamepad(PlayerIndex);
-                        WiimoteGun.ServiceClient.RemoveGamepad(PlayerIndex); // Disable VMulti Col06 (EN/FR: Désactiver VMulti Col06)
-                    }
-                    else
-                    {
-                        _virtualGamepad = new VMultiGamepad(PlayerIndex);
-                        WiimoteGun.ServiceClient.EnableGamepad(PlayerIndex); // Enable VMulti Col06 (EN/FR: Activer VMulti Col06)
-                    }
-                        
-                    _virtualGamepad.Connect();
-                    
-                    // Allow some time for connection before sending reports to avoid dropping the first state
-                    Thread.Sleep(100);
+                    ReinitGamepadOutput();
                 }
 
                 if (!_virtualGamepad.IsConnected)
@@ -4605,6 +4740,85 @@ namespace WiimoteGun
             }
 
             return pos;
+        }
+
+        /// <summary>
+        /// [V57g] EN: True when the live virtual gamepad does not match the requested
+        /// output (DInput/XInput) or the input mode's expected backend (HmGamepad in
+        /// RawInputUmdf, ViGEm/VMultiGamepad otherwise). Shared by the runtime
+        /// detection and the explicit swap so every path agrees on "needs re-init".
+        /// FR: Vrai quand la manette virtuelle vivante ne correspond pas à la sortie
+        /// demandée (DInput/XInput) ni au backend attendu du mode d'entrée (HmGamepad
+        /// en RawInputUmdf, ViGEm/VMultiGamepad sinon). Partagé par la détection
+        /// runtime et la bascule explicite pour que tous les chemins s'accordent sur
+        /// « réinit nécessaire ».
+        /// </summary>
+        private bool GamePadOutputApiMismatch(bool useXInput)
+        {
+            bool currentIsXInput = (_virtualGamepad is ViGEmGamepad) ||
+                                   (_virtualGamepad is HmGamepad hmGp && hmGp.UsesXInput);
+            bool umdf2 = Options.Instance.DefaultMouseMode == MouseMode.RawInputUmdf;
+            bool currentIsUmdf2 = _virtualGamepad is HmGamepad;
+            return useXInput != currentIsXInput || umdf2 != currentIsUmdf2;
+        }
+
+        /// <summary>
+        /// [V57g] EN: Re-initialize the virtual gamepad output after a DInput/XInput
+        ///     change (mapping checkbox, modal swap button, runtime profile change) or an
+        ///     input-mode change. Single implementation for every backend: VMulti Col06,
+        ///     ViGEm XInput, and UMDF2 HIDMaestro (HmHost creates or swaps the device at
+        ///     a stable "GPn" identity). Safe to call on the wiimote report thread.
+        ///     FR: Réinitialise la sortie manette virtuelle après un changement
+        ///     DInput/XInput (case mapping, bouton de bascule de la modale, changement de
+        ///     profil runtime) ou un changement de mode d'entrée. Implémentation unique
+        ///     pour tous les backends : Col06 vmulti, ViGEm XInput et UMDF2 HIDMaestro
+        ///     (HmHost crée ou échange le device à l'identité stable « GPn »). Appelable
+        ///     en sécurité sur le thread de rapports wiimote.
+        /// </summary>
+        public void ReinitGamepadOutput()
+        {
+            try
+            {
+                GamePadMappings mappings = Options.Instance.GetGamePadMappingsForPlayer(PlayerIndex);
+                bool useXInput = mappings != null && mappings.UseXInput;
+                bool umdf2 = Options.Instance.DefaultMouseMode == MouseMode.RawInputUmdf;
+
+                if (!GamePadOutputApiMismatch(useXInput) && _virtualGamepad != null)
+                    return;
+
+                SimpleLogger.Instance.Info($"[GamePad P{PlayerIndex}] Output mode changed. Re-initializing virtual gamepad ({(useXInput ? "XInput" : "DInput")}{(umdf2 ? " / UMDF2-HIDMaestro" : "")})...");
+                if (_virtualGamepad != null)
+                {
+                    _virtualGamepad.Disconnect();
+                    _virtualGamepad.Dispose();
+                }
+
+                if (umdf2)
+                {
+                    _virtualGamepad = new HmGamepad(PlayerIndex, useXInput);
+                    WiimoteGun.ServiceClient.EnableGamepad(PlayerIndex, useXInput ? "XINPUT" : "DINPUT");
+                }
+                else if (useXInput)
+                {
+                    _virtualGamepad = new ViGEmGamepad(PlayerIndex);
+                    WiimoteGun.ServiceClient.RemoveGamepad(PlayerIndex); // Disable VMulti Col06 (EN/FR: Désactiver VMulti Col06)
+                }
+                else
+                {
+                    _virtualGamepad = new VMultiGamepad(PlayerIndex);
+                    WiimoteGun.ServiceClient.EnableGamepad(PlayerIndex); // Enable VMulti Col06 (EN/FR: Activer VMulti Col06)
+                }
+
+                _virtualGamepad.Connect();
+
+                // Allow some time for connection before sending reports to avoid dropping the first state
+                // (EN/FR: Laisser un peu de temps à la connexion avant d'envoyer des rapports pour ne pas perdre le premier état)
+                Thread.Sleep(100);
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error($"[GamePad P{PlayerIndex}] ReinitGamepadOutput failed: {ex.Message}");
+            }
         }
 
         /// <summary>

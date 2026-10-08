@@ -187,7 +187,8 @@ namespace WiimoteGun
     public enum MouseMode
     {
         SendInput = 0,   // Legacy single-player mode using SendInput (EN/FR: Mode legacy mono-joueur utilisant SendInput)
-        RawInput = 1     // Multi-player mode using VMulti driver (EN/FR: Mode multi-joueur utilisant pilote VMulti)
+        RawInput = 1,    // Multi-player mode using VMulti driver (EN/FR: Mode multi-joueur utilisant pilote VMulti)
+        RawInputUmdf = 2 // [V57d] Multi-player mode using the UMDF2/HIDMaestro host - no signed kernel driver, no test mode (EN/FR: Mode multi-joueur via l'hôte UMDF2/HIDMaestro - pas de pilote kernel signé, pas de test mode)
     }
 
     // Auto-start options (EN/FR: Options de démarrage automatique)
@@ -359,6 +360,7 @@ namespace WiimoteGun
                 VirtualPollingRateV2 = 250;
 
                 DefaultMouseMode = MouseMode.RawInput;
+                UiScalePercent = 100; // [V57n]
 
                 AutoLockVMultiDevices = true;
                 PersistentGamePads = false;
@@ -994,6 +996,29 @@ namespace WiimoteGun
         public bool FirstRun { get; set; }
 
         public bool ShowSetupWizard { get; set; }
+
+        // [V57n] EN: Global UI zoom percentage applied to EVERY window/page at creation
+        //     time (80..150, step 10, default 100). The -/+ buttons on the Wiimote4Guns
+        //     home page adjust it and reopen the interface; every other window picks the
+        //     new value at its next open. Scaling happens at CREATION (never live) so no
+        //     open window ever ends up in a corrupted layout state.
+        //     FR: Pourcentage de zoom UI global appliqué à CHAQUE fenêtre/page au moment de
+        //     sa création (80..150, pas de 10, défaut 100). Les boutons −/+ de la page
+        //     d'accueil Wiimote4Guns l'ajustent et rouvrent l'interface ; toute autre
+        //     fenêtre prend la nouvelle valeur à sa prochaine ouverture. Le scale se fait
+        //     à la CRÉATION (jamais en live) pour qu'aucune fenêtre ouverte ne se retrouve
+        //     dans un état de mise en page corrompu.
+        [DefaultValue(100)]
+        public int UiScalePercent { get; set; }
+
+        // [V57k] EN: Version of the installed WiimoteGun.Service seen at the previous
+        //     app start. When the service is updated from a pre-3.0.0.24 version to
+        //     3.0.0.24+, the Setup Wizard is re-shown once (new UMDF2 wizard content).
+        //     FR: Version du WiimoteGun.Service installé vue au démarrage précédent de
+        //     l'app. Quand le service passe d'une version pré-3.0.0.24 à 3.0.0.24+, le
+        //     Setup Wizard est ré-affiché une fois (nouveau contenu wizard UMDF2).
+        [DefaultValue("")]
+        public string LastServiceVersionSeen { get; set; }
 
         [DefaultValue(true)]
         public bool UseSharedKeyboard { get; set; }

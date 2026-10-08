@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -14,6 +14,14 @@ namespace WiimoteGun.Controls
         public HomeControl()
         {
             InitializeComponent();
+            // [V57o3] EN: UiScaler owns ALL scaling on this page: with the Designer's AutoScaleMode.Font,
+            //     changing the page's root font (ApplyFonts) made WinForms RE-SCALE the children
+            //     on top of our own Scale (double-scale). None disables that interference.
+            //     FR: UiScaler possede TOUT le scaling de cette page : avec l'AutoScaleMode.Font
+            //     du Designer, le changement de police racine (ApplyFonts) faisait RE-SCALER les
+            //     enfants par WinForms PAR-DESSUS notre Scale (double-scale). None supprime cette
+            //     interference.
+            this.AutoScaleMode = AutoScaleMode.None;
             
             // Set FlatAppearance properties (Designer doesn't support BorderSize = 0)
             btnNavOptions.FlatAppearance.BorderSize = 0;
@@ -39,6 +47,28 @@ namespace WiimoteGun.Controls
             _updateStateTimer.Tick += (s, e) => RefreshUpdateIndicator();
             _updateStateTimer.Start();
             RefreshUpdateIndicator();
+
+            // [V57n] Show the current UI zoom in the zoom group
+            //     (EN/FR: Afficher le zoom UI courant dans le groupe de zoom)
+            lblZoomPercent.Text = WiimoteGun.Options.Instance.UiScalePercent + "%";
+        }
+
+        // [V57n] EN: UI zoom - / + buttons. The change is saved and the interface is
+        //     REOPENED at the new scale (creation-time scaling: every window/page/font
+        //     follows, nothing can end up off-screen). Other windows pick the value up
+        //     at their next open.
+        //     FR: Boutons − / + du zoom UI. Le changement est sauvegardé et l'interface
+        //     est ROUVERTE au nouveau scale (scale à la création : chaque fenêtre/page/
+        //     police suit, rien ne peut se retrouver hors écran). Les autres fenêtres
+        //     prennent la valeur à leur prochaine ouverture.
+        private void BtnZoomOut_Click(object sender, EventArgs e)
+        {
+            Program.RequestUiScaleChange(-WiimoteGun.UI.UiScaler.StepPercent);
+        }
+
+        private void BtnZoomIn_Click(object sender, EventArgs e)
+        {
+            Program.RequestUiScaleChange(+WiimoteGun.UI.UiScaler.StepPercent);
         }
 
         // [V56e] Update indicator state polling (EN/FR: Sondage d'état du voyant de mise à jour)

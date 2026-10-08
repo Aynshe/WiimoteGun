@@ -1,0 +1,14 @@
+{
+  "id": "wiimotegun-gp-p1",
+  "name": "GamePad Wiimote4Guns P1",
+  "vendor": "Wiimote4Guns",
+  "vid": "0x001F",
+  "pid": "0xBA1D",
+  "productString": "GamePad Wiimote4Guns P1",
+  "manufacturerString": "Wiimote4Guns",
+  "type": "other",
+  "connection": "usb",
+  "descriptor": "050115000904a1018506050209bb1581257f75089501810205010901a1000930093195028102c0a1000939150126ff003500460e016514750895018102093395018102093495018102c00509190129101500250175019510550065008102c0",
+  "inputReportSize": 9,
+  "notes": "[V57g/V57h] GamePad DInput profile - Player 1. Descriptor taken BYTE FOR BYTE from the vmulti driver's Joystick collection (vmulti.h lines 233-286, report 0x06): Throttle signed -127..127, X/Y signed, Hat 0-7 with 8 neutral, Rx/Ry unsigned, 16 buttons (DPad mirrored to bits 12-15 by the app - vmulti keeps the Hat neutral at all times). PID 0xBA1D deliberately differs from the mkb device PID (0xBACC) so EmulationStation's lightgun path match (VID_001F&PID_BACC&Col01) never catches this gamepad collection, while DirectInputHelper's VMulti filter (VID 001F-004F, PID >= 0xBA1C) still recognizes it. [V57h] DEDICATED name 'GamePad Wiimote4Guns P1' per user decision (no more vmulti product names in UMDF2): the Dolphin -wiimotegun.ini Device lines are patched by EmulatorProfileAutomator to this exact name when the UMDF2 driver mode is selected (DInput/0/GamePad Wiimote4Guns P1 HID), and back to vmulti{suffix} HID in VMulti mode. Reports submitted as complete frames (report id included) via HMController.SubmitRawExtendedReport (verbatim UMDF2 driver path, same as the mkb profiles). Type 'other': the SDK never creates an XInput companion for a non-Xbox VID. Identity key 'GPW1' gives stable device paths across lives."
+}

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -20,6 +20,7 @@ namespace WiimoteGun.UI.Calibrate
         public CalibrationModeSelectionForm(int monitorId, string modeName)
         {
             InitializeComponent();
+            WiimoteGun.UI.UiScaler.ApplyForm(this); // [V57n] UI zoom (bounds, fonts, screen clamp)
             _modeName = modeName;
             
             // Set dynamic text

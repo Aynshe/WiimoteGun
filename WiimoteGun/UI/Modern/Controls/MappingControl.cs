@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Drawing;
@@ -382,6 +382,14 @@ namespace WiimoteGun.Controls
         public MappingControl()
         {
             InitializeComponent();
+            // [V57o3] EN: UiScaler owns ALL scaling on this page: with the Designer's AutoScaleMode.Font,
+            //     changing the page's root font (ApplyFonts) made WinForms RE-SCALE the children
+            //     on top of our own Scale (double-scale). None disables that interference.
+            //     FR: UiScaler possede TOUT le scaling de cette page : avec l'AutoScaleMode.Font
+            //     du Designer, le changement de police racine (ApplyFonts) faisait RE-SCALER les
+            //     enfants par WinForms PAR-DESSUS notre Scale (double-scale). None supprime cette
+            //     interference.
+            this.AutoScaleMode = AutoScaleMode.None;
             _toast = new TransientToast(this);
             if (txtProfileName != null) txtProfileName.Click += (s, e) => ShowVirtualKeyboard(txtProfileName);
             WireEmulatorCheckboxes();
@@ -404,7 +412,17 @@ namespace WiimoteGun.Controls
             // Initialize UI (EN/FR: Initialiser UI)
             LoadProfileUI();
             LoadProfileUI();
-            LoadCurrentMappings();
+            // [V57o4] EN: Constructor population: the rows are built UNSCALED on the
+            //     Designer base - the ProfileOverlay's ApplyForm scales them ONCE with the
+            //     whole page tree (ScaleChildren must NOT run here: ApplyForm runs after
+            //     and would scale the already-scaled rows a second time - that was the
+            //     over-spaced first open).
+            //     FR: Population du constructeur : les lignes sont construites NON scalées
+            //     sur la base Designer - l'ApplyForm du ProfileOverlay les scale UNE FOIS
+            //     avec tout l'arbre de la page (ScaleChildren ne doit PAS tourner ici :
+            //     ApplyForm passe après et scalerait une seconde fois des lignes déjà
+            //     scalées - c'était le premier affichage sur-espacé).
+            LoadCurrentMappings(initial: true);
 
             // Back
             if (btnBack != null)
@@ -698,25 +716,85 @@ namespace WiimoteGun.Controls
         }
 
         // Load and display current mappings for selected player (EN/FR: Charger et afficher mappings joueur sélectionné)
-        private void LoadCurrentMappings()
+        // [V57o4] EN: initial=true = CONSTRUCTOR call: rows built unscaled on the Designer base,
+        //     ApplyForm scales them once with the page tree (no ScaleChildren - no double
+        //     scale). initial=false = RUNTIME call (tab switch, assign, profile load): rows
+        //     built on panel.Width/zoom and scaled by ScaleChildren.
+        //     FR: initial=true = appel du CONSTRUCTEUR : lignes construites non scalées sur
+        //     la base Designer, ApplyForm les scale une fois avec l'arbre de la page (pas
+        //     de ScaleChildren - pas de double scale). initial=false = appel RUNTIME
+        //     (changement d'onglet, assignation, chargement de profil) : lignes construites
+        //     sur panel.Width/zoom et scalées par ScaleChildren.
+        private void LoadCurrentMappings(bool initial = false)
         {
             panelMappingDisplay.Controls.Clear();
-            
+
             PlayerMappings mappings = Options.Instance.GetMappingsForPlayer(_currentPlayer);
-            
 
 
-            LoadPlayerMappings(panelMappingDisplay, mappings);
+
+            LoadPlayerMappings(panelMappingDisplay, mappings, initial);
+
+            if (!initial)
+            {
+                // [V57o] EN: The rows above were created with UNSCALED geometry at runtime -
+                //     scale their bounds now so they match the zoomed fonts (no truncation
+                //     above 120%).
+                //     FR: Les lignes ci-dessus ont été créées à l'exécution avec une géométrie
+                //     NON scalée - scale leurs bornes maintenant pour qu'elles correspondent
+                //     aux polices zoomées (aucune troncature au-delà de 120 %).
+                WiimoteGun.UI.UiScaler.ScaleChildren(panelMappingDisplay);
+            }
+
+            // [V57o5] EN: Re-apply the font zoom to the rows on EVERY population: each
+            //     rebuild creates FRESH unscaled fonts (new Font per control) that no one
+            //     scaled afterwards - bounds were zoomed (ScaleChildren/ApplyForm) but the
+            //     texts/buttons stayed at the base size ("spaced rows, small texts").
+            //     IDEMPOTENT thanks to the UiScaler font registry: fonts already scaled
+            //     (constructor path, ApplyForm) are skipped, only the fresh ones scale.
+            //     FR: Ré-applique le zoom des polices aux lignes à CHAQUE population :
+            //     chaque rebuild crée des polices fraîches NON scalées (new Font par
+            //     contrôle) que personne ne scalait ensuite - les bornes étaient zoomées
+            //     (ScaleChildren/ApplyForm) mais les textes/boutons restaient à la taille
+            //     de base (« lignes écartées, petits textes »). IDEMPOTENT grâce au
+            //     registre de polices d'UiScaler : les polices déjà scalées (chemin
+            //     constructeur, ApplyForm) sont sautées, seules les fraîches sont scalées.
+            WiimoteGun.UI.UiScaler.ApplyFonts(panelMappingDisplay);
+
+            // [V57p] EN: Suppress the mouse wheel on the freshly built rows' combo/UpDown
+            //     controls (idempotent - see WheelSuppressor): a page scroll must never
+            //     change a mapping selection silently.
+            //     FR: Supprime la molette sur les ComboBox/UpDown des lignes fraîchement
+            //     construites (idempotent - voir WheelSuppressor) : défiler la page ne
+            //     doit plus jamais changer une sélection de mapping en silence.
+            WiimoteGun.UI.WheelSuppressor.ApplyTo(panelMappingDisplay);
         }
 
         // Display player mappings in 2 columns (Wiimote / Nunchuk) - from ProfileOverlay
         // (EN/FR: Afficher mappings joueur en 2 colonnes)
-        private void LoadPlayerMappings(Panel panel, PlayerMappings mappings)
+        private void LoadPlayerMappings(Panel panel, PlayerMappings mappings, bool initial = false)
         {
             panel.AutoScroll = true; // EN/FR: Activer le défilement vertical
             panel.Controls.Clear();
-            
-            int panelWidth = panel.Width;
+
+            // [V57o2/V57o4] EN: Layout base. RUNTIME (initial=false): the panel width is
+            //     already zoomed, rows are positioned with unscaled metrics and scaled ONCE
+            //     afterwards by UiScaler.ScaleChildren -> divide by the zoom factor so the
+            //     centering math is exact after that single scale (no drift, no horizontal
+            //     scrollbar, no inflated spacing). CONSTRUCTOR (initial=true): the panel
+            //     is still at its Designer width and ApplyForm scales the rows once with
+            //     the whole page tree -> use the RAW width (the /factor would pre-shrink
+            //     the layout before ApplyForm scales it back).
+            //     FR: Base du layout. RUNTIME (initial=false) : la largeur du panneau est
+            //     déjà zoomée, les lignes sont positionnées avec des métriques non scalées
+            //     puis scalées UNE FOIS par UiScaler.ScaleChildren -> diviser par le
+            //     facteur de zoom pour un centrage exact après ce scale unique (aucune
+            //     dérive, pas de barre horizontale, aucun espacement gonflé).
+            //     CONSTRUCTEUR (initial=true) : le panneau est encore à sa largeur Designer
+            //     et ApplyForm scale les lignes une fois avec tout l'arbre de la page ->
+            //     utiliser la largeur BRUTE (le /factor rétrécirait le layout avant qu'
+            //     ApplyForm ne le scale en retour).
+            int panelWidth = initial ? panel.Width : (int)(panel.Width / WiimoteGun.UI.UiScaler.Factor);
             int labelWidth = 95;
             int valueWidth = 120;
             int spacing = 22;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Reflection;
 using System.Windows.Forms;
@@ -12,6 +12,7 @@ namespace WiimoteGun.UI.Legacy
             InitializeComponent();
 
             this.Font = SystemFonts.MessageBoxFont;
+            WiimoteGun.UI.UiScaler.ApplyForm(this); // [V57n] UI zoom - AFTER the root font assignment so nothing resets it
             this.Text = String.Format("About {0}", AssemblyTitle);
             this.labelProductName.Text = AssemblyProduct;
             this.labelProductName.Font = new Font(this.Font, FontStyle.Bold);

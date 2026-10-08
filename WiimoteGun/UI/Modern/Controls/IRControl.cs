@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Linq;
@@ -15,6 +15,14 @@ namespace WiimoteGun.Controls
         public IRControl()
         {
             InitializeComponent();
+            // [V57o3] EN: UiScaler owns ALL scaling on this page: with the Designer's AutoScaleMode.Font,
+            //     changing the page's root font (ApplyFonts) made WinForms RE-SCALE the children
+            //     on top of our own Scale (double-scale). None disables that interference.
+            //     FR: UiScaler possede TOUT le scaling de cette page : avec l'AutoScaleMode.Font
+            //     du Designer, le changement de police racine (ApplyFonts) faisait RE-SCALER les
+            //     enfants par WinForms PAR-DESSUS notre Scale (double-scale). None supprime cette
+            //     interference.
+            this.AutoScaleMode = AutoScaleMode.None;
             BindEvents();
             
             // Default selection

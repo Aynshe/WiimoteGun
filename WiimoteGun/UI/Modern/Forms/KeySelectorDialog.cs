@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Linq;
@@ -18,6 +18,7 @@ namespace WiimoteGun
         {
             SelectedKey = Keys.None;
             InitializeComponent();
+            WiimoteGun.UI.UiScaler.ApplyForm(this); // [V57n] UI zoom (bounds, fonts, screen clamp)
             
             // Set FlatAppearance border sizes (Designer doesn't support this)
             btnOK.FlatAppearance.BorderSize = 0;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
@@ -41,6 +41,7 @@ namespace WiimoteGun
             }
 
             InitializeComponent();
+            WiimoteGun.UI.UiScaler.ApplyForm(this); // [V57n] UI zoom (bounds, fonts, screen clamp)
             InitializeCustomControls();
             InitializeCustomSettings();
             LoadExistingData();

@@ -13,13 +13,32 @@ namespace WiimoteGun.Forms
         public SetupWizard()
         {
             InitializeComponent();
+            // [V57n] EN: Global UI zoom at creation (bounds, fonts, screen clamping).
+            //     FR: Zoom UI global à la création (bornes, polices, bornage écran).
+            WiimoteGun.UI.UiScaler.ApplyForm(this);
             if (!this.DesignMode) CheckComponents();
         }
 
         // EN/FR: Event Handlers for Designer compatibility (Gestionnaires d'événements pour compatibilité Designer)
         private void btnInstallService_Click(object sender, EventArgs e) { ManageService(install: true); }
         private void btnUninstallService_Click(object sender, EventArgs e) { ManageService(install: false); }
-        private void btnInstallVMulti_Click(object sender, EventArgs e) { ManageVMulti(install: true); }
+        private void btnInstallVMulti_Click(object sender, EventArgs e)
+        {
+            // [V57k] EN: The install button is unlocked only by the opt-in checkbox, and a
+            //     bilingual confirmation must be accepted before the legacy driver installs.
+            //     FR: Le bouton d'installation n'est déverrouillé que par la case d'adhésion,
+            //     et une confirmation bilingue doit être acceptée avant l'installation du
+            //     pilote legacy.
+            if (!chkUnlockVMulti.Checked)
+                return;
+            if (!ShowVMultiInstallConfirmation())
+            {
+                // EN/FR: The user backed out of the confirmation - keep the checkbox but abort.
+                WiimoteGun.Options.Instance.Save();
+                return;
+            }
+            ManageVMulti(install: true);
+        }
         private void btnUninstallVMulti_Click(object sender, EventArgs e) { ManageVMulti(install: false); }
         private void btnContinue_Click(object sender, EventArgs e) { this.DialogResult = DialogResult.OK; this.Close(); }
         private void btnSkip_Click(object sender, EventArgs e) { this.DialogResult = DialogResult.Ignore; this.Close(); }
@@ -29,6 +48,28 @@ namespace WiimoteGun.Forms
             WiimoteGun.Options.Instance.Save();
         }
         private void btnReCheck_Click(object sender, EventArgs e) { CheckComponents(); }
+
+        // [V57k] EN: Opt-in checkbox in front of the install button - the legacy VMulti
+        //     driver install stays LOCKED until the user explicitly checks it.
+        //     FR: Case d'adhésion devant le bouton d'installation - l'installation du
+        //     pilote legacy VMulti reste VERROUILLÉE tant que l'utilisateur ne la coche pas.
+        private void chkUnlockVMulti_CheckedChanged(object sender, EventArgs e)
+        {
+            UpdateVMultiInstallGate(isVMultiInstalled: IsVMultiInstalled());
+        }
+
+        // [V57k] EN: The install button is enabled ONLY when the opt-in checkbox is checked
+        //     AND the driver is not already installed; its label tells the lock state.
+        //     FR: Le bouton d'installation n'est activé QUE si la case d'adhésion est cochée
+        //     ET que le pilote n'est pas déjà installé ; son libellé indique l'état du
+        //     verrouillage.
+        private void UpdateVMultiInstallGate(bool isVMultiInstalled)
+        {
+            bool unlocked = chkUnlockVMulti.Checked && !isVMultiInstalled;
+            btnInstallVMulti.Enabled = unlocked;
+            btnInstallVMulti.BackColor = unlocked ? Color.FromArgb(0, 122, 204) : Color.Gray;
+            btnInstallVMulti.Text = isVMultiInstalled ? "Installed" : (chkUnlockVMulti.Checked ? "Install Driver" : "Install (locked)");
+        }
 
 
         private void CheckComponents()
@@ -56,37 +97,62 @@ namespace WiimoteGun.Forms
                 btnUninstallService.Enabled = false;
             }
 
-            // VMulti Check
+            // VMulti Check - [V57k] EN: The legacy driver is now OPTIONAL (the new
+            //     'RawInput (UMDF2)' mode is the recommended default). Not installed is
+            //     therefore NOT an error state anymore.
+            //     FR: Le pilote legacy est désormais OPTIONNEL (le nouveau mode
+            //     « RawInput (UMDF2) » est le défaut recommandé). Non installé n'est
+            //     donc PLUS un état d'erreur.
             bool isVMultiInstalled = IsVMultiInstalled();
             if (isVMultiInstalled)
             {
-                lblVMultiStatus.Text = "✓ Installed";
+                lblVMultiStatus.Text = "✓ Installed (legacy)";
                 lblVMultiStatus.ForeColor = Color.LightGreen;
-                btnInstallVMulti.Enabled = false;
-                btnInstallVMulti.Text = "Installed";
-                btnInstallVMulti.BackColor = Color.Gray;
                 btnUninstallVMulti.Enabled = true;
             }
             else
             {
-                lblVMultiStatus.Text = "❌ Not Installed";
-                lblVMultiStatus.ForeColor = Color.Red;
-                btnInstallVMulti.Enabled = true;
-                btnInstallVMulti.BackColor = Color.FromArgb(0, 122, 204);
+                lblVMultiStatus.Text = "○ Not installed (optional)";
+                lblVMultiStatus.ForeColor = Color.Orange;
                 btnUninstallVMulti.Enabled = false;
             }
+            UpdateVMultiInstallGate(isVMultiInstalled);
 
-            if (isServiceInstalled && isVMultiInstalled)
+            // [V57k] EN: Only the SERVICE is required to continue. The VMulti driver is
+            //     optional - the new UMDF2 mode installs silently through the service.
+            //     FR: Seul le SERVICE est requis pour continuer. Le pilote VMulti est
+            //     optionnel - le nouveau mode UMDF2 s'installe silencieusement via le
+            //     service.
+            if (isServiceInstalled)
             {
                 btnContinue.Enabled = true;
                 btnContinue.BackColor = Color.FromArgb(0, 150, 0); // Green
-                btnSkip.Visible = false; // Hide skip if fully installed
+                btnSkip.Visible = false; // Hide skip when the required service is installed
             }
             else
             {
                 btnContinue.Enabled = false;
                 btnContinue.BackColor = Color.Gray;
                 btnSkip.Visible = true;
+            }
+
+            // [V57k] EN: New-user default - when the service is installed and the legacy
+            //     VMulti driver is NOT, the recommended 'RawInput (UMDF2)' mode is selected
+            //     automatically (a saved 'RawInput (VMulti)' mode would target a driver
+            //     that is not installed). Also applies when the wizard is re-shown after
+            //     the post-3.0.0.24 service update.
+            //     FR: Défaut nouveau utilisateur - quand le service est installé et que le
+            //     pilote legacy VMulti ne l'est PAS, le mode recommandé « RawInput (UMDF2) »
+            //     est sélectionné automatiquement (un mode « RawInput (VMulti) » sauvegardé
+            //     ciblerait un pilote non installé). S'applique aussi quand le wizard est
+            //     ré-affiché après la mise à jour du service post-3.0.0.24.
+            if (isServiceInstalled && !isVMultiInstalled &&
+                WiimoteGun.Options.Instance.DefaultMouseMode == MouseMode.RawInput)
+            {
+                WiimoteGun.Options.Instance.DefaultMouseMode = MouseMode.RawInputUmdf;
+                WiimoteGun.Options.Instance.Save();
+                lblVMultiStatus.Text = "○ Not installed -> UMDF2 selected";
+                SimpleLogger.Instance.Info("[V57k] Setup Wizard: VMulti not installed - 'RawInput (UMDF2)' selected as the default input mode.");
             }
         }
 
@@ -157,6 +223,114 @@ namespace WiimoteGun.Forms
             // EN/FR: Natively detect if any vmulti driver is installed without devcon.exe
             // (EN/FR: Détecter nativement si un pilote vmulti est installé sans devcon.exe)
             return VMultiDeviceDetector.IsAnyVMultiInstalled();
+        }
+
+        // [V57k] EN: Bilingual confirmation shown before installing the LEGACY VMulti
+        //     driver (the install button is already unlocked by the opt-in checkbox).
+        //     A small button toggles FR/EN for the whole dialog - texts AND buttons.
+        //     Returns true only when the user explicitly confirms the install.
+        //     FR: Confirmation bilingue affichée avant l'installation du pilote LEGACY
+        //     VMulti (le bouton est déjà déverrouillé par la case d'adhésion). Un petit
+        //     bouton bascule FR/EN pour tout le dialogue - textes ET boutons. Renvoie
+        //     vrai seulement si l'utilisateur confirme explicitement l'installation.
+        private bool ShowVMultiInstallConfirmation()
+        {
+            // (EN/FR: FR first - toggle button switches to EN)
+            string frText =
+                "Le NOUVEAU pilote « RawInput (UMDF2) » est disponible, fonctionne de la même manière " +
+                "et ne devrait PAS être bloqué par Microsoft à compter de Windows 11 26H02, " +
+                "qui va déprécier les pilotes signés avec d'anciens certificats.\r\n\r\n" +
+                "Le nouveau pilote est actuellement EN PHASE DE TEST.\r\n\r\n" +
+                "Le pilote VMulti (legacy) sera à terme supprimé, ou disponible uniquement pour " +
+                "Windows 10 et les Windows 11 antérieurs à 26H02.\r\n\r\n" +
+                "Voulez-vous vraiment installer VMulti ?";
+            string enText =
+                "The NEW 'RawInput (UMDF2)' driver is available, works the same way, " +
+                "and should NOT be blocked by Microsoft starting with Windows 11 26H02, " +
+                "which will deprecate drivers signed with legacy certificates.\r\n\r\n" +
+                "The new driver is currently IN TESTING PHASE.\r\n\r\n" +
+                "The VMulti (legacy) driver will eventually be removed, or only available on " +
+                "Windows 10 and Windows 11 versions below 26H02.\r\n\r\n" +
+                "Do you really want to install VMulti?";
+
+            bool fr = true; // (EN/FR: default language, toggled by the small button)
+            bool confirmed = false;
+
+            using (var dialog = new Form())
+            {
+                dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dialog.MaximizeBox = false;
+                dialog.MinimizeBox = false;
+                dialog.ShowInTaskbar = false;
+                dialog.StartPosition = FormStartPosition.CenterParent;
+                dialog.ClientSize = new Size(580, 320);
+                dialog.BackColor = Color.FromArgb(30, 30, 30);
+                dialog.ForeColor = Color.White;
+                dialog.Text = "VMulti Driver — Confirmation";
+
+                var lbl = new Label
+                {
+                    Location = new Point(20, 45),
+                    Size = new Size(540, 210),
+                    Text = frText,
+                    Font = new Font("Segoe UI", 10F),
+                    ForeColor = Color.White
+                };
+
+                var btnLang = new Button
+                {
+                    // (EN/FR: small language toggle - shows the OTHER language's code)
+                    Text = "EN",
+                    Location = new Point(495, 10),
+                    Size = new Size(65, 26),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.FromArgb(60, 60, 60),
+                    ForeColor = Color.White,
+                    Cursor = Cursors.Hand
+                };
+
+                var btnInstall = new Button
+                {
+                    Text = "Installer VMulti",
+                    Location = new Point(155, 270),
+                    Size = new Size(150, 34),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.FromArgb(0, 122, 204),
+                    ForeColor = Color.White,
+                    Cursor = Cursors.Hand
+                };
+
+                var btnCancel = new Button
+                {
+                    Text = "Annuler",
+                    Location = new Point(330, 270),
+                    Size = new Size(100, 34),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.FromArgb(60, 60, 60),
+                    ForeColor = Color.White,
+                    Cursor = Cursors.Hand
+                };
+
+                btnLang.Click += (s, e) =>
+                {
+                    fr = !fr;
+                    lbl.Text = fr ? frText : enText;
+                    btnLang.Text = fr ? "EN" : "FR";
+                    btnInstall.Text = fr ? "Installer VMulti" : "Install VMulti";
+                    btnCancel.Text = fr ? "Annuler" : "Cancel";
+                };
+                btnInstall.Click += (s, e) => { confirmed = true; dialog.Close(); };
+                btnCancel.Click += (s, e) => dialog.Close();
+
+                dialog.Controls.Add(lbl);
+                dialog.Controls.Add(btnLang);
+                dialog.Controls.Add(btnInstall);
+                dialog.Controls.Add(btnCancel);
+
+                dialog.ShowDialog(this);
+            }
+
+            return confirmed;
         }
 
         private void ManageVMulti(bool install)

@@ -48,6 +48,14 @@ namespace WiimoteGun.Controls
         public GamePadMappingControl()
         {
             InitializeComponent();
+            // [V57o3] EN: UiScaler owns ALL scaling on this page: with the Designer's AutoScaleMode.Font,
+            //     changing the page's root font (ApplyFonts) made WinForms RE-SCALE the children
+            //     on top of our own Scale (double-scale). None disables that interference.
+            //     FR: UiScaler possede TOUT le scaling de cette page : avec l'AutoScaleMode.Font
+            //     du Designer, le changement de police racine (ApplyFonts) faisait RE-SCALER les
+            //     enfants par WinForms PAR-DESSUS notre Scale (double-scale). None supprime cette
+            //     interference.
+            this.AutoScaleMode = AutoScaleMode.None;
             InitializeModernAxes();
             InitializeDataSources();
             _toast = new TransientToast(this);
@@ -628,7 +636,13 @@ namespace WiimoteGun.Controls
             _toolTip.SetToolTip(btnApply, "Saves current mappings to settings.cfg (global config, incl. IR calibration).\nUse 'Save Profile' to write default.remap (Root) or custom profiles (subfolders).");
 
             // Initial Load
-            LoadCurrentMappings();
+            // [V57o4] EN: Constructor population - rows built unscaled; the ProfileOverlay's
+            //     ApplyForm scales them ONCE with the page tree (no ScaleChildren here, it
+            //     would double-scale before ApplyForm).
+            //     FR: Population du constructeur - lignes construites non scalées ; l'
+            //     ApplyForm du ProfileOverlay les scale UNE FOIS avec l'arbre de la page
+            //     (pas de ScaleChildren ici, il doublerait le scale avant ApplyForm).
+            LoadCurrentMappings(initial: true);
         }
 
         public void LoadData()
@@ -1342,7 +1356,12 @@ namespace WiimoteGun.Controls
             LoadCurrentMappings();
         }
 
-        private void LoadCurrentMappings()
+        // [V57o4] EN: initial=true = CONSTRUCTOR call (rows scaled once by the overlay's
+        //     ApplyForm - no ScaleChildren); initial=false = RUNTIME call (rows scaled by
+        //     ScaleChildren below). FR: initial=true = appel du CONSTRUCTEUR (lignes
+        //     scalées une fois par l'ApplyForm de l'overlay - pas de ScaleChildren) ;
+        //     initial=false = appel RUNTIME (lignes scalées par le ScaleChildren ci-dessous).
+        private void LoadCurrentMappings(bool initial = false)
         {
             // Designer Mode Support (EN/FR: Support Mode Designer)
             if (this.DesignMode || System.ComponentModel.LicenseManager.UsageMode == System.ComponentModel.LicenseUsageMode.Designtime)
@@ -1379,7 +1398,32 @@ namespace WiimoteGun.Controls
             flowLayoutPanelButtons.SuspendLayout();
 
             AddSectionHeader("Output Mode");
-            AddCheckBoxRow("Use XInput (ViGEmBus)", mappings.UseXInput, (val) => mappings.UseXInput = val);
+            // [V57g] EN: Label reflects the active backend - XInput means ViGEmBus in
+            //     RawInput (VMulti) mode and the HIDMaestro XUSB companion (no ViGEmBus
+            //     dependency at all) in RawInput (UMDF2) mode. The setter routes through
+            //     THE shared swap function (Program.SetGamePadOutputApi), the same one
+            //     the tile modal's SWICTH button uses.
+            //     FR: Le libellé reflète le backend actif - XInput signifie ViGEmBus en
+            //     mode RawInput (VMulti) et le companion XUSB HIDMaestro (aucune
+            //     dépendance ViGEmBus) en mode RawInput (UMDF2). Le setter passe par LA
+            //     fonction de bascule partagée (Program.SetGamePadOutputApi), la même
+            //     que le bouton SWICTH de la modale en tuiles.
+            bool umdf2Mode = Options.Instance.DefaultMouseMode == MouseMode.RawInputUmdf;
+            AddCheckBoxRow(
+                "Use XInput (" + (umdf2Mode ? "UMDF2/XUSB" : "ViGEmBus") + ")",
+                mappings.UseXInput,
+                (val) =>
+                {
+                    mappings.UseXInput = val;
+                    Program.SetGamePadOutputApi(new[] { _currentPlayer }, val, save: false);
+                },
+                "USE XINPUT:\r\n" +
+                "ON = XInput gamepad (games/emulators reading XInput slots).\r\n" +
+                (umdf2Mode
+                    ? "UMDF2 mode: HIDMaestro Xbox 360 XUSB companion - no ViGEmBus needed.\r\n"
+                    : "VMulti mode: ViGEmBus driver generates the pad (must be installed).\r\n") +
+                "OFF = DirectInput gamepad (" + (umdf2Mode ? "HIDMaestro/vmulti-compatible" : "VMulti Col06") + ").\r\n" +
+                "La même fonction que le bouton [SWITCH] de la modale (appui long PLUS).");
 
             // [V56] Physical FIRE button: drives the trigger (weapon) rumble in GamePad mode
             // (EN/FR: Bouton physique de TIR : pilote la vibration de gâchette (arme) en mode GamePad)
@@ -1555,6 +1599,38 @@ namespace WiimoteGun.Controls
             AddNumericRow("Gyro Deadzone:", (decimal)mappings.GyroDeadzone, (val) => mappings.GyroDeadzone = (float)val);
 
             flowLayoutPanelButtons.ResumeLayout();
+
+            // [V57o4] EN: RUNTIME populations only (tab/player switch, profile load):
+            //     the rows above were created with UNSCALED geometry - scale their bounds
+            //     now so they match the zoomed fonts; the flow panel re-positions them.
+            //     Constructor call (initial=true) skips this: ApplyForm scales the whole
+            //     page tree exactly once.
+            //     FR: Populations RUNTIME uniquement (changement d'onglet/joueur,
+            //     chargement de profil) : les lignes ci-dessus ont été créées avec une
+            //     géométrie NON scalée - scale leurs bornes maintenant pour qu'elles
+            //     correspondent aux polices zoomées ; le panneau flow les repositionne.
+            //     L'appel du constructeur (initial=true) saute ceci : ApplyForm scale tout
+            //     l'arbre de la page exactement une fois.
+            if (!initial)
+            {
+                WiimoteGun.UI.UiScaler.ScaleChildren(flowLayoutPanelButtons);
+            }
+
+            // [V57o5] EN: Re-apply the font zoom to the rows on EVERY population (see
+            //     MappingControl.LoadCurrentMappings): fresh unscaled fonts must be
+            //     scaled right here - idempotent via the UiScaler font registry.
+            //     FR: Ré-applique le zoom des polices aux lignes à CHAQUE population (voir
+            //     MappingControl.LoadCurrentMappings) : les polices fraîches non scalées
+            //     doivent l'être ici même - idempotent via le registre de polices d'UiScaler.
+            WiimoteGun.UI.UiScaler.ApplyFonts(flowLayoutPanelButtons);
+
+            // [V57p] EN: Suppress the mouse wheel on the freshly built rows' combo/UpDown
+            //     controls (idempotent - see WheelSuppressor): a page scroll must never
+            //     change a mapping selection silently.
+            //     FR: Supprime la molette sur les ComboBox/UpDown des lignes fraîchement
+            //     construites (idempotent - voir WheelSuppressor) : défiler la page ne
+            //     doit plus jamais changer une sélection de mapping en silence.
+            WiimoteGun.UI.WheelSuppressor.ApplyTo(flowLayoutPanelButtons);
         }
 
         private void Open3DVisualizer()
@@ -2224,6 +2300,20 @@ namespace WiimoteGun.Controls
             // Buttons are updated in real-time via setter delegates in AddMappingRow
             // So we just need to save options
             Options.Instance.Save();
+
+            // [V57g] EN: Route the "Use XInput" change through THE shared swap function
+            //     (same one as the tile modal's button) - centralizes the API-change
+            //     trace; the device swap itself is performed by the single runtime
+            //     detection (GamePadOutputApiMismatch -> ReinitGamepadOutput).
+            //     FR: Faire passer le changement « Use XInput » par LA fonction de
+            //     bascule partagée (la même que le bouton de la modale en tuiles) -
+            //     centralise la trace du changement d'API ; l'échange de device lui-même
+            //     est fait par la détection runtime unique (GamePadOutputApiMismatch ->
+            //     ReinitGamepadOutput).
+            if (mappings != null)
+            {
+                Program.SetGamePadOutputApi(new[] { _currentPlayer }, mappings.UseXInput, save: false);
+            }
 
             // [V31+V33] Non-blocking confirmation: mappings are in settings.cfg, profiles
             // are written by "Save Profile".

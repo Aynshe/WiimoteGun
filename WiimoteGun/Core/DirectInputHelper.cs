@@ -242,9 +242,17 @@ namespace WiimoteGun.Core
                                                 {
                                                     HIDD_ATTRIBUTES attr = new HIDD_ATTRIBUTES();
                                                     attr.Size = Marshal.SizeOf(attr);
-                                                    if (HidD_GetAttributes(handle, ref attr))
-                                                    {
-                                                        string name = GetOemName(attr.VendorID, attr.ProductID);
+                                                                    if (HidD_GetAttributes(handle, ref attr))
+                                                                    {
+                                                                        // [V57o2] EN: Live product string FIRST: GetOemName uses it
+                                                                        //     to self-heal the DirectInput OEM name cache (VID/PID keyed)
+                                                                        //     when the device was renamed (V57g 'vmultia' ghost fix).
+                                                                        //     FR: Chaîne produit VIVANTE d'abord : GetOemName l'utilise
+                                                                        //     pour auto-réparer le cache de noms OEM DirectInput (indexé
+                                                                        //     VID/PID) quand le device a été renommé (fix du fantôme
+                                                                        //     « vmultia » de V57g).
+                                                                        string liveName = ReadLiveProductString(handle);
+                                                                        string name = GetOemName(attr.VendorID, attr.ProductID, liveName);
                                                         bool isJoystickUsage = (caps.UsagePage == 1 && (caps.Usage == 4 || caps.Usage == 5));
                                                         bool hasInputs = (caps.NumberInputButtonCaps > 0 || caps.NumberInputValueCaps > 0);
 
@@ -362,21 +370,54 @@ namespace WiimoteGun.Core
             public string DevicePath;
         }
 
-        private static string GetOemName(ushort vid, ushort pid)
+        private static string GetOemName(ushort vid, ushort pid, string liveName = null)
         {
             string regKey = string.Format("VID_{0:X4}&PID_{1:X4}", vid, pid);
+            string cached = null;
             try
             {
                 using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"System\CurrentControlSet\Control\MediaProperties\PrivateProperties\Joystick\OEM\" + regKey))
                 {
                     if (key != null)
                     {
-                        return key.GetValue("OEMName") as string ?? regKey;
+                        cached = key.GetValue("OEMName") as string;
                     }
                 }
             }
             catch { }
-            
+
+            // [V57o2] EN: SELF-HEALING OEM NAME. DirectInput registers the joystick name
+            //     ONCE per VID/PID in this HKCU cache - a name registered during an old
+            //     iteration (the V57g 'vmultia' product string) sticks FOREVER for that
+            //     VID/PID, whatever the live device now reports (joy.cpl, games and this
+            //     helper all read the cache). When the LIVE product string differs from
+            //     the cache, repair it: the user-visible name becomes the real current
+            //     one, and future renames self-heal at the next enumeration.
+            //     FR: AUTO-RÉPARATION DU NOM OEM. DirectInput n'enregistre le nom de la
+            //     manette qu'UNE FOIS par VID/PID dans ce cache HKCU - un nom inscrit
+            //     lors d'une ancienne itération (le productString « vmultia » de V57g)
+            //     colle POUR TOUJOURS à ce VID/PID, quoi que le device vivant rapporte
+            //     (joy.cpl, les jeux et ce helper lisent le cache). Quand la chaîne
+            //     produit VIVANTE diffère du cache, le réparer : le nom visible devient
+            //     le nom réel courant, et les futurs renommages s'auto-réparent à la
+            //     prochaine énumération.
+            if (!string.IsNullOrEmpty(liveName) && !string.Equals(liveName, cached, StringComparison.Ordinal))
+            {
+                try
+                {
+                    using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"System\CurrentControlSet\Control\MediaProperties\PrivateProperties\Joystick\OEM\" + regKey))
+                    {
+                        key.SetValue("OEMName", liveName);
+                    }
+                    SimpleLogger.Instance.Info(string.Format("[DInput] OEM name cache repaired for VID_{0:X4}&PID_{1:X4}: '{2}' -> '{3}'", vid, pid, cached ?? "(none)", liveName));
+                    cached = liveName;
+                }
+                catch { }
+            }
+
+            if (!string.IsNullOrEmpty(cached)) return cached;
+            if (!string.IsNullOrEmpty(liveName)) return liveName;
+
             // Fallback for vmulti specifically if registry fails
             if (vid == 0x001F) return "Virtual Multitouch Device (VMulti P1)";
             if (vid == 0x002F) return "Virtual Multitouch Device (VMulti P2)";
@@ -384,6 +425,34 @@ namespace WiimoteGun.Core
             if (vid == 0x004F) return "Virtual Multitouch Device (VMulti P4)";
 
             return regKey;
+        }
+
+        /// <summary>
+        /// [V57o2] EN: Read the LIVE product string from an open HID device handle (the
+        ///     same string DirectInput used for its first registration - the source of
+        ///     truth for the OEM name cache repair).
+        ///     FR: Lit la chaîne produit VIVANTE depuis un handle HID ouvert (la même que
+        ///     celle utilisée par DirectInput lors de sa première inscription - la source
+        ///     de vérité pour la réparation du cache OEM).
+        /// </summary>
+        private static string ReadLiveProductString(SafeFileHandle handle)
+        {
+            try
+            {
+                // EN/FR: Product string descriptor is UTF-16LE, null-terminated
+                byte[] buffer = new byte[512];
+                if (!HidD_GetProductString(handle, buffer, (uint)buffer.Length))
+                    return null;
+                string s = System.Text.Encoding.Unicode.GetString(buffer);
+                int end = s.IndexOf('\0');
+                if (end >= 0) s = s.Substring(0, end);
+                s = s.Trim();
+                return string.IsNullOrEmpty(s) ? null : s;
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }

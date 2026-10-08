@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
@@ -19,6 +19,7 @@ namespace WiimoteGun.UI.Modern.Forms
         private FolderBrowserExForm()
         {
             InitializeComponent();
+            WiimoteGun.UI.UiScaler.ApplyForm(this); // [V57n] UI zoom (bounds, fonts, screen clamp)
             BuildLogic();
         }
 

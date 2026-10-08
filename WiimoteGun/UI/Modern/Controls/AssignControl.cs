@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Linq;
@@ -14,6 +14,14 @@ namespace WiimoteGun.Controls
         public AssignControl()
         {
             InitializeComponent();
+            // [V57o3] EN: UiScaler owns ALL scaling on this page: with the Designer's AutoScaleMode.Font,
+            //     changing the page's root font (ApplyFonts) made WinForms RE-SCALE the children
+            //     on top of our own Scale (double-scale). None disables that interference.
+            //     FR: UiScaler possede TOUT le scaling de cette page : avec l'AutoScaleMode.Font
+            //     du Designer, le changement de police racine (ApplyFonts) faisait RE-SCALER les
+            //     enfants par WinForms PAR-DESSUS notre Scale (double-scale). None supprime cette
+            //     interference.
+            this.AutoScaleMode = AutoScaleMode.None;
             
             // Initialize panel array for easy iteration (EN/FR: Tableau panneaux pour itération)
             _playerPanels = new Panel[] { panelPlayer1, panelPlayer2, panelPlayer3, panelPlayer4 };
@@ -48,11 +56,8 @@ namespace WiimoteGun.Controls
                 Control GetCtrl(string prefix) => panel.Controls[prefix + playerIndex];
 
                 // Bind Buttons
-                if (GetCtrl("btnDevices") is Button btnDevices)
-                {
-                    btnDevices.Click += (s, e) => OpenDeviceSelectionDialog(playerIndex);
-                }
-                
+                // [V57m] EN/FR: The "⚙️ Devices" buttons were removed (Interception-era
+                //     real kb/mouse picker - dead feature). Slot locking (btnLock) remains.
                 if (GetCtrl("btnIdentify") is Button btnIdentify)
                 {
                     btnIdentify.Click += (s, e) => IdentifyWiimote(playerIndex);
@@ -303,24 +308,15 @@ namespace WiimoteGun.Controls
             }
         }
 
-        private void OpenDeviceSelectionDialog(int playerIndex)
-        {
-            try
-            {
-                using (PlayerDeviceDialog dialog = new PlayerDeviceDialog(playerIndex))
-                {
-                    if (dialog.ShowDialog(this) == DialogResult.OK)
-                    {
-                        SimpleLogger.Instance.Info($"Device configuration updated for Player {playerIndex}");
-                        UpdateUI();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                SimpleLogger.Instance.Error($"Failed to open device selection dialog: {ex.Message}");
-            }
-        }
+        // [V57m] EN: OpenDeviceSelectionDialog and the "⚙️ Devices" buttons were REMOVED:
+        //     the per-player real keyboard/mouse or virtual-driver picker was a relic of
+        //     the old Interception driver era and has not been functional for a long time.
+        //     The slot locking (btnLock) is the real feature of this page.
+        //     FR: OpenDeviceSelectionDialog et les boutons « ⚙️ Devices » ont été
+        //     SUPPRIMÉS : le sélecteur par joueur de clavier/souris réels ou de pilote
+        //     virtuel était un reliquat de l'ère de l'ancien pilote Interception et
+        //     n'était plus fonctionnel depuis longtemps. Le verrouillage de slot (btnLock)
+        //     est la vraie fonctionnalité de cette page.
 
         /// <summary>
         /// EN: Swap a Wiimote between two player slots, with visual feedback on the button.

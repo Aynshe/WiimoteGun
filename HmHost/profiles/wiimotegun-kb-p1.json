@@ -1,0 +1,14 @@
+{
+  "id": "wiimotegun-kb-p1",
+  "name": "Wiimote4Guns P1",
+  "vendor": "Wiimote4Guns",
+  "vid": "0x001F",
+  "pid": "0xBA1E",
+  "productString": "Wiimote4Guns P1",
+  "manufacturerString": "Wiimote4Guns",
+  "type": "other",
+  "connection": "usb",
+  "descriptor": "05010906a1018507050719e029e71500250175019508810295017508810395057501050819012905910295017503910395067508150025650507190029658100c0",
+  "inputReportSize": 8,
+  "notes": "[V57h] KEYBOARD-ONLY profile - Player 1. Descriptor taken BYTE FOR BYTE from the vmulti driver's boot keyboard collection (vmulti.h, report 0x07) - the same collection the mkb profile carries. Used when the player's mouse must be REMOVED while the keyboard stays (vmulti COL03 parity): GamePad non-hybrid, Keyboardpad mode, Disabled mode. The service routes REMOVE_MOUSE_Pn to HmHost HIDE_MOUSE_P:<p>, which swaps the player's device from the mkb descriptor to THIS kb-only profile at the SAME identity key 'P1' (SDK issue #60: a different profile at the same key refreshes the descriptor at the same paths). PID 0xBA1E deliberately differs from the mkb PID (0xBACC) so EmulationStation's lightgun path match (VID_001F&PID_BACC&Col01) never catches this keyboard collection (a kb-only device has the keyboard as its Col01). ENABLE_P:n (ACTIVATE_P) swaps back to the full mkb descriptor. Mouse frames are ignored by HmHost while this profile is live (no mouse collection in the descriptor)."
+}

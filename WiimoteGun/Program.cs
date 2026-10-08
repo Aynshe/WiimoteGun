@@ -312,6 +312,22 @@ namespace WiimoteGun
             // FR: Vérifier les mises à jour du service (Arrêt -> Remplacement -> Démarrage) si une version plus récente est incluse.
             ServiceClient.CheckAndPromptServiceUpdate();
 
+            // [V57d] EN: If the selected input mode is RawInput (UMDF2), ask the service to
+            //     activate the HIDMaestro virtual devices early. The first ever run installs
+            //     the driver and its self-signed machine certificate (a few seconds, no UAC).
+            //     FR: Si le mode d'input sélectionné est RawInput (UMDF2), demander au service
+            //     d'activer les périphériques virtuels HIDMaestro en amont. Le tout premier
+            //     lancement installe le pilote et son certificat auto-signé machine (quelques
+            //     secondes, sans UAC).
+            if (Options.Instance.DefaultMouseMode == MouseMode.RawInputUmdf)
+            {
+                System.Threading.Tasks.Task.Run(delegate
+                {
+                    string hmResp = ServiceClient.HmActivate();
+                    SimpleLogger.Instance.Info("[V57d] Startup HmActivate -> " + (hmResp ?? "no response from service"));
+                });
+            }
+
             // [V56e] EN: Check GitHub for a newer Wiimote4Guns release (once per session,
             // background). Result feeds the startup tile notification (20s after the first
             // Wiimote connects, never during a game) and the Home page indicator.
@@ -330,6 +346,82 @@ namespace WiimoteGun
             Application.SetCompatibleTextRenderingDefault(false);
 
             bool showOptionsAfterSetup = false;
+
+            // [V57k] EN: Re-show the Setup Wizard ONCE after the WiimoteGun.Service was
+            //     updated from a pre-3.0.0.24 version (UpdateService.ps1 + service restart):
+            //     the wizard carries the new content (service REQUIRED only, VMulti optional
+            //     + opt-in checkbox + bilingual confirmation, UMDF2 default for new users).
+            //     The previously seen version is persisted in the options; a fresh install
+            //     (empty history) does not force anything - the default ShowSetupWizard
+            //     already covers first runs.
+            //     FR: Ré-afficher le Setup Wizard UNE FOIS après la mise à jour du
+            //     WiimoteGun.Service depuis une version pré-3.0.0.24 (UpdateService.ps1 +
+            //     redémarrage du service) : le wizard porte le nouveau contenu (service
+            //     REQUIS seul, VMulti optionnel + case d'adhésion + confirmation bilingue,
+            //     UMDF2 par défaut pour les nouveaux utilisateurs). La version vue
+            //     précédemment est persistée dans les options ; une installation fraîche
+            //     (historique vide) ne force rien - le ShowSetupWizard par défaut couvre
+            //     déjà les premiers lancements.
+            try
+            {
+                // [V57k-FIX] EN: Reliable one-shot wizard re-show. UpdateService.ps1 writes
+                //     HKLM\SOFTWARE\WiimoteGun\ShowSetupWizardPending=1 when it replaced a
+                //     pre-3.0.0.24 service - the ONLY place that reliably knows the old
+                //     version (the app may never have seen it, e.g. app+service updated in
+                //     one pass). Consume the flag here, then ask the SYSTEM service to
+                //     clear it via WIZARD_ACK (the non-admin app cannot write HKLM).
+                //     FR: Ré-affichage fiable en une fois du wizard. UpdateService.ps1
+                //     écrit HKLM\SOFTWARE\WiimoteGun\ShowSetupWizardPending=1 quand il a
+                //     remplacé un service antérieur à 3.0.0.24 - le SEUL endroit qui
+                //     connaît l'ancienne version avec certitude (l'app peut ne jamais
+                //     l'avoir vue, ex. app+service mis à jour en une fois). Consommer le
+                //     flag ici, puis demander au service SYSTEM de l'effacer via
+                //     WIZARD_ACK (l'app non-admin ne peut pas écrire HKLM).
+                object pendingFlag = null;
+                try
+                {
+                    using (var regKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WiimoteGun"))
+                    {
+                        if (regKey != null) pendingFlag = regKey.GetValue("ShowSetupWizardPending");
+                    }
+                }
+                catch { }
+                if (pendingFlag is int pending && pending == 1)
+                {
+                    Options.Instance.ShowSetupWizard = true;
+                    Options.Instance.Save();
+                    ServiceClient.SendCommand("WIZARD_ACK"); // fire-and-forget: the service clears the flag
+                    SimpleLogger.Instance.Info("[V57k] Service update wizard flag consumed - the Setup Wizard will be shown once.");
+                }
+
+                Version wizardVersion = new Version(3, 0, 0, 24);
+                string installedServiceVersion = ServiceClient.GetInstalledServiceVersion();
+                if (!string.IsNullOrEmpty(installedServiceVersion))
+                {
+                    Version current = Version.TryParse(installedServiceVersion, out Version cur) ? cur : null;
+                    string seenRaw = Options.Instance.LastServiceVersionSeen;
+                    Version seen = null;
+                    if (!string.IsNullOrEmpty(seenRaw))
+                        Version.TryParse(seenRaw, out seen);
+
+                    if (current != null && current >= wizardVersion && seen != null && seen < wizardVersion)
+                    {
+                        Options.Instance.ShowSetupWizard = true;
+                        SimpleLogger.Instance.Info($"[V57k] Service updated {seenRaw} -> {installedServiceVersion}: the Setup Wizard will be shown once (new UMDF2 wizard).");
+                    }
+
+                    if (seen == null || seenRaw != installedServiceVersion)
+                    {
+                        Options.Instance.LastServiceVersionSeen = installedServiceVersion;
+                        Options.Instance.Save();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error("[V57k] Service version tracking failed: " + ex.Message);
+            }
+
             // First Run / Setup Checker
             if (WiimoteGun.Options.Instance.ShowSetupWizard)
             {
@@ -437,6 +529,7 @@ namespace WiimoteGun
                     else
                     {
                         // Create new fullscreen overlay if null (EN/FR: Créer nouvel overlay plein écran si null)
+                        SimpleLogger.Instance.Debug("[V57n] OverlayRequested: FIRST-TIME fullscreen creation path (zoom=" + Options.Instance.UiScalePercent + "%)");
                         _profileOverlay = new ProfileOverlay(windowedMode: false);
                         _profileOverlay.FormClosed += (sender, evtArgs) => _profileOverlay = null;
                         PositionOverlayOnTargetScreen(_profileOverlay);
@@ -661,6 +754,79 @@ namespace WiimoteGun
         {
             SimpleLogger.Instance.Info("Configuration refresh requested via IPC");
             PostToUIThread(RefreshConfiguration);
+        }
+
+        /// <summary>
+        /// [V57j] EN: Public restart entry - reloads the options from XML and relaunches
+        ///     the app through the restart batch (waits for the current process to exit,
+        ///     releases the single-instance mutex, self-deletes). Used by the UMDF2
+        ///     activation confirmation (OptionsControl): the new instance applies the
+        ///     freshly saved input mode and re-activates HmHost silently at startup.
+        ///     FR: Entrée publique de redémarrage - recharge les options depuis le XML et
+        ///     relance l'app via le batch de redémarrage (attend la sortie du processus
+        ///     courant, libère le mutex single-instance, s'auto-supprime). Utilisé par la
+        ///     confirmation d'activation UMDF2 (OptionsControl) : la nouvelle instance
+        ///     applique le mode d'input fraîchement sauvegardé et réactive HmHost
+        ///     silencieusement au démarrage.
+        /// </summary>
+        public static void RestartApplication()
+        {
+            RefreshConfiguration();
+        }
+
+        /// <summary>
+        /// [V57n] EN: Change the global UI zoom (delta in percent, clamped 80..150) and
+        ///     reopen the Wiimote4Guns interface at the new scale. Every window/page/font
+        ///     is scaled at CREATION time (UiScaler), so the reopen applies the zoom to the
+        ///     whole interface and every other window picks the value up at its next open -
+        ///     nothing is ever re-scaled live and nothing can end up off-screen.
+        ///     FR: Change le zoom UI global (delta en pourcentage, borné 80..150) et rouvre
+        ///     l'interface Wiimote4Guns au nouveau scale. Chaque fenêtre/page/police est
+        ///     scalée À LA CRÉATION (UiScaler) : la réouverture applique donc le zoom à
+        ///     toute l'interface et chaque autre fenêtre prend la valeur à sa prochaine
+        ///     ouverture - rien n'est jamais re-scalé en live et rien ne peut se retrouver
+        ///     hors écran.
+        /// </summary>
+        public static void RequestUiScaleChange(int deltaPercent)
+        {
+            int current = Options.Instance.UiScalePercent;
+            int target = Math.Max(UI.UiScaler.MinPercent, Math.Min(UI.UiScaler.MaxPercent, current + deltaPercent));
+            if (target == current) return;
+
+            Options.Instance.UiScalePercent = target;
+            Options.Instance.Save();
+            SimpleLogger.Instance.Info("[V57n] UI zoom set to " + target + "% - reopening the interface at the new scale.");
+
+            // EN: Reopen the interface in the SAME mode (windowed or fullscreen) so the
+            //     zoom is applied without changing the user's context.
+            //     FR: Rouvre l'interface dans le MÊME mode (fenêtré ou plein écran) pour
+            //     appliquer le zoom sans changer le contexte de l'utilisateur.
+            _synchronizationContext.Post(_ =>
+            {
+                try
+                {
+                    bool windowedMode = false;
+                    if (_profileOverlay != null)
+                    {
+                        windowedMode = _profileOverlay.IsWindowedMode;
+                        _profileOverlay.Close();
+                        _profileOverlay = null;
+                    }
+
+                    // [V57o3] EN/FR: Diagnostics - the zoom-change reopen path, with mode + zoom.
+                    SimpleLogger.Instance.Debug("[V57n] RequestUiScaleChange reopen: windowed=" + windowedMode + " zoom=" + Options.Instance.UiScalePercent + "%");
+
+                    _profileOverlay = new ProfileOverlay(windowedMode: windowedMode);
+                    _profileOverlay.FormClosed += (sender, evtArgs) => _profileOverlay = null;
+                    PositionOverlayOnTargetScreen(_profileOverlay);
+                    _profileOverlay.Show();
+                    _profileOverlay.Activate();
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.Instance.Error("[V57n] Interface reopen after zoom change failed: " + ex.Message);
+                }
+            }, null);
         }
 
         private static void RefreshConfiguration()
@@ -1203,6 +1369,49 @@ namespace WiimoteGun
             }
 
             SimpleLogger.Instance.Info($"Applied GamePad profile: {profile.ProfileName}" + (keepApi ? " (GamePad API preserved)" : ""));
+        }
+
+        /// <summary>
+        /// [V57g] EN: THE shared GamePad output API switch (DInput <-> XInput). Every writer
+        ///     goes through this function: the tile modal's swap button (long-press PLUS ->
+        ///     GamePad tab), the "Use XInput" checkbox of the GamePad mapping page, and any
+        ///     programmatic change. It sets the live per-player mappings, optionally saves
+        ///     the options, and lets the single runtime detection in UpdateGamePadState
+        ///     (GamePadOutputApiMismatch -> ReinitGamepadOutput) swap the actual device on
+        ///     the wiimote report thread: VMulti Col06, ViGEmBus XInput, or the UMDF2
+        ///     HIDMaestro gamepad (HmHost ACTIVATE_GP creates/swaps at a stable identity).
+        ///     FR: LA fonction partagée de bascule de l'API de sortie GamePad (DInput <->
+        ///     XInput). Tout écrivain passe ici : le bouton de bascule de la modale en
+        ///     tuiles (appui long PLUS -> onglet GamePad), la case « Use XInput » de la page
+        ///     de mapping GamePad, et tout changement programmatique. Elle positionne les
+        ///     mappings vivants par joueur, sauvegarde les options si demandé, et laisse la
+        ///     détection runtime unique de UpdateGamePadState (GamePadOutputApiMismatch ->
+        ///     ReinitGamepadOutput) échanger le device réel sur le thread de rapports
+        ///     wiimote : Col06 vmulti, ViGEmBus XInput, ou le gamepad HIDMaestro UMDF2
+        ///     (HmHost ACTIVATE_GP crée/échange à identité stable).
+        /// </summary>
+        public static void SetGamePadOutputApi(int[] players, bool useXInput, bool save = true)
+        {
+            if (players == null || players.Length == 0) return;
+            try
+            {
+                foreach (int p in players)
+                {
+                    if (p < 1 || p > 4) continue;
+                    var m = Options.Instance.GetGamePadMappingsForPlayer(p);
+                    if (m != null) m.UseXInput = useXInput;
+                }
+                if (save) Options.Instance.Save();
+
+                string mode = Options.Instance.DefaultMouseMode == MouseMode.RawInputUmdf
+                    ? (useXInput ? "XInput (UMDF2/XUSB)" : "DInput (UMDF2/HIDMaestro)")
+                    : (useXInput ? "XInput (ViGEmBus)" : "DInput (VMulti Col06)");
+                SimpleLogger.Instance.Info($"[GamePad API] SetGamePadOutputApi: players {string.Join(",", players)} -> {mode}");
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error($"[GamePad API] SetGamePadOutputApi failed: {ex.Message}");
+            }
         }
 
         /// <summary>

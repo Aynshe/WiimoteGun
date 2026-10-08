@@ -1,0 +1,14 @@
+{
+  "id": "wiimotegun-mkb-p1",
+  "name": "Wiimote4Guns P1",
+  "vendor": "Wiimote4Guns",
+  "vid": "0x001F",
+  "pid": "0xBACC",
+  "productString": "Wiimote4Guns P1",
+  "manufacturerString": "Wiimote4Guns",
+  "type": "other",
+  "connection": "usb",
+  "descriptor": "05010902a10185030901a1000509190129051500250175019505810295038103050126ff7f75109501550f6511350045000930810209318102050109381581257f750895018106c0c005010906a1018507050719e029e71500250175019508810295017508810395057501050819012905910295017503910395067508150025650507190029658100c0",
+  "inputReportSize": 8,
+  "notes": "[V57d] Production profile - Player 1. UNIQUE VID per player (0x001F for P1 - the exact VID vmulti uses for its P1 'vmultia' devices), so every machine identifies P1..P4 the same way: hardware IDs like HID\\VID_001F&UP:0001_U:0002 (mouse) and HID\\VID_001F&UP:0001_U:0006 (keyboard) match the vmulti detection/auto-config scheme used by RetroBat and DemulShooter, stable across reinstalls and machines (unlike Windows-generated instance IDs). Two top-level collections only, taken BYTE FOR BYTE from the vmulti driver descriptor (WiimoteGun/_sources/_vmulti-master_/sys/vmulti.h): absolute mouse (report 0x03: 5 buttons, 16-bit absolute X/Y 0..32767, relative wheel) and boot keyboard (report 0x07: 8 modifiers, LED output, 6-key array). The vmulti relative-mouse collection (report 0x04) was deliberately REMOVED: nothing uses relative mode, and it created a duplicate mouse entry per player in emulators. Reports submitted as complete frames (report id included) via HMController.SubmitRawExtendedReport (verbatim UMDF2 driver path). HmHost re-submits the last frame while inputs are held (watchdog) so a lost release never sticks. Identity key 'P1' gives stable device paths across lives."
+}
