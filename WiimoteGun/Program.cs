@@ -308,6 +308,13 @@ namespace WiimoteGun
             // and enable themselves BEFORE the registration wipes the service state.
             ServiceClient.RegisterClient();
 
+            // [3.1.0.1] EN: Regenerate the update scripts from the EMBEDDED resources -
+            //     the binary is the source of truth, the PS1s on disk always match it.
+            //     FR: Régénère les scripts de mise à jour depuis les ressources EMBARQUÉES -
+            //     le binaire est la source de vérité, les PS1 sur disque lui correspondent
+            //     toujours.
+            ScriptRegenerator.Regenerate();
+
             // EN: Check for service updates (Stop -> Replace -> Start) if a newer version is packaged.
             // FR: Vérifier les mises à jour du service (Arrêt -> Remplacement -> Démarrage) si une version plus récente est incluse.
             ServiceClient.CheckAndPromptServiceUpdate();

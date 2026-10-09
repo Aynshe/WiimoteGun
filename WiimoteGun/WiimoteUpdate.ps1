@@ -206,10 +206,33 @@ try {
                 # EN/FR: Route service files to the update_service staging folder (never overwrite the running exe)
                 New-Item -ItemType Directory -Path $serviceUpdateDir -Force | Out-Null
                 foreach ($svcItem in (Get-ChildItem -LiteralPath $item.FullName)) {
-                    if ($svcItem.PSIsContainer) { continue } # Skip nested folders (incl. a shipped update_service)
-                    Copy-Item -LiteralPath $svcItem.FullName -Destination (Join-Path $serviceUpdateDir $svcItem.Name) -Force
-                    $updatedCount++
-                    Write-Host "  staged (service): $($svcItem.Name) -> update_service\" -ForegroundColor DarkCyan
+                    if ($svcItem.PSIsContainer) {
+                        # [3.1.0.1] EN: Stage top-level service FOLDERS too - except a nested
+                        #     "update_service" (never stage a staging folder recursively). This
+                        #     carries HmHost\ (UMDF2/HIDMaestro host + profiles): the old script
+                        #     skipped ALL folders, so HmHost never reached update_service and the
+                        #     service kept running the OLD host with the OLD profiles after an
+                        #     app update (missing gamepads, missing profiles, silent "INFO: No
+                        #     HmHost folder in update package" from UpdateService.ps1).
+                        #     FR: Stager aussi les DOSSIERS du service - sauf un
+                        #     "update_service" imbrique (ne jamais stager un dossier de
+                        #     staging recursivement). C'est ce qui transporte HmHost\ (hote
+                        #     UMDF2/HIDMaestro + profils) : l'ancien script sautait TOUS les
+                        #     dossiers, donc HmHost n'atteignait jamais update_service et le
+                        #     service continuait avec l'ANCIEN hote et les ANCIENS profils
+                        #     apres une mise a jour de l'app (gamepads absents, profils
+                        #     absents, « INFO: No HmHost folder in update package » silencieux
+                        #     d'UpdateService.ps1).
+                        if ($svcItem.Name -eq "update_service") { continue }
+                        Copy-Item -LiteralPath $svcItem.FullName -Destination $serviceUpdateDir -Recurse -Force
+                        $updatedCount++
+                        Write-Host "  staged (service folder): $($svcItem.Name)\ -> update_service\" -ForegroundColor DarkCyan
+                    }
+                    else {
+                        Copy-Item -LiteralPath $svcItem.FullName -Destination (Join-Path $serviceUpdateDir $svcItem.Name) -Force
+                        $updatedCount++
+                        Write-Host "  staged (service): $($svcItem.Name) -> update_service\" -ForegroundColor DarkCyan
+                    }
                 }
             }
             else {

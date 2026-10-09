@@ -238,7 +238,16 @@ namespace WiimoteGun.Core
             // as an extra version component (".7" matches "\.\d+")
             string clean = Regex.Replace(assetName, @"\.(7z|zip)$", "", RegexOptions.IgnoreCase);
 
-            MatchCollection matches = Regex.Matches(clean, @"_?v(\d+(?:\.\d+)*)", RegexOptions.IgnoreCase);
+            // [3.1.0.1] EN: "v\.?" accepts BOTH nomenclatures - "v3.1.0.1" (old) AND
+            //     "v.3.1.0.1" (new): the old BROKEN builds only match "v<digits>" and
+            //     therefore NEVER see the new releases, while the fixed builds (and the
+            //     WiimoteGunMigrator) pick up everything.
+            //     FR: « v\.? » accepte les DEUX nomenclatures - « v3.1.0.1 » (ancienne)
+            //     ET « v.3.1.0.1 » (nouvelle) : les anciennes builds CASSÉES ne
+            //     reconnaissent que « v<chiffres> » et ne voient donc JAMAIS les
+            //     nouvelles releases, tandis que les builds corrigées (et le
+            //     WiimoteGunMigrator) voient tout.
+            MatchCollection matches = Regex.Matches(clean, @"_?v\.?(\d+(?:\.\d+)*)", RegexOptions.IgnoreCase);
             if (matches.Count == 0) return false;
 
             // EN/FR: The LAST "v<number>" is the release version

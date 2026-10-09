@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -242,6 +242,7 @@ namespace WiimoteGun
         private const string SERVICE_NAME = "WiimoteGunHelper";
         private const string UPDATE_SUBFOLDER = @"WiimoteGun.Service\update_service";
 
+        
         /// <summary>
         /// EN: Checks if the installed service is outdated and prompts the user to update.
         /// FR: Vérifie si le service installé est obsolète et invite l'utilisateur à le mettre à jour.
@@ -278,7 +279,7 @@ namespace WiimoteGun
                 if (vPackaged > vInstalled)
                 {
                     SimpleLogger.Instance.Info(string.Format("Service update available! Installed: {0}, Packaged: {1}", vInstalled, vPackaged));
-                    
+
                     string msg = string.Format(
                         "A new version of the WiimoteGun Helper Service is available.\n\n" +
                         "Installed: {0}\n" +
@@ -288,7 +289,7 @@ namespace WiimoteGun
                         "Voulez-vous mettre à jour le service maintenant ? (Nécessite les droits Admin)",
                         vInstalled, vPackaged);
 
-                    if (System.Windows.Forms.MessageBox.Show(msg, "Service Update", 
+                    if (System.Windows.Forms.MessageBox.Show(msg, "Service Update",
                         System.Windows.Forms.MessageBoxButtons.YesNo, System.Windows.Forms.MessageBoxIcon.Information) == System.Windows.Forms.DialogResult.Yes)
                     {
                         TriggerServiceUpdate(installedServicePath, packagedServicePath);

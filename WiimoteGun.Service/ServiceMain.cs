@@ -8,7 +8,7 @@ namespace WiimoteGun.Service
     public partial class ServiceMain : ServiceBase
     {
         private PipeServer _pipeServer;
-        
+
         public ServiceMain()
         {
             InitializeComponent();

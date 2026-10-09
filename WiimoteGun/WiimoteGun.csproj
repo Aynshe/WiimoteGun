@@ -361,6 +361,7 @@
     <Compile Include="Core\VirtualHmKeyboard.cs" />
     <Compile Include="Core\HmGamepad.cs" />
     <Compile Include="Core\DotNetRuntimeChecker.cs" />
+    <Compile Include="Core\ScriptRegenerator.cs" />
     <Compile Include="Core\EsInputConfigurator.cs" />
     <Compile Include="UI\UiScaler.cs" />
     <Compile Include="UI\WheelSuppressor.cs" />
@@ -483,6 +484,19 @@
   </ItemGroup>
   <!-- [V56e] Self-update script shipped with the app (updatable by future releases) -->
   <ItemGroup>
+    <!-- [3.1.0.1] EN: The two update scripts are now EMBEDDED in the binary AND shipped as
+         content: ScriptRegenerator writes the embedded copies to disk at every app start
+         when they differ, so update archives no longer need to carry the PS1s - the
+         executable IS the source of truth (a binary that fixes its own scripts forever).
+         FR: Les deux scripts de mise à jour sont désormais EMBARQUÉS dans le binaire ET
+         livrés en contenu : ScriptRegenerator écrit les copies embarquées sur disque à
+         chaque démarrage de l'app quand elles diffèrent, donc les archives de mise à
+         jour n'ont plus besoin de transporter les PS1 - l'exécutable EST la source de
+         vérité (un binaire qui corrige ses propres scripts pour toujours). -->
+    <EmbeddedResource Include="WiimoteUpdate.ps1" />
+    <EmbeddedResource Include="..\WiimoteGun.Service\UpdateService.ps1">
+      <Link>UpdateService.ps1</Link>
+    </EmbeddedResource>
     <Content Include="WiimoteUpdate.ps1">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

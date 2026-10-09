@@ -1,0 +1,30 @@
+name: Sabbath unlock
+
+# Releases the interaction limit at 00:01 America/New_York every Monday.
+# The per-cron `timezone` field (shipped 2026-03-19) makes the schedule
+# timezone-aware and DST-correct. Manual fire via workflow_dispatch.
+on:
+  schedule:
+    - cron: '1 0 * * 1'
+      timezone: "America/New_York"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  unlock:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Unlock interactions
+        env:
+          SABBATH_PAT: ${{ secrets.SABBATH_PAT }}
+        run: |
+          if [ -z "$SABBATH_PAT" ]; then
+            echo "::error::SABBATH_PAT secret is not set"
+            exit 1
+          fi
+          curl --fail-with-body -sS -X DELETE \
+            -H "Authorization: Bearer $SABBATH_PAT" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/interaction-limits"

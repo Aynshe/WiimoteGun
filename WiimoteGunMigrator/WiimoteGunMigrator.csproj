@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>WiimoteGunMigrator</RootNamespace>
+    <!-- [3.1.0.1] EN: The migrator MUST be named WiimoteGun.exe: the OLD (buggy)
+               WiimoteUpdate.ps1 copies top-level files over the app and then
+               RESTARTS WiimoteGun.exe at its step 5 - naming it anything else
+               would leave it dead on disk, never executed. The migrator hijacks
+               that restart to perform the transition.
+               FR: Le migrateur DOIT s'appeler WiimoteGun.exe : l'ANCIEN
+               WiimoteUpdate.ps1 (bogué) copie les fichiers racine par-dessus l'app
+               puis RELANCE WiimoteGun.exe à son étape 5 - tout autre nom le
+               laisserait mort sur disque, jamais exécuté. Le migrateur détourne
+               ce redémarrage pour effectuer la transition. -->
+    <AssemblyName>WiimoteGun</AssemblyName>
+    <Version>1.0.0.0</Version>
+    <LangVersion>7.3</LangVersion>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>AnyCPU;x64</Platforms>
+  </PropertyGroup>
+
+</Project>
