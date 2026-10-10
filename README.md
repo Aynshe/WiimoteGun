@@ -17,11 +17,6 @@ Fork of [WiimoteGun](https://github.com/fcaruso/WiimoteGun) with extensive enhan
 - **GamePad Mode**: Emulate a DirectInput gamepad per player (e.g. for PCSX2 dual lightgun support)
 - **4:3 Aspect Ratio Support**: Dedicated modes for 4:3 games centered on widescreen monitors (Mouse 4:3 / GamePad 4:3)
 
-
-> [!NOTE]
-> **Gun4IR Diamond and Retroshooter 4-Corners are now validated and fully functional!**  
-> Both LED layouts have been tested and confirmed working. All three layouts (Wiimote Bar, Gun4IR Diamond, Retroshooter 4-Corners) are production-ready.
-
 ## 🆕 New Input Driver — RawInput (UMDF2) / HIDMaestro
 
 **Wiimote4Guns now ships a NEW input driver** that progressively replaces the legacy vmulti kernel driver:
@@ -76,7 +71,7 @@ Fork of [WiimoteGun](https://github.com/fcaruso/WiimoteGun) with extensive enhan
 4. **Follow the Setup Wizard**: only the **Wiimote4Guns Service** is required — the new « RawInput (UMDF2) » driver installs silently through it (no PC restart needed); the legacy vmulti driver is optional (opt-in checkbox)
 5. If prompted for the **.NET 10 Runtime (x64)** (UMDF2 mode), install it from the official Microsoft page
 
-> **Note**: To uninstall the legacy vmulti driver later, use the Setup Wizard (« Uninstall All ») or the systray menu: Options → Virtual HID Driver → Remove drivers
+> **Note**: To uninstall the legacy vmulti driver later, use the Setup Wizard (« Uninstall All »).
 
 ## 🎮 Quick Start
 
