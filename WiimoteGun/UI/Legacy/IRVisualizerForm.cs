@@ -17,7 +17,17 @@ namespace WiimoteGun.UI.Legacy
         public IRVisualizerForm()
         {
             InitializeComponent();
-            WiimoteGun.UI.UiScaler.ApplyForm(this); // [V57n] UI zoom (bounds, fonts, screen clamp)
+            // [V58-scaling-fix] EN: This is a FULLSCREEN form managing its own bounds
+            //     (Location + WindowState.Maximized set below). ApplyForm would scale
+            //     and clamp the small Designer-set size BEFORE the fullscreen setup,
+            //     breaking the maximization at zoom > 100%. ApplyFonts scales the
+            //     fonts only - the fullscreen sizing handles the rest.
+            //     FR: C'est un form PLEIN ÉCRAN qui gère ses propres bornes (Location +
+            //     WindowState.Maximized ci-dessous). ApplyForm scalerait et clamperait
+            //     la petite taille du Designer AVANT le passage plein écran, cassant
+            //     la maximisation au zoom > 100 %. ApplyFonts ne scale que les polices
+            //     - le dimensionnement plein écran fait le reste.
+            WiimoteGun.UI.UiScaler.ApplyFonts(this);
 
             // Position on correct screen (EN/FR: Positionner sur le bon écran)
             int screenIndex = Options.Instance.MonitorId;
