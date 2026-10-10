@@ -3168,8 +3168,21 @@ namespace WiimoteGun
                     if (_calculator.IsCalibrating || _calculator.IsSelectingMode)
                     {
                         // Close calibration / mode selection (EN/FR: Fermer calibration / sélection mode)
+                        // [V58-fix] EN: 2000ms cooldown - a short HOME press must NEVER
+                        //     trigger SwitchMode right after closing calibration, otherwise
+                        //     the mode leaves Mouse and the user can no longer long-press
+                        //     HOME to reopen the calibration (they would need a full mode
+                        //     cycle). 2000ms covers a press-and-hold attempt: even if the
+                        //     user releases at 500-1000ms, the block is still active.
+                        //     FR: Cooldown 2000 ms - un appui court HOME ne doit JAMAIS
+                        //     déclencher SwitchMode juste après la fermeture de la
+                        //     calibration, sinon le mode quitte Mouse et l'utilisateur
+                        //     ne peut plus rouvrir la calibration en appui long HOME (un
+                        //     cycle complet de modes serait nécessaire). 2000 ms couvre
+                        //     une tentative d'appui long : même si l'utilisateur relâche
+                        //     à 500-1000 ms, le blocage est encore actif.
                         _calculator.CancelCalibration();
-                        _modeSwitchBlockedUntil = DateTime.Now.AddMilliseconds(500); // Block SwitchMode for 500ms
+                        _modeSwitchBlockedUntil = DateTime.Now.AddMilliseconds(2000);
                     }
                     else if (!modeSwitchBlocked && !_overlayTriggered)
                     {
