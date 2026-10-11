@@ -66,12 +66,24 @@ namespace WiimoteGun.UI
 
         Timer _timer;
 
+        protected override bool ShowWithoutActivation => true;
+
         protected override CreateParams CreateParams
         {
             get
             {
                 var cp = base.CreateParams;
-         //       cp.ExStyle |= (int)0x08000000; // WS_EX_NOACTIVATE;
+                // [V58-fix] EN: WS_EX_NOACTIVATE - the notification NEVER steals focus
+                //     (the foreground app keeps receiving input). WS_EX_TOOLWINDOW keeps
+                //     it out of Alt-Tab. Both together let the tile show OVER fullscreen
+                //     apps (MAME etc.) without causing a minimize or desktop flash.
+                //     FR: WS_EX_NOACTIVATE - la notification ne vole JAMAIS le focus
+                //     (l'app au premier plan continue de recevoir les entrées).
+                //     WS_EX_TOOLWINDOW l'exclut d'Alt-Tab. Ensemble, la tuile s'affiche
+                //     AU-DESSUS des apps plein écran (MAME etc.) sans les minimiser ni
+                //     provoquer de retour bureau.
+                cp.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE
+                cp.ExStyle |= 0x00000080; // WS_EX_TOOLWINDOW
                 return cp;
             }
         }
@@ -87,10 +99,14 @@ namespace WiimoteGun.UI
                 if (!_activeForms.Contains(this)) _activeForms.Add(this);
             }
 
-            User32.SetWindowPos(Handle, User32.HWND_TOP, 0, 0, 0, 0, /*SWP.NOACTIVATE | */SWP.NOMOVE | SWP.NOSIZE);
-            User32.SetWindowPos(Handle, User32.HWND_TOPMOST, 0, 0, 0, 0, /*SWP.NOACTIVATE | */SWP.NOMOVE | SWP.NOSIZE);
-            User32.SetForegroundWindow(Handle);
-            User32.SetActiveWindow(Handle);
+            // [V58-fix] EN: Topmost WITHOUT activation - SWP.NOACTIVATE prevents any
+            //     focus change. NO SetForegroundWindow / SetActiveWindow: those were
+            //     the root cause of the input blocking and the fullscreen disturbance.
+            //     FR: Premier plan SANS activation - SWP.NOACTIVATE empêche tout
+            //     changement de focus. PAS de SetForegroundWindow / SetActiveWindow :
+            //     c'étaient les causes racines du blocage d'entrées et du dérangement
+            //     du plein écran.
+            User32.SetWindowPos(Handle, User32.HWND_TOPMOST, 0, 0, 0, 0, SWP.NOACTIVATE | SWP.NOMOVE | SWP.NOSIZE);
 
             Opacity = 0.9;
         }
