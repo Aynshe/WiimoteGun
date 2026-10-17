@@ -117,4 +117,13 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="lblDescription.Text" xml:space="preserve">
+    <value>The Wiimote4Guns Service is REQUIRED. The recommended input mode is now 'RawInput (UMDF2)' - installed silently by the service, no test mode, no UAC. The legacy VMulti kernel driver is now OPTIONAL.
+
+Le service Wiimote4Guns est REQUIS. Le mode d'entrée recommandé est désormais « RawInput (UMDF2) » - installé silencieusement par le service, sans test mode, sans UAC. Le pilote vmulti (legacy) est désormais OPTIONNEL.</value>
+  </data>
+  <data name="lblVMultiInfo.Text" xml:space="preserve">
+    <value>NEW: 'RawInput (UMDF2)' works the same way and should NOT be blocked by Microsoft starting with Windows 11 26H02 (legacy certificate deprecation). Currently IN TESTING PHASE. VMulti will eventually be removed, or only available on Windows 10 and Windows 11 below 26H02.
+NOUVEAU : « RawInput (UMDF2) » fonctionne pareil et ne devrait PAS être bloqué par Microsoft à compter de Windows 11 26H02 (dépréciation des anciens certificats). Actuellement EN PHASE DE TEST. VMulti sera à terme supprimé, ou disponible uniquement pour Windows 10 et Windows 11 antérieurs à 26H02.</value>
+  </data>
 </root>

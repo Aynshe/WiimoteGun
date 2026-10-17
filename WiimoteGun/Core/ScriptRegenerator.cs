@@ -43,8 +43,10 @@ namespace WiimoteGun
             {
                 string appDir = AppDomain.CurrentDomain.BaseDirectory;
 
-                // EN/FR: [0] = WiimoteUpdate.ps1 -> app root; [1] = UpdateService.ps1 -> service folder
-                WriteIfDifferent("WiimoteGun.WiimoteUpdate.ps1", Path.Combine(appDir, "WiimoteUpdate.ps1"));
+                // [3.1.5.10] EN/FR: WiimoteUpdate.ps1 is NO LONGER regenerated — it was
+                //     replaced by update_W4G.exe (native updater, no PowerShell).
+                //     Only UpdateService.ps1 is still regenerated (the service's own
+                //     self-update script, used by the service for admin deployments).
                 WriteIfDifferent("WiimoteGun.UpdateService.ps1", Path.Combine(appDir, "WiimoteGun.Service", "UpdateService.ps1"));
             }
             catch (Exception ex)

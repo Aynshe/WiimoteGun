@@ -604,6 +604,47 @@ namespace WiimoteGun
                         if (!ServiceClient.HmIsActive())
                         {
                             SimpleLogger.Instance.Warning("[V57h] UMDF2: host not active at wiimote connect - re-activating before ENABLE_P (HmActivate is idempotent)...");
+                            // [V60-FIX-2b] EN: Notify the user that the first HmHost startup
+                            //     can take 10-15 seconds (loading the .NET 10 runtime in
+                            //     session 0 + creating the HID devices). Without this message,
+                            //     the user sees a "dead" crosshair and doesn't know why.
+                            //     FR: Avertir l'utilisateur que le premier démarrage HmHost
+                            //     peut prendre 10-15 secondes (chargement du runtime .NET 10
+                            //     en session 0 + création des devices HID). Sans ce message,
+                            //     l'utilisateur voit un crosshair « mort » sans savoir pourquoi.
+                            Program.PostToUIThread(() =>
+                            {
+                                // [V60-FIX-2c] EN: Updated message — after the .NET 10
+                                //     runtime install, a WINDOWS RESTART may be needed for
+                                //     the UMDF2 driver to initialize correctly (user
+                                //     report: the runtime was installed but HmHost could
+                                //     not start until the machine rebooted). The message
+                                //     tells the user to wait 10 seconds, then reboot
+                                //     Windows if the tracking is still not working.
+                                //     FR: Message mis à jour — après l'installation du
+                                //     runtime .NET 10, un REDÉMARRAGE WINDOWS peut être
+                                //     nécessaire pour que le pilote UMDF2 s'initialise
+                                //     correctement (rapport user : le runtime était
+                                //     installé mais HmHost ne pouvait pas démarrer avant
+                                //     le reboot de la machine). Le message dit à l'user
+                                //     d'attendre 10 secondes, puis de redémarrer Windows
+                                //     si le tracking ne fonctionne toujours pas.
+                                System.Windows.Forms.MessageBox.Show(
+                                    "The UMDF2 virtual input driver is starting for the first time...\n" +
+                                    "Please wait up to 10 seconds — your controller will respond.\n\n" +
+                                    "If the tracking does NOT work after 10 seconds:\n" +
+                                    "-> RESTART WINDOWS (the .NET 10 runtime needs a reboot\n" +
+                                    "   to fully initialize the virtual input driver).\n\n" +
+                                    "--------------------------------\n\n" +
+                                    "Le pilote d'entrée virtuelle UMDF2 démarre pour la première fois...\n" +
+                                    "Veuillez patienter jusqu'à 10 secondes — votre manette va répondre.\n\n" +
+                                    "Si le tracking ne fonctionne PAS après 10 secondes :\n" +
+                                    "-> REDÉMARREZ WINDOWS (le runtime .NET 10 nécessite un reboot\n" +
+                                    "   pour initialiser complètement le pilote d'entrée virtuelle).",
+                                    "Wiimote4Guns — UMDF2 first start",
+                                    System.Windows.Forms.MessageBoxButtons.OK,
+                                    System.Windows.Forms.MessageBoxIcon.Information);
+                            });
                             string act = ServiceClient.HmActivate();
                             SimpleLogger.Instance.Info("[V57h] UMDF2: re-activation -> " + (act ?? "no reply"));
                         }

@@ -201,7 +201,7 @@ namespace WiimoteGun
             sb.Append("\t\t<input name=\"down\" type=\"button\" id=\"13\" value=\"1\" />").Append(nl);
             sb.Append("\t\t<input name=\"hotkey\" type=\"button\" id=\"8\" value=\"1\" />").Append(nl);
             sb.Append("\t\t<input name=\"joystick1left\" type=\"axis\" id=\"0\" value=\"-1\" />").Append(nl);
-            sb.Append("\t\t<input name=\"joystick1up\" type=\"axis\" id=\"1\" value=\"1\" />").Append(nl);   // [V57q] EN/FR: inverted (was -1 in the vmultia entry)
+            sb.Append("\t\t<input name=\"joystick1up\" type=\"axis\" id=\"1\" value=\"-1\" />").Append(nl);   // [V57q] EN/FR: inverted (was -1 in the vmultia entry)
             sb.Append("\t\t<input name=\"joystick2left\" type=\"axis\" id=\"2\" value=\"1\" />").Append(nl);
             sb.Append("\t\t<input name=\"joystick2up\" type=\"axis\" id=\"3\" value=\"-1\" />").Append(nl);  // [V57q] EN/FR: inverted (was 1 in the vmultia entry)
             sb.Append("\t\t<input name=\"l2\" type=\"button\" id=\"4\" value=\"1\" />").Append(nl);
