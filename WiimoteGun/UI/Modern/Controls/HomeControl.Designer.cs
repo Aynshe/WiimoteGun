@@ -43,11 +43,11 @@ namespace WiimoteGun.Controls
             this.cmsUpdate = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.tsmiOpenReleasePage = new System.Windows.Forms.ToolStripMenuItem();
             this.tsmiUpdateNow = new System.Windows.Forms.ToolStripMenuItem();
-            // [V57n] UI zoom group (EN/FR: Groupe de zoom UI)
             this.pnlZoom = new System.Windows.Forms.Panel();
             this.btnZoomOut = new System.Windows.Forms.Button();
             this.lblZoomPercent = new System.Windows.Forms.Label();
             this.btnZoomIn = new System.Windows.Forms.Button();
+            this.btnHelp = new System.Windows.Forms.Button();
             this.pnlUpdateStatus.SuspendLayout();
             this.cmsUpdate.SuspendLayout();
             this.pnlZoom.SuspendLayout();
@@ -231,11 +231,7 @@ namespace WiimoteGun.Controls
             this.tsmiUpdateNow.Text = "Update now";
             this.tsmiUpdateNow.Click += new System.EventHandler(this.TsmiUpdateNow_Click);
             // 
-            // pnlZoom [V57n]
-            // [V57n] Zoom group: centered ABOVE the home title (user request), + shifted
-            // right so the percentage is never truncated.
-            // (FR: Groupe zoom : centré AU-DESSUS du titre de l'accueil, + décalé à droite
-            // pour que le pourcentage ne soit jamais tronqué.)
+            // pnlZoom
             // 
             this.pnlZoom.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
             this.pnlZoom.Controls.Add(this.btnZoomOut);
@@ -246,7 +242,7 @@ namespace WiimoteGun.Controls
             this.pnlZoom.Size = new System.Drawing.Size(102, 26);
             this.pnlZoom.TabIndex = 9;
             // 
-            // btnZoomOut [V57n]
+            // btnZoomOut
             // 
             this.btnZoomOut.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
             this.btnZoomOut.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
@@ -260,7 +256,7 @@ namespace WiimoteGun.Controls
             this.btnZoomOut.UseVisualStyleBackColor = false;
             this.btnZoomOut.Click += new System.EventHandler(this.BtnZoomOut_Click);
             // 
-            // lblZoomPercent [V57n]
+            // lblZoomPercent
             // 
             this.lblZoomPercent.AutoSize = true;
             this.lblZoomPercent.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
@@ -272,7 +268,7 @@ namespace WiimoteGun.Controls
             this.lblZoomPercent.Text = "100%";
             this.lblZoomPercent.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
-            // btnZoomIn [V57n]
+            // btnZoomIn
             // 
             this.btnZoomIn.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
             this.btnZoomIn.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
@@ -286,11 +282,27 @@ namespace WiimoteGun.Controls
             this.btnZoomIn.UseVisualStyleBackColor = false;
             this.btnZoomIn.Click += new System.EventHandler(this.BtnZoomIn_Click);
             // 
+            // btnHelp
+            // 
+            this.btnHelp.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
+            this.btnHelp.FlatAppearance.BorderSize = 0;
+            this.btnHelp.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnHelp.Font = new System.Drawing.Font("Segoe UI Semibold", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnHelp.ForeColor = System.Drawing.Color.White;
+            this.btnHelp.Location = new System.Drawing.Point(467, 13);
+            this.btnHelp.Name = "btnHelp";
+            this.btnHelp.Size = new System.Drawing.Size(70, 28);
+            this.btnHelp.TabIndex = 10;
+            this.btnHelp.Text = "? Help";
+            this.btnHelp.UseVisualStyleBackColor = false;
+            this.btnHelp.Click += new System.EventHandler(this.BtnHelp_Click);
+            // 
             // HomeControl
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Transparent;
+            this.Controls.Add(this.btnHelp);
             this.Controls.Add(this.pnlZoom);
             this.Controls.Add(this.pnlUpdateStatus);
             this.Controls.Add(this.btnNavIRViz);
@@ -335,5 +347,7 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.Button btnZoomOut;
         private System.Windows.Forms.Label lblZoomPercent;
         private System.Windows.Forms.Button btnZoomIn;
+        // [V60-FIX-3] EN/FR: Help button (opens the WelcomeDialog)
+        private System.Windows.Forms.Button btnHelp;
     }
 }

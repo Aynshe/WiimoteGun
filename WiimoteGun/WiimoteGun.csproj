@@ -96,13 +96,30 @@
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
     <Reference Include="System.ServiceProcess" />
-<Reference Include="Nefarius.ViGEm.Client">
-<HintPath>lib\Nefarius.ViGEm.Client.dll</HintPath>
-</Reference>
-<Reference Include="System.Resources.Extensions">
-<HintPath>..\packages\System.Resources.Extensions.8.0.0\lib\net462\System.Resources.Extensions.dll</HintPath>
-</Reference>
-</ItemGroup>
+    <Reference Include="Nefarius.ViGEm.Client">
+      <HintPath>lib\Nefarius.ViGEm.Client.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Resources.Extensions">
+      <HintPath>..\packages\System.Resources.Extensions.8.0.0\lib\net462\System.Resources.Extensions.dll</HintPath>
+    </Reference>
+    <!-- [V59-FIX-NUGET] EN: packages.config projects never copy TRANSITIVE dependencies —
+     the SRE runtime chain must be referenced explicitly or a clean install crashes at
+     the first embedded-resource access (tray icons). FR: Les projets packages.config ne
+     copient JAMAIS les dépendances transitives — la chaîne runtime de SRE doit être
+     référencée explicitement. -->
+    <Reference Include="System.Buffers">
+      <HintPath>..\packages\System.Buffers.4.5.1\lib\net461\System.Buffers.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Memory">
+      <HintPath>..\packages\System.Memory.4.5.5\lib\net461\System.Memory.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Numerics.Vectors">
+      <HintPath>..\packages\System.Numerics.Vectors.4.5.0\lib\net46\System.Numerics.Vectors.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Runtime.CompilerServices.Unsafe">
+      <HintPath>..\packages\System.Runtime.CompilerServices.Unsafe.6.0.0\lib\net461\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+    </Reference>
+  </ItemGroup>
   <ItemGroup>
   </ItemGroup>
   <ItemGroup>
@@ -163,6 +180,12 @@
     </Compile>
     <Compile Include="UI\Calibrate\CalibrationModeSelectionForm.Designer.cs">
       <DependentUpon>CalibrationModeSelectionForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\ChangelogDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\ChangelogDialog.Designer.cs">
+      <DependentUpon>ChangelogDialog.cs</DependentUpon>
     </Compile>
     <Compile Include="UI\Modern\Forms\SetupWizard.cs">
       <SubType>Form</SubType>
@@ -341,6 +364,10 @@
          déployé (la redirection de binding SRE qui corrige le FileLoadException au
          démarrage doit voyager à côté de l'exe en WiimoteGun.exe.config). -->
     <None Include="App.config" />
+    <!-- [V60-FIX-5b] EN/FR: Changelog file shipped with the app (read by ChangelogDialog) -->
+    <None Include="changelog.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="WiimoteLib\WiimoteOld\WiimoteOld.cs" />
     <None Include="WiimoteLib\WiimoteOld\WiimoteCollection.cs" />
     <None Include="WiimoteLib\Native\HIDapi.cs" />
@@ -361,6 +388,8 @@
     <Compile Include="Core\VirtualHmKeyboard.cs" />
     <Compile Include="Core\HmGamepad.cs" />
     <Compile Include="Core\DotNetRuntimeChecker.cs" />
+    <!-- [V60-FIX-2] EN/FR: .NET 10 runtime auto-installer for the SetupWizard -->
+    <Compile Include="Core\Net10RuntimeInstaller.cs" />
     <Compile Include="Core\ScriptRegenerator.cs" />
     <Compile Include="Core\EsInputConfigurator.cs" />
     <Compile Include="UI\UiScaler.cs" />
@@ -434,6 +463,9 @@
     <EmbeddedResource Include="UI\Modern\Controls\OptionsControl.resx">
       <DependentUpon>OptionsControl.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="UI\Modern\Forms\ChangelogDialog.resx">
+      <DependentUpon>ChangelogDialog.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="UI\Modern\Forms\ModalInputDialog.resx">
       <DependentUpon>ModalInputDialog.cs</DependentUpon>
     </EmbeddedResource>
@@ -469,7 +501,8 @@
   <ItemGroup>
   </ItemGroup>
   <ItemGroup>
-    <None Include="gray.ico" />  </ItemGroup>
+    <None Include="gray.ico" />
+  </ItemGroup>
   <ItemGroup>
     <None Include="green.ico" />
   </ItemGroup>
@@ -493,6 +526,9 @@
          chaque démarrage de l'app quand elles diffèrent, donc les archives de mise à
          jour n'ont plus besoin de transporter les PS1 - l'exécutable EST la source de
          vérité (un binaire qui corrige ses propres scripts pour toujours). -->
+    <EmbeddedResource Include="UI\Modern\Forms\WelcomeDialog.resx">
+      <DependentUpon>WelcomeDialog.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="WiimoteUpdate.ps1" />
     <EmbeddedResource Include="..\WiimoteGun.Service\UpdateService.ps1">
       <Link>UpdateService.ps1</Link>

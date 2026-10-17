@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Windows.Forms;
 using WiimoteLib;
@@ -13,6 +13,35 @@ namespace WiimoteGun.UI.Legacy
     {
         private Dictionary<string, WiimoteState> _lastStates = new Dictionary<string, WiimoteState>();
         private int _selectedPlayerIndex = 1;
+
+        // [V59-FIXES] EN: Large, zoom- and resolution-aware fonts for the painted HUD
+        //     texts (the previous SystemFonts.DefaultFont ~8pt was unreadable on big
+        //     screens / from a distance — user request).
+        //     FR: Polices larges, sensibles au zoom et à la résolution pour les textes
+        //     HUD peints (l'ancienne SystemFonts.DefaultFont ~8pt était illisible sur
+        //     grand écran / de loin — demande user).
+        private Font _hudFont;
+        private Font _pointFont;
+        private float _hudFontSize;
+        // [V59-FIX-8c] EN/FR: TWB cross overlay points (5 clicks, drawn as two axes).
+        private readonly List<PointF> _twbOverlayPts = new List<PointF>();
+
+        private void EnsureFonts()
+        {
+            int h = this.ClientSize.Height;
+            if (h <= 0) h = Screen.PrimaryScreen.Bounds.Height;
+            // [V59-FIX-3c] EN/FR: "un peu" smaller (user request) — ~17pt on 1080p,
+            // ~22pt on 1440p, ~28pt on 4K (was ~24/32/40pt before).
+            float target = Math.Max(12f, Math.Min(28f, h / 65f)) * WiimoteGun.UI.UiScaler.Factor;
+            if (_hudFont == null || Math.Abs(_hudFontSize - target) > 0.5f)
+            {
+                if (_hudFont != null) _hudFont.Dispose();
+                if (_pointFont != null) _pointFont.Dispose();
+                _hudFontSize = target;
+                _hudFont = new Font("Segoe UI", target, FontStyle.Bold);
+                _pointFont = new Font("Segoe UI", Math.Max(11f, target * 0.75f), FontStyle.Bold);
+            }
+        }
 
         public IRVisualizerForm()
         {
@@ -155,18 +184,28 @@ namespace WiimoteGun.UI.Legacy
                         log.AppendLine($"IR Mode: {ir.Mode}, Sensitivity: {ir.Sensitivity}");
 
                         // Log visible IR points
+                        var effLayout = Options.Instance.GetEffectiveLedLayout();
+                        bool isBarLayout = (effLayout == LEDLayoutType.WiimoteBar || effLayout == LEDLayoutType.WiimoteBarPnP);
+                        int maxLeds = isBarLayout ? 2 : 4;
+
                         int visibleCount = 0;
-                        for (int p = 0; p < 4; p++)
+                        for (int p = 0; p < maxLeds; p++)
                         {
                             if (ir[p].Found)
                             {
                                 visibleCount++;
                                 var rawPos = ir[p].RawPosition;
                                 var normPos = ir[p].Position;
-                                log.AppendLine($"  P{p}: Raw({rawPos.X}, {rawPos.Y}) Norm({normPos.X:F4}, {normPos.Y:F4}) Size={ir[p].Size}");
+                                log.AppendLine($"  P{p + 1}: Raw({rawPos.X}, {rawPos.Y}) Norm({normPos.X:F4}, {normPos.Y:F4}) Size={ir[p].Size}");
                             }
                         }
-                        log.AppendLine($"Visible Points: {visibleCount}/4");
+                        // [V59-FIX-11/15] EN: The denominator follows the layout — 2 LEDs for
+                        //     the Wiimote Bar modes (standard + PNP-Hybrid), 4 for the
+                        //     4-LED layouts (user fix: "/4" was misleading on 2-LED bars).
+                        //     FR: Le dénominateur suit le layout — 2 LEDs pour les modes
+                        //     Wiimote Bar (standard + PNP-Hybrid), 4 pour les layouts
+                        //     4 LEDs (correctif user : « /4 » trompeur sur les barres 2 LEDs).
+                        log.AppendLine($"Visible Points: {visibleCount}/{maxLeds}");
 
                         // Log calculated center
                         var controller = Program.WiiMoteManager?.GetController(wm.ID);
@@ -212,6 +251,9 @@ namespace WiimoteGun.UI.Legacy
         private void IRVisualizerForm_FormClosing(object sender, FormClosingEventArgs e)
         {
             _updateTimer.Stop();
+            // [V59-FIXES] Dispose the HUD fonts (EN/FR: Libérer les polices HUD)
+            if (_hudFont != null) { _hudFont.Dispose(); _hudFont = null; }
+            if (_pointFont != null) { _pointFont.Dispose(); _pointFont = null; }
         }
 
         private void _updateTimer_Tick(object sender, EventArgs e)
@@ -316,12 +358,15 @@ namespace WiimoteGun.UI.Legacy
         private void IRVisualizerForm_Paint(object sender, PaintEventArgs e)
         {
             Graphics g = e.Graphics;
+            // [V59-FIXES] Refresh the large HUD fonts for the current resolution/zoom
+            //     (EN/FR: Rafraîchir les grandes polices HUD pour la résolution/zoom courant)
+            EnsureFonts();
             g.Clear(Color.Black);
 
             var wiimotes = WiimoteManager.ConnectedWiimotes;
             if (wiimotes.Length == 0)
             {
-                g.DrawString("No Wiimotes Connected", SystemFonts.DefaultFont, Brushes.White, 10, 10);
+                g.DrawString("No Wiimotes Connected", _hudFont, Brushes.White, 10, 10);
                 return;
             }
 
@@ -373,7 +418,7 @@ namespace WiimoteGun.UI.Legacy
                 
                 if (wm == null || string.IsNullOrEmpty(wm.DevicePath))
                 {
-                    g.DrawString($"Player {playerNumber}\nDisconnected", SystemFonts.DefaultFont, Brushes.Red, rectX + 10, rectY + 10);
+                    g.DrawString($"Player {playerNumber}\nDisconnected", _hudFont, Brushes.Red, rectX + 10, rectY + 10);
                     continue;
                 }
                 
@@ -382,34 +427,109 @@ namespace WiimoteGun.UI.Legacy
                     using (Pen p = new Pen(Color.FromArgb(30, 30, 30)))
                         g.DrawLine(p, slotOffsetX, 0, slotOffsetX, availHeight);
 
-                g.DrawString($"Player {playerNumber}", SystemFonts.DefaultFont, Brushes.White, rectX + 10, rectY + 10);
-                
-                string layoutName = GetLayoutName(Options.Instance.LEDLayout);
-                g.DrawString($"LED Layout: {layoutName}", SystemFonts.DefaultFont, Brushes.Cyan, rectX + 10, rectY + 30);
+                // [V59-FIXES] EN: Large, resolution-aware HUD lines with running Y
+                //     positions (previously ~8pt at fixed offsets — unreadable from a
+                //     distance, user request).
+                //     FR: Lignes HUD larges, adaptées à la résolution, positions Y
+                //     défilantes (avant : ~8pt à offsets fixes — illisible de loin).
+                float lineH = _hudFont.GetHeight(g) + 4f;
+                float textY = rectY + 10;
+                g.DrawString($"Player {playerNumber}", _hudFont, Brushes.White, rectX + 10, textY);
+                textY += lineH;
+
+                // [V59-FIX-11/15] EN/FR: the EFFECTIVE layout (the hybrid checkbox makes
+                //     Wiimote Bar display as PNP-Hybrid).
+                var effLayout = Options.Instance.GetEffectiveLedLayout();
+                bool isBarLayout = (effLayout == LEDLayoutType.WiimoteBar || effLayout == LEDLayoutType.WiimoteBarPnP);
+                int maxLeds = isBarLayout ? 2 : 4;
+
+                string layoutName = GetLayoutName(effLayout);
+                g.DrawString($"LED Layout: {layoutName}", _hudFont, Brushes.Cyan, rectX + 10, textY);
+                textY += lineH;
 
                 if (_lastStates.ContainsKey(wm.DevicePath))
                 {
                     var state = _lastStates[wm.DevicePath];
                     var ir = state.IRState;
 
-                    g.DrawString($"Mode: {ir.Mode}, Sens: {ir.Sensitivity}", SystemFonts.DefaultFont, Brushes.White, rectX + 10, rectY + 50);
+                    g.DrawString($"Mode: {ir.Mode}, Sens: {ir.Sensitivity}", _hudFont, Brushes.White, rectX + 10, textY);
+                    textY += lineH;
 
-                    // Draw IR dots scaled to drawW/drawH
-                    for (int p = 0; p < 4; p++)
+                    // [V59-FIXES] EN: Live PnP gun-to-screen distance for this player's slot.
+                    //     FR: Distance PnP gun-écran en direct pour le créneau de ce joueur.
+                    // [V59-FIX-11] EN: uses the EFFECTIVE layout (Wiimote Bar + the
+                    //     hybrid checkbox behaves as PNP-Hybrid).
+                    if (effLayout == LEDLayoutType.WiimoteBarPnP &&
+                        controller != null && controller.Calculator != null)
+                    {
+                        float pnpDist = controller.Calculator.PnpLastDistanceM;
+                        if (pnpDist > 0f)
+                        {
+                            // [V59-FIX-10] EN: with the declared geometry, append the
+                            //     precision forecast (±mm per camera pixel at this range).
+                            //     FR: avec la géométrie déclarée, ajoute la prévision de
+                            //     précision (±mm par pixel caméra à cette portée).
+                            string prec = Options.Instance.PnpDeclareGeometry
+                                ? string.Format(" ±{0:F1} mm", controller.Calculator.PnpPrecisionMm)
+                                : "";
+                            g.DrawString($"PnP dist: {pnpDist:F2} m{prec}", _hudFont, Brushes.Orange, rectX + 10, textY);
+                            textY += lineH;
+                        }
+                    }
+
+                    // [V59-FIX-14] EN: LIVE TWB distance (user request — must display
+                    //     from the moment LEDs are visible, before AND after calibration).
+                    //     Uses the declared geometry; shows "declare geometry" hint if off.
+                    //     FR: Distance TWB EN DIRECT (demande user — doit s'afficher dès
+                    //     que les LEDs sont visibles, avant ET après calibration).
+                    //     Utilise la géométrie déclarée ; suggestion si non déclarée.
+                    if (Options.Instance.LEDLayout == LEDLayoutType.TwoWiimoteBar &&
+                        controller != null && controller.Calculator != null)
+                    {
+                        float twbDist = controller.Calculator.TwbLastDistanceM;
+                        if (twbDist > 0f)
+                        {
+                            g.DrawString($"TWB dist: {twbDist:F2} m", _hudFont, Brushes.Orange, rectX + 10, textY);
+                            textY += lineH;
+                        }
+                    }
+
+                    // [V59-FIX-9b] EN: TWB hybrid separation ratio (user checkbox) —
+                    //     visual feedback like the PnP dist line. The RATIO is shown
+                    //     (no absolute meters: the bar-pair spacing is unknown for
+                    //     BlancoM vs Wii bars — the ratio is what the correction uses).
+                    //     FR: Ratio de séparation hybride TWB (case user) — retour
+                    //     visuel comme la ligne PnP dist. On affiche le RATIO (pas de
+                    //     mètres absolus : l'écartement des barres est inconnu pour
+                    //     BlancoM vs barres Wii — le ratio est ce que la correction
+                    //     utilise).
+                    if (Options.Instance.LEDLayout == LEDLayoutType.TwoWiimoteBar &&
+                        Options.Instance.TwoBarHybridPnp &&
+                        controller != null && controller.Calculator != null &&
+                        controller.Calculator.TwbCalPairSep > 0.01f)
+                    {
+                        g.DrawString(string.Format("TWB ratio: {0:F2}", controller.Calculator.TwbLastSepRatio),
+                            _hudFont, Brushes.Orange, rectX + 10, textY);
+                        textY += lineH;
+                    }
+
+                    // Draw IR dots scaled to drawW/drawH (limited to maxLeds for the layout)
+                    for (int p = 0; p < maxLeds; p++)
                     {
                         var point = ir[p];
                         if (point.Found)
                         {
                             // Scale 0-1023 to 0-drawW (Mirrored axis for intuitive view)
                             float x = rectX + (1.0f - point.RawPosition.X / 1023f) * drawW;
-                            float y = rectY + (point.RawPosition.Y / 767f) * drawH;
+                            float y = rectY + (1.0f - (point.RawPosition.Y / 767f)) * drawH; // [V59-FIX-13] Y FLIPPED — matches the physical world (bar below screen = bottom of visualizer)
                             
                             // Scale dot size relative to screen size (min 5px)
                             float scaleFactor = drawW / 1024f; 
                             int size = (int)(point.Size * scaleFactor) + 5;
                             
                             g.FillEllipse(Brushes.Red, x - size/2, y - size/2, size, size);
-                            g.DrawString($"P{p}", SystemFonts.DefaultFont, Brushes.Yellow, x, y);
+                            // [V59-FIXES/FIX-15] 1-based point label (P1..P2 for bar, P1..P4 for 4-LED layouts)
+                            g.DrawString($"P{p + 1}", _pointFont, Brushes.Yellow, x + 8, y - _pointFont.GetHeight(g) / 2);
                         }
                     }
 
@@ -423,33 +543,78 @@ namespace WiimoteGun.UI.Legacy
                             if (calPoints != null)
                             {
                                 List<PointF> polyPoints = new List<PointF>();
+                                _twbOverlayPts.Clear(); // [V59-FIX-8c] TWB cross axes
                                 for (int k = 0; k < calPoints.Length; k++)
                                 {
                                     if (calPoints[k].HasValue)
                                     {
                                         float cx = rectX + (1.0f - calPoints[k].Value.X) * drawW;
-                                        float cy = rectY + (calPoints[k].Value.Y) * drawH;
+                                        float cy = rectY + (1.0f - calPoints[k].Value.Y) * drawH; // [V59-FIX-13] Y FLIPPED
                                         
                                         g.DrawEllipse(Pens.Magenta, cx - 5, cy - 5, 10, 10);
                                         
                                         string label = $"C{k}";
                                         if (calPoints.Length == 5)
                                         {
-                                            if (k==0) label="Center";
-                                            else if (k==1) label="TL";
-                                            else if (k==2) label="TR";
-                                            else if (k==3) label="BR";
-                                            else if (k==4) label="BL";
-                                            
-                                            // Add corners (1-4) to polygon
-                                            if (k > 0) polyPoints.Add(new PointF(cx, cy));
+                                            // [V59-FIX-8c] EN: TwoWiimoteBars cross — correct labels
+                                            //     (capture order: C, TOP, BOTTOM, LEFT, RIGHT) and NO
+                                            //     bowtie polygon: draw the two cross axes instead.
+                                            //     The generic gun4ir order (Center/TL/TR/BR/BL) does
+                                            //     not match the cross capture order — it drew a
+                                            //     misleading bowtie (user report).
+                                            //     FR: Croix TwoWiimoteBars — libellés corrects
+                                            //     (ordre de capture : C, HAUT, BAS, GAUCHE, DROITE)
+                                            //     et PAS de polygone papillon : on trace les deux
+                                            //     axes de la croix. L'ordre générique gun4ir
+                                            //     (Center/TL/TR/BR/BL) ne correspond pas à l'ordre
+                                            //     de capture croix — il dessinait un papillon
+                                            //     trompeur (rapport user).
+                                            if (Options.Instance.LEDLayout == LEDLayoutType.TwoWiimoteBar)
+                                            {
+                                                if (k == 0) label = "C";
+                                                else if (k == 1) label = "TOP";
+                                                else if (k == 2) label = "BOT";
+                                                else if (k == 3) label = "LEFT";
+                                                else if (k == 4) label = "RIGHT";
+                                                _twbOverlayPts.Add(new PointF(cx, cy));
+                                                if (_twbOverlayPts.Count == 5)
+                                                {
+                                                    // vertical axis: TOP(1) ↔ BOTTOM(2); horizontal: LEFT(3) ↔ RIGHT(4)
+                                                    using (Pen crossPen = new Pen(Color.Magenta, 2) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash })
+                                                    {
+                                                        g.DrawLine(crossPen, _twbOverlayPts[1], _twbOverlayPts[2]);
+                                                        g.DrawLine(crossPen, _twbOverlayPts[3], _twbOverlayPts[4]);
+                                                    }
+                                                }
+                                            }
+                                            else
+                                            {
+                                                if (k==0) label="Center";
+                                                else if (k==1) label="TL";
+                                                else if (k==2) label="TR";
+                                                else if (k==3) label="BR";
+                                                else if (k==4) label="BL";
+
+                                                // Add corners (1-4) to polygon
+                                                if (k > 0) polyPoints.Add(new PointF(cx, cy));
+                                            }
                                         }
                                         else if (calPoints.Length == 4) // Wiimote bar
                                         {
+                                            // [V59-FIX-4/11] EN: PnP Hybrid — label the 4 captured corners
+                                            //     (uses the EFFECTIVE layout — the hybrid checkbox
+                                            //     makes Wiimote Bar behave as PNP-Hybrid).
+                                            if (Options.Instance.GetEffectiveLedLayout() == LEDLayoutType.WiimoteBarPnP)
+                                            {
+                                                if (k == 0) label = "TL";
+                                                else if (k == 1) label = "TR";
+                                                else if (k == 2) label = "BR";
+                                                else if (k == 3) label = "BL";
+                                            }
                                              polyPoints.Add(new PointF(cx, cy));
                                         }
 
-                                        g.DrawString(label, SystemFonts.DefaultFont, Brushes.Magenta, cx + 6, cy);
+                                        g.DrawString(label, _pointFont, Brushes.Magenta, cx + 8, cy - _pointFont.GetHeight(g) / 2);
                                     }
                                 }
 
@@ -472,88 +637,80 @@ namespace WiimoteGun.UI.Legacy
                         if (center.X != 0 && center.Y != 0)
                         {
                             float cx = rectX + (1.0f - center.X / 1023f) * drawW;
-                            float cy = rectY + (center.Y / 767f) * drawH;
+                            float cy = rectY + (1.0f - (center.Y / 767f)) * drawH; // [V59-FIX-13] Y FLIPPED
                             
-                            // Triangulation lines or Double-T
-                            if (Options.Instance.LEDLayout == LEDLayoutType.TwoWiimoteBar)
+                            // Triangulation lines: WiimoteBar horizontal bar, Double-T, or Gun4IR/FourCorners radial
+                            if (effLayout == LEDLayoutType.TwoWiimoteBar)
                             {
-                                // Draw Double-T precisely without fallback deformation
-                                float m1X = rectX + (1.0f - centerController.Calculator.DoubleT_M1.X / 1023f) * drawW;
-                                float m1Y = rectY + (centerController.Calculator.DoubleT_M1.Y / 767f) * drawH;
-                                float m2X = rectX + (1.0f - centerController.Calculator.DoubleT_M2.X / 1023f) * drawW;
-                                float m2Y = rectY + (centerController.Calculator.DoubleT_M2.Y / 767f) * drawH;
-                                
-                                // Vertical STEM always connects M1 and M2 securely
-                                g.DrawLine(Pens.Cyan, m1X, m1Y, m2X, m2Y);
-                                
-                                // Draw horizontal bars if pieces are found
-                                var visiblePoints = new List<Point2F>();
-                                for (int p = 0; p < 4; p++)
-                                {
-                                    if (ir[p].Found)
-                                    {
-                                        float px = rectX + (1.0f - ir[p].RawPosition.X / 1023f) * drawW;
-                                        float py = rectY + (ir[p].RawPosition.Y / 767f) * drawH;
-                                        visiblePoints.Add(new Point2F(px, py));
-                                    }
-                                }
+                                // [V59-FIX-27] EN: BlancoM style: No stem, no connecting lines between LED points, no center cross.
+                                //     The visualizer displays ONLY the detected IR LED points (and HUD text), exactly as BlancoM does.
+                                //     FR: Style BlancoM : Ni tige, ni traits de liaison entre points LED, ni croix centrale.
+                                //     Le visualiseur affiche UNIQUEMENT les points LED IR détectés (et le HUD), exactement comme BlancoM.
+                            }
+                            else if (isBarLayout)
+                            {
+                                // [V59-FIX-15] Wiimote Bar: 2 LEDs on a single horizontal sensor bar
+                                // Connects P1 - center - P2 horizontally along the bar (NOT radial diamond perspective)
+                                bool p1Found = ir[0].Found;
+                                bool p2Found = ir[1].Found;
 
-                                if (visiblePoints.Count == 4)
+                                if (p1Found && p2Found)
                                 {
-                                    var sortedY = visiblePoints.OrderBy(p => p.Y).ToList();
-                                    Point2F topL = sortedY[0], topR = sortedY[1];
-                                    Point2F botL = sortedY[2], botR = sortedY[3];
-                                    g.DrawLine(Pens.DarkCyan, topL.X, topL.Y, topR.X, topR.Y);
-                                    g.DrawLine(Pens.DarkCyan, botL.X, botL.Y, botR.X, botR.Y);
+                                    float p1X = rectX + (1.0f - ir[0].RawPosition.X / 1023f) * drawW;
+                                    float p1Y = rectY + (1.0f - (ir[0].RawPosition.Y / 767f)) * drawH;
+                                    float p2X = rectX + (1.0f - ir[1].RawPosition.X / 1023f) * drawW;
+                                    float p2Y = rectY + (1.0f - (ir[1].RawPosition.Y / 767f)) * drawH;
+
+                                    g.DrawLine(Pens.DarkCyan, p1X, p1Y, cx, cy);
+                                    g.DrawLine(Pens.DarkCyan, cx, cy, p2X, p2Y);
                                 }
-                                else if (visiblePoints.Count == 3 || visiblePoints.Count == 2)
+                                else if (p1Found)
                                 {
-                                    // Draw the remaining bar segments safely without crossed geometry
-                                    var sortedY = visiblePoints.OrderBy(p => p.Y).ToList();
-                                    if (visiblePoints.Count == 3)
-                                    {
-                                        float dy01 = Math.Abs(sortedY[1].Y - sortedY[0].Y);
-                                        float dy12 = Math.Abs(sortedY[2].Y - sortedY[1].Y);
-                                        if (dy01 < dy12) g.DrawLine(Pens.DarkCyan, sortedY[0].X, sortedY[0].Y, sortedY[1].X, sortedY[1].Y);
-                                        else g.DrawLine(Pens.DarkCyan, sortedY[1].X, sortedY[1].Y, sortedY[2].X, sortedY[2].Y);
-                                    }
-                                    else if (visiblePoints.Count == 2)
-                                    {
-                                        // Assume it's one horizontal bar
-                                        g.DrawLine(Pens.DarkCyan, sortedY[0].X, sortedY[0].Y, sortedY[1].X, sortedY[1].Y);
-                                    }
+                                    float p1X = rectX + (1.0f - ir[0].RawPosition.X / 1023f) * drawW;
+                                    float p1Y = rectY + (1.0f - (ir[0].RawPosition.Y / 767f)) * drawH;
+                                    g.DrawLine(Pens.DarkCyan, p1X, p1Y, cx, cy);
+                                }
+                                else if (p2Found)
+                                {
+                                    float p2X = rectX + (1.0f - ir[1].RawPosition.X / 1023f) * drawW;
+                                    float p2Y = rectY + (1.0f - (ir[1].RawPosition.Y / 767f)) * drawH;
+                                    g.DrawLine(Pens.DarkCyan, p2X, p2Y, cx, cy);
                                 }
                             }
                             else
                             {
-                                // Normal Cross / Radial lines
-                                for (int p = 0; p < 4; p++)
+                                // [V59-FIX-15] Gun4IRDiamond, FourCorners: Radial perspective lines from each LED to center
+                                for (int p = 0; p < maxLeds; p++)
                                 {
                                     var point = ir[p];
                                     if (point.Found)
                                     {
                                         float px = rectX + (1.0f - point.RawPosition.X / 1023f) * drawW;
-                                        float py = rectY + (point.RawPosition.Y / 767f) * drawH;
+                                        float py = rectY + (1.0f - (point.RawPosition.Y / 767f)) * drawH; // [V59-FIX-15] Y FLIPPED — attaches directly to red LED dot
                                         g.DrawLine(Pens.DarkCyan, px, py, cx, cy);
                                     }
                                 }
                             }
-                            int crossSize = 10;
-                            g.DrawLine(Pens.Cyan, cx - crossSize, cy, cx + crossSize, cy);
-                            g.DrawLine(Pens.Cyan, cx, cy - crossSize, cx, cy + crossSize);
-                            g.DrawString("CENTER", SystemFonts.DefaultFont, Brushes.Cyan, cx + 5, cy + 5);
-                            
-                            // DEBUG Info
-                            int textY = (int)rectY + 70;
-                            int lineHeight = 15;
-                            
+                            if (effLayout != LEDLayoutType.TwoWiimoteBar)
+                            {
+                                int crossSize = 10;
+                                g.DrawLine(Pens.Cyan, cx - crossSize, cy, cx + crossSize, cy);
+                                g.DrawLine(Pens.Cyan, cx, cy - crossSize, cx, cy + crossSize);
+                                g.DrawString("CENTER", _pointFont, Brushes.Cyan, cx + 5, cy + 5);
+                            }
+
+                            // [V59-FIXES] EN: Debug info continues under the header lines
+                            //     with the large HUD font (was ~8pt at fixed offsets).
+                            //     FR: Les infos debug continuent sous les lignes d'en-tête
+                            //     avec la grande police HUD (avant ~8pt à offsets fixes).
                             int visibleCount = 0;
-                            for (int p = 0; p < 4; p++) if (ir[p].Found) visibleCount++;
-                            
-                            g.DrawString($"Visible Points: {visibleCount}/4", SystemFonts.DefaultFont, Brushes.LightGreen, rectX + 10, textY);
-                            textY += lineHeight;
-                            
-                            g.DrawString($"Center (norm): ({center.X/1023f:F3}, {center.Y/767f:F3})", SystemFonts.DefaultFont, Brushes.Cyan, rectX + 10, textY);
+                            for (int p = 0; p < maxLeds; p++) if (ir[p].Found) visibleCount++;
+
+                            // [V59-FIX-11/15] EN: denominator = maxLeds (2 for bar modes, 4 for 4-LED layouts).
+                            g.DrawString($"Visible Points: {visibleCount}/{maxLeds}", _hudFont, Brushes.LightGreen, rectX + 10, textY);
+                            textY += lineH;
+
+                            g.DrawString($"Center (norm): ({center.X/1023f:F3}, {center.Y/767f:F3})", _hudFont, Brushes.Cyan, rectX + 10, textY);
                         }
                     }
                 }
@@ -573,6 +730,8 @@ namespace WiimoteGun.UI.Legacy
                     return "2-Wiimote Bar (Top/Bottom)";
                 case LEDLayoutType.FourCorners:
                     return "4 Corner LEDs";
+                case LEDLayoutType.WiimoteBarPnP:
+                    return "Wiimote Bar - PNP-Hybrid (alpha Test)"; // [V59-FIX-4] renamed per user decision
                 default:
                     return layout.ToString();
             }

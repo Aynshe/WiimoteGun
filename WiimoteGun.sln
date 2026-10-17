@@ -1,13 +1,17 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.6.11723.189 insiders
+VisualStudioVersion = 18.6.11723.189
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WiimoteGun", "WiimoteGun\WiimoteGun.csproj", "{74ADD987-9BDD-4DDE-BFB1-E777A985B0BF}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WiimoteGun.Service", "WiimoteGun.Service\WiimoteGun.Service.csproj", "{492D6054-F2D7-4940-97AD-0077271F190D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HmHost", "HmHost\HmHost.csproj", "{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WiimoteGunMigrator", "WiimoteGunMigrator\WiimoteGunMigrator.csproj", "{A8B5D3E7-2F1C-4A6E-B9D0-3C7E5F2A8B1D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "W4G_Setup", "W4G_Setup\W4G_Setup.csproj", "{7FBC93B2-A6F2-48DF-81E2-C70C2F936F95}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -55,15 +59,36 @@ Global
 		{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}.Release|x64.Build.0 = Release|Any CPU
 		{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}.Release|x86.ActiveCfg = Release|Any CPU
 		{7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}.Release|x86.Build.0 = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(ProjectDependencies) = postSolution
-		{492D6054-F2D7-4940-97AD-0077271F190D} = {7C4A1F3B-52D8-4B6E-A9C0-8E1D2F3B4C5D}
+		{A8B5D3E7-2F1C-4A6E-B9D0-3C7E5F2A8B1D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A8B5D3E7-2F1C-4A6E-B9D0-3C7E5F2A8B1D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A8B5D3E7-2F1C-4A6E-B9D0-3C7E5F2A8B1D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A8B5D3E7-2F1C-4A6E-B9D0-3C7E5F2A8B1D}.Debug|x64.Build.0 = Debug|Any CPU
+		{A8B5D3E7-2F1C-4A6E-B9D0-3C7E5F2A8B1D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A8B5D3E7-2F1C-4A6E-B9D0-3C7E5F2A8B1D}.Debug|x86.Build.0 = Debug|Any CPU
+		{A8B5D3E7-2F1C-4A6E-B9D0-3C7E5F2A8B1D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A8B5D3E7-2F1C-4A6E-B9D0-3C7E5F2A8B1D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A8B5D3E7-2F1C-4A6E-B9D0-3C7E5F2A8B1D}.Release|x64.ActiveCfg = Release|Any CPU
+		{A8B5D3E7-2F1C-4A6E-B9D0-3C7E5F2A8B1D}.Release|x64.Build.0 = Release|Any CPU
+		{A8B5D3E7-2F1C-4A6E-B9D0-3C7E5F2A8B1D}.Release|x86.ActiveCfg = Release|Any CPU
+		{A8B5D3E7-2F1C-4A6E-B9D0-3C7E5F2A8B1D}.Release|x86.Build.0 = Release|Any CPU
+		{7FBC93B2-A6F2-48DF-81E2-C70C2F936F95}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7FBC93B2-A6F2-48DF-81E2-C70C2F936F95}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7FBC93B2-A6F2-48DF-81E2-C70C2F936F95}.Debug|x64.ActiveCfg = Debug|x64
+		{7FBC93B2-A6F2-48DF-81E2-C70C2F936F95}.Debug|x64.Build.0 = Debug|x64
+		{7FBC93B2-A6F2-48DF-81E2-C70C2F936F95}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7FBC93B2-A6F2-48DF-81E2-C70C2F936F95}.Debug|x86.Build.0 = Debug|Any CPU
+		{7FBC93B2-A6F2-48DF-81E2-C70C2F936F95}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7FBC93B2-A6F2-48DF-81E2-C70C2F936F95}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7FBC93B2-A6F2-48DF-81E2-C70C2F936F95}.Release|x64.ActiveCfg = Release|x64
+		{7FBC93B2-A6F2-48DF-81E2-C70C2F936F95}.Release|x64.Build.0 = Release|x64
+		{7FBC93B2-A6F2-48DF-81E2-C70C2F936F95}.Release|x86.ActiveCfg = Release|Any CPU
+		{7FBC93B2-A6F2-48DF-81E2-C70C2F936F95}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {74ADD987-9BDD-4DDE-BFB1-E777A985B0AA}
 		VisualSVNWorkingCopyRoot = 
+		SolutionGuid = {74ADD987-9BDD-4DDE-BFB1-E777A985B0AA}
 	EndGlobalSection
 EndGlobal

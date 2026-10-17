@@ -5,80 +5,82 @@ using System.IO;
 using System.IO.Compression;
 using System.Net;
 using System.Text;
-using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace WiimoteGunMigrator
 {
     /// <summary>
-    /// [3.1.0.1] EN: TRANSITIONAL MIGRATOR for the broken 3.1.0.0 installs.
-    ///     Shipped as "WiimoteGun.exe" at the root of the transition archive
-    ///     "Wiimote4Guns_beta_pre-release_v3.1.0.0.7z". The flow:
-    ///       1. The OLD WiimoteUpdate.ps1 downloads the transition archive,
-    ///          extracts it, copies the top-level exe files (the migrator
-    ///          replaces WiimoteGun.exe) and RESTARTS "WiimoteGun.exe" - which
-    ///          is now THIS migrator. NOTE: the old script may NOT copy the
-    ///          nested .7z to the app dir (observed on v3.0.0.21: only the exe
-    ///          and side files were copied), so the migrator cannot rely on
-    ///          finding it on disk.
-    ///       2. The migrator RE-DOWNLOADS the transition archive from GitHub
-    ///          (same asset the old script downloaded), extracts it, and finds
-    ///          the NESTED real-release .7z inside it.
-    ///       3. Extracts the nested archive and applies its content with the
-    ///          CORRECT compiled staging logic: top-level files -> app dir
-    ///          (except the running migrator), top-level folders -> recursive
-    ///          merge, WiimoteGun.Service\ (files AND subfolders, HmHost
-    ///          INCLUDED) -> update_service\ staging, UpdateService.ps1 -> LIVE.
-    ///       4. The migrator renames itself aside, copies the REAL
-    ///          WiimoteGun.exe in place, starts it, and exits - the update
-    ///          continues like a normal one (service prompt + HmHost deploy).
-    ///     FR: MIGRATEUR DE TRANSITION pour les installs 3.1.0.0 cassées.
-    ///     Livré en « WiimoteGun.exe » à la racine de l'archive de transition
-    ///     « Wiimote4Guns_beta_pre-release_v3.1.0.0.7z ». Le flux :
-    ///       1. L'ANCIEN WiimoteUpdate.ps1 télécharge l'archive de transition,
-    ///          l'extrait, copie les fichiers exe racine (le migrateur remplace
-    ///          WiimoteGun.exe) et RELANCE « WiimoteGun.exe » - qui est
-    ///          désormais CE migrateur. NOTE : l'ancien script peut NE PAS
-    ///          copier le .7z imbriqué vers l'app (observé sur v3.0.0.21 :
-    ///          seuls l'exe et les fichiers annexes ont été copiés), donc le
-    ///          migrateur ne peut pas compter sur le trouver sur disque.
-    ///       2. Le migrateur RE-TÉLÉCHARGE l'archive de transition depuis
-    ///          GitHub (le même asset que l'ancien script), l'extrait, et
-    ///          trouve le .7z de la VRAIE release EMBARQUÉE dedans.
-    ///       3. Extrait l'archive imbriquée et applique son contenu avec la
-    ///          logique de staging CORRECTE compilée : fichiers racine ->
-    ///          dossier de l'app (sauf le migrateur en cours), dossiers
-    ///          racine -> fusion récursive, WiimoteGun.Service\ (fichiers ET
-    ///          sous-dossiers, HmHost INCLUS) -> staging update_service\,
-    ///          UpdateService.ps1 -> VIVANT.
-    ///       4. Le migrateur se renomme à part, copie le VRAI WiimoteGun.exe
-    ///          à sa place, le lance, et se termine - la mise à jour continue
-    ///          comme une normale (prompt service + déploiement HmHost).
+    /// [3.1.5.10] EN: update_W4G.exe — native self-updater for Wiimote4Guns.
+    ///     Replaces the PowerShell WiimoteUpdate.ps1 approach: same flow but as a
+    ///     standalone net48 exe (no PowerShell dependency, no quoting issues).
+    ///     Called by WiimoteGun.exe with: update_W4G.exe "<download_url>" <pid>
+    ///     Flow:
+    ///       1. Wait for the calling app (PID) to exit.
+    ///       2. Download the release .7z from the given URL.
+    ///       3. Extract with 7za.exe (shipped with the app).
+    ///       4. Apply with correct staging: top-level files → app dir (except the
+    ///          running update_W4G.exe and the running service exe),
+    ///          WiimoteGun.Service\ → update_service\ staging (HmHost included),
+    ///          other folders → recursive merge.
+    ///       5. Delete the legacy WiimoteUpdate.ps1 (no longer used).
+    ///       6. Clean up stale .7z and .null files.
+    ///       7. Restart WiimoteGun.exe with the current user account.
+    ///     FR: update_W4G.exe — auto-updateur natif de Wiimote4Gans.
+    ///     Remplace l'approche PowerShell WiimoteUpdate.ps1 : même flux mais en exe
+    ///     net48 autonome (sans dépendance PowerShell, sans problèmes de guillemets).
+    ///     Appelé par WiimoteGun.exe avec : update_W4G.exe "<url_téléchargement>" <pid>
+    ///     Flux :
+    ///       1. Attendre la sortie de l'app appelante (PID).
+    ///       2. Télécharger le .7z de la release depuis l'URL donnée.
+    ///       3. Extraire avec 7za.exe (livré avec l'app).
+    ///       4. Appliquer avec le staging correct : fichiers racine → dossier app
+    ///          (sauf update_W4G.exe en cours et l'exe du service en cours),
+    ///          WiimoteGun.Service\ → staging update_service\ (HmHost inclus),
+    ///          autres dossiers → fusion récursive.
+    ///       5. Supprimer le WiimoteUpdate.ps1 obsolète (plus utilisé).
+    ///       6. Nettoyer les fichiers .7z et .null résiduels.
+    ///       7. Relancer WiimoteGun.exe avec le compte utilisateur en cours.
     /// </summary>
     internal static class Program
     {
-        private const string ReleasesApiUrl = "https://api.github.com/repos/Aynshe/WiimoteGun/releases";
-        private const string AssetPrefix = "Wiimote4Guns_";
-        private const string SelfRenameSuffix = ".migrator-old.exe";
+        private const string SelfName = "update_W4G.exe";
+        private const string ServiceExeName = "WiimoteGun.Service.exe";
+        private const string AppExeName = "WiimoteGun.exe";
+        private const string LegacyPs1 = "WiimoteUpdate.ps1";
 
         private static int Main(string[] args)
         {
             try
             {
                 Console.OutputEncoding = Encoding.UTF8;
-                Console.WriteLine("=== [ WiimoteGun transition migrator ] ===");
+                Console.Title = "Wiimote4Guns Update";
+                Console.WriteLine("=== [ Wiimote4Guns native updater ] ===");
                 Console.WriteLine();
 
-                // EN/FR: App dir = the migrator's own folder (it IS the app exe now)
+                // EN/FR: App dir = our own folder (we live next to the app)
                 string appDir = AppDomain.CurrentDomain.BaseDirectory;
 
-                // EN/FR: Clean up a stale renamed migrator from a previous run
+                // [V60-FIX-4] EN: Clean up a stale renamed updater from a previous run
                 try
                 {
-                    string stale = Path.Combine(appDir, "WiimoteGun" + SelfRenameSuffix);
-                    if (File.Exists(stale)) File.Delete(stale);
+                    string stale = Path.Combine(appDir, SelfName + ".old");
+                    if (File.Exists(stale)) { try { File.Delete(stale); Console.WriteLine("  cleanup: " + SelfName + ".old"); } catch { } }
                 }
                 catch { }
 
+                // [0] Parse args: "<download_url>" [pid]
+                if (args.Length < 1)
+                {
+                    Console.WriteLine("ERROR: usage: " + SelfName + " <download_url> [pid]");
+                    Console.WriteLine("       The download URL is provided by WiimoteGun.exe.");
+                    Pause();
+                    return 1;
+                }
+                string downloadUrl = args[0];
+                int waitPid = 0;
+                if (args.Length >= 2 && !int.TryParse(args[1], out waitPid)) waitPid = 0;
+
+                // Sanity check: this must be a Wiimote4Guns install folder
                 if (!Directory.Exists(Path.Combine(appDir, "WiimoteGun.Service")))
                 {
                     Console.WriteLine("ERROR: this does not look like a Wiimote4Guns installation folder:");
@@ -87,28 +89,47 @@ namespace WiimoteGunMigrator
                     return 1;
                 }
 
-                // [1/4] RE-DOWNLOAD the transition archive from GitHub (the old script
-                //     did NOT copy the nested .7z to the app dir - observed on v3.0.0.21)
-                Console.WriteLine("[1/4] Downloading the transition archive from GitHub...");
-                string transitionUrl;
-                if (!FindTransitionAsset(out transitionUrl))
+                // [1/5] Wait for the calling app to exit (it must release its exe)
+                if (waitPid > 0)
                 {
-                    Console.WriteLine("ERROR: no Wiimote4Guns_*.7z asset found on the prerelease.");
-                    Pause();
-                    return 1;
+                    Console.WriteLine("[1/5] Waiting for WiimoteGun.exe (PID " + waitPid + ") to exit...");
+                    try
+                    {
+                        Process appProc = Process.GetProcessById(waitPid);
+                        if (appProc != null && !appProc.WaitForExit(30000))
+                        {
+                            Console.WriteLine("WARNING: app did not exit within 30s — killing it.");
+                            try { appProc.Kill(); appProc.WaitForExit(5000); } catch { }
+                        }
+                        else
+                        {
+                            Console.WriteLine("  App exited.");
+                        }
+                    }
+                    catch (ArgumentException)
+                    {
+                        Console.WriteLine("  App already exited.");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("[1/5] No PID to wait for — proceeding.");
                 }
 
-                string tempDir = Path.Combine(Path.GetTempPath(), "Wiimote4Guns_Migrator_" + Guid.NewGuid().ToString("N"));
-                string transitionArchive = Path.Combine(tempDir, "transition" + Path.GetExtension(new Uri(transitionUrl).AbsolutePath));
+                // [2/5] Download the release archive
+                Console.WriteLine("[2/5] Downloading update...");
+                string tempDir = Path.Combine(Path.GetTempPath(), "W4G_Update_" + Guid.NewGuid().ToString("N"));
+                string archivePath = Path.Combine(tempDir, "release.7z");
                 Directory.CreateDirectory(tempDir);
                 try
                 {
                     ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
                     using (WebClient wc = new WebClient())
                     {
-                        wc.Headers.Add("User-Agent", "Wiimote4Guns-Migrator");
-                        wc.DownloadFile(transitionUrl, transitionArchive);
+                        wc.Headers.Add("User-Agent", "Wiimote4Guns-Updater");
+                        wc.DownloadFile(downloadUrl, archivePath);
                     }
+                    Console.WriteLine("  Downloaded: " + Path.GetFileName(downloadUrl));
                 }
                 catch (Exception ex)
                 {
@@ -117,38 +138,11 @@ namespace WiimoteGunMigrator
                     return 1;
                 }
 
-                // Extract the transition archive
-                string transitionExtract = Path.Combine(tempDir, "transition_extracted");
-                Directory.CreateDirectory(transitionExtract);
-                if (!ExtractArchive(transitionArchive, transitionExtract, appDir))
-                {
-                    Console.WriteLine("ERROR: could not extract the transition archive.");
-                    Pause();
-                    return 1;
-                }
-
-                // Content root (single top folder -> descend)
-                string transitionRoot = transitionExtract;
-                string[] transEntries = Directory.GetFileSystemEntries(transitionExtract);
-                if (transEntries.Length == 1 && Directory.Exists(transEntries[0]))
-                    transitionRoot = transEntries[0];
-
-                // Find the NESTED real-release .7z inside the extracted transition archive
-                string nestedArchive = FindNestedArchiveInDir(transitionRoot);
-                if (nestedArchive == null)
-                {
-                    Console.WriteLine("ERROR: no release .7z found inside the transition archive.");
-                    Console.WriteLine("The transition archive must contain the real release .7z at its root.");
-                    Pause();
-                    return 1;
-                }
-                Console.WriteLine("Found nested release: " + Path.GetFileName(nestedArchive));
-
-                // [2/4] Extract the NESTED real-release archive
-                Console.WriteLine("[2/4] Extracting the real release...");
-                string extractDir = Path.Combine(tempDir, "release_extracted");
+                // [3/5] Extract with 7za.exe (or native .zip)
+                Console.WriteLine("[3/5] Extracting...");
+                string extractDir = Path.Combine(tempDir, "extracted");
                 Directory.CreateDirectory(extractDir);
-                if (!ExtractArchive(nestedArchive, extractDir, appDir))
+                if (!ExtractArchive(archivePath, extractDir, appDir))
                 {
                     Console.WriteLine("ERROR: extraction failed (no 7za.exe next to the app,");
                     Console.WriteLine("       no 7-Zip installed, not a .zip archive).");
@@ -156,26 +150,27 @@ namespace WiimoteGunMigrator
                     return 1;
                 }
 
-                // EN/FR: Content root: the archive may create a folder named after itself -
-                //     descend into it (same convention as WiimoteUpdate.ps1)
-                string fixRoot = extractDir;
+                // Content root: the archive may create a folder named after itself
+                string contentRoot = extractDir;
                 string[] rootEntries = Directory.GetFileSystemEntries(extractDir);
                 if (rootEntries.Length == 1 && Directory.Exists(rootEntries[0]))
-                    fixRoot = rootEntries[0];
+                    contentRoot = rootEntries[0];
 
-                // [3/4] Apply with the CORRECT staging logic (compiled - no script involved)
-                Console.WriteLine("[3/4] Applying update (correct staging: HmHost included)...");
+                // [4/5] Apply with correct staging
+                Console.WriteLine("[4/5] Applying update...");
                 int applied = 0;
                 string stagingDir = Path.Combine(appDir, "WiimoteGun.Service", "update_service");
 
-                foreach (string item in Directory.GetFileSystemEntries(fixRoot))
+                foreach (string item in Directory.GetFileSystemEntries(contentRoot))
                 {
                     string name = Path.GetFileName(item);
                     if (Directory.Exists(item))
                     {
                         if (name.Equals("WiimoteGun.Service", StringComparison.OrdinalIgnoreCase))
                         {
-                            // EN/FR: Service folder -> FULL staging (files AND subfolders, HmHost included)
+                            // Service folder → FULL staging (files AND subfolders, HmHost included)
+                            // The service exe is RUNNING — it cannot be overwritten directly.
+                            // It will be updated by the app at startup (existing mechanism).
                             Directory.CreateDirectory(stagingDir);
                             foreach (string svcItem in Directory.GetFileSystemEntries(item))
                             {
@@ -184,7 +179,6 @@ namespace WiimoteGunMigrator
                                 {
                                     if (svcName.Equals("update_service", StringComparison.OrdinalIgnoreCase))
                                     {
-                                        // EN/FR: The archive's own staging -> merge its content into the live staging
                                         foreach (string nested in Directory.GetFileSystemEntries(svcItem))
                                             MergeEntry(nested, Path.Combine(stagingDir, Path.GetFileName(nested)), ref applied);
                                     }
@@ -203,17 +197,51 @@ namespace WiimoteGunMigrator
                         }
                         else
                         {
-                            // EN/FR: App-level folder (1-patch_emu, WiimoteGunDriver, ...) -> recursive merge
+                            // App-level folder → recursive merge
                             MergeEntry(item, Path.Combine(appDir, name), ref applied);
                         }
                     }
                     else
                     {
-                        // EN/FR: Top-level file -> app directory. The running migrator IS
-                        //     WiimoteGun.exe: the real exe is handled by the rename trick
-                        //     below, not by a blind copy (it would fail locked).
-                        if (name.Equals("WiimoteGun.exe", StringComparison.OrdinalIgnoreCase))
+                        // Top-level file → app directory
+                        // EXCEPT: the running service exe (goes to staging anyway)
+                        if (name.Equals(ServiceExeName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            Console.WriteLine("  skipped (running service): " + name);
                             continue;
+                        }
+                        // [V60-FIX-4] EN: The UPDATER itself — use the RENAME TRICK:
+                        //     1. Rename the RUNNING update_W4G.exe to .old
+                        //     2. Copy the new update_W4G.exe in its place
+                        //     3. The .old file is cleaned up on the next run / app start
+                        //     This replaces the old "skip" which LOST the new version
+                        //     (the temp dir was deleted at the end).
+                        //     FR: L'UPDATEUR lui-même — rename trick :
+                        //     1. Renommer le update_W4G.exe EN COURS en .old
+                        //     2. Copier le nouveau update_W4G.exe à sa place
+                        //     3. Le fichier .old est nettoyé au prochain run / démarrage app
+                        //     Ceci remplace l'ancien « skip » qui PERDAIT la nouvelle
+                        //     version (le temp dir était supprimé à la fin).
+                        if (name.Equals(SelfName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            try
+                            {
+                                string self = Process.GetCurrentProcess().MainModule.FileName;
+                                string renamedSelf = Path.Combine(appDir, SelfName + ".old");
+                                if (File.Exists(renamedSelf)) { try { File.Delete(renamedSelf); } catch { } }
+                                File.Move(self, renamedSelf);
+                                File.Copy(item, Path.Combine(appDir, SelfName), true);
+                                applied++;
+                                Console.WriteLine("  updater updated (rename trick): " + name);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine("  WARNING: could not update the updater: " + ex.Message);
+                                Console.WriteLine("  (the current version handles this update;");
+                                Console.WriteLine("   the new version will apply on the next update cycle)");
+                            }
+                            continue;
+                        }
                         try
                         {
                             File.Copy(item, Path.Combine(appDir, name), true);
@@ -227,8 +255,7 @@ namespace WiimoteGunMigrator
                     }
                 }
 
-                // EN/FR: The LIVE UpdateService.ps1 must be the new one NOW (the broken
-                //     machines keep a pre-V57d copy that cannot deploy HmHost)
+                // Refresh the LIVE UpdateService.ps1 (staged copy → live)
                 try
                 {
                     string stagedScript = Path.Combine(stagingDir, "UpdateService.ps1");
@@ -244,60 +271,25 @@ namespace WiimoteGunMigrator
                     Console.WriteLine("  WARNING: could not refresh UpdateService.ps1: " + ex.Message);
                 }
 
-                // [4/4] Replace THIS binary with the real WiimoteGun.exe (rename trick)
-                //     and start it - the update continues like a normal one.
-                //     NOTE: the temp cleanup happens AFTER this step - the real
-                //     WiimoteGun.exe lives inside the temp extraction dir.
-                Console.WriteLine("[4/4] Installing the real WiimoteGun.exe and starting it...");
-                string realExeSource = Path.Combine(fixRoot, "WiimoteGun.exe");
-                bool realExeInstalled = false;
-                if (File.Exists(realExeSource))
-                {
-                    try
-                    {
-                        string self = Process.GetCurrentProcess().MainModule.FileName;
-                        string renamedSelf = Path.Combine(appDir, "WiimoteGun" + SelfRenameSuffix);
-                        if (File.Exists(renamedSelf)) { try { File.Delete(renamedSelf); } catch { } }
-                        File.Move(self, renamedSelf); // EN/FR: rename the RUNNING exe aside
-                        File.Copy(realExeSource, Path.Combine(appDir, "WiimoteGun.exe"), true);
-                        realExeInstalled = true;
-                        Console.WriteLine("  real WiimoteGun.exe installed.");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine("  WARNING: could not install the real exe now: " + ex.Message);
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("  WARNING: no WiimoteGun.exe found in the extracted release.");
-                }
+                // [5/5] Cleanup + restart
+                Console.WriteLine("[5/5] Cleanup and restart...");
 
-                // EN/FR: Start the real app - the normal update flow takes over
+                // Delete the legacy WiimoteUpdate.ps1 (replaced by update_W4G.exe)
                 try
                 {
-                    Process.Start(new ProcessStartInfo
+                    string ps1 = Path.Combine(appDir, LegacyPs1);
+                    if (File.Exists(ps1))
                     {
-                        FileName = Path.Combine(appDir, "WiimoteGun.exe"),
-                        WorkingDirectory = appDir,
-                        UseShellExecute = true
-                    });
-                    Console.WriteLine("WiimoteGun started - update continues like a normal one.");
+                        File.Delete(ps1);
+                        Console.WriteLine("  deleted legacy " + LegacyPs1);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("WARNING: could not start WiimoteGun: " + ex.Message);
+                    Console.WriteLine("  WARNING: could not delete " + LegacyPs1 + ": " + ex.Message);
                 }
 
-                Console.WriteLine();
-
-                // EN/FR: NOW it is safe to clean up the temp dir (the real exe has been
-                //     copied to the app dir and the app has been started)
-                try { Directory.Delete(tempDir, true); } catch { }
-
-                // EN/FR: Clean up the transition leftovers in the APP dir: any .7z
-                //     archive file and any .null info file the old update script may
-                //     have copied there when it applied the transition archive.
+                // Clean up stale .7z and .null files in the app dir
                 try
                 {
                     foreach (string f in Directory.GetFiles(appDir, "*.7z"))
@@ -313,11 +305,31 @@ namespace WiimoteGunMigrator
                 }
                 catch { }
 
-                Console.WriteLine("DONE - " + applied + " items applied" + (realExeInstalled ? " + real app installed." : "."));
-                Console.WriteLine("(EN) The app now offers the service update (Admin) to deploy the");
-                Console.WriteLine("     HmHost driver next to the service.");
-                Console.WriteLine("(FR) L'app propose maintenant la mise a jour service (Admin) pour");
-                Console.WriteLine("     deployer le pilote HmHost a cote du service.");
+                // Restart WiimoteGun.exe (current user, never admin)
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = Path.Combine(appDir, AppExeName),
+                        WorkingDirectory = appDir,
+                        UseShellExecute = true
+                    });
+                    Console.WriteLine("  " + AppExeName + " restarted.");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("WARNING: could not start " + AppExeName + ": " + ex.Message);
+                    Console.WriteLine("         Please start it manually from:");
+                    Console.WriteLine("         " + Path.Combine(appDir, AppExeName));
+                }
+
+                // NOW safe to clean up temp (app exe already copied)
+                try { Directory.Delete(tempDir, true); } catch { }
+
+                Console.WriteLine();
+                Console.WriteLine("DONE - " + applied + " items applied.");
+                Console.WriteLine("(EN) The app will offer the service update (Admin) if needed.");
+                Console.WriteLine("(FR) L'app proposera la mise a jour du service (Admin) si besoin.");
                 Pause();
                 return 0;
             }
@@ -330,76 +342,11 @@ namespace WiimoteGunMigrator
         }
 
         /// <summary>
-        /// EN: Find the transition archive asset on the GitHub prerelease - the same
-        ///     asset the old script downloaded (first "Wiimote4Guns_*.7z" from the
-        ///     newest non-draft release). FR: Trouve l'asset de l'archive de
-        ///     transition sur la prerelease GitHub - le même asset que l'ancien
-        ///     script a téléchargé (premier « Wiimote4Guns_*.7z » de la release
-        ///     non-brouillon la plus récente).
-        /// </summary>
-        private static bool FindTransitionAsset(out string assetUrl)
-        {
-            assetUrl = null;
-            try
-            {
-                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-                string json;
-                using (WebClient wc = new WebClient())
-                {
-                    wc.Headers.Add("User-Agent", "Wiimote4Guns-Migrator");
-                    json = wc.DownloadString(ReleasesApiUrl);
-                }
-                if (string.IsNullOrEmpty(json)) return false;
-
-                Regex assetRegex = new Regex(@"""browser_download_url""\s*:\s*""([^""]*Wiimote4Guns_[^""]*\.(?:7z|zip))""", RegexOptions.IgnoreCase);
-                Match m = assetRegex.Match(json);
-                if (m.Success)
-                {
-                    assetUrl = m.Groups[1].Value;
-                    return true;
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("WARNING: GitHub query failed: " + ex.Message);
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// EN: Find any .7z or .zip archive file inside the given directory (not
-        ///     recursive - only at the root of the given folder). Used to find the
-        ///     nested real-release .7z inside the extracted transition archive.
-        ///     FR: Trouve tout fichier archive .7z ou .zip dans le dossier donné (pas
-        ///     récursif - seulement à la racine du dossier). Utilisé pour trouver le
-        ///     .7z de la vraie release imbriqué dans l'archive de transition extraite.
-        /// </summary>
-        private static string FindNestedArchiveInDir(string dir)
-        {
-            try
-            {
-                foreach (string file in Directory.GetFiles(dir, "*.7z"))
-                {
-                    return file;
-                }
-                foreach (string file in Directory.GetFiles(dir, "*.zip"))
-                {
-                    return file;
-                }
-            }
-            catch { }
-            return null;
-        }
-
-        /// <summary>
         /// EN: Extract an archive with 7za.exe (shipped with the app), or system 7-Zip,
         ///     or .zip natively via ZipFile.
-        ///     FR: Extrait une archive avec 7za.exe (livré avec l'app), ou 7-Zip
-        ///     système, ou .zip nativement via ZipFile.
         /// </summary>
         private static bool ExtractArchive(string archivePath, string extractDir, string appDir)
         {
-            // EN/FR: .zip - native extraction, no tool needed
             if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             {
                 try
@@ -410,7 +357,6 @@ namespace WiimoteGunMigrator
                 catch { return false; }
             }
 
-            // EN/FR: .7z - need 7za.exe or 7-Zip
             string sevenZip = null;
             string local = Path.Combine(appDir, "7za.exe");
             if (File.Exists(local)) sevenZip = local;
@@ -429,7 +375,6 @@ namespace WiimoteGunMigrator
                     if (File.Exists(p)) { sevenZip = p; break; }
                 }
             }
-
             if (sevenZip == null) return false;
 
             try

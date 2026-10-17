@@ -40,7 +40,154 @@ namespace WiimoteGun.Forms
             ManageVMulti(install: true);
         }
         private void btnUninstallVMulti_Click(object sender, EventArgs e) { ManageVMulti(install: false); }
-        private void btnContinue_Click(object sender, EventArgs e) { this.DialogResult = DialogResult.OK; this.Close(); }
+        private void btnContinue_Click(object sender, EventArgs e)
+        {
+            // [V60-FIX-2] EN: On START — ensure the .NET 10 runtime is present (needed
+            //     for the UMDF2 driver / HmHost). If missing, prompt + auto-install.
+            //     Then trigger the UMDF2 activation flow (same as the Options page).
+            //     FR: Au START — s'assurer que le runtime .NET 10 est présent (requis
+            //     pour le pilote UMDF2 / HmHost). Si absent, prompt + auto-install.
+            //     Puis déclencher le flux d'activation UMDF2 (comme dans les Options).
+            if (!Core.Net10RuntimeInstaller.EnsureRuntimeInstalled(this))
+            {
+                // Runtime not available (user declined or install failed) — the UMDF2
+                // mode will not work. The user can still continue (SendInput / VMulti).
+                SimpleLogger.Instance.Warning("[V60] SetupWizard: .NET 10 runtime NOT available — UMDF2 will not work until it is installed.");
+            }
+            else
+            {
+                // Runtime OK — trigger the UMDF2 activation (the same flow as the
+                // Options dropdown: confirmation dialog + HmActivate + restart prompt)
+                // ONLY when the mode is UMDF2 (set by the wizard for new users / kept
+                // from the previous session) and HmHost is NOT already active.
+                SimpleLogger.Instance.Info("[V60] SetupWizard: .NET 10 runtime OK — checking UMDF2 activation...");
+                TriggerUmdf2ActivationIfNeeded();
+            }
+
+            this.DialogResult = DialogResult.OK;
+            this.Close();
+        }
+
+        /// <summary>
+        /// [V60-FIX-2] EN: Triggers the UMDF2 activation flow (confirmation + HmActivate
+        ///     + restart prompt) when the mode is RawInputUmdf and HmHost is not yet
+        ///     activated. This fixes the bug where the wizard set the mode but never
+        ///     called the activation — the user had to deselect/reselect in the Options.
+        ///     FR: Déclenche le flux d'activation UMDF2 (confirmation + HmActivate +
+        ///     prompt de redémarrage) quand le mode est RawInputUmdf et que HmHost
+        ///     n'est pas encore activé. Corrige le bug où le wizard posait le mode sans
+        ///     jamais appeler l'activation — l'user devait déselectionner/resélectionner
+        ///     dans les Options.
+        /// </summary>
+        private void TriggerUmdf2ActivationIfNeeded()
+        {
+            try
+            {
+                // Only when the mode IS UMDF2 (default for new users)
+                if (WiimoteGun.Options.Instance.DefaultMouseMode != MouseMode.RawInputUmdf)
+                    return;
+
+                // Skip if HmHost is already active (previous session activated it)
+                // [V60-FIX-2b] EN: BUG — "OK INACTIVE" contains "ACTIVE" as a substring,
+                //     which made the check ALWAYS true and skipped the activation. The
+                //     user had to deselect/reselect in the Options to trigger it.
+                //     Fix: check for "ACTIVE" as a WORD (not preceded by "IN").
+                //     FR: BUG — « OK INACTIVE » contient « ACTIVE » comme sous-chaîne,
+                //     ce qui rendait le check TOUJOURS vrai et sautait l'activation.
+                //     L'user devait déselectionner/resélectionner dans les Options.
+                //     Fix : chercher « ACTIVE » comme MOT (pas précédé de « IN »).
+                string status = ServiceClient.HmStatusRaw();
+                bool isAlreadyActive = status != null &&
+                    status.ToUpperInvariant().Contains("ACTIVE") &&
+                    !status.ToUpperInvariant().Contains("INACTIVE");
+                if (isAlreadyActive)
+                {
+                    SimpleLogger.Instance.Info("[V60] SetupWizard: HmHost already active — no activation needed.");
+                    return;
+                }
+
+                // Show the same confirmation dialog as the Options page
+                string confirm =
+                    "Enable the RawInput (UMDF2) input mode?\n\n" +
+                    "This installs the UMDF2 virtual HID driver and its self-signed certificate\n" +
+                    "(machine Root + TrustedPublisher stores) through the WiimoteGun Service.\n" +
+                    "No UAC prompt, no test mode, no reboot. First activation can take a few seconds.\n" +
+                    "Takes effect on the next Wiimote connection / app restart.\n\n" +
+                    "Activer le mode d'input RawInput (UMDF2) ?\n\n" +
+                    "Cela installe le pilote HID virtuel UMDF2 et son certificat auto-signé\n" +
+                    "(magasins Root + TrustedPublisher de la machine) via le service WiimoteGun.\n" +
+                    "Aucun UAC, aucun test mode, aucun reboot. La première activation peut prendre\n" +
+                    "quelques secondes. Prend effet à la prochaine connexion de Wiimote / relance.";
+
+                DialogResult choice = MessageBox.Show(this, confirm, "RawInput (UMDF2) — Setup",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+                if (choice != DialogResult.Yes)
+                {
+                    SimpleLogger.Instance.Info("[V60] SetupWizard: user declined the UMDF2 activation.");
+                    return;
+                }
+
+                // Activate through the service (same as OptionsControl.ApplyMouseModeChange)
+                this.Cursor = Cursors.WaitCursor;
+                string resp = ServiceClient.HmActivate();
+                this.Cursor = Cursors.Default;
+
+                if (resp == null || !resp.StartsWith("OK"))
+                {
+                    MessageBox.Show(this,
+                        "UMDF2 activation failed:\n" + (resp ?? "Service not running or too old.") +
+                        "\n\nThe driver will be activated on the next app start.\n\n" +
+                        "Échec de l'activation UMDF2 :\n" + (resp ?? "Service absent ou trop ancien.") +
+                        "\n\nLe pilote sera activé au prochain démarrage de l'app.",
+                        "RawInput (UMDF2)", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                SimpleLogger.Instance.Info("[V60] SetupWizard: UMDF2 activated: " + resp);
+
+                // Success — offer to restart now (same as the Options page)
+                string successMsg =
+                    // [V60-FIX-2c] EN: Windows-restart advice added — after the .NET 10
+                    //     runtime install + UMDF2 activation, a WINDOWS REBOOT may be
+                    //     needed for the driver to fully initialize (user report).
+                    //     FR: Conseil de redémarrage Windows ajouté — après l'install
+                    //     du runtime .NET 10 + l'activation UMDF2, un REBOOT WINDOWS
+                    //     peut être nécessaire pour que le pilote s'initialise.
+                    "RawInput (UMDF2) activated successfully.\n" +
+                    "IMPORTANT: if this is the FIRST time you install the .NET 10 runtime,\n" +
+                    "a WINDOWS RESTART may be needed for the driver to work.\n" +
+                    "If the tracking does not respond after restarting Wiimote4Guns:\n" +
+                    "-> Restart Windows, then reconnect your Wiimote.\n\n" +
+                    "Restart Wiimote4Guns now?\n\n" +
+                    "--------------------------------\n\n" +
+                    "RawInput (UMDF2) activé avec succès.\n" +
+                    "IMPORTANT : si c'est la PREMIÈRE fois que vous installez le runtime .NET 10,\n" +
+                    "un REDÉMARRAGE WINDOWS peut être nécessaire pour que le pilote fonctionne.\n" +
+                    "Si le tracking ne répond pas après le redémarrage de Wiimote4Guns :\n" +
+                    "-> Redémarrez Windows, puis reconnectez votre Wiimote.\n\n" +
+                    "Redémarrer Wiimote4Guns maintenant ?";
+
+                DialogResult restart = MessageBox.Show(this, successMsg, "RawInput (UMDF2)",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+
+                if (restart == DialogResult.Yes)
+                {
+                    // Save the mode BEFORE restarting (same guard as OptionsControl)
+                    WiimoteGun.Options.Instance.Save();
+                    // [V60-FIX-3] EN: Flag the restart so FirstRun (WelcomeDialog)
+                    //     survives — the dialog shows on the NEXT start, not now.
+                    //     FR: Marque le redémarrage pour que FirstRun (WelcomeDialog)
+                    //     survive — le dialogue s'affichera au PROCHAIN démarrage.
+                    Program.IsRestartingForUmdf2 = true;
+                    Program.RestartApplication();
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Warning("[V60] SetupWizard: UMDF2 activation check failed: " + ex.Message);
+            }
+        }
         private void btnSkip_Click(object sender, EventArgs e) { this.DialogResult = DialogResult.Ignore; this.Close(); }
         private void chkDontShowAgain_CheckedChanged(object sender, EventArgs e)
         {

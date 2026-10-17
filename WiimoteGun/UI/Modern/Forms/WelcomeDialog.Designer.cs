@@ -34,52 +34,49 @@ namespace WiimoteGun
             // 
             // richTextBox
             // 
+            this.richTextBox.BackColor = System.Drawing.SystemColors.Window;
             this.richTextBox.BorderStyle = System.Windows.Forms.BorderStyle.None;
-            this.richTextBox.Location = new System.Drawing.Point(12, 60);
-            this.richTextBox.Multiline = true;
+            this.richTextBox.Font = new System.Drawing.Font("Segoe UI", 9.5F);
+            this.richTextBox.Location = new System.Drawing.Point(12, 64);
             this.richTextBox.Name = "richTextBox";
             this.richTextBox.ReadOnly = true;
             this.richTextBox.ScrollBars = System.Windows.Forms.RichTextBoxScrollBars.Vertical;
-            this.richTextBox.Size = new System.Drawing.Size(776, 530);
+            this.richTextBox.Size = new System.Drawing.Size(776, 533);
             this.richTextBox.TabIndex = 0;
             this.richTextBox.TabStop = false;
-            this.richTextBox.Font = new System.Drawing.Font("Segoe UI", 9.5F);
-            this.richTextBox.BackColor = System.Drawing.SystemColors.Window;
+            this.richTextBox.Text = "";
             // 
             // btnOK
             // 
-            this.btnOK.Location = new System.Drawing.Point(355, 600);
+            this.btnOK.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(120)))), ((int)(((byte)(215)))));
+            this.btnOK.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.btnOK.DialogResult = System.Windows.Forms.DialogResult.OK;
+            this.btnOK.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnOK.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
+            this.btnOK.ForeColor = System.Drawing.Color.White;
+            this.btnOK.Location = new System.Drawing.Point(355, 603);
             this.btnOK.Name = "btnOK";
             this.btnOK.Size = new System.Drawing.Size(90, 35);
             this.btnOK.TabIndex = 1;
             this.btnOK.Text = "OK";
-            this.btnOK.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
             this.btnOK.UseVisualStyleBackColor = false;
-            this.btnOK.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(120)))), ((int)(((byte)(215)))));
-            this.btnOK.ForeColor = System.Drawing.Color.White;
-            this.btnOK.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnOK.Cursor = System.Windows.Forms.Cursors.Hand;
             this.btnOK.Click += new System.EventHandler(this.btnOK_Click);
-            this.btnOK.DialogResult = System.Windows.Forms.DialogResult.OK;
             // 
             // WelcomeDialog
             // 
             this.AcceptButton = this.btnOK;
+            this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(120)))), ((int)(((byte)(215)))));
             this.ClientSize = new System.Drawing.Size(800, 650);
             this.Controls.Add(this.btnOK);
             this.Controls.Add(this.richTextBox);
+            this.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.Name = "WelcomeDialog";
-            this.ShowIcon = true;
-            this.ShowInTaskbar = true;
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "Wiimote4Guns - First Launch";
-            this.Font = System.Drawing.SystemFonts.MessageBoxFont;
-            this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(120)))), ((int)(((byte)(215)))));
             this.ResumeLayout(false);
-            this.PerformLayout();
 
         }
 

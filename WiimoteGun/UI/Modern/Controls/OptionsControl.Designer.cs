@@ -59,6 +59,18 @@ namespace WiimoteGun.Controls
             this.optIRSensitivity = new System.Windows.Forms.NumericUpDown();
             this.lblIRSensitivity = new System.Windows.Forms.Label();
             this.optLEDLayout = new System.Windows.Forms.ComboBox();
+            // [V59-FIX-9] EN/FR: Hybrid PnP checkbox for the Two Wiimote Bars (Or Blacom) layout.
+            this.chkTwbHybridPnp = new System.Windows.Forms.CheckBox();
+            // [V59-FIX-11] EN/FR: Wiimote Bar hybrid checkbox (replaces the PNP-Hybrid dropdown entry).
+            this.chkWmHybridPnp = new System.Windows.Forms.CheckBox();
+            // [V59-FIX-17] EN/FR: Wiimote Bar PnP edge-extrapolation opt-in checkbox.
+            this.chkWmPnpExtrapolation = new System.Windows.Forms.CheckBox();
+            // [V59-FIX-10] EN/FR: Declared-geometry controls (PNP-Hybrid layout).
+            this.chkPnpDeclareGeometry = new System.Windows.Forms.CheckBox();
+            this.lblPnpLedSpacing = new System.Windows.Forms.Label();
+            this.optPnpLedSpacing = new System.Windows.Forms.NumericUpDown();
+            this.lblPnpLensFov = new System.Windows.Forms.Label();
+            this.optPnpLensFov = new System.Windows.Forms.NumericUpDown();
             this.lblLEDLayout = new System.Windows.Forms.Label();
             this.optMonitorId = new System.Windows.Forms.NumericUpDown();
             this.lblMonitorId = new System.Windows.Forms.Label();
@@ -142,6 +154,8 @@ namespace WiimoteGun.Controls
             ((System.ComponentModel.ISupportInitialize)(this.optVirtualPollingRateV2)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.optIRSensitivity)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.optMonitorId)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.optPnpLedSpacing)).BeginInit(); // [V59-FIX-10]
+            ((System.ComponentModel.ISupportInitialize)(this.optPnpLensFov)).BeginInit(); // [V59-FIX-10]
             // [V55y] TrackBar BeginInit (Designer norm)
             ((System.ComponentModel.ISupportInitialize)(this.trkReloadRumbleIntensity)).BeginInit();
             // [V55z] Custom style controls BeginInit (Designer norm)
@@ -157,7 +171,7 @@ namespace WiimoteGun.Controls
             // 
             this.optEnableFPSMode.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.optEnableFPSMode.ForeColor = System.Drawing.Color.Goldenrod;
-            this.optEnableFPSMode.Location = new System.Drawing.Point(20, 323);
+            this.optEnableFPSMode.Location = new System.Drawing.Point(20, 345);
             this.optEnableFPSMode.Name = "optEnableFPSMode";
             this.optEnableFPSMode.Size = new System.Drawing.Size(154, 25);
             this.optEnableFPSMode.TabIndex = 1;
@@ -170,7 +184,7 @@ namespace WiimoteGun.Controls
             this.lblHelpPersistentGamePads.Cursor = System.Windows.Forms.Cursors.Help;
             this.lblHelpPersistentGamePads.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
             this.lblHelpPersistentGamePads.ForeColor = System.Drawing.Color.Goldenrod;
-            this.lblHelpPersistentGamePads.Location = new System.Drawing.Point(197, 389);
+            this.lblHelpPersistentGamePads.Location = new System.Drawing.Point(197, 411);
             this.lblHelpPersistentGamePads.Name = "lblHelpPersistentGamePads";
             this.lblHelpPersistentGamePads.Size = new System.Drawing.Size(12, 15);
             this.lblHelpPersistentGamePads.TabIndex = 17;
@@ -336,6 +350,18 @@ namespace WiimoteGun.Controls
             this.tabGeneral.Controls.Add(this.lblLEDLayout);
             this.tabGeneral.Controls.Add(this.optMonitorId);
             this.tabGeneral.Controls.Add(this.lblMonitorId);
+            // [V59-FIX-9] EN/FR: Hybrid PnP checkbox (Two Wiimote Bars layout only)
+            this.tabGeneral.Controls.Add(this.chkTwbHybridPnp);
+            // [V59-FIX-11] EN/FR: Wiimote Bar hybrid checkbox (replaces the PNP-Hybrid dropdown entry)
+            this.tabGeneral.Controls.Add(this.chkWmHybridPnp);
+            // [V59-FIX-17] EN/FR: Wiimote Bar PnP edge-extrapolation opt-in checkbox
+            this.tabGeneral.Controls.Add(this.chkWmPnpExtrapolation);
+            // [V59-FIX-10] EN/FR: Declared-geometry controls (PNP-Hybrid only)
+            this.tabGeneral.Controls.Add(this.chkPnpDeclareGeometry);
+            this.tabGeneral.Controls.Add(this.lblPnpLedSpacing);
+            this.tabGeneral.Controls.Add(this.optPnpLedSpacing);
+            this.tabGeneral.Controls.Add(this.lblPnpLensFov);
+            this.tabGeneral.Controls.Add(this.optPnpLensFov);
             this.tabGeneral.Controls.Add(this.optMouseMode);
             this.tabGeneral.Controls.Add(this.lblMouseMode);
             this.tabGeneral.Location = new System.Drawing.Point(4, 22);
@@ -349,7 +375,7 @@ namespace WiimoteGun.Controls
             // 
             this.optUseHighPerfTimers.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.optUseHighPerfTimers.ForeColor = System.Drawing.Color.White;
-            this.optUseHighPerfTimers.Location = new System.Drawing.Point(20, 485);
+            this.optUseHighPerfTimers.Location = new System.Drawing.Point(20, 507);
             this.optUseHighPerfTimers.Name = "optUseHighPerfTimers";
             this.optUseHighPerfTimers.Size = new System.Drawing.Size(250, 25);
             this.optUseHighPerfTimers.TabIndex = 8;
@@ -360,7 +386,7 @@ namespace WiimoteGun.Controls
             // 
             this.optEnableHomographyCache.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.optEnableHomographyCache.ForeColor = System.Drawing.Color.White;
-            this.optEnableHomographyCache.Location = new System.Drawing.Point(20, 511);
+            this.optEnableHomographyCache.Location = new System.Drawing.Point(20, 533);
             this.optEnableHomographyCache.Name = "optEnableHomographyCache";
             this.optEnableHomographyCache.Size = new System.Drawing.Size(250, 25);
             this.optEnableHomographyCache.TabIndex = 9;
@@ -371,7 +397,7 @@ namespace WiimoteGun.Controls
             // 
             this.optEnableDistanceCompensation.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.optEnableDistanceCompensation.ForeColor = System.Drawing.Color.White;
-            this.optEnableDistanceCompensation.Location = new System.Drawing.Point(20, 537);
+            this.optEnableDistanceCompensation.Location = new System.Drawing.Point(20, 559);
             this.optEnableDistanceCompensation.Name = "optEnableDistanceCompensation";
             this.optEnableDistanceCompensation.Size = new System.Drawing.Size(320, 25);
             this.optEnableDistanceCompensation.TabIndex = 9;
@@ -382,7 +408,7 @@ namespace WiimoteGun.Controls
             // 
             this.optIRSmoothingStrength.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
             this.optIRSmoothingStrength.ForeColor = System.Drawing.Color.White;
-            this.optIRSmoothingStrength.Location = new System.Drawing.Point(166, 457);
+            this.optIRSmoothingStrength.Location = new System.Drawing.Point(166, 479);
             this.optIRSmoothingStrength.Maximum = new decimal(new int[] {
             10,
             0,
@@ -406,7 +432,7 @@ namespace WiimoteGun.Controls
             // 
             this.lblIRSmoothingStrength.Font = new System.Drawing.Font("Segoe UI", 9.5F);
             this.lblIRSmoothingStrength.ForeColor = System.Drawing.Color.White;
-            this.lblIRSmoothingStrength.Location = new System.Drawing.Point(40, 452);
+            this.lblIRSmoothingStrength.Location = new System.Drawing.Point(40, 474);
             this.lblIRSmoothingStrength.Name = "lblIRSmoothingStrength";
             this.lblIRSmoothingStrength.Size = new System.Drawing.Size(120, 25);
             this.lblIRSmoothingStrength.TabIndex = 0;
@@ -423,7 +449,7 @@ namespace WiimoteGun.Controls
             0,
             0,
             65536});
-            this.optIRExtrapolationStrength.Location = new System.Drawing.Point(166, 594);
+            this.optIRExtrapolationStrength.Location = new System.Drawing.Point(166, 616);
             this.optIRExtrapolationStrength.Maximum = new decimal(new int[] {
             10,
             0,
@@ -447,7 +473,7 @@ namespace WiimoteGun.Controls
             // 
             this.lblIRExtrapolationStrength.Font = new System.Drawing.Font("Segoe UI", 9.5F);
             this.lblIRExtrapolationStrength.ForeColor = System.Drawing.Color.White;
-            this.lblIRExtrapolationStrength.Location = new System.Drawing.Point(40, 587);
+            this.lblIRExtrapolationStrength.Location = new System.Drawing.Point(40, 609);
             this.lblIRExtrapolationStrength.Name = "lblIRExtrapolationStrength";
             this.lblIRExtrapolationStrength.Size = new System.Drawing.Size(120, 25);
             this.lblIRExtrapolationStrength.TabIndex = 0;
@@ -458,7 +484,7 @@ namespace WiimoteGun.Controls
             // 
             this.optUseIRExtrapolation.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.optUseIRExtrapolation.ForeColor = System.Drawing.Color.Goldenrod;
-            this.optUseIRExtrapolation.Location = new System.Drawing.Point(20, 564);
+            this.optUseIRExtrapolation.Location = new System.Drawing.Point(20, 586);
             this.optUseIRExtrapolation.Name = "optUseIRExtrapolation";
             this.optUseIRExtrapolation.Size = new System.Drawing.Size(250, 25);
             this.optUseIRExtrapolation.TabIndex = 10;
@@ -469,7 +495,7 @@ namespace WiimoteGun.Controls
             // 
             this.optEnableIRSmoothing.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.optEnableIRSmoothing.ForeColor = System.Drawing.Color.White;
-            this.optEnableIRSmoothing.Location = new System.Drawing.Point(20, 426);
+            this.optEnableIRSmoothing.Location = new System.Drawing.Point(20, 448);
             this.optEnableIRSmoothing.Name = "optEnableIRSmoothing";
             this.optEnableIRSmoothing.Size = new System.Drawing.Size(220, 25);
             this.optEnableIRSmoothing.TabIndex = 6;
@@ -480,7 +506,7 @@ namespace WiimoteGun.Controls
             // 
             this.optEnableVirtualPolling.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.optEnableVirtualPolling.ForeColor = System.Drawing.Color.Goldenrod;
-            this.optEnableVirtualPolling.Location = new System.Drawing.Point(20, 620);
+            this.optEnableVirtualPolling.Location = new System.Drawing.Point(20, 642);
             this.optEnableVirtualPolling.Name = "optEnableVirtualPolling";
             this.optEnableVirtualPolling.Size = new System.Drawing.Size(250, 25);
             this.optEnableVirtualPolling.TabIndex = 12;
@@ -491,7 +517,7 @@ namespace WiimoteGun.Controls
             // 
             this.lblVirtualPollingRate.Font = new System.Drawing.Font("Segoe UI", 9.5F);
             this.lblVirtualPollingRate.ForeColor = System.Drawing.Color.White;
-            this.lblVirtualPollingRate.Location = new System.Drawing.Point(40, 645);
+            this.lblVirtualPollingRate.Location = new System.Drawing.Point(40, 667);
             this.lblVirtualPollingRate.Name = "lblVirtualPollingRate";
             this.lblVirtualPollingRate.Size = new System.Drawing.Size(120, 25);
             this.lblVirtualPollingRate.TabIndex = 0;
@@ -502,7 +528,7 @@ namespace WiimoteGun.Controls
             // 
             this.optVirtualPollingRate.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
             this.optVirtualPollingRate.ForeColor = System.Drawing.Color.White;
-            this.optVirtualPollingRate.Location = new System.Drawing.Point(166, 650);
+            this.optVirtualPollingRate.Location = new System.Drawing.Point(166, 672);
             this.optVirtualPollingRate.Maximum = new decimal(new int[] {
             1000,
             0,
@@ -526,7 +552,7 @@ namespace WiimoteGun.Controls
             // 
             this.lblV2ModelNote.Font = new System.Drawing.Font("Segoe UI", 7.5F);
             this.lblV2ModelNote.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(170)))), ((int)(((byte)(170)))), ((int)(((byte)(170)))));
-            this.lblV2ModelNote.Location = new System.Drawing.Point(240, 426);
+            this.lblV2ModelNote.Location = new System.Drawing.Point(240, 448);
             this.lblV2ModelNote.Name = "lblV2ModelNote";
             this.lblV2ModelNote.Size = new System.Drawing.Size(148, 28);
             this.lblV2ModelNote.TabIndex = 14;
@@ -536,7 +562,7 @@ namespace WiimoteGun.Controls
             // 
             this.lblIRSmoothingStrengthV2.Font = new System.Drawing.Font("Segoe UI", 8.25F);
             this.lblIRSmoothingStrengthV2.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(170)))), ((int)(((byte)(170)))), ((int)(((byte)(170)))));
-            this.lblIRSmoothingStrengthV2.Location = new System.Drawing.Point(240, 452);
+            this.lblIRSmoothingStrengthV2.Location = new System.Drawing.Point(240, 474);
             this.lblIRSmoothingStrengthV2.Name = "lblIRSmoothingStrengthV2";
             this.lblIRSmoothingStrengthV2.Size = new System.Drawing.Size(26, 20);
             this.lblIRSmoothingStrengthV2.TabIndex = 15;
@@ -547,7 +573,7 @@ namespace WiimoteGun.Controls
             // 
             this.optIRSmoothingStrengthV2.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
             this.optIRSmoothingStrengthV2.ForeColor = System.Drawing.Color.White;
-            this.optIRSmoothingStrengthV2.Location = new System.Drawing.Point(268, 457);
+            this.optIRSmoothingStrengthV2.Location = new System.Drawing.Point(268, 479);
             this.optIRSmoothingStrengthV2.Maximum = new decimal(new int[] {
             10,
             0,
@@ -571,7 +597,7 @@ namespace WiimoteGun.Controls
             // 
             this.lblIRExtrapolationStrengthV2.Font = new System.Drawing.Font("Segoe UI", 8.25F);
             this.lblIRExtrapolationStrengthV2.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(170)))), ((int)(((byte)(170)))), ((int)(((byte)(170)))));
-            this.lblIRExtrapolationStrengthV2.Location = new System.Drawing.Point(240, 589);
+            this.lblIRExtrapolationStrengthV2.Location = new System.Drawing.Point(240, 611);
             this.lblIRExtrapolationStrengthV2.Name = "lblIRExtrapolationStrengthV2";
             this.lblIRExtrapolationStrengthV2.Size = new System.Drawing.Size(26, 20);
             this.lblIRExtrapolationStrengthV2.TabIndex = 17;
@@ -588,7 +614,7 @@ namespace WiimoteGun.Controls
             0,
             0,
             65536});
-            this.optIRExtrapolationStrengthV2.Location = new System.Drawing.Point(268, 594);
+            this.optIRExtrapolationStrengthV2.Location = new System.Drawing.Point(268, 616);
             this.optIRExtrapolationStrengthV2.Maximum = new decimal(new int[] {
             10,
             0,
@@ -612,7 +638,7 @@ namespace WiimoteGun.Controls
             // 
             this.lblVirtualPollingRateV2.Font = new System.Drawing.Font("Segoe UI", 8.25F);
             this.lblVirtualPollingRateV2.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(170)))), ((int)(((byte)(170)))), ((int)(((byte)(170)))));
-            this.lblVirtualPollingRateV2.Location = new System.Drawing.Point(240, 645);
+            this.lblVirtualPollingRateV2.Location = new System.Drawing.Point(240, 667);
             this.lblVirtualPollingRateV2.Name = "lblVirtualPollingRateV2";
             this.lblVirtualPollingRateV2.Size = new System.Drawing.Size(26, 20);
             this.lblVirtualPollingRateV2.TabIndex = 19;
@@ -623,7 +649,7 @@ namespace WiimoteGun.Controls
             // 
             this.optVirtualPollingRateV2.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
             this.optVirtualPollingRateV2.ForeColor = System.Drawing.Color.White;
-            this.optVirtualPollingRateV2.Location = new System.Drawing.Point(268, 650);
+            this.optVirtualPollingRateV2.Location = new System.Drawing.Point(268, 672);
             this.optVirtualPollingRateV2.Maximum = new decimal(new int[] {
             1000,
             0,
@@ -660,7 +686,7 @@ namespace WiimoteGun.Controls
             "ERROR",
             "FATAL",
             "NONE"});
-            this.optLogLevel.Location = new System.Drawing.Point(140, 233);
+            this.optLogLevel.Location = new System.Drawing.Point(140, 255);
             this.optLogLevel.Name = "optLogLevel";
             this.optLogLevel.Size = new System.Drawing.Size(200, 23);
             this.optLogLevel.TabIndex = 5;
@@ -669,7 +695,7 @@ namespace WiimoteGun.Controls
             // 
             this.lblLogLevelModern.Font = new System.Drawing.Font("Segoe UI", 9.5F);
             this.lblLogLevelModern.ForeColor = System.Drawing.Color.White;
-            this.lblLogLevelModern.Location = new System.Drawing.Point(10, 233);
+            this.lblLogLevelModern.Location = new System.Drawing.Point(10, 255);
             this.lblLogLevelModern.Name = "lblLogLevelModern";
             this.lblLogLevelModern.Size = new System.Drawing.Size(120, 25);
             this.lblLogLevelModern.TabIndex = 0;
@@ -684,7 +710,7 @@ namespace WiimoteGun.Controls
             this.optAutoStart.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.optAutoStart.ForeColor = System.Drawing.Color.White;
             this.optAutoStart.FormattingEnabled = true;
-            this.optAutoStart.Location = new System.Drawing.Point(140, 280);
+            this.optAutoStart.Location = new System.Drawing.Point(140, 302);
             this.optAutoStart.Name = "optAutoStart";
             this.optAutoStart.Size = new System.Drawing.Size(200, 23);
             this.optAutoStart.TabIndex = 6;
@@ -693,7 +719,7 @@ namespace WiimoteGun.Controls
             // 
             this.lblAutoStart.Font = new System.Drawing.Font("Segoe UI", 9.5F);
             this.lblAutoStart.ForeColor = System.Drawing.Color.White;
-            this.lblAutoStart.Location = new System.Drawing.Point(10, 280);
+            this.lblAutoStart.Location = new System.Drawing.Point(10, 302);
             this.lblAutoStart.Name = "lblAutoStart";
             this.lblAutoStart.Size = new System.Drawing.Size(120, 25);
             this.lblAutoStart.TabIndex = 0;
@@ -706,7 +732,7 @@ namespace WiimoteGun.Controls
             this.btnConfigureGamePad.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnConfigureGamePad.Font = new System.Drawing.Font("Segoe UI", 8F);
             this.btnConfigureGamePad.ForeColor = System.Drawing.Color.White;
-            this.btnConfigureGamePad.Location = new System.Drawing.Point(220, 353);
+            this.btnConfigureGamePad.Location = new System.Drawing.Point(220, 375);
             this.btnConfigureGamePad.Name = "btnConfigureGamePad";
             this.btnConfigureGamePad.Size = new System.Drawing.Size(120, 25);
             this.btnConfigureGamePad.TabIndex = 3;
@@ -718,7 +744,7 @@ namespace WiimoteGun.Controls
             // 
             this.optPersistentGamePads.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.optPersistentGamePads.ForeColor = System.Drawing.Color.White;
-            this.optPersistentGamePads.Location = new System.Drawing.Point(20, 384);
+            this.optPersistentGamePads.Location = new System.Drawing.Point(20, 406);
             this.optPersistentGamePads.Name = "optPersistentGamePads";
             this.optPersistentGamePads.Size = new System.Drawing.Size(220, 25);
             this.optPersistentGamePads.TabIndex = 4;
@@ -729,7 +755,7 @@ namespace WiimoteGun.Controls
             // 
             this.optEnableGamePadSwap.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.optEnableGamePadSwap.ForeColor = System.Drawing.Color.White;
-            this.optEnableGamePadSwap.Location = new System.Drawing.Point(20, 353);
+            this.optEnableGamePadSwap.Location = new System.Drawing.Point(20, 375);
             this.optEnableGamePadSwap.Name = "optEnableGamePadSwap";
             this.optEnableGamePadSwap.Size = new System.Drawing.Size(189, 25);
             this.optEnableGamePadSwap.TabIndex = 2;
@@ -740,7 +766,7 @@ namespace WiimoteGun.Controls
             // 
             this.optShowNotifications.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.optShowNotifications.ForeColor = System.Drawing.Color.White;
-            this.optShowNotifications.Location = new System.Drawing.Point(20, 202);
+            this.optShowNotifications.Location = new System.Drawing.Point(20, 224);
             this.optShowNotifications.Name = "optShowNotifications";
             this.optShowNotifications.Size = new System.Drawing.Size(155, 25);
             this.optShowNotifications.TabIndex = 1;
@@ -751,7 +777,7 @@ namespace WiimoteGun.Controls
             // 
             this.optAutoBtReset.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.optAutoBtReset.ForeColor = System.Drawing.Color.LightCoral;
-            this.optAutoBtReset.Location = new System.Drawing.Point(180, 202);
+            this.optAutoBtReset.Location = new System.Drawing.Point(180, 224);
             this.optAutoBtReset.Name = "optAutoBtReset";
             this.optAutoBtReset.Size = new System.Drawing.Size(120, 25);
             this.optAutoBtReset.TabIndex = 100;
@@ -768,7 +794,7 @@ namespace WiimoteGun.Controls
             0,
             0,
             0});
-            this.numBtResetDelay.Location = new System.Drawing.Point(305, 203);
+            this.numBtResetDelay.Location = new System.Drawing.Point(305, 225);
             this.numBtResetDelay.Maximum = new decimal(new int[] {
             300,
             0,
@@ -792,7 +818,7 @@ namespace WiimoteGun.Controls
             // 
             this.lblBtResetDelay.Font = new System.Drawing.Font("Segoe UI", 8.5F);
             this.lblBtResetDelay.ForeColor = System.Drawing.Color.Silver;
-            this.lblBtResetDelay.Location = new System.Drawing.Point(358, 205);
+            this.lblBtResetDelay.Location = new System.Drawing.Point(358, 227);
             this.lblBtResetDelay.Name = "lblBtResetDelay";
             this.lblBtResetDelay.Size = new System.Drawing.Size(25, 20);
             this.lblBtResetDelay.Text = "s";
@@ -802,7 +828,7 @@ namespace WiimoteGun.Controls
             // 
             this.optIRSensitivity.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
             this.optIRSensitivity.ForeColor = System.Drawing.Color.White;
-            this.optIRSensitivity.Location = new System.Drawing.Point(140, 148);
+            this.optIRSensitivity.Location = new System.Drawing.Point(140, 196);
             this.optIRSensitivity.Maximum = new decimal(new int[] {
             5,
             0,
@@ -826,7 +852,7 @@ namespace WiimoteGun.Controls
             // 
             this.lblIRSensitivity.Font = new System.Drawing.Font("Segoe UI", 9.5F);
             this.lblIRSensitivity.ForeColor = System.Drawing.Color.White;
-            this.lblIRSensitivity.Location = new System.Drawing.Point(10, 148);
+            this.lblIRSensitivity.Location = new System.Drawing.Point(10, 196);
             this.lblIRSensitivity.Name = "lblIRSensitivity";
             this.lblIRSensitivity.Size = new System.Drawing.Size(120, 25);
             this.lblIRSensitivity.TabIndex = 0;
@@ -844,14 +870,16 @@ namespace WiimoteGun.Controls
             this.optLEDLayout.Items.AddRange(new object[] {
             "Wiimote Bar",
             "Gun4IR Diamond",
+            "Two Wiimote Bars (Or Blacom)",
             "Four Corners"});
             this.optLEDLayout.Location = new System.Drawing.Point(140, 104);
             this.optLEDLayout.Name = "optLEDLayout";
             this.optLEDLayout.Size = new System.Drawing.Size(200, 23);
             this.optLEDLayout.TabIndex = 1;
-            // 
+            this.optLEDLayout.SelectedIndexChanged += new System.EventHandler(this.OptLEDLayout_SelectedIndexChanged);
+            //
             // lblLEDLayout
-            // 
+            //
             this.lblLEDLayout.Font = new System.Drawing.Font("Segoe UI", 9.5F);
             this.lblLEDLayout.ForeColor = System.Drawing.Color.White;
             this.lblLEDLayout.Location = new System.Drawing.Point(10, 104);
@@ -860,7 +888,100 @@ namespace WiimoteGun.Controls
             this.lblLEDLayout.TabIndex = 0;
             this.lblLEDLayout.Text = "LED Layout:";
             this.lblLEDLayout.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            // 
+            //
+            // [V59-FIX-9] chkTwbHybridPnp — enables the hybrid PnP distance correction
+            //     on the Two Wiimote Bars (Or Blacom) layout. Visible ONLY when that
+            //     layout is selected (see UpdateTwbHybridVisibility).
+            //
+            this.chkTwbHybridPnp.Appearance = System.Windows.Forms.Appearance.Normal;
+            this.chkTwbHybridPnp.AutoSize = true;
+            this.chkTwbHybridPnp.ForeColor = System.Drawing.Color.White;
+            this.chkTwbHybridPnp.Location = new System.Drawing.Point(140, 126);
+            this.chkTwbHybridPnp.Name = "chkTwbHybridPnp";
+            this.chkTwbHybridPnp.Size = new System.Drawing.Size(190, 20);
+            this.chkTwbHybridPnp.TabIndex = 2;
+            this.chkTwbHybridPnp.Text = "Hybrid PnP (alpha test)";
+            this.chkTwbHybridPnp.Visible = false;
+            this.chkTwbHybridPnp.CheckedChanged += new System.EventHandler(this.ChkHybridPnp_CheckedChanged);
+            //
+            // [V59-FIX-11] chkWmHybridPnp — the Wiimote Bar hybrid checkbox: when ON,
+            //     the Wiimote Bar layout behaves as PNP-Hybrid at runtime (user
+            //     decision: the PNP-Hybrid dropdown entry was removed, 4 layouts).
+            //
+            this.chkWmHybridPnp.AutoSize = true;
+            this.chkWmHybridPnp.ForeColor = System.Drawing.Color.White;
+            this.chkWmHybridPnp.Location = new System.Drawing.Point(140, 126);
+            this.chkWmHybridPnp.Name = "chkWmHybridPnp";
+            this.chkWmHybridPnp.Size = new System.Drawing.Size(145, 20);
+            this.chkWmHybridPnp.TabIndex = 3;
+            this.chkWmHybridPnp.Text = "Hybrid PnP (alpha test)";
+            this.chkWmHybridPnp.Visible = false;
+            this.chkWmHybridPnp.CheckedChanged += new System.EventHandler(this.ChkHybridPnp_CheckedChanged);
+            //
+            // [V59-FIX-17] chkWmPnpExtrapolation — opt-in edge-extrapolation for
+            //     the Wiimote Bar PnP-Hybrid mode: when the user reaches a screen
+            //     edge and loses one sensor-bar LED, the cursor keeps moving
+            //     (linear-delta from last 2-LED midpoint) instead of freezing.
+            //     Visible only when chkWmHybridPnp is checked.
+            //
+            this.chkWmPnpExtrapolation.AutoSize = true;
+            this.chkWmPnpExtrapolation.ForeColor = System.Drawing.Color.White;
+            this.chkWmPnpExtrapolation.Location = new System.Drawing.Point(288, 126);
+            this.chkWmPnpExtrapolation.Name = "chkWmPnpExtrapolation";
+            this.chkWmPnpExtrapolation.Size = new System.Drawing.Size(100, 20);
+            this.chkWmPnpExtrapolation.TabIndex = 3;
+            this.chkWmPnpExtrapolation.Text = "+ Edge Extrap.";
+            this.chkWmPnpExtrapolation.Visible = false;
+            //
+            // [V59-FIX-10] chkPnpDeclareGeometry — declared-geometry mode (PNP-Hybrid
+            //     only): accurate metric distance + precision forecast.
+            //
+            this.chkPnpDeclareGeometry.AutoSize = true;
+            this.chkPnpDeclareGeometry.ForeColor = System.Drawing.Color.White;
+            this.chkPnpDeclareGeometry.Location = new System.Drawing.Point(140, 148);
+            this.chkPnpDeclareGeometry.Name = "chkPnpDeclareGeometry";
+            this.chkPnpDeclareGeometry.Size = new System.Drawing.Size(260, 20);
+            this.chkPnpDeclareGeometry.TabIndex = 3;
+            this.chkPnpDeclareGeometry.Text = "Declare LED geometry (accurate distance)";
+            this.chkPnpDeclareGeometry.Visible = false;
+            this.chkPnpDeclareGeometry.CheckedChanged += new System.EventHandler(this.ChkPnpDeclareGeometry_CheckedChanged);
+            //
+            // [V59-FIX-10] lblPnpLedSpacing / optPnpLedSpacing
+            //
+            this.lblPnpLedSpacing.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.lblPnpLedSpacing.ForeColor = System.Drawing.Color.White;
+            this.lblPnpLedSpacing.Location = new System.Drawing.Point(10, 170);
+            this.lblPnpLedSpacing.Name = "lblPnpLedSpacing";
+            this.lblPnpLedSpacing.Size = new System.Drawing.Size(125, 20);
+            this.lblPnpLedSpacing.Text = "LED spacing (mm):";
+            this.lblPnpLedSpacing.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.lblPnpLedSpacing.Visible = false;
+            this.optPnpLedSpacing.Location = new System.Drawing.Point(140, 168);
+            this.optPnpLedSpacing.Name = "optPnpLedSpacing";
+            this.optPnpLedSpacing.Size = new System.Drawing.Size(70, 20);
+            this.optPnpLedSpacing.Maximum = new decimal(new int[] { 1000, 0, 0, 0 });
+            this.optPnpLedSpacing.Minimum = new decimal(new int[] { 20, 0, 0, 0 });
+            this.optPnpLedSpacing.Value = new decimal(new int[] { 200, 0, 0, 0 });
+            this.optPnpLedSpacing.Visible = false;
+            //
+            // [V59-FIX-10] lblPnpLensFov / optPnpLensFov
+            //
+            this.lblPnpLensFov.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.lblPnpLensFov.ForeColor = System.Drawing.Color.White;
+            this.lblPnpLensFov.Location = new System.Drawing.Point(240, 170);
+            this.lblPnpLensFov.Name = "lblPnpLensFov";
+            this.lblPnpLensFov.Size = new System.Drawing.Size(90, 20);
+            this.lblPnpLensFov.Text = "Lens FOV (°):";
+            this.lblPnpLensFov.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.lblPnpLensFov.Visible = false;
+            this.optPnpLensFov.Location = new System.Drawing.Point(335, 168);
+            this.optPnpLensFov.Name = "optPnpLensFov";
+            this.optPnpLensFov.Size = new System.Drawing.Size(60, 20);
+            this.optPnpLensFov.Maximum = new decimal(new int[] { 250, 0, 0, 0 }); // [V59-FIX-23] 0-250° allowed range
+            this.optPnpLensFov.Minimum = new decimal(new int[] { 0, 0, 0, 0 });
+            this.optPnpLensFov.Value = new decimal(new int[] { 40, 0, 0, 0 });
+            this.optPnpLensFov.Visible = false;
+            //
             // optMonitorId
             // 
             this.optMonitorId.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
@@ -1691,6 +1812,8 @@ namespace WiimoteGun.Controls
             ((System.ComponentModel.ISupportInitialize)(this.optVirtualPollingRateV2)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.optIRSensitivity)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.optMonitorId)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.optPnpLedSpacing)).EndInit(); // [V59-FIX-10]
+            ((System.ComponentModel.ISupportInitialize)(this.optPnpLensFov)).EndInit(); // [V59-FIX-10]
             // [V55y] TrackBar EndInit (Designer norm)
             ((System.ComponentModel.ISupportInitialize)(this.trkReloadRumbleIntensity)).EndInit();
             // [V55z] Custom style controls EndInit (Designer norm)
@@ -1738,6 +1861,18 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.NumericUpDown optMonitorId;
         private System.Windows.Forms.Label lblLEDLayout;
         private System.Windows.Forms.ComboBox optLEDLayout;
+        // [V59-FIX-9] EN/FR: Hybrid PnP checkbox (Two Wiimote Bars layout)
+        private System.Windows.Forms.CheckBox chkTwbHybridPnp;
+        // [V59-FIX-11] EN/FR: Wiimote Bar hybrid checkbox (PNP-Hybrid at runtime)
+        private System.Windows.Forms.CheckBox chkWmHybridPnp;
+        // [V59-FIX-17] EN/FR: Wiimote Bar PnP edge-extrapolation opt-in checkbox
+        private System.Windows.Forms.CheckBox chkWmPnpExtrapolation;
+        // [V59-FIX-10] EN/FR: Declared-geometry controls (PNP-Hybrid layout)
+        private System.Windows.Forms.CheckBox chkPnpDeclareGeometry;
+        private System.Windows.Forms.Label lblPnpLedSpacing;
+        private System.Windows.Forms.NumericUpDown optPnpLedSpacing;
+        private System.Windows.Forms.Label lblPnpLensFov;
+        private System.Windows.Forms.NumericUpDown optPnpLensFov;
         private System.Windows.Forms.Label lblIRSensitivity;
         private System.Windows.Forms.NumericUpDown optIRSensitivity;
         private System.Windows.Forms.CheckBox optShowNotifications;
