@@ -216,6 +216,20 @@ namespace WiimoteGun.Controls
             }
         }
 
+        /// <summary>
+        /// [V60-FIX-3] EN: Opens the WelcomeDialog (help/support page — will be
+        ///     expanded into a full support & tutorial page later).
+        ///     FR: Ouvre le WelcomeDialog (page aide/support — sera étendue en page
+        ///     support & tutoriel complète plus tard).
+        /// </summary>
+        private void BtnHelp_Click(object sender, EventArgs e)
+        {
+            using (var dialog = new WiimoteGun.WelcomeDialog())
+            {
+                dialog.ShowDialog(this.FindForm());
+            }
+        }
+
         private void BtnSetup_MouseEnter(object sender, EventArgs e)
         {
             if (sender is Button btn)

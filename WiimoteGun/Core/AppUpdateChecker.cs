@@ -238,16 +238,18 @@ namespace WiimoteGun.Core
             // as an extra version component (".7" matches "\.\d+")
             string clean = Regex.Replace(assetName, @"\.(7z|zip)$", "", RegexOptions.IgnoreCase);
 
-            // [3.1.0.1] EN: "v\.?" accepts BOTH nomenclatures - "v3.1.0.1" (old) AND
-            //     "v.3.1.0.1" (new): the old BROKEN builds only match "v<digits>" and
-            //     therefore NEVER see the new releases, while the fixed builds (and the
-            //     WiimoteGunMigrator) pick up everything.
-            //     FR: « v\.? » accepte les DEUX nomenclatures - « v3.1.0.1 » (ancienne)
-            //     ET « v.3.1.0.1 » (nouvelle) : les anciennes builds CASSÉES ne
-            //     reconnaissent que « v<chiffres> » et ne voient donc JAMAIS les
-            //     nouvelles releases, tandis que les builds corrigées (et le
-            //     WiimoteGunMigrator) voient tout.
-            MatchCollection matches = Regex.Matches(clean, @"_?v\.?(\d+(?:\.\d+)*)", RegexOptions.IgnoreCase);
+            // [3.1.5.10] EN: "v" WITHOUT the optional dot — back to "v3.1.0.0" nomenclature
+            //     (user decision: releases named "v<digits>" only, no "v.<digits>").
+            //     The old broken builds with the "v<digits>" regex will now SEE new
+            //     releases — that's intentional: update_W4G.exe replaces the broken
+            //     PS1 and the transition is over.
+            //     FR: « v » SANS le point optionnel — retour à la nomenclature
+            //     « v3.1.0.0 » (décision user : releases nommées « v<chiffres> »
+            //     uniquement, pas « v.<chiffres> »). Les anciennes builds cassées avec
+            //     le regex « v<chiffres> » verront maintenant les nouvelles releases —
+            //     c'est intentionnel : update_W4G.exe remplace le PS1 cassé et la
+            //     transition est terminée.
+            MatchCollection matches = Regex.Matches(clean, @"_?v(\d+(?:\.\d+)*)", RegexOptions.IgnoreCase);
             if (matches.Count == 0) return false;
 
             // EN/FR: The LAST "v<number>" is the release version

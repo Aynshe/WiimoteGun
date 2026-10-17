@@ -42,6 +42,17 @@ namespace WiimoteGun
         public static WiimoteControllerManager WiiMoteManager { get { return _wiiMoteManager; } }
         static ApplicationContext _appContext;
         static Mutex _singleInstanceMutex;
+
+        // [V60-FIX-3] EN: Restart flags — when the app restarts (update or UMDF2
+        //     activation), the WelcomeDialog's FirstRun flag must NOT be cleared
+        //     (the dialog gets killed mid-display by the restart). The flag stays
+        //     true so the dialog shows on the NEXT (post-restart) start.
+        //     FR: Flags de redémarrage — quand l'app redémarre (mise à jour ou
+        //     activation UMDF2), le flag FirstRun du WelcomeDialog ne doit PAS être
+        //     effacé (le dialogue se fait tuer par le redémarrage). Le flag reste
+        //     true pour que le dialogue s'affiche au PROCHAIN (post-redémarrage) start.
+        public static bool IsRestartingForUpdate { get; set; }
+        public static bool IsRestartingForUmdf2 { get; set; }
         static IRVisualizerForm _irVisualizerForm; // Single instance of IR Visualizer (EN/FR: Instance unique IR Visualizer)
         static MessageWindow _messageWindow; // IPC window for -refresh command (EN/FR: Fenêtre IPC pour commande -refresh)
         static string _activeRemapProfile = null; // Active remap profile path (EN/FR: Chemin du profil remap actif)
@@ -85,6 +96,19 @@ namespace WiimoteGun
 
         static void MainExecution(string[] args)
         {
+            // [V61] EN: -presetup — silent settings.cfg generation from the Setup wizard.
+            //     Parse -layout:"<name>" and -hybrid:<true/false>, write the options,
+            //     save, and EXIT immediately without starting the UI.
+            //     FR: -presetup — génération silencieuse de settings.cfg depuis
+            //     l'assistant d'installation. Parse -layout:"<nom>" et
+            //     -hybrid:<true/false>, écrit les options, sauvegarde, et QUITTE
+            //     immédiatement sans démarrer l'UI.
+            if (args.Length > 0 && (args[0].ToLower() == "-presetup" || args[0].ToLower() == "/presetup"))
+            {
+                HandlePreSetup(args);
+                return;
+            }
+
             // Parse -remap argument first (EN/FR: Parser argument -remap d'abord)
             ParseRemapArgument(args);
 
@@ -446,6 +470,22 @@ namespace WiimoteGun
             // Clean up unwanted VMulti collections (non-COL03) at startup
             // (EN/FR: Nettoyer collections VMulti non désirées (non-COL03) au démarrage)
             Core.VMultiDeviceCleanup.RemoveUnwantedCollections();
+
+            // [V60-FIX-4] EN: Clean up a stale renamed updater (update_W4G.exe.old)
+            //     left behind by the rename trick during a previous update.
+            //     FR: Nettoie un updateur renommé résiduel (update_W4G.exe.old)
+            //     laissé par le rename trick lors d'une mise à jour précédente.
+            try
+            {
+                string staleUpdater = System.IO.Path.Combine(
+                    System.AppDomain.CurrentDomain.BaseDirectory, "update_W4G.exe.old");
+                if (System.IO.File.Exists(staleUpdater))
+                {
+                    System.IO.File.Delete(staleUpdater);
+                    SimpleLogger.Instance.Info("[V60] Cleaned up stale updater: update_W4G.exe.old");
+                }
+            }
+            catch { }
             
             // NOTE: Do NOT call RemoveAllMiceAtStartup() here!
             // (EN/FR: NE PAS appeler RemoveAllMiceAtStartup() ici!)
@@ -551,19 +591,91 @@ namespace WiimoteGun
             InitializeTrayIcon();
 
             // Show welcome dialog on first run BEFORE starting message loop (EN/FR: Afficher le dialogue de bienvenue au premier lancement AVANT la boucle de messages)
+            // [V60-FIX-3] EN: The FirstRun flag is set to false ONLY after the dialog
+            //     has been shown AND the app is NOT restarting (the UMDF2 activation in
+            //     the SetupWizard restarts the app — the WelcomeDialog gets killed
+            //     mid-display, and FirstRun must survive to show it on the NEXT start).
+            //     FR: Le flag FirstRun passe à false SEULEMENT après que le dialogue a
+            //     été affiché ET que l'app ne redémarre PAS (l'activation UMDF2 dans
+            //     le SetupWizard redémarre l'app — le WelcomeDialog se fait tuer en
+            //     cours d'affichage, et FirstRun doit survivre pour l'afficher au
+            //     PROCHAIN démarrage).
             SimpleLogger.Instance.Info("Checking FirstRun flag: " + Options.Instance.FirstRun);
-            
+
             if (Options.Instance.FirstRun)
             {
                 SimpleLogger.Instance.Info("FirstRun is TRUE, showing welcome dialog");
                 ShowWelcomeDialog();
-                Options.Instance.FirstRun = false;
-                Options.Instance.Save();
-                SimpleLogger.Instance.Info("Welcome dialog shown, FirstRun set to false");
+                // [V60-FIX-3] EN/FR: Only clear FirstRun when the dialog was actually
+                //     shown AND the app is NOT restarting for the UMDF2 activation.
+                //     If the app is restarting, the flag stays true so the dialog
+                //     shows again on the next (post-UMDF2) start.
+                if (!Program.IsRestartingForUpdate && !Program.IsRestartingForUmdf2)
+                {
+                    Options.Instance.FirstRun = false;
+                    Options.Instance.Save();
+                    SimpleLogger.Instance.Info("Welcome dialog shown, FirstRun set to false");
+                }
+                else
+                {
+                    SimpleLogger.Instance.Info("Welcome dialog shown but app is restarting — FirstRun stays TRUE for next start.");
+                }
             }
             else
             {
                 SimpleLogger.Instance.Info("FirstRun is FALSE, skipping welcome dialog");
+            }
+
+            // [V60-FIX-5] EN: Show the changelog when the app version changed (update
+            //     was installed). The stored LastAppVersionSeen is compared with the
+            //     current assembly version. Shows ONCE, then stores the new version.
+            //     FR: Affiche le changelog quand la version de l'app a changé (mise à
+            //     jour installée). Le LastAppVersionSeen stocké est comparé avec la
+            //     version d'assembly courante. S'affiche UNE FOIS, puis stocke la
+            //     nouvelle version.
+            try
+            {
+                string currentVersion = System.Reflection.Assembly.GetExecutingAssembly()
+                    .GetName().Version.ToString();
+                string seenVersion = Options.Instance.LastAppVersionSeen ?? "";
+
+                if (seenVersion != currentVersion)
+                {
+                    if (!string.IsNullOrEmpty(seenVersion))
+                    {
+                        // This is an update (not a first install) — show the changelog
+                        SimpleLogger.Instance.Info("[V60] App version changed: " + seenVersion +
+                            " -> " + currentVersion + " — showing changelog dialog.");
+                        // [V60-FIX-5c] EN: The changelog dialog is wrapped in a
+                        //     try-catch — the previous version crashed SILENTLY
+                        //     (RichTextBox RTF manipulation killed the whole app
+                        //     with no log entry and no crash dump). If the dialog
+                        //     fails, the app MUST continue running.
+                        //     FR: Le dialogue changelog est protégé par un
+                        //     try-catch — la version précédente crashait
+                        //     SILENCIEUSEMENT (la manipulation RTF du RichTextBox
+                        //     tuait toute l'app sans log ni crash dump). Si le
+                        //     dialogue échoue, l'app DOIT continuer à fonctionner.
+                        try
+                        {
+                            using (var changelog = new WiimoteGun.ChangelogDialog(currentVersion))
+                            {
+                                changelog.ShowDialog();
+                            }
+                        }
+                        catch (Exception changelogEx)
+                        {
+                            SimpleLogger.Instance.Error("[V60] ChangelogDialog failed (app continues): " + changelogEx.Message);
+                        }
+                    }
+                    // Store the version we just showed (or first install — skip dialog)
+                    Options.Instance.LastAppVersionSeen = currentVersion;
+                    Options.Instance.Save();
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Warning("[V60] Changelog check failed: " + ex.Message);
             }
 
             // Auto-assign VMulti devices to Player 1 and 2 if option is enabled (EN/FR: Auto-assigner VMulti aux joueurs 1 et 2 si option activée)
@@ -1190,6 +1302,79 @@ namespace WiimoteGun
                 // Don't show error to user - PATH update is not critical for operation
                 // (EN/FR: Ne pas afficher erreur - mise à jour PATH non critique)
             }
+        }
+
+        /// <summary>
+        /// [V61] EN: Handle the -presetup argument — silently write the LED layout and
+        ///     Hybrid PnP options to settings.cfg, then exit. Called by W4G_Setup.exe.
+        ///     Arguments: -layout:"<name>" and -hybrid:<true/false>
+        ///     FR: Gère l'argument -presetup — écrit silencieusement le layout LED et
+        ///     l'option Hybrid PnP dans settings.cfg, puis quitte. Appelé par W4G_Setup.exe.
+        ///     Arguments : -layout:"<nom>" et -hybrid:<true/false>
+        /// </summary>
+        private static void HandlePreSetup(string[] args)
+        {
+            try
+            {
+                string layoutName = "Wiimote Bar"; // default
+                bool hybridPnp = false;
+
+                for (int i = 1; i < args.Length; i++)
+                {
+                    string arg = args[i];
+                    if (arg.StartsWith("-layout:", StringComparison.OrdinalIgnoreCase) ||
+                        arg.StartsWith("/layout:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Strip quotes
+                        layoutName = arg.Substring(8).Trim('"', ' ');
+                    }
+                    else if (arg.StartsWith("-hybrid:", StringComparison.OrdinalIgnoreCase) ||
+                             arg.StartsWith("/hybrid:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string val = arg.Substring(8).Trim('"', ' ').ToLower();
+                        hybridPnp = (val == "true" || val == "1" || val == "yes");
+                    }
+                }
+
+                // Map the display name to the enum
+                LEDLayoutType layout;
+                if (layoutName.StartsWith("Two Wiimote", StringComparison.OrdinalIgnoreCase))
+                    layout = LEDLayoutType.TwoWiimoteBar;
+                else if (layoutName.StartsWith("Gun4IR", StringComparison.OrdinalIgnoreCase))
+                    layout = LEDLayoutType.Gun4IRDiamond;
+                else if (layoutName.StartsWith("Four Corners", StringComparison.OrdinalIgnoreCase))
+                    layout = LEDLayoutType.FourCorners;
+                else
+                    layout = LEDLayoutType.WiimoteBar;
+                Options.Instance.LEDLayout = layout;
+
+                // [V61-FIX] EN: -hybrid applies to the matching hybrid flag per layout
+                //     (Wiimote Bar → WiimoteBarHybridPnp, Two Wiimote Bars → TwoBarHybridPnp).
+                //     The setup wizard passes -hybrid:true but it was only written to
+                //     the Wiimote Bar property — the checkbox for Two Wiimote Bars was
+                //     ignored (user bug report).
+                //     FR: -hybrid s'applique au flag hybride correspondant au layout
+                //     (Wiimote Bar → WiimoteBarHybridPnp, Two Wiimote Bars → TwoBarHybridPnp).
+                //     Le setup passait -hybrid:true mais seule la propriété Wiimote Bar
+                //     était écrite — la case Two Wiimote Bars était ignorée (bug user).
+                if (layout == LEDLayoutType.TwoWiimoteBar)
+                    Options.Instance.TwoBarHybridPnp = hybridPnp;
+                else
+                    Options.Instance.WiimoteBarHybridPnp = hybridPnp;
+
+                Options.Instance.Save();
+
+                Console.WriteLine("[V61] PreSetup complete — layout: " + layoutName + ", hybrid: " + hybridPnp +
+                    " (TwoBarHybridPnp=" + Options.Instance.TwoBarHybridPnp + ")");
+                Console.WriteLine("[V61] settings.cfg written to: " +
+                    System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "settings.cfg"));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[V61] PreSetup failed: " + ex.Message);
+            }
+
+            Environment.Exit(0);
         }
 
         /// <summary>

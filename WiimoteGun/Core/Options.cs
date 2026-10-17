@@ -180,7 +180,12 @@ namespace WiimoteGun
         WiimoteBar = 0,      // Horizontal LED bar (2 LEDs) - Standard Wiimote sensor bar
         Gun4IRDiamond = 1,   // Diamond/Rhombus pattern (4 LEDs) - Gun4IR configuration
         TwoWiimoteBar = 2,   // 2 Wiimote Sensor Bars (Top/Bottom) - Dual sensor bar configuration
-        FourCorners = 3      // 4 LEDs at screen corners - Individual corner LEDs
+        FourCorners = 3,     // 4 LEDs at screen corners - Individual corner LEDs
+        // [V59] EN: Experimental PnP 3D tracking for WiimoteBar (2 LEDs) — hybrid:
+        //     bilinear base + 3D corrections (distance, roll, IR offset).
+        //     FR: Tracking PnP 3D expérimental pour WiimoteBar (2 LEDs) — hybride :
+        //     base bilinéaire + corrections 3D (distance, roll, IR offset).
+        WiimoteBarPnP = 4
     }
 
     // Mouse implementation mode (EN/FR: Mode d'implémentation souris)
@@ -298,6 +303,10 @@ namespace WiimoteGun
 
                 PermissiveWiimoteBarCalibration = false;
 
+                // [V59-FIX-4e] EN: ScreenDiagonalInches default line removed with the property
+                //     (user decision). FR: Ligne de défaut ScreenDiagonalInches retirée
+                //     avec la propriété (décision user).
+
                 UseDynamicPerspective_P1 = false;
                 UseDynamicPerspective_P2 = false;
                 UseDynamicPerspective_P3 = false;
@@ -373,6 +382,37 @@ namespace WiimoteGun
 
                 LoggingLevel = LogLevel.INFO;
 
+                // [V59-FIX-12] EN: ACTUAL runtime defaults for the declared-geometry
+                //     fields — [DefaultValue] attributes are metadata only (the
+                //     properties compiled to 0f, which the UI clamped to the minimum:
+                //     the user saw "20 mm / 20°"). Wii sensor bar LED spacing = 200mm
+                //     (Wii/Blamcon spec tables); default FOV = 45° (the classic figure
+                //     for the PixArt IR camera — EDITABLE: the field exists precisely
+                //     because the FOV varies by source/lens; 33° horizontal is also
+                //     cited. Verify empirically: tape-measure your real distance and
+                //     adjust FOV until the [dist] display matches).
+                //     FR: Défauts RUNTIME réels des champs de géométrie déclarée — les
+                //     attributs [DefaultValue] sont des métadonnées seulement (les
+                //     propriétés compilaient à 0f, clampées au minimum par l'UI :
+                //     l'user voyait « 20 mm / 20° »). Écartement LEDs barre Wii = 200 mm
+                //     (tables de spec Wii/Blamcon) ; FOV défaut = 45° (figure classique
+                //     de la caméra IR PixArt — MODIFIABLE : le champ existe justement
+                //     parce que le FOV varie selon la source/lentille ; 33° horizontal
+                //     est aussi cité. Vérification empirique : mesurez votre distance
+                //     réelle au mètre ruban et ajustez le FOV jusqu'à ce que l'affiche
+                //     [dist] corresponde).
+                PnpLedSpacingMM = 200f;
+                // [V59-FIX-12b] EN: Default FOV = 33° horizontal — per the Johnny Chung
+                //     Lee article on the PixArt camera (128x96 sensor, ~33°/23° native).
+                //     With a 180° fisheye: enter the EFFECTIVE horizontal FOV (~130-140°,
+                //     the lens compresses 180° onto the native sensor — NOT 180).
+                //     FR: FOV défaut = 33° horizontal — selon l'article Johnny Chung
+                //     Lee sur la caméra PixArt (capteur 128x96, ~33°/23° natif).
+                //     Avec un fisheye 180° : saisir le FOV horizontal EFFECTIF
+                //     (~130-140°, la lentille compresse 180° sur le capteur natif —
+                //     PAS 180).
+                PnpLensFovDeg = 38f; // [V59-FIX-28] Default 38 deg (measured Wiimote sensor baseline)
+
                 // Standalone Mode defaults (EN/FR: Valeurs par défaut du mode Standalone)
                 StandaloneMode = false;
                 PCSX2Path = "";
@@ -431,7 +471,19 @@ namespace WiimoteGun
                     using (MemoryStream stream = new MemoryStream(fileData))
                     {
                         var options = serializer.Deserialize(stream) as Options;
-                        
+
+                        // [V59-FIX-11] EN: Migration — the PNP-Hybrid dropdown entry was
+                        //     removed; a persisted WiimoteBarPnP selection becomes
+                        //     Wiimote Bar + the hybrid checkbox ON.
+                        //     FR: Migration — l'entrée PNP-Hybrid du dropdown a été
+                        //     retirée ; une sélection WiimoteBarPnP persistée devient
+                        //     Wiimote Bar + la case hybride ON.
+                        if (options.LEDLayout == LEDLayoutType.WiimoteBarPnP)
+                        {
+                            options.LEDLayout = LEDLayoutType.WiimoteBar;
+                            options.WiimoteBarHybridPnp = true;
+                        }
+
                         // Apply log level immediately (EN/FR: Appliquer niveau de log immédiatement)
                         SimpleLogger.Instance.Threshold = options.LoggingLevel;
                         SimpleLogger.Instance.Info(string.Format("[Options] Loaded settings from: {0}", path));
@@ -978,6 +1030,197 @@ namespace WiimoteGun
         // (EN/FR: Mode calibration permissif pour WiimoteBar sur très grands écrans - extrapole point manquant)
         [DefaultValue(false)]
         public bool PermissiveWiimoteBarCalibration { get; set; }
+
+        // [V59-FIX-4e] EN: PNP-Hybrid per-player state. ScreenDiagonalInches was REMOVED
+        //     (user decision — it only fed one log line; the ratio-based corrections
+        //     never consume it). IROffsetMM / PnPCalibrationDistance / PnPEffectiveFocal
+        //     are per-player (persisted with the calibration).
+        //     FR: État PNP-Hybrid par joueur. ScreenDiagonalInches a été SUPPRIMÉE
+        //     (décision user — elle ne nourrissait qu'une ligne de log ; les
+        //     corrections par ratio ne la consomment jamais). IROffsetMM /
+        //     PnPCalibrationDistance / PnPEffectiveFocal sont par joueur
+        //     (persistées avec la calibration).
+
+        // [V59-FIX-9] EN: Enables the hybrid PnP distance correction on the
+        //     "Two Wiimote Bars (Or Blacom)" layout (user-requested checkbox — kept
+        //     only if conclusive). Serialized (public property).
+        //     FR: Active la correction de distance PnP hybride sur le layout
+        //     « Two Wiimote Bars (Or Blacom) » (case demandée par l'user — conservée
+        //     seulement si concluante). Sérialisée (propriété publique).
+        [DefaultValue(false)]
+        public bool TwoBarHybridPnp { get; set; }
+
+        // [V59-FIX-11] EN: The Wiimote Bar hybrid checkbox — when ON, the Wiimote Bar
+        //     layout behaves as PNP-Hybrid at runtime (GetEffectiveLedLayout), without
+        //     a separate dropdown entry (user decision: 4 layouts, hybrid via checkbox).
+        //     FR: La case hybride du layout Wiimote Bar — quand ON, le layout Wiimote
+        //     Bar se comporte comme PNP-Hybrid à l'exécution (GetEffectiveLedLayout),
+        //     sans entrée séparée dans le dropdown (décision user : 4 layouts, hybride
+        //     via case à cocher).
+        [DefaultValue(false)]
+        public bool WiimoteBarHybridPnp { get; set; }
+
+        // [V60-FIX-5] EN: The last app version the user has SEEN. When the assembly
+        //     version differs (an update was installed), Program.cs shows the
+        //     ChangelogDialog, then stores the new version here. Serialized.
+        //     FR: La dernière version de l'app que l'utilisateur a VUE. Quand la
+        //     version d'assembly diffère (une mise à jour a été installée), Program.cs
+        //     affiche le ChangelogDialog, puis stocke la nouvelle version ici.
+        //     Sérialisée.
+        [DefaultValue("")]
+        public string LastAppVersionSeen { get; set; }
+
+        // [V59-FIX-17] EN: Wiimote Bar PnP-Hybrid — edge-extrapolation opt-in. When ON,
+        //     losing one sensor-bar LED at the screen edge keeps the cursor moving via
+        //     a linear delta (same as the standard Wiimote Bar mode). The 3D PnP
+        //     corrections are skipped automatically (distance requires 2 LEDs;
+        //     ApplyPnpCorrections returns immediately when currentDist < 0.1 m).
+        //     When OFF (default / strict PnP), any LED loss freezes the cursor instead
+        //     of extrapolating — prevents the extrapolated position from corrupting
+        //     the PnP reference during calibration or drifting during gameplay.
+        //     FR: PnP-Hybrid Wiimote Bar — extrapolation bord d'écran opt-in. Activé,
+        //     perdre une LED en bord de champ maintient le curseur en mouvement par
+        //     delta linéaire (même logique que le mode Wiimote Bar standard). Les
+        //     corrections 3D PnP sont sautées automatiquement (la distance requiert
+        //     2 LEDs ; ApplyPnpCorrections retourne immédiatement si currentDist < 0,1 m).
+        //     Désactivé (défaut / PnP strict), toute perte de LED fige le curseur.
+        [DefaultValue(false)]
+        public bool WiimoteBarPnpEdgeExtrapolation { get; set; }
+
+        // [V59-FIX-13] EN: TwoWiimoteBars calibration data — SERIALIZED per player.
+        //     31 floats per player: 5 top-bar midpoints (X,Y), 5 bottom-bar midpoints
+        //     (X,Y), 5 Double-T centers (X,Y), 1 pair separation. The homography is
+        //     REBUILT from these on load (no need to persist the 8x8 matrix).
+        //     FR: Données de calibration TwoWiimoteBars — SÉRIALISÉES par joueur.
+        //     31 floats par joueur : 5 milieux barre haute (X,Y), 5 milieux barre basse
+        //     (X,Y), 5 centres Double-T (X,Y), 1 séparation de paire. L'homographie est
+        //     RECONSTRUITE depuis ces données au chargement (pas besoin de persister
+        //     la matrice 8x8).
+        public float[] TwbCalDataPlayers { get; set; } = new float[124]; // 4 × 31
+
+        public float[] GetTwbCalData(int playerIndex)
+        {
+            if (TwbCalDataPlayers == null || TwbCalDataPlayers.Length < 124)
+                TwbCalDataPlayers = new float[124];
+            if (playerIndex < 1 || playerIndex > 4) return null;
+            float[] d = new float[31];
+            Array.Copy(TwbCalDataPlayers, (playerIndex - 1) * 31, d, 0, 31);
+            return d;
+        }
+
+        public void SetTwbCalData(int playerIndex, float[] data)
+        {
+            if (TwbCalDataPlayers == null || TwbCalDataPlayers.Length < 124)
+                TwbCalDataPlayers = new float[124];
+            if (playerIndex < 1 || playerIndex > 4 || data == null || data.Length < 31) return;
+            Array.Copy(data, 0, TwbCalDataPlayers, (playerIndex - 1) * 31, 31);
+        }
+
+        // [V59-FIX-11] EN: The EFFECTIVE LED layout — Wiimote Bar + the hybrid checkbox
+        //     behaves as PNP-Hybrid. All runtime checks must use this (not LEDLayout).
+        //     FR: Le layout LED EFFECTIF — Wiimote Bar + la case hybride se comporte
+        //     comme PNP-Hybrid. Tous les contrôles d'exécution doivent l'utiliser
+        //     (pas LEDLayout).
+        public LEDLayoutType GetEffectiveLedLayout()
+        {
+            return (LEDLayout == LEDLayoutType.WiimoteBar && WiimoteBarHybridPnp)
+                ? LEDLayoutType.WiimoteBarPnP
+                : LEDLayout;
+        }
+
+        // [V59-FIX-10] EN: Declared-geometry mode (PNP-Hybrid only). When enabled, the
+        //     user declares the physical setup (LED spacing in mm, lens FOV in
+        //     degrees) and the distance becomes METRIC (accurate meters + precision
+        //     forecast + exact IR-offset). When disabled: the hardware-agnostic
+        //     ratio-based approximation (unchanged). GLOBAL (same physical setup for
+        //     all players). Serialized.
+        //     FR: Mode « géométrie déclarée » (PNP-Hybrid uniquement). Activé,
+        //     l'utilisateur déclare son installation physique (écartement LED en mm,
+        //     FOV de la lentille en degrés) et la distance devient MÉTRIQUE (mètres
+        //     exacts + prévision de précision + IR offset exact). Désactivé :
+        //     l'approximation par ratios matériel-agnostique (inchangée). GLOBAL
+        //     (même installation pour tous les joueurs). Sérialisé.
+        [DefaultValue(false)]
+        public bool PnpDeclareGeometry { get; set; }
+        [DefaultValue(200f)]
+        public float PnpLedSpacingMM { get; set; }
+        // [V59-FIX-23] EN: Removed [DefaultValue(45f)] — XmlSerializer must ALWAYS persist
+        //     PnpLensFovDeg to settings.cfg, otherwise values matching the attribute are
+        //     omitted and revert to constructor default (33f) on restart!
+        public float PnpLensFovDeg { get; set; } = 38f; // [V59-FIX-28] Default 38 deg (measured Wiimote sensor baseline)
+
+        // [V59-FIXES] EN: PnP per-player state, SERIALIZED in settings.cfg via public
+        //     arrays (XmlSerializer only persists public members — the previous private
+        //     backing fields were silently lost on every restart). Index = P1..P4.
+        //     Old settings.cfg files simply lack these elements → initializers apply.
+        //     FR: État PnP par joueur, SÉRIALISÉ dans settings.cfg via des tableaux
+        //     publics (XmlSerializer ne persiste que les membres publics — les anciens
+        //     champs privés étaient silencieusement perdus à chaque relance). Index = P1..P4.
+        //     Les vieux settings.cfg n'ont simplement pas ces éléments → initializers.
+        public bool[] PnpUseFisheyePlayers { get; set; } = new bool[4];
+        public float[] PnpIROffsetMMPlayers { get; set; } = new float[] { 30f, 30f, 30f, 30f };
+        public float[] PnpCalDistPlayers { get; set; } = new float[4];
+        public float[] PnpFocalPlayers { get; set; } = new float[4];
+
+        public float GetIROffsetMM(int playerIndex)
+        {
+            if (PnpIROffsetMMPlayers == null || PnpIROffsetMMPlayers.Length < 4)
+                PnpIROffsetMMPlayers = new float[] { 30f, 30f, 30f, 30f };
+            if (playerIndex >= 1 && playerIndex <= 4) return PnpIROffsetMMPlayers[playerIndex - 1];
+            return 30f;
+        }
+
+        public void SetIROffsetMM(int playerIndex, float value)
+        {
+            if (PnpIROffsetMMPlayers == null || PnpIROffsetMMPlayers.Length < 4)
+                PnpIROffsetMMPlayers = new float[] { 30f, 30f, 30f, 30f };
+            if (playerIndex >= 1 && playerIndex <= 4) PnpIROffsetMMPlayers[playerIndex - 1] = value;
+        }
+
+        public bool GetPnpUseFisheye(int playerIndex)
+        {
+            if (PnpUseFisheyePlayers == null || PnpUseFisheyePlayers.Length < 4)
+                PnpUseFisheyePlayers = new bool[4];
+            if (playerIndex >= 1 && playerIndex <= 4) return PnpUseFisheyePlayers[playerIndex - 1];
+            return false;
+        }
+
+        public void SetPnpUseFisheye(int playerIndex, bool value)
+        {
+            if (PnpUseFisheyePlayers == null || PnpUseFisheyePlayers.Length < 4)
+                PnpUseFisheyePlayers = new bool[4];
+            if (playerIndex >= 1 && playerIndex <= 4) PnpUseFisheyePlayers[playerIndex - 1] = value;
+        }
+
+        public float GetPnpCalibrationDistance(int playerIndex)
+        {
+            if (PnpCalDistPlayers == null || PnpCalDistPlayers.Length < 4)
+                PnpCalDistPlayers = new float[4];
+            if (playerIndex >= 1 && playerIndex <= 4) return PnpCalDistPlayers[playerIndex - 1];
+            return 0f;
+        }
+
+        public void SetPnpCalibrationDistance(int playerIndex, float value)
+        {
+            if (PnpCalDistPlayers == null || PnpCalDistPlayers.Length < 4)
+                PnpCalDistPlayers = new float[4];
+            if (playerIndex >= 1 && playerIndex <= 4) PnpCalDistPlayers[playerIndex - 1] = value;
+        }
+
+        public float GetPnpEffectiveFocal(int playerIndex)
+        {
+            if (PnpFocalPlayers == null || PnpFocalPlayers.Length < 4)
+                PnpFocalPlayers = new float[4];
+            if (playerIndex >= 1 && playerIndex <= 4) return PnpFocalPlayers[playerIndex - 1];
+            return 0f;
+        }
+
+        public void SetPnpEffectiveFocal(int playerIndex, float value)
+        {
+            if (PnpFocalPlayers == null || PnpFocalPlayers.Length < 4)
+                PnpFocalPlayers = new float[4];
+            if (playerIndex >= 1 && playerIndex <= 4) PnpFocalPlayers[playerIndex - 1] = value;
+        }
 
 
         [DefaultValue(true)]

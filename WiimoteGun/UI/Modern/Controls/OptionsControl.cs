@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Diagnostics;
@@ -18,6 +18,10 @@ namespace WiimoteGun.Controls
         // (EN/FR: État du flux d'activation UMDF2 au moment de la sélection)
         private bool _hmActivationFlowActive;   // reentrancy guard / garde de réentrance
         private bool _hmActivatedThisSession;   // activated at selection time / activé dès la sélection
+
+        // [V59-FIX-31] LED layout selection tracking & reentrancy guard for warnings
+        private bool _isLoadingOptions;
+        private LEDLayoutType _lastSelectedLEDLayout = LEDLayoutType.WiimoteBar;
 
         public OptionsControl()
         {
@@ -59,6 +63,146 @@ namespace WiimoteGun.Controls
                 "  kernel signé, aucun test mode, aucun UAC (installé silencieusement par le service).\r\n" +
                 "Chaque joueur garde LA MÊME souris+clavier virtuels entre les sessions (P1..P4).\r\n" +
                 "Prend effet à la prochaine connexion de Wiimote / relance de l'app.");
+
+            // [V59-FIX-4e] EN: Tooltip for the LED layout dropdown + label (kept short
+            //     per user request — one line per mode).
+            //     FR: Bulle pour le dropdown + label LED layout (courte — une ligne
+            //     par mode, demande user).
+            string ledLayoutTip =
+                "LED LAYOUT - IR source arrangement:\r\n" +
+                "- Wiimote Bar: 2-LED sensor bar (top or bottom).\r\n" +
+                "- Gun4IR Diamond: 4 LEDs in a diamond (Recommended 4-LED layout).\r\n" +
+                "- Two Wiimote Bars (Or Blacom): 2 IR bars top + bottom (Sub-optimal, Diamond or Four Corners recommended).\r\n" +
+                "- Four Corners: 4 LEDs at the screen corners (Recommended 4-LED layout).\r\n" +
+                "- PNP-Hybrid (alpha): 2-LED bar + distance compensation.\r\n" +
+                "\r\n" +
+                "CONFIGURATION LED - disposition des sources IR :\r\n" +
+                "- Wiimote Bar : barre capteur 2 LEDs (haut ou bas).\r\n" +
+                "- Gun4IR Diamond : 4 LEDs en losange (Recommandé pour un rendu 4 LEDs).\r\n" +
+                "- Two Wiimote Bars (Or Blacom) : 2 barres IR haut + bas (Mal optimisé, Diamond ou Four Corners recommandé).\r\n" +
+                "- Four Corners : 4 LEDs aux coins de l'écran (Recommandé pour un rendu 4 LEDs).\r\n" +
+                "- PNP-Hybrid (alpha) : barre 2 LEDs + compensation distance.";
+            _toolTips.SetToolTip(optLEDLayout, ledLayoutTip);
+            _toolTips.SetToolTip(lblLEDLayout, ledLayoutTip);
+
+            // [V59-FIX-32] Explanatory tooltip for Distance Compensation
+            _toolTips.SetToolTip(optEnableDistanceCompensation,
+                "DISTANCE COMPENSATION (Single Sensor Bar only):\r\n" +
+                "Adjusts tracking scale based on measured IR LED distance.\r\n" +
+                "Disabled and inoperative when Hybrid PnP or Two Wiimote Bars is active\r\n" +
+                "(Hybrid PnP provides superior 3D distance correction).\r\n" +
+                "\r\n" +
+                "COMPENSATION DE DISTANCE (Barre capteur unique uniquement) :\r\n" +
+                "Ajuste l'échelle de visée selon la distance mesurée des LEDs IR.\r\n" +
+                "Désactivé et inopérant quand Hybride PnP ou Two Wiimote Bars est actif\r\n" +
+                "(Hybride PnP assure une correction 3D de distance supérieure).");
+
+            // [V59-FIX-33] EN: Tooltips for the Hybrid PnP checkboxes (Wiimote Bar +
+            //     Two Wiimote Bars) and the edge-extrapolation option. These had NO
+            //     tooltip at all -- hover showed nothing (user bug report).
+            //     FR: Infobulles pour les cases Hybrid PnP (Wiimote Bar + Two Wiimote
+            //     Bars) et l'option d'extrapolation. Aucune n'existait -- le passage
+            //     souris n'affichait rien (rapport de bug user).
+            _toolTips.SetToolTip(chkWmHybridPnp,
+                "HYBRID PNP (Wiimote Bar):\r\n" +
+                "Adds 3D corrections on top of the standard bilinear calibration:\r\n" +
+                "- Distance compensation (gun-screen distance from LED separation)\r\n" +
+                "- Roll/tilt compensation (gun rotation)\r\n" +
+                "- IR offset correction (camera-to-barrel alignment)\r\n" +
+                "Requires BOTH LEDs visible (distance measurement needs 2 points).\r\n" +
+                "Works with the optional Declare LED Geometry for metric distance.\r\n" +
+                "\r\n" +
+                "HYBRID PNP (Wiimote Bar) :\r\n" +
+                "Ajoute des corrections 3D par-dessus la calibration bilinéaire :\r\n" +
+                "- Compensation de distance (distance gun-écran via séparation LEDs)\r\n" +
+                "- Compensation de roulis/inclinaison (rotation du gun)\r\n" +
+                "- Correction offset IR (alignement caméra-canon)\r\n" +
+                "Nécessite les DEUX LEDs visibles (mesure de distance sur 2 points).\r\n" +
+                "Compatible avec l'option Géométrie LED déclarée (distance métrique).");
+
+            _toolTips.SetToolTip(chkTwbHybridPnp,
+                "HYBRID PNP (Two Wiimote Bars):\r\n" +
+                "Same 3D corrections as Wiimote Bar Hybrid (distance, roll, IR offset).\r\n" +
+                "Calibration uses a 5-point cross (Center, Top, Bottom, Left, Right).\r\n" +
+                "Degraded mode (1-3 LEDs) keeps tracking with reduced accuracy.\r\n" +
+                "NOTE: This layout is SUB-OPTIMAL -- Gun4IR Diamond or Four Corners\r\n" +
+                "are recommended (more stable geometry, less LED loss at FOV edges).\r\n" +
+                "\r\n" +
+                "HYBRID PNP (Two Wiimote Bars) :\r\n" +
+                "Mêmes corrections 3D que l'hybride Wiimote Bar (distance, roulis, offset IR).\r\n" +
+                "Calibration en croix 5 points (Centre, Haut, Bas, Gauche, Droite).\r\n" +
+                "Mode dégradé (1-3 LEDs) : tracking maintenu avec précision réduite.\r\n" +
+                "ATTENTION : ce layout est SOUS-OPTIMAL -- les modes Gun4IR Diamond ou\r\n" +
+                "Four Corners sont recommandés (géométrie plus stable).");
+
+            if (chkWmPnpExtrapolation != null)
+                _toolTips.SetToolTip(chkWmPnpExtrapolation,
+                    "PNP EDGE EXTRAPOLATION (experimental):\r\n" +
+                    "When only 1 LED is visible near the screen edges, extrapolates the\r\n" +
+                    "missing LED position to keep tracking instead of stalling.\r\n" +
+                    "Lets you get closer to the screen, at the cost of less precision\r\n" +
+                    "at the screen edges.\r\n" +
+                    "\r\n" +
+                    "EXTRAPOLATION DE BORD PNP (expérimental) :\r\n" +
+                    "Quand une seule LED est visible près des bords, extrapole la position\r\n" +
+                    "de la LED manquante pour garder le tracking au lieu de le stopper.\r\n" +
+                    "Permet de s'approcher de l'écran, au prix d'une précision moindre\r\n" +
+                    "sur les bords.");
+
+            // [V59-FIX-33] EN: Tooltip for Declare LED Geometry — shows/hides the spacing
+            //     and FOV fields and enables the metric (accurate) distance computation.
+            //     FR: Infobulle pour Declare LED Geometry — affiche/masque les champs
+            //     ecartement et FOV et active le calcul de distance metrique (exacte).
+            _toolTips.SetToolTip(chkPnpDeclareGeometry,
+                "DECLARE LED GEOMETRY (Hybrid PnP — optional):\r\n" +
+                "Unlocks the LED spacing (mm) and Lens FOV settings to compute an\r\n" +
+                "ACCURATE metric distance (meters) instead of the ratio approximation:\r\n" +
+                "- Wiimote sensor bar: LED spacing 200 mm, Lens FOV 33 degrees\r\n" +
+                "- With a fisheye lens: enter its real FOV (e.g. 130-140, NOT 180)\r\n" +
+                "- Ratio-based compensation works without it (the focal cancels out)\r\n" +
+                "\r\n" +
+                "GÉOMÉTRIE LED DÉCLARÉE (Hybride PnP — optionnel) :\r\n" +
+                "Débloque les réglages écartement LED (mm) et FOV lentille pour calculer\r\n" +
+                "une distance MÉTRIQUE exacte (mètres) au lieu de l'approximation par ratio :\r\n" +
+                "- Barre capteur Wiimote : écartement LED 200 mm, FOV lentille 33 degrés\r\n" +
+                "- Avec une lentille fisheye : saisir son FOV réel (ex. 130-140, PAS 180)\r\n" +
+                "- La compensation par ratio fonctionne sans (la focale s'annule).");
+            // [V59-FIX-12b] EN: Tooltips for the declared-geometry fields (user
+            //     request — explain WHAT the values mean and HOW to use them).
+            //     FR: Bulles pour les champs de géométrie déclarée (demande user —
+            //     expliquer CE QUE les valeurs signifient et COMMENT les utiliser).
+            _toolTips.SetToolTip(optPnpLedSpacing,
+                "LED SPACING (mm):\r\n" +
+                "The physical distance between the 2 IR LEDs of your sensor bar.\r\n" +
+                "Standard Wii sensor bar: 200mm. Blamcon base: 250mm.\r\n" +
+                "With 2 Wiimote Bars: the vertical distance between the 2 bars.\r\n" +
+                "Used to compute the ACCURATE gun-to-screen distance (meters)\r\n" +
+                "and the precision forecast. Does NOT change the tracking ratio.\r\n" +
+                "\r\n" +
+                "ÉCARTEMENT LED (mm) :\r\n" +
+                "La distance physique entre les 2 LEDs IR de votre barre capteur.\r\n" +
+                "Barre Wii standard : 200 mm. Blamcon base : 250 mm.\r\n" +
+                "Avec 2 barres Wiimote : la distance verticale entre les 2 barres.\r\n" +
+                "Sert à calculer la distance EXACTE gun-écran (mètres) et la\r\n" +
+                "prévision de précision. NE change PAS le ratio de tracking.");
+            _toolTips.SetToolTip(lblPnpLedSpacing, _toolTips.GetToolTip(optPnpLedSpacing));
+            _toolTips.SetToolTip(optPnpLensFov,
+                "LENS FOV (degrees, horizontal):\r\n" +
+                "The effective HORIZONTAL field of view of your camera + lens system.\r\n" +
+                "Standard Wii camera (PixArt 128x96): 33°\r\n" +
+                "With a 180° fisheye: enter 130-140° (NOT 180 — the fisheye\r\n" +
+                "COMPRESSES 180° onto the native sensor, the effective horizontal\r\n" +
+                "coverage is ~130-140°).\r\n" +
+                "Used with the LED spacing to compute the ACCURATE distance.\r\n" +
+                "\r\n" +
+                "FOV LENTILLE (degrés, horizontal) :\r\n" +
+                "Le champ de vision horizontal EFFECTIF de votre caméra + lentille.\r\n" +
+                "Caméra Wii standard (PixArt 128x96) : 33°\r\n" +
+                "Avec un fisheye 180° : saisir 130-140° (PAS 180 — le fisheye\r\n" +
+                "COMPRESSE 180° sur le capteur natif, la couverture horizontale\r\n" +
+                "effective est ~130-140°).\r\n" +
+                "Utilisé avec l'écartement LED pour calculer la distance EXACTE.");
+            _toolTips.SetToolTip(lblPnpLensFov, _toolTips.GetToolTip(optPnpLensFov));
 
             // [V54] Explanatory tooltips for the two Off-Screen Reload options
             // (EN/FR: Bulles d'explication pour les deux options de rechargement hors-écran)
@@ -193,9 +337,124 @@ namespace WiimoteGun.Controls
             UpdateEsScriptsStatus();
         }
 
-        private void UpdateEsScriptsStatus()
+        // [V59-FIX-11] EN: Hybrid visibility v2 — the Wiimote Bar and Two Wiimote Bars
+        //     layouts each have a hybrid checkbox; the declared-geometry controls show
+        //     when either hybrid is checked. Replaces UpdateTwbHybridVisibility and
+        //     the PnP part of UpdatePnpGeometryVisibility.
+        //     FR: Visibilité hybride v2 — les layouts Wiimote Bar et Two Wiimote Bars
+        //     ont chacun leur case hybride ; les contrôles de géométrie déclarée
+        //     apparaissent quand l'une des deux est cochée. Remplace
+        //     UpdateTwbHybridVisibility et la partie PnP de UpdatePnpGeometryVisibility.
+        private void UpdateHybridVisibility()
         {
-            if (lblEsScriptsStatus == null) return;
+            if (chkWmHybridPnp == null || chkTwbHybridPnp == null || chkPnpDeclareGeometry == null ||
+                lblPnpLedSpacing == null || optPnpLedSpacing == null || lblPnpLensFov == null || optPnpLensFov == null) return;
+            string sel = optLEDLayout != null && optLEDLayout.SelectedItem != null ? optLEDLayout.SelectedItem.ToString() : null;
+            bool isWm = sel == "Wiimote Bar";
+            bool isTwb = sel == "Two Wiimote Bars (Or Blacom)";
+            chkWmHybridPnp.Visible = isWm;
+            chkTwbHybridPnp.Visible = isTwb;
+            // [V59-FIX-25] EN/FR: edge-extrapolation opt-in - visible when Hybrid PnP is active
+            // for Wiimote Bar OR Two Wiimote Bars.
+            if (chkWmPnpExtrapolation != null)
+                chkWmPnpExtrapolation.Visible = (isWm && chkWmHybridPnp.Checked) || (isTwb && chkTwbHybridPnp.Checked);
+            bool hybrid = (isWm && chkWmHybridPnp.Checked) || (isTwb && chkTwbHybridPnp.Checked);
+            chkPnpDeclareGeometry.Visible = hybrid;
+            bool declared = hybrid && chkPnpDeclareGeometry.Checked;
+            lblPnpLedSpacing.Visible = declared;
+            optPnpLedSpacing.Visible = declared;
+            lblPnpLensFov.Visible = declared;
+            optPnpLensFov.Visible = declared;
+
+            // [V59-FIX-32] EN: Distance Compensation is ONLY applicable to single Wiimote Bar WITHOUT Hybrid PnP.
+            //     When Hybrid PnP is checked (or layout is Two Wiimote Bars / multi-LED), disable and gray out
+            //     optEnableDistanceCompensation so it cannot be toggled. If already checked, it remains checked
+            //     but grayed out and inoperative. Re-enabled when Hybrid PnP is unchecked on Wiimote Bar.
+            //     FR: La compensation de distance n'est applicable qu'à une barre Wiimote unique SANS Hybride PnP.
+            //     Quand Hybride PnP est coché (ou sous Two Wiimote Bars / multi-LEDs), griser la case.
+            //     Rétablie quand Hybride PnP est décoché sur Wiimote Bar.
+            if (optEnableDistanceCompensation != null)
+            {
+                bool canUseDistanceCompensation = isWm && !chkWmHybridPnp.Checked;
+                optEnableDistanceCompensation.Enabled = canUseDistanceCompensation;
+            }
+        }
+
+        // [V59-FIX-11] EN/FR: Any hybrid checkbox toggled → refresh the visibility.
+        private void ChkHybridPnp_CheckedChanged(object sender, EventArgs e)
+        {
+            UpdateHybridVisibility();
+        }
+
+        // [V59-FIX-10] EN: Declared-geometry controls (PNP-Hybrid only): the checkbox
+        //     shows with the layout, the two numeric fields show only when declared.
+        //     FR: Contrôles de géométrie déclarée (PNP-Hybrid uniquement) : la case
+        //     apparaît avec le layout, les deux champs numériques seulement si déclarée.
+        private void UpdatePnpGeometryVisibility()
+        {
+            UpdateHybridVisibility();
+        }
+
+        // [V59-FIX-9/11] EN: LED layout dropdown changed — refresh all hybrid visibilities.
+        // [V59-FIX-31] EN: Two Wiimote Bars warning modal (FR/EN) on interactive selection.
+        //     FR: Changement du dropdown layout — rafraîchit les visibilités et avertit
+        //     l'utilisateur sur le layout Two Wiimote Bars peu optimisé.
+        private void OptLEDLayout_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            UpdateHybridVisibility();
+
+            if (_isLoadingOptions || optLEDLayout.SelectedItem == null)
+                return;
+
+            LEDLayoutType currentLayout = GetLEDLayoutFromName(optLEDLayout.SelectedItem.ToString());
+            if (currentLayout == LEDLayoutType.TwoWiimoteBar && _lastSelectedLEDLayout != LEDLayoutType.TwoWiimoteBar)
+            {
+                string warnMsg =
+                    "⚠️ WARNING — SUB-OPTIMAL LED LAYOUT:\n\n" +
+                    "This LED Layout is poorly optimized and may be less effective than a single Wiimote Bar.\n" +
+                    "Due to horizontal LED alignment and perspective distortion, tracking can degrade near screen edges.\n" +
+                    "For a reliable and accurate 4-LED experience, we strongly recommend using the \"Gun4IR Diamond\" or \"Four Corners\" layout instead.\n\n" +
+                    "--------------------------------------------------\n\n" +
+                    "⚠️ AVERTISSEMENT — DISPOSITION LED PEU OPTIMISÉE :\n\n" +
+                    "Ce LED Layout est très mal optimisé et pourrait être moins efficace qu'une seule Wiimote Bar.\n" +
+                    "En raison de l'alignement horizontal des LEDs et des déformations de perspective, le suivi peut se dégrader près des bords de l'écran.\n" +
+                    "Pour un rendu 4 LEDs optimal et précis, préférez utiliser le Layout « Gun4IR Diamond » ou « Four Corners ».\n\n" +
+                    "[OK] Continuer / Continue    |    [Annuler] Revenir au layout précédent / Cancel";
+
+                DialogResult res = MessageBox.Show(this, warnMsg,
+                    "LED Layout Warning / Avertissement Disposition LED",
+                    MessageBoxButtons.OKCancel,
+                    MessageBoxIcon.Warning);
+
+                if (res == DialogResult.Cancel)
+                {
+                    _isLoadingOptions = true;
+                    try
+                    {
+                        optLEDLayout.SelectedItem = GetLEDLayoutName(_lastSelectedLEDLayout);
+                        UpdateHybridVisibility();
+                    }
+                    finally
+                    {
+                        _isLoadingOptions = false;
+                    }
+                    return;
+                }
+            }
+            _lastSelectedLEDLayout = currentLayout;
+        }
+
+        // [V59-FIX-10/11] EN: Declared-geometry checkbox toggled → refresh (the v2
+        //     visibility logic lives in UpdateHybridVisibility).
+        //     FR: Case de géométrie déclarée cochée → rafraîchit (la logique v2 vit
+        //     dans UpdateHybridVisibility).
+        private void ChkPnpDeclareGeometry_CheckedChanged(object sender, EventArgs e)
+        {
+            UpdateHybridVisibility();
+        }
+
+        private void UpdateEsScriptsStatus()
+        {            if (lblEsScriptsStatus == null) return;
             try
             {
                 if (string.IsNullOrEmpty(EsScriptIntegration.GetEsScriptsRoot()))
@@ -350,99 +609,127 @@ namespace WiimoteGun.Controls
 
         public void LoadOptionsFromInstance()
         {
-            // General
-            optMouseMode.SelectedItem = MouseModeToLabel(Options.Instance.DefaultMouseMode);
-            optMonitorId.Value = Math.Min(Math.Max(Options.Instance.MonitorId, optMonitorId.Minimum), optMonitorId.Maximum);
-            optLEDLayout.SelectedItem = GetLEDLayoutName(Options.Instance.LEDLayout);
-            optIRSensitivity.Value = Math.Min(Math.Max(Options.Instance.IRSensitivity, optIRSensitivity.Minimum), optIRSensitivity.Maximum);
-            optShowNotifications.Checked = Options.Instance.ShowNotifications;
-            optEnableGamePadSwap.Checked = Options.Instance.EnableGamePadSwapMode;
-            optPersistentGamePads.Checked = Options.Instance.PersistentGamePads;
-            optEnableFPSMode.Checked = Options.Instance.EnableFPSMode;
-            if (optLockModeOnGameStart != null)
-                optLockModeOnGameStart.Checked = Options.Instance.LockModeOnGameStart;
-            if (optAutoBtReset != null)
-                optAutoBtReset.Checked = Options.Instance.AutoBtResetOnFail;
-            if (numBtResetDelay != null)
-                numBtResetDelay.Value = Math.Min(Math.Max(Options.Instance.AutoBtResetDelaySeconds, (int)numBtResetDelay.Minimum), (int)numBtResetDelay.Maximum);
-
-            // Log Level
-            optLogLevel.SelectedItem = Options.Instance.LoggingLevel.ToString();
-
-            // Auto-Start
-            optAutoStart.Items.Clear();
-            optAutoStart.Items.Add("None");
-            optAutoStart.Items.Add("Windows Startup");
-            optAutoStart.Items.Add("RetroBat Startup");
-            optAutoStart.SelectedIndex = (int)Options.Instance.AutoStart;
-
-
-            // Detection
-            optDetectDolphin.Checked = Options.Instance.DetectDolphinbar;
-            optDetectBluetooth.Checked = Options.Instance.DetectBlueTooth;
-
-            // Gestures (EN/FR: Gestes)
-            optEnableOffScreenReload.Checked = Options.Instance.EnableOffScreenReload;
-            optOffScreenReloadAuto.Checked = Options.Instance.OffScreenReloadAuto;
-            optEnableShakeReload.Checked = Options.Instance.EnableShakeReload;
-
-            // [V55y] Reload rumble (EN/FR: Vibration rechargement)
-            chkReloadRumble.Checked = Options.Instance.ReloadRumbleEnabled;
-            trkReloadRumbleIntensity.Value = Math.Min(Math.Max(Options.Instance.ReloadRumbleIntensity, trkReloadRumbleIntensity.Minimum), trkReloadRumbleIntensity.Maximum);
-            if (cboReloadRumbleStyle.Items.Count == 0)
+            _isLoadingOptions = true;
+            try
             {
-                cboReloadRumbleStyle.Items.AddRange(new object[] { "Ratchet (mechanical)", "Short", "Long", "Custom" });
+                // General
+                optMouseMode.SelectedItem = MouseModeToLabel(Options.Instance.DefaultMouseMode);
+                optMonitorId.Value = Math.Min(Math.Max(Options.Instance.MonitorId, optMonitorId.Minimum), optMonitorId.Maximum);
+                _lastSelectedLEDLayout = Options.Instance.LEDLayout;
+                optLEDLayout.SelectedItem = GetLEDLayoutName(Options.Instance.LEDLayout);
+                // [V59-FIX-11] EN/FR: Hybrid checkboxes + declared-geometry refresh
+                //     (the migration LEDLayout==WiimoteBarPnP → Wiimote Bar + hybrid is
+                //     already done in Options.Load).
+                UpdateHybridVisibility();
+                if (chkTwbHybridPnp != null)
+                    chkTwbHybridPnp.Checked = Options.Instance.TwoBarHybridPnp;
+                if (chkWmHybridPnp != null)
+                    chkWmHybridPnp.Checked = Options.Instance.WiimoteBarHybridPnp;
+                // [V59-FIX-17] EN/FR: edge-extrapolation opt-in load.
+                if (chkWmPnpExtrapolation != null)
+                    chkWmPnpExtrapolation.Checked = Options.Instance.WiimoteBarPnpEdgeExtrapolation;
+                // [V59-FIX-10] EN/FR: Declared-geometry controls (PNP-Hybrid).
+                UpdatePnpGeometryVisibility();
+                if (chkPnpDeclareGeometry != null)
+                {
+                    chkPnpDeclareGeometry.Checked = Options.Instance.PnpDeclareGeometry;
+                    optPnpLedSpacing.Value = Math.Min(Math.Max((decimal)Options.Instance.PnpLedSpacingMM, optPnpLedSpacing.Minimum), optPnpLedSpacing.Maximum);
+                    optPnpLensFov.Value = Math.Min(Math.Max((decimal)Options.Instance.PnpLensFovDeg, optPnpLensFov.Minimum), optPnpLensFov.Maximum);
+                }
+                optIRSensitivity.Value = Math.Min(Math.Max(Options.Instance.IRSensitivity, optIRSensitivity.Minimum), optIRSensitivity.Maximum);
+                optShowNotifications.Checked = Options.Instance.ShowNotifications;
+                optEnableGamePadSwap.Checked = Options.Instance.EnableGamePadSwapMode;
+                optPersistentGamePads.Checked = Options.Instance.PersistentGamePads;
+                optEnableFPSMode.Checked = Options.Instance.EnableFPSMode;
+                if (optLockModeOnGameStart != null)
+                    optLockModeOnGameStart.Checked = Options.Instance.LockModeOnGameStart;
+                if (optAutoBtReset != null)
+                    optAutoBtReset.Checked = Options.Instance.AutoBtResetOnFail;
+                if (numBtResetDelay != null)
+                    numBtResetDelay.Value = Math.Min(Math.Max(Options.Instance.AutoBtResetDelaySeconds, (int)numBtResetDelay.Minimum), (int)numBtResetDelay.Maximum);
+
+                // Log Level
+                optLogLevel.SelectedItem = Options.Instance.LoggingLevel.ToString();
+
+                // Auto-Start
+                optAutoStart.Items.Clear();
+                optAutoStart.Items.Add("None");
+                optAutoStart.Items.Add("Windows Startup");
+                optAutoStart.Items.Add("RetroBat Startup");
+                optAutoStart.SelectedIndex = (int)Options.Instance.AutoStart;
+
+
+                // Detection
+                optDetectDolphin.Checked = Options.Instance.DetectDolphinbar;
+                optDetectBluetooth.Checked = Options.Instance.DetectBlueTooth;
+
+                // Gestures (EN/FR: Gestes)
+                optEnableOffScreenReload.Checked = Options.Instance.EnableOffScreenReload;
+                optOffScreenReloadAuto.Checked = Options.Instance.OffScreenReloadAuto;
+                optEnableShakeReload.Checked = Options.Instance.EnableShakeReload;
+
+                // [V55y] Reload rumble (EN/FR: Vibration rechargement)
+                chkReloadRumble.Checked = Options.Instance.ReloadRumbleEnabled;
+                trkReloadRumbleIntensity.Value = Math.Min(Math.Max(Options.Instance.ReloadRumbleIntensity, trkReloadRumbleIntensity.Minimum), trkReloadRumbleIntensity.Maximum);
+                if (cboReloadRumbleStyle.Items.Count == 0)
+                {
+                    cboReloadRumbleStyle.Items.AddRange(new object[] { "Ratchet (mechanical)", "Short", "Long", "Custom" });
+                }
+                cboReloadRumbleStyle.SelectedIndex = Math.Min(Math.Max(Options.Instance.ReloadRumbleStyle, 0), 3);
+
+                // [V55z] Custom style parameters (EN/FR: Paramètres du style personnalisé)
+                trkReloadRumbleTicks.Value = Math.Min(Math.Max(Options.Instance.ReloadRumbleCustomTicks, trkReloadRumbleTicks.Minimum), trkReloadRumbleTicks.Maximum);
+                nudReloadRumbleTickOnMs.Value = Math.Min(Math.Max(Options.Instance.ReloadRumbleCustomOnMs, (int)nudReloadRumbleTickOnMs.Minimum), (int)nudReloadRumbleTickOnMs.Maximum);
+                nudReloadRumbleTickOffMs.Value = Math.Min(Math.Max(Options.Instance.ReloadRumbleCustomOffMs, (int)nudReloadRumbleTickOffMs.Minimum), (int)nudReloadRumbleTickOffMs.Maximum);
+                UpdateReloadRumbleCustomUi();
+                
+                // Map 0-3 index to Very Low, Low, Medium, High (EN/FR: Index 0-3 vers les niveaux de sensibilité)
+                optShakeSensitivity.SelectedIndex = Math.Min(Math.Max(Options.Instance.ShakeSensitivity, 0), 3);
+                
+                // Map bool to index: 0=Wiimote, 1=Nunchuk (EN/FR: 0=Wiimote, 1=Nunchuk)
+                optShakeDevice.SelectedIndex = Options.Instance.ShakeFromNunchuk ? 1 : 0;
+                optGrenadeDevice.SelectedIndex = Options.Instance.GrenadeFromNunchuk ? 1 : 0;
+                
+                optEnableGrenadeGesture.Checked = Options.Instance.EnableGrenadeGesture;
+
+                // Emulators
+                optRestartOnDolphin.Checked = Options.Instance.RestartOnDolphin;
+                optRestartOnCemu.Checked = Options.Instance.RestartOnCemu;
+
+                // IR Tracking Optimizations (EN/FR: Optimisations tracking IR)
+                optEnableIRSmoothing.Checked = Options.Instance.EnableIRSmoothing;
+                optIRSmoothingStrength.Value = Math.Min(Math.Max(Options.Instance.IRSmoothingStrength, optIRSmoothingStrength.Minimum), optIRSmoothingStrength.Maximum);
+                optUseHighPerfTimers.Checked = Options.Instance.UseHighPerfTimers;
+                optEnableHomographyCache.Checked = Options.Instance.EnableHomographyCache;
+                optEnableDistanceCompensation.Checked = Options.Instance.EnableDistanceCompensation;
+                optUseIRExtrapolation.Checked = Options.Instance.UseIRExtrapolation;
+                optIRExtrapolationStrength.Value = (decimal)Math.Min(Math.Max(Options.Instance.IRExtrapolationStrength, (float)optIRExtrapolationStrength.Minimum), (float)optIRExtrapolationStrength.Maximum);
+                optEnableVirtualPolling.Checked = Options.Instance.EnableVirtualPolling;
+                optVirtualPollingRate.Value = Math.Min(Math.Max(Options.Instance.VirtualPollingRate, (int)optVirtualPollingRate.Minimum), (int)optVirtualPollingRate.Maximum);
+                optIRSmoothingStrengthV2.Value = Math.Min(Math.Max(Options.Instance.IRSmoothingStrengthV2, (int)optIRSmoothingStrengthV2.Minimum), (int)optIRSmoothingStrengthV2.Maximum);
+                optIRExtrapolationStrengthV2.Value = (decimal)Math.Min(Math.Max(Options.Instance.IRExtrapolationStrengthV2, (float)optIRExtrapolationStrengthV2.Minimum), (float)optIRExtrapolationStrengthV2.Maximum);
+                optVirtualPollingRateV2.Value = Math.Min(Math.Max(Options.Instance.VirtualPollingRateV2, (int)optVirtualPollingRateV2.Minimum), (int)optVirtualPollingRateV2.Maximum);
+
+                // Standalone
+                optStandaloneMode.Checked = Options.Instance.StandaloneMode;
+                txtPCSX2Path.Text = Options.Instance.PCSX2Path;
+                txtDuckStationPath.Text = Options.Instance.DuckStationPath;
+                txtDolphinPath.Text = Options.Instance.DolphinPath;
+                txtCemuPath.Text = Options.Instance.CemuPath;
+
+                UpdateStandaloneUIState();
+
+                // EN: Check if remap profiles have Shake mappings that override gesture settings
+                // FR: Vérifier si les profils remap ont des mappings Shake qui priment sur les paramètres de gestes
+                UpdateGestureLockState();
+
+                // [V42] ES Scripts tab state (EN/FR: État de l'onglet Scripts ES)
+                LoadEsScriptsState();
             }
-            cboReloadRumbleStyle.SelectedIndex = Math.Min(Math.Max(Options.Instance.ReloadRumbleStyle, 0), 3);
-
-            // [V55z] Custom style parameters (EN/FR: Paramètres du style personnalisé)
-            trkReloadRumbleTicks.Value = Math.Min(Math.Max(Options.Instance.ReloadRumbleCustomTicks, trkReloadRumbleTicks.Minimum), trkReloadRumbleTicks.Maximum);
-            nudReloadRumbleTickOnMs.Value = Math.Min(Math.Max(Options.Instance.ReloadRumbleCustomOnMs, (int)nudReloadRumbleTickOnMs.Minimum), (int)nudReloadRumbleTickOnMs.Maximum);
-            nudReloadRumbleTickOffMs.Value = Math.Min(Math.Max(Options.Instance.ReloadRumbleCustomOffMs, (int)nudReloadRumbleTickOffMs.Minimum), (int)nudReloadRumbleTickOffMs.Maximum);
-            UpdateReloadRumbleCustomUi();
-            
-            // Map 0-3 index to Very Low, Low, Medium, High (EN/FR: Index 0-3 vers les niveaux de sensibilité)
-            optShakeSensitivity.SelectedIndex = Math.Min(Math.Max(Options.Instance.ShakeSensitivity, 0), 3);
-            
-            // Map bool to index: 0=Wiimote, 1=Nunchuk (EN/FR: 0=Wiimote, 1=Nunchuk)
-            optShakeDevice.SelectedIndex = Options.Instance.ShakeFromNunchuk ? 1 : 0;
-            optGrenadeDevice.SelectedIndex = Options.Instance.GrenadeFromNunchuk ? 1 : 0;
-            
-            optEnableGrenadeGesture.Checked = Options.Instance.EnableGrenadeGesture;
-
-            // Emulators
-            optRestartOnDolphin.Checked = Options.Instance.RestartOnDolphin;
-            optRestartOnCemu.Checked = Options.Instance.RestartOnCemu;
-
-            // IR Tracking Optimizations (EN/FR: Optimisations tracking IR)
-            optEnableIRSmoothing.Checked = Options.Instance.EnableIRSmoothing;
-            optIRSmoothingStrength.Value = Math.Min(Math.Max(Options.Instance.IRSmoothingStrength, optIRSmoothingStrength.Minimum), optIRSmoothingStrength.Maximum);
-            optUseHighPerfTimers.Checked = Options.Instance.UseHighPerfTimers;
-            optEnableHomographyCache.Checked = Options.Instance.EnableHomographyCache;
-            optEnableDistanceCompensation.Checked = Options.Instance.EnableDistanceCompensation;
-            optUseIRExtrapolation.Checked = Options.Instance.UseIRExtrapolation;
-            optIRExtrapolationStrength.Value = (decimal)Math.Min(Math.Max(Options.Instance.IRExtrapolationStrength, (float)optIRExtrapolationStrength.Minimum), (float)optIRExtrapolationStrength.Maximum);
-            optEnableVirtualPolling.Checked = Options.Instance.EnableVirtualPolling;
-            optVirtualPollingRate.Value = Math.Min(Math.Max(Options.Instance.VirtualPollingRate, (int)optVirtualPollingRate.Minimum), (int)optVirtualPollingRate.Maximum);
-            optIRSmoothingStrengthV2.Value = Math.Min(Math.Max(Options.Instance.IRSmoothingStrengthV2, (int)optIRSmoothingStrengthV2.Minimum), (int)optIRSmoothingStrengthV2.Maximum);
-            optIRExtrapolationStrengthV2.Value = (decimal)Math.Min(Math.Max(Options.Instance.IRExtrapolationStrengthV2, (float)optIRExtrapolationStrengthV2.Minimum), (float)optIRExtrapolationStrengthV2.Maximum);
-            optVirtualPollingRateV2.Value = Math.Min(Math.Max(Options.Instance.VirtualPollingRateV2, (int)optVirtualPollingRateV2.Minimum), (int)optVirtualPollingRateV2.Maximum);
-
-            // Standalone
-            optStandaloneMode.Checked = Options.Instance.StandaloneMode;
-            txtPCSX2Path.Text = Options.Instance.PCSX2Path;
-            txtDuckStationPath.Text = Options.Instance.DuckStationPath;
-            txtDolphinPath.Text = Options.Instance.DolphinPath;
-            txtCemuPath.Text = Options.Instance.CemuPath;
-
-            UpdateStandaloneUIState();
-
-            // EN: Check if remap profiles have Shake mappings that override gesture settings
-            // FR: Vérifier si les profils remap ont des mappings Shake qui priment sur les paramètres de gestes
-            UpdateGestureLockState();
-
-            // [V42] ES Scripts tab state (EN/FR: État de l'onglet Scripts ES)
-            LoadEsScriptsState();
+            finally
+            {
+                _isLoadingOptions = false;
+            }
         }
 
         private void UpdateStandaloneUIState()
@@ -901,8 +1188,32 @@ namespace WiimoteGun.Controls
                 Options.Instance.MonitorId = (int)optMonitorId.Value;
                 
                 if (optLEDLayout.SelectedItem != null)
+                {
                     Options.Instance.LEDLayout = GetLEDLayoutFromName(optLEDLayout.SelectedItem.ToString());
-                
+                }
+
+                // [V59-FIX-9/12] EN/FR: Hybrid-PnP checkbox for the Two Wiimote Bars layout.
+                if (chkTwbHybridPnp != null)
+                    Options.Instance.TwoBarHybridPnp = chkTwbHybridPnp.Checked;
+
+                // [V59-FIX-12] EN/FR: Hybrid-PnP checkbox for the Wiimote Bar layout
+                //     (was MISSING from the save block — the checkbox was loaded but
+                //     never persisted, resetting to unchecked on every restart).
+                if (chkWmHybridPnp != null)
+                    Options.Instance.WiimoteBarHybridPnp = chkWmHybridPnp.Checked;
+
+                // [V59-FIX-17] EN/FR: edge-extrapolation opt-in save.
+                if (chkWmPnpExtrapolation != null)
+                    Options.Instance.WiimoteBarPnpEdgeExtrapolation = chkWmPnpExtrapolation.Checked;
+
+                // [V59-FIX-10] EN/FR: Declared-geometry values (PNP-Hybrid).
+                if (chkPnpDeclareGeometry != null)
+                {
+                    Options.Instance.PnpDeclareGeometry = chkPnpDeclareGeometry.Checked;
+                    Options.Instance.PnpLedSpacingMM = (float)optPnpLedSpacing.Value;
+                    Options.Instance.PnpLensFovDeg = (float)optPnpLensFov.Value;
+                }
+
                 Options.Instance.IRSensitivity = (int)optIRSensitivity.Value;
                 Options.Instance.ShowNotifications = optShowNotifications.Checked;
                 Options.Instance.EnableGamePadSwapMode = optEnableGamePadSwap.Checked;
@@ -1037,19 +1348,35 @@ namespace WiimoteGun.Controls
             switch (type)
             {
                 case LEDLayoutType.Gun4IRDiamond: return "Gun4IR Diamond";
-                case LEDLayoutType.TwoWiimoteBar: return "Two Wiimote Bars";
+                // [V59-FIX-9] EN/FR: reactivated in the dropdown (was hidden) + renamed
+                //     per user — covers two Wii bars AND the BlancoM rail (same
+                //     geometry for the camera).
+                case LEDLayoutType.TwoWiimoteBar: return "Two Wiimote Bars (Or Blacom)";
                 case LEDLayoutType.FourCorners: return "Four Corners";
+                // [V59-FIX-4] EN: Renamed "Wiimote Bar - PNP-Hybrid (alpha Test)" (not a
+                //     100% PnP solve — user decision). The enum member name is unchanged
+                //     so existing settings.cfg values keep parsing.
+                //     FR: Renommé « Wiimote Bar - PNP-Hybrid (alpha Test) » (pas un solve
+                //     PnP à 100 % — décision user). Le nom de membre enum est inchangé
+                //     pour que les valeurs settings.cfg existantes continuent de se parser.
+                case LEDLayoutType.WiimoteBarPnP: return "Wiimote Bar - PNP-Hybrid (alpha Test)";
                 default: return "Wiimote Bar";
             }
         }
-        
+
         private LEDLayoutType GetLEDLayoutFromName(string name)
         {
             switch (name)
             {
                 case "Gun4IR Diamond": return LEDLayoutType.Gun4IRDiamond;
+                // [V59-FIX-9] EN/FR: new label + the legacy one (migration safety)
+                case "Two Wiimote Bars (Or Blacom)": return LEDLayoutType.TwoWiimoteBar;
                 case "Two Wiimote Bars": return LEDLayoutType.TwoWiimoteBar;
                 case "Four Corners": return LEDLayoutType.FourCorners;
+                // [V59-FIX-4] EN/FR: previous labels also accepted (migration safety)
+                case "Wiimote Bar - PNP-Hybrid (alpha Test)": return LEDLayoutType.WiimoteBarPnP;
+                case "PnP Hybrid": return LEDLayoutType.WiimoteBarPnP;
+                case "Wiimote Bar PnP (alpha test)": return LEDLayoutType.WiimoteBarPnP;
                 default: return LEDLayoutType.WiimoteBar;
             }
         }
