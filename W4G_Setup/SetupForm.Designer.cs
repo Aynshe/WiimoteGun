@@ -24,6 +24,7 @@ namespace W4G_Setup
             this.btnBrowse = new System.Windows.Forms.Button();
             this.lblCheckTitle = new System.Windows.Forms.Label();
             this.chkArchive = new System.Windows.Forms.Label();
+            this.chkOnline = new System.Windows.Forms.Label();
             this.chkRetroBat = new System.Windows.Forms.Label();
             this.chkRuntime = new System.Windows.Forms.Label();
             this.chkInstalled = new System.Windows.Forms.Label();
@@ -114,11 +115,21 @@ namespace W4G_Setup
             this.chkArchive.TabIndex = 6;
             this.chkArchive.Text = "...";
             // 
+            // chkOnline
+            // 
+            this.chkOnline.Font = new System.Drawing.Font("Segoe UI", 8.5F);
+            this.chkOnline.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(160)))), ((int)(((byte)(160)))), ((int)(((byte)(170)))));
+            this.chkOnline.Location = new System.Drawing.Point(30, 183);
+            this.chkOnline.Name = "chkOnline";
+            this.chkOnline.Size = new System.Drawing.Size(500, 18);
+            this.chkOnline.TabIndex = 21;
+            this.chkOnline.Text = "...";
+            // 
             // chkRetroBat
             // 
             this.chkRetroBat.Font = new System.Drawing.Font("Segoe UI", 8.5F);
             this.chkRetroBat.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(160)))), ((int)(((byte)(160)))), ((int)(((byte)(170)))));
-            this.chkRetroBat.Location = new System.Drawing.Point(30, 183);
+            this.chkRetroBat.Location = new System.Drawing.Point(30, 201);
             this.chkRetroBat.Name = "chkRetroBat";
             this.chkRetroBat.Size = new System.Drawing.Size(500, 18);
             this.chkRetroBat.TabIndex = 7;
@@ -128,7 +139,7 @@ namespace W4G_Setup
             // 
             this.chkRuntime.Font = new System.Drawing.Font("Segoe UI", 8.5F);
             this.chkRuntime.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(160)))), ((int)(((byte)(160)))), ((int)(((byte)(170)))));
-            this.chkRuntime.Location = new System.Drawing.Point(30, 201);
+            this.chkRuntime.Location = new System.Drawing.Point(30, 219);
             this.chkRuntime.Name = "chkRuntime";
             this.chkRuntime.Size = new System.Drawing.Size(500, 18);
             this.chkRuntime.TabIndex = 8;
@@ -138,7 +149,7 @@ namespace W4G_Setup
             // 
             this.chkInstalled.Font = new System.Drawing.Font("Segoe UI", 8.5F);
             this.chkInstalled.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(160)))), ((int)(((byte)(160)))), ((int)(((byte)(170)))));
-            this.chkInstalled.Location = new System.Drawing.Point(30, 219);
+            this.chkInstalled.Location = new System.Drawing.Point(30, 237);
             this.chkInstalled.Name = "chkInstalled";
             this.chkInstalled.Size = new System.Drawing.Size(500, 18);
             this.chkInstalled.TabIndex = 9;
@@ -148,7 +159,7 @@ namespace W4G_Setup
             // 
             this.chkLayoutWarning.Font = new System.Drawing.Font("Segoe UI", 8F);
             this.chkLayoutWarning.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(140)))), ((int)(((byte)(0)))));
-            this.chkLayoutWarning.Location = new System.Drawing.Point(30, 240);
+            this.chkLayoutWarning.Location = new System.Drawing.Point(30, 258);
             this.chkLayoutWarning.Name = "chkLayoutWarning";
             this.chkLayoutWarning.Size = new System.Drawing.Size(500, 28);
             this.chkLayoutWarning.TabIndex = 10;
@@ -158,7 +169,7 @@ namespace W4G_Setup
             // 
             this.lblLayout.AutoSize = true;
             this.lblLayout.ForeColor = System.Drawing.Color.White;
-            this.lblLayout.Location = new System.Drawing.Point(20, 278);
+            this.lblLayout.Location = new System.Drawing.Point(20, 296);
             this.lblLayout.Name = "lblLayout";
             this.lblLayout.Size = new System.Drawing.Size(75, 17);
             this.lblLayout.TabIndex = 11;
@@ -176,7 +187,7 @@ namespace W4G_Setup
             "Gun4IR Diamond",
             "Two Wiimote Bars (Or Blacom)",
             "Four Corners"});
-            this.cmbLayout.Location = new System.Drawing.Point(101, 275);
+            this.cmbLayout.Location = new System.Drawing.Point(101, 293);
             this.cmbLayout.Name = "cmbLayout";
             this.cmbLayout.Size = new System.Drawing.Size(220, 25);
             this.cmbLayout.TabIndex = 12;
@@ -185,7 +196,7 @@ namespace W4G_Setup
             // 
             this.chkHybrid.AutoSize = true;
             this.chkHybrid.ForeColor = System.Drawing.Color.White;
-            this.chkHybrid.Location = new System.Drawing.Point(20, 306);
+            this.chkHybrid.Location = new System.Drawing.Point(20, 324);
             this.chkHybrid.Name = "chkHybrid";
             this.chkHybrid.Size = new System.Drawing.Size(203, 21);
             this.chkHybrid.TabIndex = 13;
@@ -195,7 +206,7 @@ namespace W4G_Setup
             // 
             this.lblHybridInfo.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblHybridInfo.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(160)))), ((int)(((byte)(160)))), ((int)(((byte)(170)))));
-            this.lblHybridInfo.Location = new System.Drawing.Point(24, 330);
+            this.lblHybridInfo.Location = new System.Drawing.Point(24, 348);
             this.lblHybridInfo.Name = "lblHybridInfo";
             this.lblHybridInfo.Size = new System.Drawing.Size(500, 95);
             this.lblHybridInfo.TabIndex = 14;
@@ -204,7 +215,7 @@ namespace W4G_Setup
             // progress
             // 
             this.progress.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(120)))), ((int)(((byte)(215)))));
-            this.progress.Location = new System.Drawing.Point(20, 428);
+            this.progress.Location = new System.Drawing.Point(20, 446);
             this.progress.Name = "progress";
             this.progress.Size = new System.Drawing.Size(510, 16);
             this.progress.TabIndex = 15;
@@ -214,7 +225,7 @@ namespace W4G_Setup
             // 
             this.lblStatus.Font = new System.Drawing.Font("Segoe UI", 8.5F);
             this.lblStatus.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(180)))), ((int)(((byte)(180)))), ((int)(((byte)(190)))));
-            this.lblStatus.Location = new System.Drawing.Point(20, 450);
+            this.lblStatus.Location = new System.Drawing.Point(20, 468);
             this.lblStatus.Name = "lblStatus";
             this.lblStatus.Size = new System.Drawing.Size(510, 28);
             this.lblStatus.TabIndex = 16;
@@ -225,7 +236,7 @@ namespace W4G_Setup
             this.btnInstall.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnInstall.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
             this.btnInstall.ForeColor = System.Drawing.Color.White;
-            this.btnInstall.Location = new System.Drawing.Point(210, 490);
+            this.btnInstall.Location = new System.Drawing.Point(210, 508);
             this.btnInstall.Name = "btnInstall";
             this.btnInstall.Size = new System.Drawing.Size(140, 40);
             this.btnInstall.TabIndex = 17;
@@ -238,7 +249,7 @@ namespace W4G_Setup
             this.btnFinish.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnFinish.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
             this.btnFinish.ForeColor = System.Drawing.Color.White;
-            this.btnFinish.Location = new System.Drawing.Point(210, 490);
+            this.btnFinish.Location = new System.Drawing.Point(210, 508);
             this.btnFinish.Name = "btnFinish";
             this.btnFinish.Size = new System.Drawing.Size(140, 40);
             this.btnFinish.TabIndex = 18;
@@ -251,7 +262,7 @@ namespace W4G_Setup
             this.lnkGitHub.ActiveLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(180)))), ((int)(((byte)(255)))));
             this.lnkGitHub.Font = new System.Drawing.Font("Segoe UI", 8.5F);
             this.lnkGitHub.LinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(150)))), ((int)(((byte)(255)))));
-            this.lnkGitHub.Location = new System.Drawing.Point(35, 533);
+            this.lnkGitHub.Location = new System.Drawing.Point(35, 551);
             this.lnkGitHub.Name = "lnkGitHub";
             this.lnkGitHub.Size = new System.Drawing.Size(130, 18);
             this.lnkGitHub.TabIndex = 19;
@@ -264,7 +275,7 @@ namespace W4G_Setup
             this.lnkRetroBat.ActiveLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(180)))), ((int)(((byte)(255)))));
             this.lnkRetroBat.Font = new System.Drawing.Font("Segoe UI", 8.5F);
             this.lnkRetroBat.LinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(150)))), ((int)(((byte)(255)))));
-            this.lnkRetroBat.Location = new System.Drawing.Point(396, 533);
+            this.lnkRetroBat.Location = new System.Drawing.Point(396, 551);
             this.lnkRetroBat.Name = "lnkRetroBat";
             this.lnkRetroBat.Size = new System.Drawing.Size(105, 18);
             this.lnkRetroBat.TabIndex = 20;
@@ -276,7 +287,7 @@ namespace W4G_Setup
             // 
             this.AcceptButton = this.btnInstall;
             this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(40)))));
-            this.ClientSize = new System.Drawing.Size(551, 560);
+            this.ClientSize = new System.Drawing.Size(551, 579);
             this.Controls.Add(this.lblTitle);
             this.Controls.Add(this.lblSubtitle);
             this.Controls.Add(this.lblPath);
@@ -284,6 +295,7 @@ namespace W4G_Setup
             this.Controls.Add(this.btnBrowse);
             this.Controls.Add(this.lblCheckTitle);
             this.Controls.Add(this.chkArchive);
+            this.Controls.Add(this.chkOnline);
             this.Controls.Add(this.chkRetroBat);
             this.Controls.Add(this.chkRuntime);
             this.Controls.Add(this.chkInstalled);
@@ -319,6 +331,7 @@ namespace W4G_Setup
         private System.Windows.Forms.Button btnBrowse;
         private System.Windows.Forms.Label lblCheckTitle;
         private System.Windows.Forms.Label chkArchive;
+        private System.Windows.Forms.Label chkOnline;
         private System.Windows.Forms.Label chkRetroBat;
         private System.Windows.Forms.Label chkRuntime;
         private System.Windows.Forms.Label chkInstalled;

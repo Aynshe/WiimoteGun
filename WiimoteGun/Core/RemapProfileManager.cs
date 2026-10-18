@@ -301,6 +301,124 @@ namespace WiimoteGun
         }
 
         /// <summary>
+        /// EN: [V61-FIX-4] Persist the LIVE per-player Off-Screen Reload overrides into the
+        ///     ACTIVE remap profile FILE (default.remap by default). Any profile reload
+        ///     (auto default.remap load when a Wiimote connects, tile load, game-start
+        ///     reload) re-applies the file to Options — without this the per-player choice
+        ///     was reset to the global value on every reload. resetToGlobal=true writes
+        ///     the overrides back as -1 (follow global) — used when the user changes the
+        ///     global option in Options > Gestures, so the global applies to all again.
+        /// FR: [V61-FIX-4] Persiste les overrides par joueur vivants du Off-Screen Reload
+        ///     dans le FICHIER du profil remap ACTIF (default.remap par défaut). Tout
+        ///     rechargement de profil (chargement auto de default.remap à la connexion
+        ///     d'une Wiimote, chargement tuile, reload game-start) réapplique le fichier
+        ///     aux Options — sans ça le choix par joueur était remis à la valeur globale à
+        ///     chaque rechargement. resetToGlobal=true réécrit les overrides en -1 (suivre
+        ///     le global) — utilisé quand l'utilisateur change l'option globale dans
+        ///     Options > Gestures, pour que le global s'applique à nouveau à tous.
+        /// </summary>
+        public static void PersistOffScreenReloadOverrides(bool resetToGlobal)
+        {
+            PersistPerPlayerOverrides((target, live, reset) =>
+            {
+                if (reset)
+                {
+                    target.OffScreenReloadOverride = -1;
+                    target.OffScreenAutoOverride = -1;
+                }
+                else
+                {
+                    target.OffScreenReloadOverride = live.OffScreenReloadOverride;
+                    target.OffScreenAutoOverride = live.OffScreenAutoOverride;
+                }
+            }, resetToGlobal, "Off-Screen Reload");
+        }
+
+        /// <summary>
+        /// EN: [V61-FIX-5] Same persistence for the Reload Rumble overrides (enabled,
+        ///     intensity, style) — per-player on the mapping page (even the root default
+        ///     profile), reset to global (-1) when the user touches a global rumble
+        ///     setting in Options > Gestures.
+        /// FR: [V61-FIX-5] Même persistance pour les overrides de la vibration de
+        ///     rechargement (activé, intensité, style) — par joueur sur la page mapping
+        ///     (même le profil default racine), remis à -1 (suivre le global) quand
+        ///     l'utilisateur touche un réglage global de vibration dans Options > Gestures.
+        /// </summary>
+        public static void PersistReloadRumbleOverrides(bool resetToGlobal)
+        {
+            PersistPerPlayerOverrides((target, live, reset) =>
+            {
+                if (reset)
+                {
+                    target.ReloadRumbleOverride = -1;
+                    target.ReloadRumbleIntensityOverride = -1;
+                    target.ReloadRumbleStyleOverride = -1;
+                }
+                else
+                {
+                    target.ReloadRumbleOverride = live.ReloadRumbleOverride;
+                    target.ReloadRumbleIntensityOverride = live.ReloadRumbleIntensityOverride;
+                    target.ReloadRumbleStyleOverride = live.ReloadRumbleStyleOverride;
+                }
+            }, resetToGlobal, "Reload Rumble");
+        }
+
+        /// <summary>
+        /// EN: [V61-FIX-4/5] Shared per-player override persistence: loads the ACTIVE
+        ///     remap profile (root default.remap when none is active, auto-created from
+        ///     the factory default if the file is missing), applies the given field
+        ///     copier for each of the 4 players, and saves the file. Only the selected
+        ///     fields are touched — other in-memory (unsaved) edits are never persisted.
+        /// FR: [V61-FIX-4/5] Persistance partagée des overrides par joueur : charge le
+        ///     profil remap ACTIF (default.remap racine si aucun actif, auto-créé depuis
+        ///     l'usine si le fichier manque), applique le copieur de champs pour chacun des
+        ///     4 joueurs, et sauvegarde le fichier. Seuls les champs choisis sont touchés —
+        ///     les autres modifications mémoire (non sauvegardées) ne sont jamais persistées.
+        /// </summary>
+        private static void PersistPerPlayerOverrides(Action<PlayerMappings, PlayerMappings, bool> applyFields, bool resetToGlobal, string fieldName)
+        {
+            try
+            {
+                string active = Program.GetActiveRemapProfile();
+                bool isRootDefault = string.IsNullOrEmpty(active);
+                string relPath = isRootDefault ? DEFAULT_PROFILE_NAME : active;
+
+                RemapProfile profile = LoadProfile(relPath);
+                if (profile == null)
+                {
+                    // Root default.remap missing: create it from the factory default
+                    // (same behaviour as the auto-create on first profile save).
+                    // (EN/FR: default.remap racine absent : le créer depuis l'usine.)
+                    if (!isRootDefault) return;
+                    profile = RemapProfile.GetFactoryDefault();
+                    profile.ProfileName = "Default";
+                }
+
+                for (int p = 1; p <= 4; p++)
+                {
+                    PlayerMappings target = p == 1 ? profile.P1Mappings
+                                          : p == 2 ? profile.P2Mappings
+                                          : p == 3 ? profile.P3Mappings
+                                          : profile.P4Mappings;
+                    PlayerMappings live = Options.Instance.GetMappingsForPlayer(p);
+                    if (target == null || live == null) continue;
+                    applyFields(target, live, resetToGlobal);
+                }
+
+                string subfolder = Path.GetDirectoryName(relPath);
+                string filename = Path.GetFileName(relPath);
+                SaveProfile(filename, subfolder, profile);
+                SimpleLogger.Instance.Info(string.Format(
+                    "[V61] {0} per-player overrides persisted to profile '{1}' (resetToGlobal={2})",
+                    fieldName, relPath, resetToGlobal));
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Warning("[V61] PersistPerPlayerOverrides (" + fieldName + ") failed: " + ex.Message);
+            }
+        }
+
+        /// <summary>
         /// Get list of subfolders in remap directory
         /// (EN/FR: Obtenir la liste des sous-dossiers dans le dossier remap)
         /// </summary>

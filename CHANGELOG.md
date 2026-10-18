@@ -5,6 +5,14 @@ All notable changes to Wiimote4Guns will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 
+## [3.1.6.1] - 2026-10-18
+
+- Standalone W4G_Setup.exe installer - Setup update reliability : WiimoteGun.exe is closed before extracting (a running app locks its own files), the running WiimoteGun.Service.exe is never overwritten (the service is updated by its own elevated path), files in use are skipped and logged instead of aborting the install half-way
+- Off-Screen Reload (checkbox + Trigger/Auto dropdown) is now PER PLAYER, even on the default profile: each player overrides the global, the per-player choice survives profile reloads, and changing the global in Options > Gestures re-applies it to every player
+- Reload Rumble, its intensity and its style are now per player as well, with the same rules
+
+---
+
 ## [3.1.6.0] - 2026-10-17
 
 - Layout Two WiimoteBar (Or Blancom) was previously removed due to issues with the calibration mechanism. Re-introduced now, it works better and allows pairing with a Blacom in a two-bar layout by switching the Wiimote to Player 2. In my opinion, the accuracy here is no better than with a single sensor bar. To be tested...

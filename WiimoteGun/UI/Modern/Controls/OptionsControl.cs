@@ -45,6 +45,35 @@ namespace WiimoteGun.Controls
             //     initial pour que la sélection programmatique ne déclenche pas le flux.
             optMouseMode.SelectedIndexChanged += OptMouseMode_SelectedIndexChanged;
 
+            // [V61-FIX-2] EN: A GLOBAL Off-Screen Reload toggle (this Gestures tab) re-applies
+            //     the global value to EVERY player: their per-player overrides (set on the
+            //     mapping page) are reset to "follow global" (-1). Wired AFTER the initial
+            //     load so the programmatic load never resets anything.
+            //     FR: Un toggle GLOBAL du Off-Screen Reload (cet onglet Gestes) réapplique la
+            //     valeur globale à TOUS les joueurs : leurs overrides par joueur (posés sur la
+            //     page mapping) repassent à « suivre le global » (-1). Câblé APRÈS le
+            //     chargement initial pour que le chargement programmatique ne reset rien.
+            if (optEnableOffScreenReload != null)
+                optEnableOffScreenReload.CheckedChanged += OptEnableOffScreenReload_CheckedChanged;
+            if (optOffScreenReloadAuto != null)
+                optOffScreenReloadAuto.CheckedChanged += OptOffScreenReloadAuto_CheckedChanged;
+
+            // [V61-FIX-5] EN: Any GLOBAL reload-rumble change (enable / intensity / style)
+            //     re-applies the global to ALL players: their per-player overrides (set
+            //     on the mapping page) are reset to "follow global" (-1) and persisted.
+            //     Wired after the initial load; the handler guards on _isLoadingOptions.
+            //     FR: Tout changement GLOBAL de la vibration de rechargement (activé /
+            //     intensité / style) réapplique le global à TOUS les joueurs : leurs
+            //     overrides par joueur (posés sur la page mapping) repassent à -1
+            //     (suivre le global) et sont persistés. Câblé après le chargement
+            //     initial ; le handler se protège par _isLoadingOptions.
+            if (chkReloadRumble != null)
+                chkReloadRumble.CheckedChanged += (s, e) => ResetReloadRumbleOverrides();
+            if (trkReloadRumbleIntensity != null)
+                trkReloadRumbleIntensity.ValueChanged += (s, e) => ResetReloadRumbleOverrides();
+            if (cboReloadRumbleStyle != null)
+                cboReloadRumbleStyle.SelectedIndexChanged += (s, e) => ResetReloadRumbleOverrides();
+
             // [V57d] EN: Tooltip for the input mode dropdown (General tab)
             //     FR: Bulle d'aide pour le mode d'input (onglet Général)
             _toolTips.SetToolTip(optMouseMode,
@@ -1340,6 +1369,107 @@ namespace WiimoteGun.Controls
             {
                 SimpleLogger.Instance.Error($"Error saving options: {ex.Message}");
                 MessageBox.Show(this.FindForm(), $"Error saving options: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// EN: [V61-FIX-5] A GLOBAL reload-rumble setting (enable / intensity / style)
+        ///     changed: the global applies to EVERY player again — per-player rumble
+        ///     overrides (mapping page) are reset to "follow global" (-1) in Options
+        ///     AND in the active profile file.
+        /// FR: [V61-FIX-5] Un réglage GLOBAL de la vibration de rechargement (activé /
+        ///     intensité / style) a changé : le global s'applique à nouveau à TOUS les
+        ///     joueurs — les overrides par joueur (page mapping) repassent à -1 dans
+        ///     Options ET dans le fichier du profil actif.
+        /// </summary>
+        private void ResetReloadRumbleOverrides()
+        {
+            if (_isLoadingOptions) return; // EN/FR: never reset on the programmatic load
+            try
+            {
+                for (int p = 1; p <= 4; p++)
+                {
+                    var pm = Options.Instance.GetMappingsForPlayer(p);
+                    if (pm == null) continue;
+                    pm.ReloadRumbleOverride = -1;
+                    pm.ReloadRumbleIntensityOverride = -1;
+                    pm.ReloadRumbleStyleOverride = -1;
+                }
+
+                // EN/FR: persist the reset into the ACTIVE profile file so the next
+                //     profile reload does not resurrect the old per-player values.
+                RemapProfileManager.PersistReloadRumbleOverrides(true);
+
+                SimpleLogger.Instance.Info("[V61-FIX-5] Global reload rumble changed - per-player rumble overrides reset to follow global.");
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Warning("[V61-FIX-5] ResetReloadRumbleOverrides failed: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// EN: [V61-FIX-2] Global "Off-Screen Reload" toggled in Options > Gestures.
+        /// The new global value applies to EVERY player again: the per-player
+        /// overrides (set on the mapping page) are reset to "follow global" (-1),
+        /// including the Trigger/Auto override (one feature = one reset).
+        /// FR: [V61-FIX-2] Toggle global du « Off-Screen Reload » dans Options > Gestes.
+        /// La nouvelle valeur globale s'applique à nouveau à TOUS les joueurs : les
+        /// overrides par joueur (posés sur la page mapping) repassent à « suivre le
+        /// global » (-1), override Trigger/Auto inclus (une fonctionnalité = un reset).
+        /// </summary>
+        private void OptEnableOffScreenReload_CheckedChanged(object sender, EventArgs e)
+        {
+            if (_isLoadingOptions) return; // EN/FR: never reset on the programmatic load
+            ResetOffScreenReloadOverrides(resetReload: true, resetAuto: true);
+        }
+
+        /// <summary>
+        /// EN: [V61-FIX-2] Global "Auto" mode toggled: re-applies the global Auto to all
+        /// players (per-player Auto override reset). The ON/OFF per-player choice is kept.
+        /// FR: [V61-FIX-2] Toggle global du mode Auto : réapplique l'Auto global à tous les
+        /// joueurs (override Auto par joueur remis à zéro). Le choix ON/OFF par joueur est conservé.
+        /// </summary>
+        private void OptOffScreenReloadAuto_CheckedChanged(object sender, EventArgs e)
+        {
+            if (_isLoadingOptions) return;
+            ResetOffScreenReloadOverrides(resetReload: false, resetAuto: true);
+        }
+
+        /// <summary>
+        /// EN: [V61-FIX-2] Reset the per-player Off-Screen Reload overrides to "follow
+        /// global" (-1) for all 4 players. Called when the global option changes in
+        /// Options > Gestures; persisted on the next Apply (Options.Save).
+        /// FR: [V61-FIX-2] Remet les overrides par joueur du Off-Screen Reload à « suivre
+        /// le global » (-1) pour les 4 joueurs. Appelé quand l'option globale change dans
+        /// Options > Gestures ; persisté au prochain Apply (Options.Save).
+        /// </summary>
+        private void ResetOffScreenReloadOverrides(bool resetReload, bool resetAuto)
+        {
+            try
+            {
+                for (int p = 1; p <= 4; p++)
+                {
+                    var pm = Options.Instance.GetMappingsForPlayer(p);
+                    if (pm == null) continue;
+                    if (resetReload) pm.OffScreenReloadOverride = -1;
+                    if (resetAuto) pm.OffScreenAutoOverride = -1;
+                }
+
+                // [V61-FIX-4] EN: Also persist the reset into the ACTIVE profile FILE.
+                //     Without this, the next profile reload (auto default.remap load on
+                //     Wiimote connect, tile load, game-start reload) would re-apply the
+                //     old per-player values and defeat the global change.
+                //     FR: Persister aussi le reset dans le FICHIER du profil ACTIF. Sans
+                //     ça, le prochain rechargement de profil réappliquerait les anciennes
+                //     valeurs par joueur et annulerait le changement global.
+                RemapProfileManager.PersistOffScreenReloadOverrides(true);
+
+                SimpleLogger.Instance.Info("[V61-FIX-2] Global Off-Screen Reload changed - per-player overrides reset to follow global (reload:" + resetReload + ", auto:" + resetAuto + ").");
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Warning("[V61-FIX-2] ResetOffScreenReloadOverrides failed: " + ex.Message);
             }
         }
 

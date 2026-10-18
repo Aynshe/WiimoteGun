@@ -1,5 +1,31 @@
 # Wiimote4Guns Changelog
 
+## v3.1.6.1
+
+### [EN] W4G_Setup.exe — standalone installer
+- Standalone W4G_Setup.exe installer - Setup update reliability : WiimoteGun.exe is closed before extracting (a running app locks its own files), the running WiimoteGun.Service.exe is never overwritten (the service is updated by its own elevated path), files in use are skipped and logged instead of aborting the install half-way
+
+### [EN] Off-Screen Reload — now per player
+- The Off-Screen Reload checkbox and the Trigger/Auto dropdown are now PER PLAYER, even on the default profile
+- Each player overrides the global; changing the global in Options > Gestures re-applies it to every player
+- The per-player choice survives profile reloads (auto default load, game start, manual load)
+
+### [EN] Reload Rumble — now per player
+- Reload Rumble, its intensity and its style are now per player too, with the same rules
+
+### [FR] W4G_Setup.exe — installeur autonome
+- Fiabilité de la mise à jour par le setup : WiimoteGun.exe est fermé avant l'extraction (une app en cours verrouille ses propres fichiers), le WiimoteGun.Service.exe en cours n'est jamais écrasé (le service est mis à jour par sa propre voie élevée), les fichiers utilisés sont ignorés et tracés au lieu d'annuler l'installation à mi-chemin
+
+### [FR] Reload hors écran — désormais par joueur
+- La case Off-Screen Reload et la liste Trigger/Auto sont désormais PAR JOUEUR, même sur le profil par défaut
+- Chaque joueur surcharge le global ; un changement du global dans Options > Gestures le réapplique à tous les joueurs
+- Le choix par joueur survit aux rechargements de profil (chargement auto du default, game start, chargement manuel)
+
+### [FR] Vibration de rechargement — désormais par joueur
+- La vibration de rechargement, son intensité et son style sont désormais par joueur aussi, avec les mêmes règles
+
+---
+
 ## v3.1.6.0
 
 ### [EN] Two Wiimote Bars (Or Blacom) layout
