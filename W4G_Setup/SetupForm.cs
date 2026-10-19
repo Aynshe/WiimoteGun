@@ -21,6 +21,12 @@ namespace W4G_Setup
     {
         public bool SetupCompleted { get; private set; }
 
+        // [V61-SETUP-2] Cached latest GitHub release version (fetched ONCE, async, at opening)
+        // (EN/FR: Version de la dernière release GitHub en cache — fetchée UNE FOIS, async,
+        // à l'ouverture)
+        private string _onlineVersion;
+        private bool _onlineChecked;
+
         public SetupForm()
         {
             InitializeComponent();
@@ -78,6 +84,16 @@ namespace W4G_Setup
             cmbLayout.SelectedIndex = 0;
             btnInstall.Click += (s, e) => RunSetup();
             btnFinish.Click += btnFinish_Click;
+
+            // [V61-SETUP-2] EN: fetch the latest GitHub release version ONCE when the form
+            //     is shown (handle guaranteed) — the System Check zone then displays it
+            //     and the local-archive comparison uses the cached value instead of a
+            //     blocking synchronous GitHub call at every path change.
+            //     FR: récupère UNE FOIS la version de la dernière release GitHub à
+            //     l'affichage (handle garanti) — la zone System Check l'affiche alors et
+            //     la comparaison d'archive utilise la valeur en cache au lieu d'un appel
+            //     GitHub synchrone bloquant à chaque changement de chemin.
+            this.Shown += (s, e) => StartOnlineVersionFetch();
 
             // [V61] Clickable links — open the default browser
             lnkGitHub.LinkClicked += (s, e) => OpenUrl("https://github.com/Aynshe/WiimoteGun");
@@ -185,18 +201,28 @@ namespace W4G_Setup
             string localVersion = localArchive != null ? Program.GetArchiveVersion(localArchive) : null;
             if (localVersion != null)
             {
-                // Check online for newer version
-                string onlineUrl, onlineErr;
-                bool onlineFound = Program.FindLatestRelease(out onlineUrl, out onlineErr);
-                string onlineVersion = onlineFound ? Program.GetArchiveVersion(onlineUrl) : null;
-
-                if (onlineFound && onlineVersion != null &&
-                    Program.CompareVersions(localVersion, onlineVersion) < 0)
+                // [V61-SETUP-2] EN: the online version comes from the CACHED async fetch —
+                //     UpdateChecks never blocks on the GitHub API anymore (the old
+                //     synchronous FindLatestRelease froze the UI at startup and at every
+                //     path change). Until the fetch completes, show the version alone.
+                //     FR: la version en ligne vient du fetch ASYNCHRONE en cache —
+                //     UpdateChecks ne bloque plus jamais sur l'API GitHub (l'ancien
+                //     FindLatestRelease synchrone gelait l'UI au démarrage et à chaque
+                //     changement de chemin). En attendant le fetch, version seule.
+                if (_onlineChecked && _onlineVersion != null &&
+                    Program.CompareVersions(localVersion, _onlineVersion) < 0)
                 {
                     SetCheck(chkArchive, Program.L(
-                        "📦 Local archive: v" + localVersion + " (newer v" + onlineVersion + " available online)",
-                        "📦 Archive locale : v" + localVersion + " (v" + onlineVersion + " plus récente disponible en ligne)"),
+                        "📦 Local archive: v" + localVersion + " (newer v" + _onlineVersion + " available online)",
+                        "📦 Archive locale : v" + localVersion + " (v" + _onlineVersion + " plus récente disponible en ligne)"),
                         Color.FromArgb(255, 180, 0));
+                }
+                else if (!_onlineChecked)
+                {
+                    SetCheck(chkArchive, Program.L(
+                        "📦 Local archive: v" + localVersion,
+                        "📦 Archive locale : v" + localVersion),
+                        Color.FromArgb(160, 160, 170));
                 }
                 else
                 {
@@ -228,6 +254,29 @@ namespace W4G_Setup
                     "📦 Archive locale : non trouvée (téléchargement depuis GitHub)"),
                     Color.FromArgb(140, 140, 150));
                 chkLayoutWarning.Visible = false;
+            }
+
+            // --- Latest GitHub release [V61-SETUP-2] ---
+            if (!_onlineChecked)
+            {
+                SetCheck(chkOnline, Program.L(
+                    "☁ Latest GitHub release: checking...",
+                    "☁ Dernière release GitHub : vérification..."),
+                    Color.FromArgb(140, 140, 150));
+            }
+            else if (!string.IsNullOrEmpty(_onlineVersion))
+            {
+                SetCheck(chkOnline, Program.L(
+                    "☁ Latest GitHub release: v" + _onlineVersion + " available",
+                    "☁ Dernière release GitHub : v" + _onlineVersion + " disponible"),
+                    Color.FromArgb(0, 200, 100));
+            }
+            else
+            {
+                SetCheck(chkOnline, Program.L(
+                    "☁ Latest GitHub release: unavailable (offline?)",
+                    "☁ Dernière release GitHub : indisponible (hors ligne ?)"),
+                    Color.FromArgb(255, 180, 0));
             }
 
             // --- RetroBat ---
@@ -295,6 +344,48 @@ namespace W4G_Setup
         {
             label.Text = text;
             label.ForeColor = color;
+        }
+
+        /// <summary>
+        /// [V61-SETUP-2] EN: Fetches the latest GitHub release version ONCE, in the
+        ///     background (ThreadPool): the UI never freezes on the GitHub API. The
+        ///     System Check line shows "checking..." then the version (green) or
+        ///     "unavailable" (orange, offline). The cached value also feeds the local
+        ///     archive comparison in UpdateChecks. RunSetup keeps its own fresh
+        ///     synchronous check at install time.
+        ///     FR: Récupère UNE FOIS la version de la dernière release GitHub en
+        ///     arrière-plan (ThreadPool) : l'UI ne gèle jamais sur l'API GitHub. La
+        ///     ligne de check affiche « vérification... » puis la version (vert) ou
+        ///     « indisponible » (orange, hors ligne). La valeur en cache alimente aussi
+        ///     la comparaison d'archive locale dans UpdateChecks. RunSetup garde son
+        ///     propre check synchrone frais au moment de l'installation.
+        /// </summary>
+        private void StartOnlineVersionFetch()
+        {
+            System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+            {
+                string version = null;
+                try
+                {
+                    string url, err;
+                    if (Program.FindLatestRelease(out url, out err))
+                        version = Program.GetArchiveVersion(url);
+                }
+                catch { }
+                Program.Log("Latest GitHub release: " + (string.IsNullOrEmpty(version) ? "unavailable" : "v" + version));
+
+                try
+                {
+                    if (IsDisposed) return;
+                    BeginInvoke((Action)(() =>
+                    {
+                        _onlineVersion = version;
+                        _onlineChecked = true;
+                        UpdateChecks();
+                    }));
+                }
+                catch { }
+            });
         }
 
         // ========== Hybrid PnP availability ==========
@@ -409,6 +500,25 @@ namespace W4G_Setup
                     Program.CleanupTemp();
                     return;
                 }
+            }
+
+            // [V61-FIX-4] EN: Close WiimoteGun.exe BEFORE extracting — the running app
+            //     locks its own exe and every DLL it loaded (System.Buffers, System.Memory,
+            //     WiimoteGun.exe...), so the update could not be applied (user report:
+            //     all files skipped with "in use by another process").
+            //     FR: Fermer WiimoteGun.exe AVANT d'extraire — l'app en cours verrouille
+            //     son exe et toutes les DLL chargées, la mise à jour ne pouvait pas
+            //     s'appliquer (rapport user : tous les fichiers sautés en « en cours
+            //     d'utilisation par un autre processus »).
+            progress.Value = 20;
+            SetStatus(Program.L("Closing Wiimote4Guns...", "Fermeture de Wiimote4Guns..."));
+            string closeError;
+            if (!Program.CloseWiimoteGunApp(out closeError))
+            {
+                ShowError(Program.L(
+                    "Could not close WiimoteGun.exe: " + closeError + "\nClose it manually and run the setup again.",
+                    "Impossible de fermer WiimoteGun.exe : " + closeError + "\nFermez-le manuellement et relancez le setup."));
+                return;
             }
 
             // Extract

@@ -220,6 +220,24 @@ namespace WiimoteGun
         public float NunStickYOffset { get; set; }
     }
 
+    /// <summary>
+    /// EN: [V61-FIX-6] One AUTO off-screen reload FOREGROUND exclusion entry.
+    ///     The auto reload never fires while an ENABLED entry is the foreground process.
+    /// FR: [V61-FIX-6] Une entrée d'exclusion du rechargement AUTO hors écran
+    ///     (exécutable au PREMIER PLAN). La recharge auto ne se déclenche jamais
+    ///     quand une entrée ACTIVÉE est le processus au premier plan.
+    /// </summary>
+    public class OffScreenExeExclude
+    {
+        public string ExeName { get; set; }
+
+        public bool Enabled { get; set; }
+
+        public OffScreenExeExclude() { Enabled = true; }
+
+        public OffScreenExeExclude(string exeName) { ExeName = exeName; Enabled = true; }
+    }
+
     public class Options
     {
         private Options(bool assignDefaults)
@@ -300,6 +318,23 @@ namespace WiimoteGun
                 ReloadRumbleCustomOffMs = 90;     // 10-500ms per tic OFF
                 EnableGrenadeGesture = false;
                 GrenadeFromNunchuk = false;
+
+                // [V61-FIX-9] EN: OffScreenAutoExcludes is DELIBERATELY NOT initialized
+                //     here. XmlSerializer APPENDS deserialized items to a pre-initialized
+                //     List<T> instead of replacing it — initializing the defaults in the
+                //     constructor re-added emulationstation.exe + explorer.exe on EVERY
+                //     load (duplicates accumulated at each restart, found in the user's
+                //     settings.cfg). The defaults are applied POST-LOAD by
+                //     NormalizeOffScreenAutoExcludes() when the property is null (fresh
+                //     install or config without the element).
+                //     FR: OffScreenAutoExcludes n'est VOLONTAIREMENT PAS initialisé ici.
+                //     XmlSerializer AJOUTE les éléments désérialisés à une List<T>
+                //     pré-initialisée au lieu de la remplacer — initialiser les défauts
+                //     dans le constructeur ré-ajoutait emulationstation.exe +
+                //     explorer.exe à CHAQUE chargement (doublons accumulés à chaque
+                //     restart, constatés dans le settings.cfg user). Les défauts sont
+                //     appliqués POST-CHARGEMENT par NormalizeOffScreenAutoExcludes()
+                //     quand la propriété est null (install neuve ou config sans l'élément).
 
                 PermissiveWiimoteBarCalibration = false;
 
@@ -583,6 +618,11 @@ namespace WiimoteGun
                             SimpleLogger.Instance.Info("[Options] [V55o] Auto-upgraded ES Scripts settings: all 3 options ON, long-press PLUS delay set to 3s.");
                         }
 
+                        // [V61-FIX-9] EN/FR: normalize the AUTO off-screen reload
+                        //     exclusions (defaults when absent, dedupe the duplicates
+                        //     accumulated by the pre-3.1.6.1 XmlSerializer append bug).
+                        NormalizeOffScreenAutoExcludes(options);
+
                         return options;
                     }
                 }
@@ -592,7 +632,73 @@ namespace WiimoteGun
                 }
             }
 
-            return new Options(true);
+            Options fresh = new Options(true);
+            NormalizeOffScreenAutoExcludes(fresh); // [V61-FIX-9] defaults on fresh install / error
+            return fresh;
+        }
+
+        /// <summary>
+        /// EN: [V61-FIX-9] Normalizes the AUTO off-screen reload exclusions AFTER loading:
+        ///     - null (fresh install, or config predating the feature) -> factory defaults:
+        ///       emulationstation.exe (RetroBat frontend) + explorer.exe (Windows shell);
+        ///     - otherwise DEDUPE (case-insensitive by ExeName, first occurrence kept):
+        ///       XmlSerializer APPENDS deserialized items to a pre-initialized List<T>
+        ///       instead of replacing it — initializing the list in the constructor
+        ///       re-added the two defaults on EVERY load, accumulating duplicates at
+        ///       each restart (found in the user's settings.cfg: 8 entries = 4x the 2
+        ///       defaults). The cleanup is saved and logged once.
+        /// FR: [V61-FIX-9] Normalise les exclusions du rechargement AUTO hors écran
+        ///     APRÈS chargement :
+        ///     - null (install neuve, ou config antérieure à la fonction) -> défauts
+        ///       d'usine : emulationstation.exe (frontend RetroBat) + explorer.exe
+        ///       (shell Windows) ;
+        ///     - sinon DÉDOUBLONNAGE (insensible à la casse par ExeName, première
+        ///       occurrence conservée) : XmlSerializer AJOUTE les éléments désérialisés
+        ///       à une List<T> pré-initialisée au lieu de la remplacer — initialiser
+        ///       la liste dans le constructeur ré-ajoutait les deux défauts à CHAQUE
+        ///       chargement, accumulant des doublons à chaque restart (constaté dans le
+        ///       settings.cfg user : 8 entrées = 4x les 2 défauts). Le nettoyage est
+        ///       sauvegardé et loggé une fois.
+        /// </summary>
+        private static void NormalizeOffScreenAutoExcludes(Options options)
+        {
+            if (options == null) return;
+
+            if (options.OffScreenAutoExcludes == null)
+            {
+                options.OffScreenAutoExcludes = new System.Collections.Generic.List<OffScreenExeExclude>
+                {
+                    new OffScreenExeExclude("emulationstation.exe"),
+                    new OffScreenExeExclude("explorer.exe")
+                };
+                SimpleLogger.Instance.Info("[V61-FIX-6] Auto off-screen reload exclusions: defaults applied (emulationstation.exe, explorer.exe).");
+                return;
+            }
+
+            // EN/FR: dedupe - keep the FIRST occurrence of each executable (the
+            //     duplicates are identical factory defaults), drop empty entries.
+            var seen = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+            var deduped = new System.Collections.Generic.List<OffScreenExeExclude>();
+            int removed = 0;
+            foreach (OffScreenExeExclude entry in options.OffScreenAutoExcludes)
+            {
+                if (entry == null || string.IsNullOrEmpty(entry.ExeName) || string.IsNullOrWhiteSpace(entry.ExeName))
+                {
+                    removed++;
+                    continue;
+                }
+                if (seen.Add(entry.ExeName.Trim())) deduped.Add(entry);
+                else removed++;
+            }
+
+            if (removed > 0)
+            {
+                options.OffScreenAutoExcludes = deduped;
+                options.Save();
+                SimpleLogger.Instance.Info("[V61-FIX-9] Auto off-screen reload exclusions: " + removed +
+                    " duplicate/empty entr" + (removed > 1 ? "ies" : "y") +
+                    " removed (XmlSerializer append bug fixed - defaults were re-added at every restart).");
+            }
         }
 
         // Get calibration for specific player - 4-POINT FORMAT (EN/FR: Obtenir calibration pour joueur spécifique - FORMAT 4-POINTS)
@@ -1495,6 +1601,31 @@ namespace WiimoteGun
 
         [DefaultValue(false)]
         public bool OffScreenReloadAuto { get; set; }
+
+        // [V61-FIX-6] AUTO off-screen reload: executables excluded from the trigger
+        // (checked against the FOREGROUND process at the off-screen transition).
+        // Built-in defaults: emulationstation.exe (RetroBat frontend) + explorer.exe
+        // (Windows shell). Managed from Options > Gestures (no Save button: auto-save).
+        // (EN/FR: Rechargement AUTO hors écran : exécutables exclus du déclencheur
+        // (comparés au processus au PREMIER PLAN à la transition hors écran).
+        // Défauts intégrés : emulationstation.exe (frontend RetroBat) + explorer.exe
+        // (shell Windows). Gérés depuis Options > Gestures (auto-save, pas de bouton).)
+        public System.Collections.Generic.List<OffScreenExeExclude> OffScreenAutoExcludes { get; set; }
+
+        // [V61-FIX-10] EN: One-time-per-installation notice flag: the "UMDF2 first start"
+        //     MessageBox (10s wait + reboot advice) shows ONCE and never again — it used
+        //     to fire at EVERY relaunch while a Wiimote was still connected to Windows
+        //     (the <300ms auto-reconnect beats the startup host activation and hits the
+        //     connect guard). Persisted so updates with an existing settings.cfg never
+        //     re-show it; a FRESH install (fresh settings.cfg) shows it once.
+        //     FR: Flag d'avis UNE FOIS par installation : le MessageBox « premier
+        //     démarrage UMDF2 » (attente 10s + conseil reboot) s'affiche UNE SEULE fois —
+        //     il se déclenchait avant à CHAQUE relance quand une Wiimote restait connectée
+        //     à Windows (la reconnexion <300ms bat l'activation d'hôte du startup et
+        //     déclenche le garde-fou de connexion). Persisté : une mise à jour avec
+        //     settings.cfg existant ne le ré-affiche jamais ; une installation FRAÎCHE
+        //     (settings.cfg neuf) l'affiche une fois.
+        public bool Umdf2FirstStartNoticeShown { get; set; }
 
         // [V55y] Reload rumble (vibration rechargement) — applies to ANY reload
         // (off-screen auto/trigger redirect, physical reload button, shake reload),

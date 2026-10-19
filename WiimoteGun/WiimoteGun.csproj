@@ -149,6 +149,9 @@
     <Compile Include="UI\Modern\Forms\EsSystemPickerForm.Designer.cs">
       <DependentUpon>EsSystemPickerForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="UI\Modern\Forms\OffScreenExcludesForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="WiimoteLib\TimingDiagnostics.cs" />
     <Compile Include="Common\Win32.cs" />
     <Compile Include="UI\Legacy\MappingForm.cs">
@@ -517,25 +520,20 @@
   </ItemGroup>
   <!-- [V56e] Self-update script shipped with the app (updatable by future releases) -->
   <ItemGroup>
-    <!-- [3.1.0.1] EN: The two update scripts are now EMBEDDED in the binary AND shipped as
-         content: ScriptRegenerator writes the embedded copies to disk at every app start
-         when they differ, so update archives no longer need to carry the PS1s - the
-         executable IS the source of truth (a binary that fixes its own scripts forever).
-         FR: Les deux scripts de mise à jour sont désormais EMBARQUÉS dans le binaire ET
-         livrés en contenu : ScriptRegenerator écrit les copies embarquées sur disque à
-         chaque démarrage de l'app quand elles diffèrent, donc les archives de mise à
-         jour n'ont plus besoin de transporter les PS1 - l'exécutable EST la source de
-         vérité (un binaire qui corrige ses propres scripts pour toujours). -->
+    <!-- [3.1.5.10/V61-SETUP-2] EN: WiimoteUpdate.ps1 is LEGACY - removed from the project.
+         ScriptRegenerator no longer embeds/regenerates it (replaced by the native
+         update_W4G.exe which deletes the leftover ps1 at update time). Only
+         UpdateService.ps1 remains embedded + shipped.
+         FR: WiimoteUpdate.ps1 est LEGACY - retiré du projet. ScriptRegenerator ne
+         l'embarque/régénère plus (remplacé par l'updateur natif update_W4G.exe qui
+         supprime le ps1 résiduel au passage). Seul UpdateService.ps1 reste
+         embarqué + livré. -->
     <EmbeddedResource Include="UI\Modern\Forms\WelcomeDialog.resx">
       <DependentUpon>WelcomeDialog.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="WiimoteUpdate.ps1" />
     <EmbeddedResource Include="..\WiimoteGun.Service\UpdateService.ps1">
       <Link>UpdateService.ps1</Link>
     </EmbeddedResource>
-    <Content Include="WiimoteUpdate.ps1">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
     <!-- [V56g] Standalone 7-Zip extractor shipped with the app: the update script works
          even when 7-Zip is NOT installed (updatable by future releases via the rename trick). -->
     <Content Include="7za.exe">

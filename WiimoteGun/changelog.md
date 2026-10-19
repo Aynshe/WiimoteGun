@@ -1,5 +1,51 @@
 # Wiimote4Guns Changelog
 
+## v3.1.6.1
+
+### [EN] W4G_Setup.exe — standalone installer
+- Standalone W4G_Setup.exe installer - Setup update reliability : WiimoteGun.exe is closed before extracting, the running WiimoteGun.Service.exe is never overwritten (The service is updated at a later stage if necessary), files in use are skipped and logged instead of aborting the install half-way
+
+### [EN] Off-Screen Reload — now per player
+- The Off-Screen Reload checkbox and the Trigger/Auto dropdown are now PER PLAYER, even on the default profile
+- Each player overrides the global; changing the global in Options > Gestures re-applies it to every player
+- The per-player choice survives profile reloads (auto default load, game start, manual load)
+
+### [EN] Reload Rumble — now per player
+- Reload Rumble, its intensity and its style are now per player too, with the same rules
+
+### [EN] AUTO Off-Screen Reload
+- **AUTO Off-Screen Reload suppressed** when an excluded executable is in the foreground: `emulationstation.exe` (RetroBat) and `explorer.exe` (Windows). Custom executables can be added via **Options > Gestures** (file browser, enable checkbox, remove button, auto-save).
+- *Reminder:* Auto Off-Screen Reload is useful for games/systems without native support. Enabling it per-game via a custom profile is recommended. If left enabled globally, it shouldn't cause conflicts as it simply triggers the `m_right` command. If an issue occurs on a specific game using the global "default" profile, you can disable in a custom profile. Note that off-screen vibration currently only works when this feature is active.
+
+### [EN] UI Stability & Startup
+- Fixed `WiimoteGun.exe` silently closing (~30-60s) when a startup dialog (Welcome / Changelog / Wizard) was opened: `CrashWatchdog` heartbeat now starts immediately after service registration so startup dialogs can stay open without triggering false restarts.
+
+### [EN] Fix UMDF2 Information Popup Duplication
+- Fixed the "UMDF2 first start" information popup (10s wait + Windows restart advice) appearing at EVERY app restart while a Wiimote was still connected: it was tied to the connect-time host re-activation guard (the Wiimote auto-reconnect beats the startup host activation). It now displays ONCE per installation via the persisted `Umdf2FirstStartNoticeShown` flag: the first stop/restart of `Wiimote4Guns` while a Wiimote is active shows the information one last time and sets the flag.
+
+### [FR] W4G_Setup.exe — installeur autonome
+- Fiabilité de la mise à jour par le setup : WiimoteGun.exe est fermé avant l'extraction, le WiimoteGun.Service.exe en cours n'est jamais écrasé (Le service est mis à jour ultérieurement, si nécessaire), les fichiers utilisés sont ignorés et tracés au lieu d'annuler l'installation à mi-chemin
+
+### [FR] Reload hors écran — désormais par joueur
+- La case Off-Screen Reload et la liste Trigger/Auto sont désormais PAR JOUEUR, même sur le profil par défaut
+- Chaque joueur surcharge le global ; un changement du global dans Options > Gestures le réapplique à tous les joueurs
+- Le choix par joueur survit aux rechargements de profil (chargement auto du default, game start, chargement manuel)
+
+### [FR] Vibration de rechargement — désormais par joueur
+- La vibration de rechargement, son intensité et son style sont désormais par joueur aussi, avec les mêmes règles
+
+### [FR] Rechargement automatique hors écran
+- **Désactivation du rechargement hors écran (AUTO Off-Screen)** lorsqu'un exécutable exclu est au premier plan : `emulationstation.exe` (RetroBat) et `explorer.exe` (Windows). Ajout d'exécutables personnalisés via **Options > Gestures** (sélecteur, case d'activation, suppression, sauvegarde auto).
+- *Rappel :* Le rechargement hors écran automatique est utile pour les jeux/systèmes qui ne le proposent pas d'origine. Il est conseillé de l'activer au cas par cas via un profil personnalisé par jeu. Si vous le laissez activé en global, il ne devrait pas y avoir de conflit car il se contente de déclencher la commande `m_right`. En cas de défaut sur un jeu avec le profil global "default", vous pouvez le désactiver via un profil personnalisé. Notez aussi que la vibration hors écran fonctionne actuellement uniquement si cette fonction est active.
+
+### [FR] Stabilité de l'UI & Démarrage
+- Correction de la fermeture silencieuse de `WiimoteGun.exe` (~30-60s) lors de l'ouverture d'une fenêtre de démarrage (Bienvenue / Changelog / Assistant) : le heartbeat de `CrashWatchdog` démarre désormais immédiatement après l'enregistrement du service pour permettre aux fenêtres de rester ouvertes sans déclencher de faux redémarrages.
+
+### [FR] Correction de l'affichage répétitif du pop-up UMDF2
+- Correction de la boîte de dialogue d'information "UMDF2 premier démarrage" (attente de 10s + conseil de redémarrage Windows) qui s'affichait à chaque redémarrage de l'application si une Wiimote était connectée. Elle ne s'affiche désormais qu'une fois par installation via le flag `Umdf2FirstStartNoticeShown` : le premier arrêt/redémarrage de `Wiimote4Guns` avec une Wiimote active affiche le message une dernière fois et valide le flag.
+
+---
+
 ## v3.1.6.0
 
 ### [EN] Two Wiimote Bars (Or Blacom) layout

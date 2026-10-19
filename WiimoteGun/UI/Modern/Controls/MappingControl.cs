@@ -823,8 +823,15 @@ namespace WiimoteGun.Controls
             PlayerMappings osMappings = Options.Instance.GetMappingsForPlayer(_currentPlayer);
             ToolTip ttOs = new ToolTip();
 
-            // 1) Off-Screen Reload (per-profile override of the global option)
-            //    (EN/FR: Override par profil de l'option globale - déverrouillé et compact [V55g])
+            // 1) Off-Screen Reload (per-PLAYER override of the global option)
+            //    [V61-FIX-2] EN: the override is PER PLAYER even on the root default
+            //    profile - it used to read/write the GLOBAL option there, so one
+            //    player's toggle changed all four. Each player now has its own value;
+            //    a global toggle in Options > Gestures re-applies the global to all.
+            //    FR: l'override est PAR JOUEUR même sur le profil default racine - il
+            //    lisait/écrivait avant l'option GLOBALE, donc un joueur modifiait les
+            //    quatre. Chaque joueur a maintenant sa valeur ; un toggle global dans
+            //    Options > Gestures réapplique le global à tous.
             CheckBox chkOsReload = new CheckBox
             {
                 Text = "Off-Screen Reload",
@@ -835,12 +842,8 @@ namespace WiimoteGun.Controls
                 UseVisualStyleBackColor = true
             };
 
-            bool isDefault = IsDefaultProfileActive();
-            if (isDefault)
-            {
-                chkOsReload.Checked = Options.Instance.EnableOffScreenReload;
-            }
-            else if (osMappings != null)
+            // EN/FR: per-player value when set (1/0), otherwise follow the global option.
+            if (osMappings != null)
             {
                 chkOsReload.Checked = osMappings.OffScreenReloadOverride == 1 ||
                                       (osMappings.OffScreenReloadOverride == -1 && Options.Instance.EnableOffScreenReload);
@@ -855,14 +858,19 @@ namespace WiimoteGun.Controls
 
             chkOsReload.CheckedChanged += (s, e) =>
             {
-                if (IsDefaultProfileActive())
-                {
-                    Options.Instance.EnableOffScreenReload = chkOsReload.Checked;
-                }
-                if (osMappings != null)
-                {
-                    osMappings.OffScreenReloadOverride = chkOsReload.Checked ? 1 : 0;
-                }
+                if (osMappings == null) return;
+                // [V61-FIX-2] EN/FR: ALWAYS the per-player override, NEVER the global
+                // option (one player must never change the other three).
+                osMappings.OffScreenReloadOverride = chkOsReload.Checked ? 1 : 0;
+                Options.Instance.Save();
+                // [V61-FIX-4] EN: Also persist into the ACTIVE profile FILE — any profile
+                //     reload (auto default.remap load on Wiimote connect, tile load,
+                //     game-start reload) re-applies the file to Options and would
+                //     otherwise reset every player to the global value.
+                //     FR: Persister aussi dans le FICHIER du profil ACTIF — tout
+                //     rechargement de profil réapplique le fichier aux Options et
+                //     remettrait sinon chaque joueur à la valeur globale.
+                RemapProfileManager.PersistOffScreenReloadOverrides(false);
             };
 
             ttOs.SetToolTip(chkOsReload,
@@ -902,14 +910,12 @@ namespace WiimoteGun.Controls
 
             cboOsAuto.SelectedIndexChanged += (s, e) =>
             {
-                if (IsDefaultProfileActive())
-                {
-                    Options.Instance.OffScreenReloadAuto = (cboOsAuto.SelectedIndex == 1);
-                }
-                if (osMappings != null)
-                {
-                    osMappings.OffScreenAutoOverride = cboOsAuto.SelectedIndex; // 0=Trigger, 1=Auto
-                }
+                if (osMappings == null) return;
+                // [V61-FIX-2] EN/FR: per-player override only, never the global option.
+                osMappings.OffScreenAutoOverride = cboOsAuto.SelectedIndex; // 0=Trigger, 1=Auto
+                Options.Instance.Save();
+                // [V61-FIX-4] EN/FR: persist into the active profile file (see above).
+                RemapProfileManager.PersistOffScreenReloadOverrides(false);
             };
             chkOsReload.CheckedChanged += (s, e) =>
             {
@@ -936,11 +942,10 @@ namespace WiimoteGun.Controls
                 UseVisualStyleBackColor = true
             };
 
-            if (IsDefaultProfileActive())
-            {
-                chkReloadRumble.Checked = Options.Instance.ReloadRumbleEnabled;
-            }
-            else if (osMappings != null)
+            // [V61-FIX-5] EN/FR: per-PLAYER value even on the root default profile — the
+            //     old code read/wrote the GLOBAL option when default was active, which
+            //     coupled all four players (same bug as the Off-Screen Reload toggle).
+            if (osMappings != null)
             {
                 chkReloadRumble.Checked = osMappings.ReloadRumbleOverride == 1 ||
                                           (osMappings.ReloadRumbleOverride == -1 && Options.Instance.ReloadRumbleEnabled);
@@ -952,14 +957,12 @@ namespace WiimoteGun.Controls
 
             chkReloadRumble.CheckedChanged += (s, e) =>
             {
-                if (IsDefaultProfileActive())
-                {
-                    Options.Instance.ReloadRumbleEnabled = chkReloadRumble.Checked;
-                }
-                if (osMappings != null)
-                {
-                    osMappings.ReloadRumbleOverride = chkReloadRumble.Checked ? 1 : 0;
-                }
+                if (osMappings == null) return;
+                // [V61-FIX-5] EN/FR: ALWAYS the per-player override - never the global.
+                osMappings.ReloadRumbleOverride = chkReloadRumble.Checked ? 1 : 0;
+                Options.Instance.Save();
+                // EN/FR: persist into the active profile FILE so a profile reload keeps it.
+                RemapProfileManager.PersistReloadRumbleOverrides(false);
             };
 
             ttOs.SetToolTip(chkReloadRumble,
@@ -997,14 +1000,11 @@ namespace WiimoteGun.Controls
 
             cboRrStyle.SelectedIndexChanged += (s, e) =>
             {
-                if (osMappings != null)
-                {
-                    osMappings.ReloadRumbleStyleOverride = cboRrStyle.SelectedIndex - 1; // -1 = Default/global
-                }
-                if (IsDefaultProfileActive() && cboRrStyle.SelectedIndex > 0)
-                {
-                    Options.Instance.ReloadRumbleStyle = cboRrStyle.SelectedIndex - 1;
-                }
+                if (osMappings == null) return;
+                // [V61-FIX-5] EN/FR: per-player override only - never the global option.
+                osMappings.ReloadRumbleStyleOverride = cboRrStyle.SelectedIndex - 1; // -1 = Default/global
+                Options.Instance.Save();
+                RemapProfileManager.PersistReloadRumbleOverrides(false);
             };
             ttOs.SetToolTip(cboRrStyle,
                 "Rumble style for this profile: Default = follow Options > Gestures.\r\n" +
@@ -1047,10 +1047,11 @@ namespace WiimoteGun.Controls
 
             cboRrIntensity.SelectedIndexChanged += (s, e) =>
             {
-                if (osMappings != null)
-                {
-                    osMappings.ReloadRumbleIntensityOverride = rrIntensityValues[cboRrIntensity.SelectedIndex >= 0 ? cboRrIntensity.SelectedIndex : 0];
-                }
+                if (osMappings == null) return;
+                osMappings.ReloadRumbleIntensityOverride = rrIntensityValues[cboRrIntensity.SelectedIndex >= 0 ? cboRrIntensity.SelectedIndex : 0];
+                Options.Instance.Save();
+                // [V61-FIX-5] EN/FR: persist into the active profile FILE (see above).
+                RemapProfileManager.PersistReloadRumbleOverrides(false);
             };
             ttOs.SetToolTip(lblRrIntensity,
                 "Rumble intensity for this profile: Default = follow Options > Gestures.\r\n" +
@@ -1545,19 +1546,6 @@ namespace WiimoteGun.Controls
             
             // EN/FR: Bottom margin spacer to ensure comfortable scrolling
             panel.Controls.Add(new Label { Location = new Point(startX, sensY + spacing + 25), Size = new Size(totalWidth, 15) });
-        }
-
-        /// <summary>
-        /// EN: [V54] True when the ACTIVE profile is the root default.remap — its
-        /// Off-Screen Reload state always follows Options > Gestures (global).
-        /// FR: [V54] True si le profil ACTIF est le default.remap racine — son état
-        /// Off-Screen Reload suit toujours Options > Gestures (global).
-        /// </summary>
-        private static bool IsDefaultProfileActive()
-        {
-            string active = Program.GetActiveRemapProfile();
-            if (string.IsNullOrEmpty(active)) return false;
-            return active.Replace('\\', '/').Equals("default.remap", StringComparison.OrdinalIgnoreCase);
         }
 
         private void Open3DVisualizer()
@@ -2180,35 +2168,20 @@ namespace WiimoteGun.Controls
                 string selectedFolder = comboBoxSubfolders.SelectedItem?.ToString();
                 string subfolder = selectedFolder == "(Root)" ? null : selectedFolder;
 
-                // [V54] The ROOT default.remap always FOLLOWS Options > Gestures: store the
-                // inherit state (-1) so the global checkboxes govern the default profile.
-                // Custom profiles keep their own explicit choice.
-                // (EN/FR: Le default.remap racine SUIT toujours Options > Gestures :
-                // stocker l'état héritage (-1) pour que les cases globales gouvernent le
-                // profil par défaut. Les profils custom gardent leur choix explicite.)
-                if (string.IsNullOrEmpty(subfolder) && profileName.Equals("default", StringComparison.OrdinalIgnoreCase))
-                {
-                    profile.P1Mappings.OffScreenReloadOverride = -1;
-                    profile.P2Mappings.OffScreenReloadOverride = -1;
-                    profile.P3Mappings.OffScreenReloadOverride = -1;
-                    profile.P4Mappings.OffScreenReloadOverride = -1;
-
-                    // [V55y] Reset reload rumble overrides on the default profile
-                    // (EN/FR: Réinitialiser les overrides vibration recharge sur le profil par défaut)
-                    profile.P1Mappings.ReloadRumbleOverride = -1;
-                    profile.P2Mappings.ReloadRumbleOverride = -1;
-                    profile.P3Mappings.ReloadRumbleOverride = -1;
-                    profile.P4Mappings.ReloadRumbleOverride = -1;
-                    profile.P1Mappings.ReloadRumbleIntensityOverride = -1;
-                    profile.P2Mappings.ReloadRumbleIntensityOverride = -1;
-                    profile.P3Mappings.ReloadRumbleIntensityOverride = -1;
-                    profile.P4Mappings.ReloadRumbleIntensityOverride = -1;
-                    profile.P1Mappings.ReloadRumbleStyleOverride = -1;
-                    profile.P2Mappings.ReloadRumbleStyleOverride = -1;
-                    profile.P3Mappings.ReloadRumbleStyleOverride = -1;
-                    profile.P4Mappings.ReloadRumbleStyleOverride = -1;
-                    Options.Instance.Save();
-                }
+                // [V61-FIX-4/5] EN: The ROOT default.remap now KEEPS its per-player
+                //     Off-Screen Reload AND Reload Rumble overrides (the mapping page
+                //     toggles persist them per player, even on the default profile).
+                //     The old V54/V55y behavior that FORCED -1 (follow global) here
+                //     wiped every per-player choice on each Save - removed on user
+                //     request. The global still re-applies to all players when the
+                //     user touches a global setting in Options > Gestures.
+                //     FR: Le default.remap racine CONSERVE maintenant ses overrides par
+                //     joueur Off-Screen Reload ET Reload Rumble (les cases de la page
+                //     mapping les persistent par joueur, même sur le profil par défaut).
+                //     L'ancien comportement V54/V55y qui FORÇAIT -1 (suivre le global)
+                //     ici effaçait chaque choix par joueur à chaque Save - supprimé à la
+                //     demande de l'utilisateur. Le global se réapplique à tous quand
+                //     l'utilisateur touche un réglage global dans Options > Gestures.
 
                 bool success = RemapProfileManager.SaveProfile(profileName, subfolder, profile);
                 
