@@ -1,5 +1,33 @@
 # Wiimote4Guns Changelog
 
+## v3.1.6.2
+
+### [EN] DolphinBar Stability & Controller Fixes
+- DolphinBar (Mayflash) stability: fewer disconnect/reconnect loops (progressive retry backoff on phantom HID ports, a transient write failure no longer force-disconnects the controller, the Bluetooth watchdog ignores DolphinBar HID failures, and the VMulti devcon cleanup is skipped when no VMulti driver is present).
+- Nunchuk (RVL-4): the joystick axis now works without the MotionPlus adapter. No regression on older Nunchuks.
+- TC Cover: firing while in cover (off-screen) now changes the weapon — the trigger is no longer locked off-screen in TC Cover mode.
+
+### [EN] Off-Screen Reload Adjustments
+- In AUTO Off-Screen Reload the physical trigger no longer fires a reload while off-screen (only the single auto-reload runs).
+- Options > Gestures: the "Auto Off-Screen" checkbox is replaced by a Trigger/Auto dropdown, matching the per-player mapping page.
+
+### [EN] UI & Window Management
+- Profile / system / folder pickers and the Off-Screen Reload excluded-executables manager now open above the always-on-top overlay (Home+Plus) instead of hiding behind it.
+
+### [FR] Stabilité de la DolphinBar & Correctifs Contrôleurs
+- Stabilité de la DolphinBar (Mayflash) : réduction des boucles de déconnexion/reconnexion (temporisation progressive en cas d'essais sur des ports HID fantômes, un échec d'écriture transitoire ne déconnecte plus de force le contrôleur, le watchdog Bluetooth ignore les pannes HID de la DolphinBar, et le nettoyage devcon de VMulti est ignoré lorsqu'aucun pilote VMulti n'est présent).
+- Nunchuk (RVL-4) : l'axe du joystick fonctionne désormais sans nécessiter l'adaptateur MotionPlus. Pas de régression sur les anciens Nunchuks.
+- TC Cover : tirer à couvert (hors écran) permet désormais de changer d'arme — la gâchette n'est plus bloquée hors écran en mode TC Cover.
+
+### [FR] Ajustements du Rechargement Hors Écran
+- En rechargement AUTO hors écran, la gâchette physique ne déclenche plus de rechargement supplémentaire hors écran (seul l'auto-rechargement unique est exécuté).
+- Options > Gestures : la case à cocher "Auto Off-Screen" est remplacée par un menu déroulant Trigger/Auto, aligné avec la page de configuration par joueur.
+
+### [FR] UI & Gestion des Fenêtres
+- Les sélecteurs de profil / système / dossier et le gestionnaire d'exécutables exclus du rechargement hors écran s'ouvrent désormais au-dessus de l'overlay toujours au premier plan (Home+Plus) au lieu de se cacher derrière.
+
+---
+
 ## v3.1.6.1
 
 ### [EN] W4G_Setup.exe — standalone installer

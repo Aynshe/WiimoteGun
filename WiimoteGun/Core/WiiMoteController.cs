@@ -1599,8 +1599,12 @@ namespace WiimoteGun
                             // button so the game registers the hide. Lock all mouse outputs.
                             // (EN/FR: Planque TC : HORS écran = en planque → RELÂCHER le bouton TC
                             // pour que le jeu enregistre la planque. Sorties souris verrouillées.)
-                            bool rawTriggerTc = mLeft;
-                            mLeft = false;
+                            // [V61-TC-RELOAD] EN/FR: TC Cover = the trigger FIRES even OFF-screen
+                            // (in cover). This is REQUIRED for TC: firing while in cover changes the
+                            // weapon. So we do NOT lock the trigger here; only Middle/Reload are locked.
+                            // FR: Planque TC = la gâchette TIRE même HORS écran (en planque). C'est
+                            // nécessaire pour TC : tirer en planque change d'arme. On ne verrouille
+                            // donc PAS la gâchette ; seuls les clics milieu/reload sont verrouillés.
                             mMiddle = false;
                             mRight = false;
 
@@ -1609,7 +1613,6 @@ namespace WiimoteGun
                                 // Ensure any held TC key is released while off-screen
                                 // (EN/FR: S'assurer que la touche TC maintenue est relâchée hors écran)
                                 ReleaseTcCoverKey();
-                                if (rawTriggerTc) _suppressLeftClickUntilRelease = true;
                             }
 
                             // [V56] TC Cover: entering cover = the TC reload moment. The input is
@@ -1671,7 +1674,16 @@ namespace WiimoteGun
                             // (EN/FR: Protection démarrage: Pas de reload si la Wiimote n'a pas encore visé l'écran au moins une fois)
                             if (offScreenReloadEnabled && _hasAimedAtScreenOnce)
                             {
-                                if (ResolveOffScreenAutoEnabled())
+                                // [V61-OS-RELOAD] EN: Resolve the AUTO/manual mode ONCE per frame.
+                                // In AUTO mode the physical trigger must do NOTHING off-screen (only
+                                // the single auto-reload runs); the manual trigger→reload redirect
+                                // below is skipped. In MANUAL (Trigger) mode behaviour is unchanged.
+                                // FR: Résoudre le mode Auto/manuel une fois par frame. En mode AUTO
+                                // la gâchette physique ne fait RIEN hors écran (seule la recharge auto
+                                // unique tourne) ; la redirection manuelle gâchette→reload est sautée.
+                                // En manuel (Trigger), comportement inchangé.
+                                bool autoMode = ResolveOffScreenAutoEnabled();
+                                if (autoMode)
                                 {
                                     // Auto-reload: trigger a single right-click when going off-screen (1x)
                                     // Only 1 reload per off-screen session is allowed
@@ -1728,7 +1740,9 @@ namespace WiimoteGun
                                 // ([V55u] : seul le mode « Auto » est limité à 1× par session
                                 // hors écran). L'état redirigé reflète l'état physique de la
                                 // gâchette (appui et maintien pris en charge).)
-                                if (rawTrigger)
+                                // [V61-OS-RELOAD] EN/FR: manual trigger→reload redirect is MANUAL ONLY
+                                // - never in AUTO mode (the physical trigger does nothing off-screen then).
+                                if (!autoMode && rawTrigger)
                                 {
                                     mRight = true;
                                     if (!_osTriggerReloadWasActive)

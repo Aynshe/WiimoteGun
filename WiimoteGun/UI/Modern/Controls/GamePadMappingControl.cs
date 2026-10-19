@@ -1529,7 +1529,7 @@ namespace WiimoteGun.Controls
 
             // [V55] TC Bi-directional Pedal (EN/FR: Pedale TC bi-directionnelle)
             AddCheckBoxRow("TC Bi-Pedal (DPad L/R)", mappings.TCBiPedal, (val) => mappings.TCBiPedal = val,
-                "TC BI-DIRECTIONAL PEDAL [V55] (TC3/TC4/TC5): DPad Left/Right = two TC pedals.\r\n" +
+                "TC BI-DIRECTIONAL PEDAL [V55] (TC3/2 Spicy/DPS/TC5): DPad Left/Right = two TC pedals.\r\n" +
                 "Press L or R while ON-screen: holds that pedal direction.\r\n" +
                 "Go OFF-screen: releases. Press opposite side: switches.\r\n" +
                 "Incompatible with TC Cover mode.\r\n" +

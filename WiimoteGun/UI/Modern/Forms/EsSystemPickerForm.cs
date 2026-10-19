@@ -119,6 +119,7 @@ namespace WiimoteGun.UI.Modern.Forms
                 form.ApplyFilter();
                 form.ActiveControl = form.txtSearch; // [V51] Search focused on open
 
+                form.TopMost = true; // [V61-ZORDER] EN/FR: float above the TopMost ProfileOverlay (owner)
                 return form.ShowDialog(owner) == DialogResult.OK
                     ? form.lstSystems.SelectedItem?.ToString()
                     : null;

@@ -259,10 +259,10 @@ namespace WiimoteGun
         // [V55] TC Bi-directional Pedal (EN/FR: Pédale TC bi-directionnelle)
 
         /// <summary>
-        /// EN: [V55] TC Bi-directional Pedal mode (TC3/TC4/TC5): DPad Left/Right on Wiimote
+        /// EN: [V55] TC Bi-directional Pedal mode (TC3/2 Spicy/DPS/TC5): DPad Left/Right on Wiimote
         /// act as two TC pedals. Pressing one while aiming ON-screen holds that direction;
         /// going OFF-screen releases without changing state; pressing the other side switches.
-        /// FR: [V55] Mode pédale TC bi-directionnelle (TC3/TC4/TC5) : DPad Gauche/Droite de la
+        /// FR: [V55] Mode pédale TC bi-directionnelle (TC3/2 Spicy/DPS/TC5) : DPad Gauche/Droite de la
         /// Wiimote agissent comme deux pédales TC. Appuyer en visant l'écran maintient la
         /// direction ; hors écran relâche sans changer ; appuyer l'autre bascule.
         /// </summary>

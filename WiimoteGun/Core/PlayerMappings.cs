@@ -84,8 +84,8 @@ namespace WiimoteGun
         public string TCCoverButton { get; set; } = "auto";
 
         /// <summary>
-        /// EN: [V55] TC Bi-directional Pedal mode (TC3/TC4/TC5): Two pedals configured for movement/cover.
-        /// FR: [V55] Mode pédale TC bi-directionnelle (TC3/TC4/TC5) : Deux pédales configurées.
+        /// EN: [V55] TC Bi-directional Pedal mode (TC3/2 Spicy/DPS/TC5): Two pedals configured for movement/cover.
+        /// FR: [V55] Mode pédale TC bi-directionnelle (TC3/2 Spicy/DPS/TC5) : Deux pédales configurées.
         /// </summary>
         public bool TCBiPedal { get; set; } = false;
 

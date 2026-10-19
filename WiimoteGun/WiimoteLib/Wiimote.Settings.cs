@@ -130,11 +130,17 @@ namespace WiimoteLib {
                 WriteByte(Registers.ExtensionInit2, 0x00);
                 System.Threading.Thread.Sleep(50);
 
-                // EN: Re-read Nunchuk calibration (FR: Relire la calibration du Nunchuk)
-                try {
-                    byte[] calibBuff = ReadData(Registers.ExtensionCalibration, 16);
-                    wiimoteState.Nunchuk.CalibrationInfo.Parse(calibBuff, 0);
-                    Log.Info("[EnableMotionPlus] Nunchuk re-initialized successfully after MP activation failure.");
+                    // EN: Re-read Nunchuk calibration (FR: Relire la calibration du Nunchuk)
+                    try {
+                        byte[] calibBuff = ReadData(Registers.ExtensionCalibration, 16);
+                        wiimoteState.Nunchuk.CalibrationInfo.Parse(calibBuff, 0);
+                        // EN: Validate the re-read calibration for recent/third-party Nunchuks that
+                        // return implausible values (zeros/inverted/collapsed). Without this the
+                        // abnormal value would overwrite the good defaults and pin the joystick.
+                        // FR: Valider la calibration relue (Nunchuks récents/tiers à valeurs aberrantes),
+                        // sinon la valeur anormale écraserait les bons défauts et figerait le joystick.
+                        ValidateNunchukCalibration();
+                        Log.Info("[EnableMotionPlus] Nunchuk re-initialized successfully after MP activation failure.");
                     var calib = wiimoteState.Nunchuk.CalibrationInfo;
                     Log.Debug($"[EnableMotionPlus] Nunchuk Calib: Max=({calib.Max.X},{calib.Max.Y}) Min=({calib.Min.X},{calib.Min.Y}) Mid=({calib.Mid.X},{calib.Mid.Y})");
                 }
