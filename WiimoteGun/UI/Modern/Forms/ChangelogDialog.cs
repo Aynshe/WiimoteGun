@@ -22,11 +22,29 @@ namespace WiimoteGun
         private bool _showFrench;
         private string[] _mdLines;
         private Button _btnLang;
+        private LinkLabel _lnkReleases;
 
         public ChangelogDialog(string version)
         {
             _version = version;
             InitializeComponent();
+
+            // [V61-FIX-7] EN: DetectUrls MUST stay FALSE (explicit). The RichEdit
+            //     auto-URL-detection machinery is the trigger of the SILENT NATIVE
+            //     crash that kills the WHOLE APP a few seconds after the dialog opens
+            //     (no .NET exception, no log, no crash dump — reproduced on the first
+            //     real update 3.1.6.0 -> 3.1.6.1). The WelcomeDialog (same template,
+            //     validated) has NO URL machinery at all. A native crash cannot be
+            //     caught by the try-catch in Program.cs — prevention only.
+            //     FR: DetectUrls doit rester FALSE (explicite). Le mécanisme
+            //     d'auto-détection d'URLs du RichEdit est le déclencheur du crash
+            //     NATIF SILENCIEUX qui tue TOUTE L'APP quelques secondes après
+            //     l'ouverture du dialogue (aucune exception .NET, aucun log, aucun
+            //     crash dump — reproduit à la première vraie mise à jour
+            //     3.1.6.0 -> 3.1.6.1). Le WelcomeDialog (même template, validé)
+            //     n'a AUCUNE machinerie d'URL. Un crash natif n'est pas attrapable
+            //     par le try-catch de Program.cs — prévention uniquement.
+            richTextBox.DetectUrls = false;
 
             // [V60-FIX-5c] EN: Default language from the Windows culture (French
             //     -> FR, everything else -> EN).
@@ -70,25 +88,28 @@ namespace WiimoteGun
             };
             this.Controls.Add(_btnLang);
 
-            // [V60-FIX-5d] EN: RichTextBox LinkClicked — opens the URL in the
-            //     default browser when the user clicks the GitHub releases link.
-            //     DetectUrls is true by default (RichTextBox auto-detects URLs and
-            //     styles them blue/underlined). NO manual RTF manipulation (that
-            //     caused the silent native crash in FIX-5b).
-            //     FR: LinkClicked du RichTextBox — ouvre l'URL dans le navigateur
-            //     par défaut quand l'utilisateur clique sur le lien GitHub releases.
-            //     DetectUrls est true par défaut (le RichTextBox auto-détecte les
-            //     URLs et les style en bleu/souligné). AUCUNE manipulation RTF
-            //     manuelle (c'est ce qui causait le crash natif silencieux du FIX-5b).
-            richTextBox.LinkClicked += (s, e) =>
+            // [V61-FIX-7] EN/FR: the clickable releases link is a standard WinForms
+            //     LinkLabel (bottom bar, next to OK) — NO RichTextBox auto-detected
+            //     links (native crash trigger — see DetectUrls above).
+            _lnkReleases = new LinkLabel
+            {
+                Text = "🔗 GitHub Releases",
+                LinkColor = Color.White,
+                ActiveLinkColor = Color.FromArgb(0, 180, 255),
+                VisitedLinkColor = Color.FromArgb(200, 220, 255),
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Location = new Point(470, 610),
+                Size = new Size(170, 22),
+                Cursor = Cursors.Hand,
+                TabIndex = 3
+            };
+            _lnkReleases.Click += (s, e) =>
             {
                 try
                 {
-                    string url = e.LinkText;
-                    if (!url.StartsWith("http")) url = "https://" + url;
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                     {
-                        FileName = url,
+                        FileName = "https://github.com/Aynshe/WiimoteGun/releases",
                         UseShellExecute = true
                     });
                 }
@@ -97,6 +118,7 @@ namespace WiimoteGun
                     SimpleLogger.Instance.Warning("[V60] Failed to open changelog link: " + linkEx.Message);
                 }
             };
+            this.Controls.Add(_lnkReleases);
 
             WiimoteGun.UI.UiScaler.ApplyForm(this); // UI zoom
             PopulateContent();
@@ -137,8 +159,11 @@ namespace WiimoteGun
             //     lignes séparatrices entre les sections.
 
             // GitHub releases link ALWAYS at the top
+            // [V61-FIX-7] EN/FR: plain styled TEXT (blue + underlined) — NOT a native
+            //     RichEdit auto-detected link (crash trigger). The clickable link is
+            //     the LinkLabel in the bottom bar.
             AppendColoredTitle("🔗 RELEASES / RELEASES\n", Color.FromArgb(0, 150, 255));
-            AppendText("https://github.com/Aynshe/WiimoteGun/releases\n\n");
+            AppendLinkText("https://github.com/Aynshe/WiimoteGun/releases\n\n");
             AppendText("─────────────────────────────────────────────────────────────────────\n\n");
 
             // Parse the markdown for this version, filtering by [EN] or [FR]
@@ -261,6 +286,24 @@ namespace WiimoteGun
             richTextBox.SelectionStart = richTextBox.TextLength;
             richTextBox.SelectionColor = color;
             richTextBox.SelectionFont = new Font("Segoe UI", 11F, FontStyle.Bold);
+            richTextBox.AppendText(text);
+            richTextBox.SelectionColor = richTextBox.ForeColor;
+            richTextBox.SelectionFont = richTextBox.Font;
+        }
+
+        /// <summary>
+        /// EN: [V61-FIX-7] Appends a URL as PLAIN styled text (blue + underlined) —
+        ///     the RichTextBox URL auto-detection stays OFF (native crash trigger).
+        ///     The clickable link lives in the bottom-bar LinkLabel.
+        /// FR: [V61-FIX-7] Ajoute une URL en TEXTE stylisé simple (bleu + souligné) —
+        ///     l'auto-détection d'URLs du RichTextBox reste DÉSACTIVÉE (déclencheur du
+        ///     crash natif). Le lien cliquable est le LinkLabel de la barre du bas.
+        /// </summary>
+        private void AppendLinkText(string text)
+        {
+            richTextBox.SelectionStart = richTextBox.TextLength;
+            richTextBox.SelectionColor = Color.FromArgb(0, 120, 255);
+            richTextBox.SelectionFont = new Font("Segoe UI", 9.5F, FontStyle.Underline);
             richTextBox.AppendText(text);
             richTextBox.SelectionColor = richTextBox.ForeColor;
             richTextBox.SelectionFont = richTextBox.Font;

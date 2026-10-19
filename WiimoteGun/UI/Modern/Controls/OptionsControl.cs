@@ -262,6 +262,33 @@ namespace WiimoteGun.Controls
                 "[V55] Chaque profil peut maintenant surcharger ce réglage avec une liste Trigger/Auto\r\n" +
                 "sur sa page de mapping. Le mode planque TC inhibe les deux fonctions par profil.");
 
+            // [V61-FIX-6] EN: Manage the AUTO off-screen reload FOREGROUND exclusions.
+            //     The auto reload is suppressed while a CHECKED executable is the
+            //     foreground process (RetroBat frontend, Windows shell, user list).
+            //     FR: Gestion des exclusions du rechargement AUTO hors écran (exécutables
+            //     au PREMIER PLAN). La recharge auto est supprimée quand un exécutable
+            //     COCHÉ est au premier plan (frontend RetroBat, shell Windows, liste user).
+            if (btnOsReloadExcludes != null)
+                btnOsReloadExcludes.Click += (s, e) =>
+                {
+                    using (var dlg = new UI.Modern.Forms.OffScreenExcludesForm())
+                    {
+                        dlg.ShowDialog(this.FindForm());
+                    }
+                };
+            _toolTips.SetToolTip(btnOsReloadExcludes,
+                "AUTO OFF-SCREEN RELOAD - EXCLUDED EXECUTABLES:\r\n" +
+                "The AUTO off-screen reload is suppressed while one of the CHECKED\r\n" +
+                "executables is in the FOREGROUND (no unwanted click in interfaces).\r\n" +
+                "Built-in: emulationstation.exe (RetroBat frontend), explorer.exe (Windows shell).\r\n" +
+                "Add your own executables, enable/disable or remove them - saved automatically.\r\n" +
+                "\r\n" +
+                "RECHARGEMENT AUTO HORS ÉCRAN - EXÉCUTABLES EXCLUS :\r\n" +
+                "La recharge auto hors écran est supprimée quand l'un des exécutables COCHÉS\r\n" +
+                "est au PREMIER PLAN (aucun clic non souhaité dans les interfaces).\r\n" +
+                "Intégrés : emulationstation.exe (frontend RetroBat), explorer.exe (shell Windows).\r\n" +
+                "Ajoutez vos propres exécutables, activez/désactivez ou retirez-les - sauvegarde automatique.");
+
             // [V55y] Reload rumble tooltips (EN/FR: Bulles vibration rechargement)
             _toolTips.SetToolTip(chkReloadRumble,
                 "RELOAD RUMBLE [V55y] (global):\r\n" +
