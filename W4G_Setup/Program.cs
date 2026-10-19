@@ -391,6 +391,20 @@ namespace W4G_Setup
                 if (entries.Length == 1 && Directory.Exists(entries[0]))
                     contentRoot = entries[0];
 
+                // [V61-FIX-3] EN: Detect the RUNNING helper service BEFORE copying: its
+                //     exe is locked by the OS and must NEVER be overwritten by the setup.
+                //     The service is updated separately (staging folder update_service\,
+                //     elevated PS1) — same policy as update_W4G. On a fresh install the
+                //     service is not running, so nothing is skipped.
+                //     FR: Détecter le service helper EN COURS AVANT de copier : son exe
+                //     est verrouillé par l'OS et ne doit JAMAIS être écrasé par le setup.
+                //     Le service est mis à jour à part (dossier de staging update_service\,
+                //     PS1 en admin) — même politique que update_W4G. Sur une install
+                //     neuve le service ne tourne pas, rien n'est ignoré.
+                bool serviceRunning = IsServiceProcessRunning();
+                if (serviceRunning)
+                    Log("WiimoteGun Helper service is RUNNING - WiimoteGun.Service.exe will be skipped.");
+
                 // Copy to target
                 Directory.CreateDirectory(targetDir);
                 foreach (var item in Directory.GetFileSystemEntries(contentRoot))
@@ -398,9 +412,11 @@ namespace W4G_Setup
                     string name = Path.GetFileName(item);
                     string target = Path.Combine(targetDir, name);
                     if (Directory.Exists(item))
-                        CopyDirectory(item, target);
+                        CopyDirectory(item, target, serviceRunning);
+                    else if (ShouldSkipFile(item, serviceRunning))
+                        Log("SKIPPED (service running): " + name);
                     else
-                        File.Copy(item, target, true);
+                        CopyFileSafe(item, target);
                 }
 
                 return true;
@@ -562,6 +578,93 @@ namespace W4G_Setup
             }
         }
 
+        // ========== Close the running app before updating [V61-FIX-4] ==========
+        /// <summary>
+        /// EN: Closes every running WiimoteGun.exe BEFORE extracting: a running app locks
+        ///     its own exe AND every DLL it loaded (System.Buffers, System.Memory,
+        ///     WiimoteGun.exe...) so the update cannot be applied (user bug report:
+        ///     all these files were "in use by another process" during the setup).
+        ///     Graceful first (CloseMainWindow), then Kill. Returns false if an
+        ///     instance survives.
+        /// FR: Ferme toutes les instances de WiimoteGun.exe AVANT d'extraire : une app
+        ///     en cours verrouille son exe ET toutes les DLL chargées (System.Buffers,
+        ///     System.Memory, WiimoteGun.exe...) — la mise à jour ne peut pas s'appliquer
+        ///     (rapport de bug user : tous ces fichiers étaient « en cours d'utilisation »
+        ///     pendant le setup). D'abord graceful (CloseMainWindow), puis Kill. Renvoie
+        ///     false si une instance survit.
+        /// </summary>
+        public static bool CloseWiimoteGunApp(out string error)
+        {
+            error = null;
+            try
+            {
+                var procs = Process.GetProcessesByName("WiimoteGun");
+                if (procs == null || procs.Length == 0)
+                {
+                    Log("No running WiimoteGun.exe - nothing to close.");
+                    return true;
+                }
+
+                Log("Closing running WiimoteGun.exe (" + procs.Length + " instance(s))...");
+
+                // 1) Graceful close (lets the app save its state)
+                //    (EN/FR: Fermeture propre — laisse l'app sauvegarder son état)
+                foreach (var p in procs)
+                {
+                    try
+                    {
+                        if (!p.HasExited && p.MainWindowHandle != IntPtr.Zero)
+                            p.CloseMainWindow();
+                    }
+                    catch (Exception ex) { Log("CloseMainWindow failed: " + ex.Message); }
+                }
+
+                // 2) Wait for a clean exit (EN/FR: Attendre une sortie propre)
+                foreach (var p in procs)
+                {
+                    try { if (!p.WaitForExit(8000)) Log("WiimoteGun.exe did not exit within 8s."); }
+                    catch (Exception ex) { Log("WaitForExit failed: " + ex.Message); }
+                }
+
+                // 3) Force kill the survivors (EN/FR: Kill forcé des survivants)
+                foreach (var p in procs)
+                {
+                    try
+                    {
+                        if (!p.HasExited)
+                        {
+                            Log("Killing WiimoteGun.exe (PID " + p.Id + ")...");
+                            p.Kill();
+                            p.WaitForExit(5000);
+                        }
+                    }
+                    catch (Exception ex) { Log("Kill failed: " + ex.Message); }
+                }
+
+                var remaining = Process.GetProcessesByName("WiimoteGun");
+                bool stillRunning = false;
+                foreach (var r in remaining)
+                {
+                    if (!r.HasExited) stillRunning = true;
+                    try { r.Dispose(); } catch { }
+                }
+                if (stillRunning)
+                {
+                    error = L("A WiimoteGun.exe process is still running.",
+                        "Un processus WiimoteGun.exe tourne encore.");
+                    return false;
+                }
+
+                Log("WiimoteGun.exe closed - safe to extract.");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
         // ========== Cleanup ==========
         public static void CleanupTemp()
         {
@@ -570,13 +673,81 @@ namespace W4G_Setup
         }
 
         // ========== Private helpers ==========
-        private static void CopyDirectory(string source, string target)
+        // ========== Running service detection & safe copy [V61-FIX-3] ==========
+
+        /// <summary>
+        /// EN: True when the WiimoteGun Helper service process is running. Its exe is
+        ///     then locked by the OS and cannot be overwritten (the reported bug).
+        /// FR: Vrai quand le processus du service WiimoteGun Helper tourne. Son exe est
+        ///     alors verrouillé par l'OS et ne peut pas être écrasé (le bug rapporté).
+        /// </summary>
+        public static bool IsServiceProcessRunning()
+        {
+            try
+            {
+                var procs = Process.GetProcessesByName("WiimoteGun.Service");
+                if (procs != null && procs.Length > 0)
+                {
+                    foreach (var p in procs) { try { p.Dispose(); } catch { } }
+                    return true;
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        /// <summary>
+        /// EN: The service exe must be skipped while the service is running (locked by
+        ///     the OS). Nothing is skipped when the service is not running — a fresh
+        ///     install extracts everything.
+        /// FR: L'exe du service doit être ignoré tant que le service tourne (verrouillé
+        ///     par l'OS). Rien n'est ignoré quand le service ne tourne pas — une install
+        ///     neuve décompresse tout.
+        /// </summary>
+        private static bool ShouldSkipFile(string sourcePath, bool serviceRunning)
+        {
+            if (!serviceRunning) return false;
+            string norm = sourcePath.Replace('/', '\\');
+            return norm.EndsWith(@"\WiimoteGun.Service\WiimoteGun.Service.exe", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// EN: Copy one file, tolerating a LOCKED file (used by a running process):
+        ///     the file is logged and skipped instead of aborting the whole
+        ///     installation (a half-applied install was the reported bug).
+        /// FR: Copie un fichier en tolérant un fichier VERROUILLÉ (utilisé par un
+        ///     processus) : le fichier est loggué et ignoré au lieu d'annuler toute
+        ///     l'installation (une install à moitié appliquée était le bug rapporté).
+        /// </summary>
+        private static void CopyFileSafe(string source, string target)
+        {
+            try
+            {
+                string dir = Path.GetDirectoryName(target);
+                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                File.Copy(source, target, true);
+            }
+            catch (Exception ex)
+            {
+                Log("SKIPPED (copy failed - file in use?): " + Path.GetFileName(target) + " - " + ex.Message);
+            }
+        }
+
+        private static void CopyDirectory(string source, string target, bool serviceRunning)
         {
             Directory.CreateDirectory(target);
             foreach (string file in Directory.GetFiles(source))
-                File.Copy(file, Path.Combine(target, Path.GetFileName(file)), true);
+            {
+                string targetFile = Path.Combine(target, Path.GetFileName(file));
+                if (ShouldSkipFile(file, serviceRunning))
+                {
+                    Log("SKIPPED (service running): " + Path.GetFileName(file) + " in " + Path.GetFileName(target) + "\\");
+                    continue;
+                }
+                CopyFileSafe(file, targetFile);
+            }
             foreach (string dir in Directory.GetDirectories(source))
-                CopyDirectory(dir, Path.Combine(target, Path.GetFileName(dir)));
+                CopyDirectory(dir, Path.Combine(target, Path.GetFileName(dir)), serviceRunning);
         }
     }
 }

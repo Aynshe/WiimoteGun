@@ -376,6 +376,52 @@ namespace WiimoteGun
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
+            // [V61-FIX-8] EN: Start the UI-thread heartbeat HERE — right after
+            //     EnableVisualStyles/SetCompatibleTextRenderingDefault and BEFORE the
+            //     first startup modal dialog (SetupWizard, WelcomeDialog,
+            //     ChangelogDialog — all shown later in this method). The service
+            //     CrashWatchdog ARMS on REGISTER_CLIENT (already sent above) and kills +
+            //     restarts the client when the heartbeat file is stale for 90s+. The
+            //     heartbeat used to start at the very END of the startup (just before
+            //     Application.Run): during ANY of those dialogs it never beat, and the
+            //     STALE file left by the PREVIOUS session (never deleted) triggered
+            //     "HUNG -> kill" ~30-40s after registration — the app and the open
+            //     dialog closed silently with NOTHING in the app log.
+            //     CONSTRAINT (learned the hard way): it CANNOT be started before
+            //     SetCompatibleTextRenderingDefault — the WinForms Timer creates the
+            //     first window object of the process, and SetCompatibleTextRenderingDefault
+            //     then throws InvalidOperationException ("must be called before the
+            //     first IWin32Window is created"). The window between the watchdog fix
+            //     and this constraint is safe: everything between here and the first
+            //     dialog is fast (registry reads, service version query).
+            //     WinForms timers DO tick inside ShowDialog (modal message pump), so
+            //     the beats keep flowing while a startup dialog is open — and a
+            //     genuinely frozen UI still stops them: the hang detection stays intact.
+            //     FR: Démarrer le battement thread-UI ICI — juste après
+            //     EnableVisualStyles/SetCompatibleTextRenderingDefault et AVANT le
+            //     premier dialogue modal du startup (SetupWizard, WelcomeDialog,
+            //     ChangelogDialog — tous affichés plus bas dans cette méthode). Le
+            //     CrashWatchdog du service S'ARME sur REGISTER_CLIENT (déjà envoyé
+            //     ci-dessus) et tue puis relance le client quand le fichier de
+            //     battement est périmé de 90s+. Le battement démarrait avant à la FIN
+            //     du startup (juste avant Application.Run) : pendant N'IMPORTE LEQUEL
+            //     de ces dialogues il ne battait jamais, et le fichier PÉRIMÉ laissé
+            //     par la session PRÉCÉDENTE (jamais supprimé) déclenchait « GEL ->
+            //     tuer » ~30-40s après l'enregistrement — l'app et le dialogue ouvert
+            //     se fermaient silencieusement, SANS RIEN dans le log de l'app.
+            //     CONTRAINTE (apprise à nos dépens) : il NE PEUT PAS démarrer avant
+            //     SetCompatibleTextRenderingDefault — le Timer WinForms crée le
+            //     premier objet fenêtre du processus, et SetCompatibleTextRenderingDefault
+            //     lève alors InvalidOperationException (« doit être appelé avant la
+            //     création du premier objet IWin32Window »). La fenêtre entre ce point
+            //     et le premier dialogue est sûre : tout ce qui sépare est rapide
+            //     (lectures registre, requête version service).
+            //     Les timers WinForms battent BIEN dans ShowDialog (pompe modale),
+            //     donc les battements continuent pendant un dialogue startup — et une
+            //     UI réellement figée les stoppe toujours : la détection de gel reste
+            //     intacte.
+            Core.AppHeartbeat.Start();
+
             bool showOptionsAfterSetup = false;
 
             // [V57k] EN: Re-show the Setup Wizard ONCE after the WiimoteGun.Service was
@@ -761,15 +807,15 @@ namespace WiimoteGun
             // Ensure cleanup happens on any application exit (EN/FR: Assurer le nettoyage lors de toute sortie de l'application)
             Application.ApplicationExit += OnApplicationExit;
 
-            // [V55v] Start the UI-thread heartbeat: the WiimoteGun Service CrashWatchdog
-            // monitors this pulse to detect a frozen UI ("not responding") and restart
-            // the app as the interactive user. WinForms timer = stops when the UI stops
-            // pumping messages, which is exactly the hang signal.
-            // (EN/FR: Démarrer le battement sur thread UI : le CrashWatchdog du service
-            // surveille ce pouls pour détecter un UI figé (« ne répond pas ») et relancer
-            // l'app en utilisateur interactif. Timer WinForms = s'arrête quand l'UI ne
-            // pompe plus les messages, ce qui est exactement le signal de gel.)
-            Core.AppHeartbeat.Start();
+            // [V61-FIX-8] EN/FR: the UI-thread heartbeat now starts right AFTER
+            //     ServiceClient.RegisterClient() at the TOP of the startup — see the
+            //     comment there. Starting it here (after the SetupWizard / Welcome /
+            //     Changelog dialogs) left the heartbeat file stale during those modals
+            //     and the service CrashWatchdog killed the app mid-dialog ~30-40s after
+            //     registration (stale file from the previous session, 90s threshold).
+            //     (Le battement thread-UI démarre désormais juste APRÈS
+            //     ServiceClient.RegisterClient() en tête de startup — voir le
+            //     commentaire là-bas.)
 
             Application.Run(_appContext);
         }

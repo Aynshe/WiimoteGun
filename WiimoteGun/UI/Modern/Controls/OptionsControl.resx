@@ -124,4 +124,7 @@
     <value>Maintains virtual gamepads active even when no Wiimote is connected. This prevents emulators from losing controller assignments and shifting DInput indices.
 (FR: Maintient les manettes virtuelles actives même sans Wiimote connectée. Évite que les émulateurs ne perdent les assignations et que les indices DInput ne changent.)</value>
   </data>
+  <data name="lblEsTileInfo.Text" xml:space="preserve">
+    <value>The delay avoids conflicts when [+] is also used as a hotkey/trigger button. The tile modal lists Mouse/GamePad profiles filtered by the current ES system and toggles XInput/DInput before launching a game.</value>
+  </data>
 </root>

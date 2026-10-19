@@ -6,6 +6,7 @@ using System.Threading;
 using System;
 using System.Linq;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using WiimoteGun.Core;
 using WiimoteGun.VMulti;
@@ -604,47 +605,69 @@ namespace WiimoteGun
                         if (!ServiceClient.HmIsActive())
                         {
                             SimpleLogger.Instance.Warning("[V57h] UMDF2: host not active at wiimote connect - re-activating before ENABLE_P (HmActivate is idempotent)...");
-                            // [V60-FIX-2b] EN: Notify the user that the first HmHost startup
-                            //     can take 10-15 seconds (loading the .NET 10 runtime in
-                            //     session 0 + creating the HID devices). Without this message,
-                            //     the user sees a "dead" crosshair and doesn't know why.
-                            //     FR: Avertir l'utilisateur que le premier démarrage HmHost
-                            //     peut prendre 10-15 secondes (chargement du runtime .NET 10
-                            //     en session 0 + création des devices HID). Sans ce message,
-                            //     l'utilisateur voit un crosshair « mort » sans savoir pourquoi.
-                            Program.PostToUIThread(() =>
+                            // [V61-FIX-10] EN: ONE-TIME notice (persisted flag) — the popup
+                            //     used to fire at EVERY relaunch while a Wiimote was still
+                            //     connected to Windows: the <300ms auto-reconnect beats the
+                            //     startup host activation and hits this guard every time.
+                            //     The re-activation below stays SILENT and self-healing;
+                            //     the "first start" message shows ONCE per installation
+                            //     (fresh settings.cfg), then never again.
+                            //     FR: Notice UNE SEULE FOIS (flag persisté) — la popup se
+                            //     déclenchait avant à CHAQUE relance quand une Wiimote
+                            //     restait connectée à Windows : la reconnexion <300ms bat
+                            //     l'activation d'hôte du startup et atteint ce garde-fou
+                            //     à chaque fois. La ré-activation ci-dessous reste
+                            //     SILENCIEUSE et auto-réparante ; le message « premier
+                            //     démarrage » s'affiche UNE FOIS par installation
+                            //     (settings.cfg neuf), puis jamais plus.
+                            bool showFirstStartNotice = !Options.Instance.Umdf2FirstStartNoticeShown;
+                            Options.Instance.Umdf2FirstStartNoticeShown = true;
+                            Options.Instance.Save();
+                            if (showFirstStartNotice)
                             {
-                                // [V60-FIX-2c] EN: Updated message — after the .NET 10
-                                //     runtime install, a WINDOWS RESTART may be needed for
-                                //     the UMDF2 driver to initialize correctly (user
-                                //     report: the runtime was installed but HmHost could
-                                //     not start until the machine rebooted). The message
-                                //     tells the user to wait 10 seconds, then reboot
-                                //     Windows if the tracking is still not working.
-                                //     FR: Message mis à jour — après l'installation du
-                                //     runtime .NET 10, un REDÉMARRAGE WINDOWS peut être
-                                //     nécessaire pour que le pilote UMDF2 s'initialise
-                                //     correctement (rapport user : le runtime était
-                                //     installé mais HmHost ne pouvait pas démarrer avant
-                                //     le reboot de la machine). Le message dit à l'user
-                                //     d'attendre 10 secondes, puis de redémarrer Windows
-                                //     si le tracking ne fonctionne toujours pas.
-                                System.Windows.Forms.MessageBox.Show(
-                                    "The UMDF2 virtual input driver is starting for the first time...\n" +
-                                    "Please wait up to 10 seconds — your controller will respond.\n\n" +
-                                    "If the tracking does NOT work after 10 seconds:\n" +
-                                    "-> RESTART WINDOWS (the .NET 10 runtime needs a reboot\n" +
-                                    "   to fully initialize the virtual input driver).\n\n" +
-                                    "--------------------------------\n\n" +
-                                    "Le pilote d'entrée virtuelle UMDF2 démarre pour la première fois...\n" +
-                                    "Veuillez patienter jusqu'à 10 secondes — votre manette va répondre.\n\n" +
-                                    "Si le tracking ne fonctionne PAS après 10 secondes :\n" +
-                                    "-> REDÉMARREZ WINDOWS (le runtime .NET 10 nécessite un reboot\n" +
-                                    "   pour initialiser complètement le pilote d'entrée virtuelle).",
-                                    "Wiimote4Guns — UMDF2 first start",
-                                    System.Windows.Forms.MessageBoxButtons.OK,
-                                    System.Windows.Forms.MessageBoxIcon.Information);
-                            });
+                                SimpleLogger.Instance.Info("[V61-FIX-10] UMDF2 first-start notice shown (one-time per installation, flag persisted).");
+                                // [V60-FIX-2b] EN: Notify the user that the first HmHost startup
+                                //     can take 10-15 seconds (loading the .NET 10 runtime in
+                                //     session 0 + creating the HID devices). Without this message,
+                                //     the user sees a "dead" crosshair and doesn't know why.
+                                //     FR: Avertir l'utilisateur que le premier démarrage HmHost
+                                //     peut prendre 10-15 secondes (chargement du runtime .NET 10
+                                //     en session 0 + création des devices HID). Sans ce message,
+                                //     l'utilisateur voit un crosshair « mort » sans savoir pourquoi.
+                                Program.PostToUIThread(() =>
+                                {
+                                    // [V60-FIX-2c] EN: Updated message — after the .NET 10
+                                    //     runtime install, a WINDOWS RESTART may be needed for
+                                    //     the UMDF2 driver to initialize correctly (user
+                                    //     report: the runtime was installed but HmHost could
+                                    //     not start until the machine rebooted). The message
+                                    //     tells the user to wait 10 seconds, then reboot
+                                    //     Windows if the tracking is still not working.
+                                    //     FR: Message mis à jour — après l'installation du
+                                    //     runtime .NET 10, un REDÉMARRAGE WINDOWS peut être
+                                    //     nécessaire pour que le pilote UMDF2 s'initialise
+                                    //     correctement (rapport user : le runtime était
+                                    //     installé mais HmHost ne pouvait pas démarrer avant
+                                    //     le reboot de la machine). Le message dit à l'user
+                                    //     d'attendre 10 secondes, puis de redémarrer Windows
+                                    //     si le tracking ne fonctionne toujours pas.
+                                    System.Windows.Forms.MessageBox.Show(
+                                        "The UMDF2 virtual input driver is starting for the first time...\n" +
+                                        "Please wait up to 10 seconds — your controller will respond.\n\n" +
+                                        "If the tracking does NOT work after 10 seconds:\n" +
+                                        "-> RESTART WINDOWS (the .NET 10 runtime needs a reboot\n" +
+                                        "   to fully initialize the virtual input driver).\n\n" +
+                                        "--------------------------------\n\n" +
+                                        "Le pilote d'entrée virtuelle UMDF2 démarre pour la première fois...\n" +
+                                        "Veuillez patienter jusqu'à 10 secondes — votre manette va répondre.\n\n" +
+                                        "Si le tracking ne fonctionne PAS après 10 secondes :\n" +
+                                        "-> REDÉMARRER WINDOWS (le runtime .NET 10 nécessite un reboot\n" +
+                                        "   pour initialiser complètement le pilote d'entrée virtuelle).",
+                                        "Wiimote4Guns — UMDF2 first start",
+                                        System.Windows.Forms.MessageBoxButtons.OK,
+                                        System.Windows.Forms.MessageBoxIcon.Information);
+                                });
+                            }
                             string act = ServiceClient.HmActivate();
                             SimpleLogger.Instance.Info("[V57h] UMDF2: re-activation -> " + (act ?? "no reply"));
                         }
@@ -1656,12 +1679,28 @@ namespace WiimoteGun
                                     // (EN/FR: Rechargement auto: 1 seul clic droit par session hors écran avec délai 250ms anti-rebond)
                                     if (!_offScreenReloadPerformed && _wasOnScreen && _offScreenReloadClickSequence == 0 && (now - _lastAutoReloadTime).TotalMilliseconds >= 250)
                                     {
-                                        _offScreenReloadClickSequence = 1;
-                                        _lastAutoReloadTime = now;
-                                        _offScreenReloadPerformed = true;
-                                        reloadTriggered = true;
-                                        TriggerReloadRumble(); // [V55y] Configurable reload rumble (EN/FR: Vibration recharge paramétrable)
-                                        SimpleLogger.Instance.Info($"[P{PlayerIndex}] Auto-reload sequence started (1x mRight)");
+                                        // [V61-FIX-6] EN/FR: AUTO reload SUPPRESSED while an
+                                        // EXCLUDED executable (RetroBat frontend, Windows shell,
+                                        // user list) is in the FOREGROUND - no unwanted click
+                                        // in the interface. The session's single auto-reload is
+                                        // consumed and re-armed when the player comes back
+                                        // on-screen. The foreground is checked ONCE, at the
+                                        // off-screen transition - never per frame.
+                                        if (IsForegroundExcludedFromAutoReload())
+                                        {
+                                            _lastAutoReloadTime = now;
+                                            _offScreenReloadPerformed = true;
+                                            SimpleLogger.Instance.Info($"[P{PlayerIndex}] Auto-reload suppressed (excluded foreground executable)");
+                                        }
+                                        else
+                                        {
+                                            _offScreenReloadClickSequence = 1;
+                                            _lastAutoReloadTime = now;
+                                            _offScreenReloadPerformed = true;
+                                            reloadTriggered = true;
+                                            TriggerReloadRumble(); // [V55y] Configurable reload rumble (EN/FR: Vibration recharge paramétrable)
+                                            SimpleLogger.Instance.Info($"[P{PlayerIndex}] Auto-reload sequence started (1x mRight)");
+                                        }
                                     }
 
                                     if (_offScreenReloadClickSequence > 0)
@@ -2249,6 +2288,69 @@ namespace WiimoteGun
             if (_playerMappings.OffScreenReloadOverride == 1) return true;
             if (_playerMappings.OffScreenReloadOverride == 0) return false;
             return Options.Instance.EnableOffScreenReload;
+        }
+
+        // ========== [V61-FIX-6] AUTO off-screen reload: foreground exclusions ==========
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+        /// <summary>
+        /// EN: [V61-FIX-6] Name of the FOREGROUND window's executable ("x.exe"), or null.
+        ///     Called at most once per off-screen transition - never per frame.
+        /// FR: [V61-FIX-6] Nom de l'exécutable de la fenêtre au PREMIER PLAN (« x.exe »),
+        ///     ou null. Appelé au plus une fois par transition hors écran - jamais par frame.
+        /// </summary>
+        private static string GetForegroundExeName()
+        {
+            try
+            {
+                IntPtr hwnd = GetForegroundWindow();
+                if (hwnd == IntPtr.Zero) return null;
+                uint pid;
+                GetWindowThreadProcessId(hwnd, out pid);
+                if (pid == 0) return null;
+                using (var p = System.Diagnostics.Process.GetProcessById((int)pid))
+                {
+                    return p.ProcessName + ".exe";
+                }
+            }
+            catch { return null; }
+        }
+
+        /// <summary>
+        /// EN: [V61-FIX-6] True when the FOREGROUND executable is in the AUTO off-screen
+        ///     reload exclusion list (ENABLED entries only). Built-in defaults:
+        ///     emulationstation.exe (RetroBat frontend) and explorer.exe (Windows shell)
+        ///     — no unwanted reload click in the interfaces. The user can add more from
+        ///     Options > Gestures.
+        /// FR: [V61-FIX-6] Vrai quand l'exécutable au PREMIER PLAN est dans la liste
+        ///     d'exclusions du rechargement AUTO hors écran (entrées ACTIVÉES seulement).
+        ///     Défauts intégrés : emulationstation.exe (frontend RetroBat) et
+        ///     explorer.exe (shell Windows) — aucun clic de recharge non souhaité dans
+        ///     les interfaces. L'utilisateur peut en ajouter depuis Options > Gestes.
+        /// </summary>
+        private static bool IsForegroundExcludedFromAutoReload()
+        {
+            var list = Options.Instance.OffScreenAutoExcludes;
+            if (list == null || list.Count == 0) return false;
+            string fg = GetForegroundExeName();
+            if (string.IsNullOrEmpty(fg)) return false;
+            string fgName = fg.ToLowerInvariant();
+            string fgBase = fgName.EndsWith(".exe") ? fgName.Substring(0, fgName.Length - 4) : fgName;
+            foreach (OffScreenExeExclude entry in list)
+            {
+                if (entry == null || !entry.Enabled || string.IsNullOrEmpty(entry.ExeName)) continue;
+                string n = entry.ExeName.Trim().ToLowerInvariant();
+                if (n == fgName || n == fgBase || n + ".exe" == fgName)
+                {
+                    SimpleLogger.Instance.Info($"[V61-FIX-6] Foreground '{fg}' is excluded from the auto off-screen reload.");
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>
@@ -4141,15 +4243,28 @@ namespace WiimoteGun
                             if (!_gpOffScreenReloadPerformed &&
                                 (DateTime.Now - _gpLastAutoReloadTime).TotalMilliseconds >= 250)
                             {
-                                _gpOffScreenReloadPerformed = true;
-                                _gpLastAutoReloadTime = DateTime.Now;
-                                // Send A-button (reload) for 1 frame via the mapping
-                                // (EN/FR: Envoyer bouton A (reload) pour 1 frame via le mapping)
-                                GamePadButton reloadBtn = mappings.WiiA;
-                                if (reloadBtn != GamePadButton.None)
-                                    _virtualGamepad.SetButton(reloadBtn, true);
-                                TriggerReloadRumble(mappings); // [V55y] Configurable reload rumble (EN/FR: Vibration recharge paramétrable)
-                                SimpleLogger.Instance.Info($"[P{PlayerIndex}] GP Auto-reload fired (off-screen)");
+                                // [V61-FIX-6] EN/FR: AUTO reload SUPPRESSED while an EXCLUDED
+                                // executable (frontend/shell/user list) is in the FOREGROUND.
+                                // The session's auto-reload is consumed (checked once, not
+                                // per frame) and re-armed when the player returns on-screen.
+                                if (IsForegroundExcludedFromAutoReload())
+                                {
+                                    _gpOffScreenReloadPerformed = true;
+                                    _gpLastAutoReloadTime = DateTime.Now;
+                                    SimpleLogger.Instance.Info($"[P{PlayerIndex}] GP Auto-reload suppressed (excluded foreground executable)");
+                                }
+                                else
+                                {
+                                    _gpOffScreenReloadPerformed = true;
+                                    _gpLastAutoReloadTime = DateTime.Now;
+                                    // Send A-button (reload) for 1 frame via the mapping
+                                    // (EN/FR: Envoyer bouton A (reload) pour 1 frame via le mapping)
+                                    GamePadButton reloadBtn = mappings.WiiA;
+                                    if (reloadBtn != GamePadButton.None)
+                                        _virtualGamepad.SetButton(reloadBtn, true);
+                                    TriggerReloadRumble(mappings); // [V55y] Configurable reload rumble (EN/FR: Vibration recharge paramétrable)
+                                    SimpleLogger.Instance.Info($"[P{PlayerIndex}] GP Auto-reload fired (off-screen)");
+                                }
                             }
                         }
                         else if (mappings.OffScreenReloadMode == 1) // Trigger
