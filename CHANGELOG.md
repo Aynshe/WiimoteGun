@@ -5,6 +5,17 @@ All notable changes to Wiimote4Guns will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 
+## [3.1.6.2] - 2026-10-20
+
+- DolphinBar Mayflash stability (flaky workaround): fewer disconnect/reconnect loops (progressive retry backoff on phantom HID ports, a transient write failure no longer force-disconnects the controller, the Bluetooth watchdog ignores DolphinBar HID failures, and the VMulti devcon cleanup is skipped when no VMulti driver is present).
+- Nunchuk (RVL-4): the joystick axis now works without the MotionPlus adapter. No regression on older Nunchuks.
+- In AUTO Off-Screen Reload the physical trigger no longer fires a reload while off-screen (only the single auto-reload runs).
+- Options > Gestures: the "Auto Off-Screen" checkbox is replaced by a Trigger/Auto dropdown, matching the per-player mapping page.
+- TC Cover: firing while in cover (off-screen) now changes the weapon - the trigger is no longer locked off-screen in TC Cover mode.
+- Profile / system / folder pickers and the Off-Screen Reload excluded-executables manager now open above the always-on-top overlay (Home+Plus) instead of hiding behind it.
+
+---
+
 ## [3.1.6.1] - 2026-10-18
 
 - Standalone W4G_Setup.exe installer - Setup update reliability : WiimoteGun.exe is closed before extracting (a running app locks its own files), the running WiimoteGun.Service.exe is never overwritten (the service is updated by its own elevated path), files in use are skipped and logged instead of aborting the install half-way

@@ -41,6 +41,7 @@ namespace WiimoteGun.UI.Modern.Forms
             MaximizeBox = false;
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
+            TopMost = true; // [V61-ZORDER] EN/FR: float above the TopMost ProfileOverlay (owner)
             ClientSize = new Size(520, 430);
             Text = "Wiimote4Guns — " + L("Auto Off-Screen Reload: excluded executables",
                                           "Rechargement AUTO hors écran : exécutables exclus");

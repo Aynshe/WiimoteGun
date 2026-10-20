@@ -1084,12 +1084,14 @@ namespace WiimoteGun.Controls
                 "Time Crisis cover mode (CORRECTED [V55]):\r\n" +
                 "Aiming ON-screen HOLDS the cover/planque input (= exit cover, shoot).\r\n" +
                 "Aiming OFF-screen RELEASES it (= return to cover/planque).\r\n" +
+                "The trigger FIRES even off-screen (in cover): that changes the weapon in TC.\r\n" +
                 "This is the OPPOSITE of standard reload: in TC games you hold the pedal\r\n" +
                 "to aim and shoot, then release to hide again.\r\n" +
                 "Inhibits global Off-Screen Reload and Auto Off-Screen for this profile.\r\n" +
                 "FR : Mode planque Time Crisis (CORRIGÉ [V55]) :\r\n" +
                 "Viser l'ÉCRAN MAINTIENT l'entrée planque (= sortie planque, tirer).\r\n" +
                 "Viser HORS écran RELÂCHE (= retour en planque).\r\n" +
+                "La gâchette TIRE aussi hors écran (en planque) : cela change d'arme dans TC.\r\n" +
                 "C'est l'INVERSE du reload classique : dans TC on maintient la pédale pour\r\n" +
                 "viser/tirer puis on relâche pour se cacher. Inhibe Off-Screen Reload global.");
             panel.Controls.Add(chkTcCover);
@@ -1142,11 +1144,11 @@ namespace WiimoteGun.Controls
             panel.Controls.Add(cboTcBtn);
             tcY += 28;
 
-            // 4) [V55] TC Bi-Pedal (TC4, TC5 2-pedal games)
+            // 4) [V55] TC Bi-Pedal (TC3, 2 Spicy, DPS, TC5 2-pedal games)
             //    (EN/FR: Pédale TC bi-directionnelle (jeux à 2 pédales))
             CheckBox chkTcBiPedal = new CheckBox
             {
-                Text = "TC Bi-Pedal (2 Pedals - Time Crisis 4/5)",
+                Text = "TC Bi-Pedal (2 Pedals - 2 Spicy / DPS / TC5)",
                 ForeColor = ColorText,
                 Font = new Font("Segoe UI", 8.5F),
                 Location = new Point(startX, tcY),
@@ -1159,7 +1161,7 @@ namespace WiimoteGun.Controls
                 chkTcBiPedal.CheckedChanged += (s, e) => { osMappings.TCBiPedal = chkTcBiPedal.Checked; };
             }
             ttOs.SetToolTip(chkTcBiPedal,
-                "TC BI-DIRECTIONAL PEDAL [V55] (2-Pedal TC games):\r\n" +
+                "TC BI-DIRECTIONAL PEDAL [V55] (2 Spicy / DPS / TC5):\r\n" +
                 "Select two buttons for Left and Right pedal.\r\n" +
                 "Pressing Left or Right while aiming ON-screen holds that direction.\r\n" +
                 "Aiming OFF-screen releases without changing state. Pressing the other pedal switches.\r\n" +

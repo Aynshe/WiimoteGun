@@ -563,7 +563,21 @@ namespace WiimoteGun
                 // (EN/FR: Déverrouiller le mode au game-end)
                 _wiiMoteManager?.Controllers?.ToList().ForEach(c => c.LockMode(false));
             };
-            _messageWindow.DeviceChanged += (s, e) => _wiiMoteManager?.RefreshAllDInputIndices();
+            _messageWindow.DeviceChanged += (s, e) =>
+            {
+                // [V61-FIX-11] EN: Clear the HID discovery blocklist on any device change.
+                //     The Mayflash DolphinBar fires a device-change event on each Wiimote
+                //     sync/unsync - clearing the (progressive) phantom-port blocklist here
+                //     lets a reconnected Wiimote be discovered on the very next discovery
+                //     round instead of waiting for a block to expire.
+                //     FR: Vide la blocklist de discovery HID à chaque changement de
+                //     périphérique. La barre Mayflash émet un événement à chaque
+                //     synchro/dé-synchro Wiimote - vider la blocklist (progressive) des
+                //     ports fantômes ici permet de découvrir une Wiimote reconnectée au
+                //     tour de discovery suivant au lieu d'attendre une expiration.
+                _wiiMoteManager?.RefreshAllDInputIndices();
+                WiimoteLib.WiimoteManager.ResetHidBlocklist();
+            };
 
             // [V42] EmulationStation integration: scripts install/verify + pending values
             // + tile modal hotkey (long-press PLUS on any Wiimote)

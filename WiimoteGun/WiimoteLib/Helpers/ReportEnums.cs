@@ -213,9 +213,29 @@ namespace WiimoteLib {
 				}
 				catch (Exception ex) {
 					Log.Error($"Failed to send: {this} FileWrite: {ex}");
-					// Propagate write errors as WiimoteException to trigger disconnect for DolphinBar
-					// (EN/FR: Propager erreurs d'écriture pour déclencher déconnexion DolphinBar)
-					WiimoteManager.RaiseWiimoteException(Wiimote, ex);
+					// [V61-FIX-11] EN: NO WiimoteException propagation on write failures.
+					//     The old "propagate to trigger disconnect for DolphinBar" design
+					//     force-disconnected the ACTIVE controller whenever a transient
+					//     ERROR_GEN_FAILURE write collided with the phantom-port discovery
+					//     I/O on the shared USB device (mid-game kills — user log evidence
+					//     12:01:32: IRLogic/WriteMemory writes of the CONNECTED controller
+					//     failing). A genuinely dead device is still detected by the
+					//     read-stream failure (timeout) and the DolphinBar periodic
+					//     GetStatus poll (GetStatus timeout path — user log evidence
+					//     12:00:54). A dropped write is logged and returned as false:
+					//     callers handle it, the stream keeps running.
+					//     FR: AUCUNE propagation WiimoteException sur échec d'écriture.
+					//     L'ancien design « propager pour déclencher la déconnexion
+					//     DolphinBar » force-déconnectait le contrôleur ACTIF dès qu'une
+					//     écriture ERROR_GEN_FAILURE transitoire entrait en collision
+					//     avec l'I/O de la discovery des ports fantômes sur le
+					//     périphérique USB partagé (kills en plein jeu — preuve log user
+					//     12:01:32 : écritures IRLogic/WriteMemory du contrôleur CONNECTÉ
+					//     en échec). Un périphérique réellement mort reste détecté par
+					//     l'échec du flux de lecture (timeout) et le polling GetStatus
+					//     périodique DolphinBar (chemin GetStatus timeout — preuve log
+					//     user 12:00:54). Une écriture perdue est loggée et retournée
+					//     false : les appelants le gèrent, le flux continue.
 					return false;
 				}
 			}

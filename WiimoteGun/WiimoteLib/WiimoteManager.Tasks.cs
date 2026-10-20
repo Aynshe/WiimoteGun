@@ -11,12 +11,73 @@ using WiimoteLib.Util;
 namespace WiimoteLib {
 	public static partial class WiimoteManager {
 		
-		// EN: Blocklist for HID paths that failed to connect (DolphinBar phantom ports)
-		// FR: Liste de blocage pour les chemins HID qui ont échoué la connexion (ports fantômes DolphinBar)
-		// Key = HID device path, Value = timestamp when blocked
-		private static readonly Dictionary<string, DateTime> _failedHidPaths = new Dictionary<string, DateTime>();
-		private static readonly TimeSpan _failedHidBlockDuration = TimeSpan.FromSeconds(5);
+		// EN: Progressive blocklist for HID paths that failed to connect (DolphinBar phantom ports)
+		// FR: Liste de blocage PROGRESSIVE pour les chemins HID qui ont échoué la connexion (ports fantômes DolphinBar)
+		// Key = HID device path, Value = failure state (count + blocked until)
+		private class HidPathBlock
+		{
+			public int FailureCount;
+			public DateTime BlockedUntil;
+		}
+		private static readonly Dictionary<string, HidPathBlock> _failedHidPaths = new Dictionary<string, HidPathBlock>();
+		// [V61-FIX-13] EN: HID paths where a Wiimote has connected at least once ("proven"
+		// ports). A proven port can host a Wiimote → it must NEVER be blocklisted (the
+		// user may come back with the same or another Wiimote on that port).
+		// FR: Chemins HID où une Wiimote s'est connectée au moins une fois (ports
+		// « prouvés »). Un port prouvé peut héberger une Wiimote → il ne doit JAMAIS
+		// être bloqué (l'utilisateur peut revenir avec la même ou une autre Wiimote).
+		private static readonly HashSet<string> _provenHidPaths = new HashSet<string>();
 		private static readonly object _failedHidLock = new object();
+
+		/// <summary>
+		/// [V61-FIX-11] EN: Progressive block durations: 5s, 30s, 60s repeating — NEVER
+		///     session-long. A session-long tier blocked the REAL port too: each time the
+		///     user turns the Wiimote off, that port fails the handshake while empty and
+		///     climbs the ladder, ending permanently blocked → Wiimote reconnects to the
+		///     bar but WiimoteGun never detects it (user report). The 60s repeat tier
+		///     quiets phantom ports to at most 1 attempt/min while guaranteeing detection
+		///     of a returned Wiimote within ≤60s; a Windows device-change event (fired by
+		///     the Mayflash bar on each Wiimote sync) clears the whole blocklist for a
+		///     fast reconnect (ResetHidBlocklist).
+		///     FR: Durées de blocage PROGRESSIVES : 5s, 30s, 60s répétés — JAMAIS la fin
+		///     de session. Le palier « session » bloquait AUSSI le vrai port : à chaque
+		///     extinction de la Wiimote, ce port échouait le handshake (vide) et gravissait
+		///     l'échelle jusqu'au blocage permanent → la Wiimote se reconnectait à la
+		///     barre mais WiimoteGun ne la détectait jamais (rapport user). Le palier 60s
+		///     répété réduit les ports fantômes à 1 tentative/minute maximum tout en
+		///     garantissant la détection d'une Wiimote revenue sous ≤60s ; un événement
+		///     Windows de changement de périphérique (émis par la barre Mayflash à chaque
+		///     synchro) vide toute la blocklist pour une reconnexion rapide
+		///     (ResetHidBlocklist).
+		/// </summary>
+		private static int GetFailedHidBlockSeconds(int failureCount)
+		{
+			if (failureCount >= 3) return 60; // 60s repeating tier (never session-long)
+			if (failureCount == 2) return 30;  // 30 seconds
+			return 5;                          // first failure: 5 seconds
+		}
+
+		/// <summary>
+		/// EN: [V61-FIX-11] Clears the HID blocklist (all ports). Called on any Windows
+		///     device-change event: the Mayflash bar fires one on each Wiimote
+		///     sync/unsync, so a reconnected Wiimote is discovered on the very next
+		///     discovery round instead of waiting for the phantom port's block to expire.
+		///     FR: [V61-FIX-11] Vide la blocklist HID (tous les ports). Appelé à chaque
+		///     événement Windows de changement de périphérique : la barre Mayflash en émet
+		///     un à chaque synchro/dé-synchro Wiimote, donc une Wiimote reconnectée est
+		///     découverte au tour de discovery suivant au lieu d'attendre l'expiration du
+		///     blocage du port fantôme.
+		/// </summary>
+		public static void ResetHidBlocklist()
+		{
+			int cleared;
+			lock (_failedHidLock) {
+				cleared = _failedHidPaths.Count;
+				_failedHidPaths.Clear();
+			}
+			if (cleared > 0)
+				Log.Info($"HID blocklist cleared ({cleared} path(s)) - device change detected");
+		}
 
 
 
@@ -204,18 +265,28 @@ namespace WiimoteLib {
 				if (token.IsCancellationRequested)
 					return false;
 				
-				// EN: Skip HID paths that are in the blocklist (DolphinBar phantom ports)
-				// FR: Ignorer les chemins HID dans la liste de blocage (ports fantômes DolphinBar)
+				// EN: Skip HID paths that are in the PROGRESSIVE blocklist (DolphinBar phantom ports)
+				// FR: Ignorer les chemins HID dans la liste de blocage PROGRESSIVE (ports fantômes DolphinBar)
 				lock (_failedHidLock) {
-					if (_failedHidPaths.TryGetValue(hid.DevicePath, out DateTime blockedTime)) {
-						if (DateTime.Now - blockedTime < _failedHidBlockDuration) {
+					HidPathBlock block;
+					if (_failedHidPaths.TryGetValue(hid.DevicePath, out block)) {
+						// [V61-FIX-13] EN: NO block while zero Wiimote are connected (hunt phase:
+						//     every port must be tried on each discovery round so a Wiimote
+						//     connects IMMEDIATELY) and NO block on a PROVEN port (a Wiimote
+						//     already connected here once, the user may come back with another).
+						//     FR: AUCUN blocage quand aucune Wiimote n'est connectée (recherche :
+						//     chaque port tenté à chaque tour pour une connexion IMMÉDIATE) et
+						//     AUCUN blocage sur un port PROUVÉ (une Wiimote s'y est déjà
+						//     connectée, l'utilisateur peut revenir avec une autre).
+						bool huntPhase = WiimoteCount == 0;
+						bool proven = _provenHidPaths.Contains(hid.DevicePath);
+						if (!huntPhase && !proven &&
+							(block.BlockedUntil == DateTime.MaxValue || DateTime.Now < block.BlockedUntil)) {
 							// Still blocked, skip this device
 							continue;
 						}
-						else {
-							// Block expired, remove from list and retry
-							_failedHidPaths.Remove(hid.DevicePath);
-						}
+						// Block expired or ignored - retry now (the failure count is KEPT: the next failure escalates)
+						// (EN/FR: Blocage expiré ou ignoré - réessai (le compteur d'échecs est CONSERVÉ : le prochain échec escalade))
 					}
 				}
 				
@@ -238,20 +309,40 @@ namespace WiimoteLib {
 						}
 
 						if (wiimoteDevice != null) {
-							try {
-								Connect(wiimoteDevice);
-								// EN: Connection successful, ensure not in blocklist
-								// FR: Connexion réussie, s'assurer qu'il n'est pas dans la liste de blocage
-								lock (_failedHidLock) {
-									_failedHidPaths.Remove(hid.DevicePath);
-								}
-							}
+										try {
+											Connect(wiimoteDevice);
+											// EN: Connection successful: remove from the blocklist and mark the
+											// port as PROVEN - it can host a Wiimote, so it must never be
+											// blocklisted again (reconnect / next Wiimote on that port).
+											// FR: Connexion réussie : retirer de la liste de blocage et marquer le
+											// port comme PROUVÉ - il peut héberger une Wiimote, il ne doit plus
+											// jamais être bloqué (reconnexion / Wiimote suivante sur ce port).
+											lock (_failedHidLock) {
+												_failedHidPaths.Remove(hid.DevicePath);
+												_provenHidPaths.Add(hid.DevicePath);
+											}
+										}
 							catch (Exception ex) {
-								// EN: Connection failed - add to blocklist to prevent endless retry
-								// FR: Connexion échouée - ajouter à la liste de blocage pour éviter les réessais infinis
+								// [V61-FIX-13] EN: a PROVEN port is never blocklisted (only noise-logged):
+								//     it can host a Wiimote, the user may come back with another.
+								//     FR: un port PROUVÉ n'est jamais bloqué (seulement loggé) : il peut
+								//     héberger une Wiimote, l'utilisateur peut revenir avec une autre.
 								lock (_failedHidLock) {
-									_failedHidPaths[hid.DevicePath] = DateTime.Now;
-									Log.Debug($"HID device blocked for {_failedHidBlockDuration.TotalSeconds}s: {hid.DevicePath}");
+									if (_provenHidPaths.Contains(hid.DevicePath)) {
+										Log.Debug($"HID device failed (proven port, not blocked): {hid.DevicePath}");
+									}
+									else {
+										// EN: Connection failed - add to the PROGRESSIVE blocklist (5s -> 30s -> 60s)
+										// FR: Connexion échouée - ajouter à la liste de blocage PROGRESSIVE (5s -> 30s -> 60s)
+										int failureCount = 1;
+										HidPathBlock existing;
+										if (_failedHidPaths.TryGetValue(hid.DevicePath, out existing))
+											failureCount = existing.FailureCount + 1;
+										int seconds = GetFailedHidBlockSeconds(failureCount);
+										DateTime blockedUntil = seconds < 0 ? DateTime.MaxValue : DateTime.Now.AddSeconds(seconds);
+										_failedHidPaths[hid.DevicePath] = new HidPathBlock { FailureCount = failureCount, BlockedUntil = blockedUntil };
+										Log.Debug($"HID device blocked for {(seconds < 0 ? "the rest of the session" : seconds.ToString() + "s")} (failure #{failureCount}): {hid.DevicePath}");
+									}
 								}
 								RaiseConnectionFailed(wiimoteDevice, ex);
 							}
