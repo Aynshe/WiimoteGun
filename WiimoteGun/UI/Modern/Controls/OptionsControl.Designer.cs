@@ -90,7 +90,7 @@ namespace WiimoteGun.Controls
             this.lblShakeSensitivity = new System.Windows.Forms.Label();
             this.optEnableGrenadeGesture = new System.Windows.Forms.CheckBox();
             this.optEnableShakeReload = new System.Windows.Forms.CheckBox();
-            this.optOffScreenReloadAuto = new System.Windows.Forms.CheckBox();
+            this.optOffScreenReloadMode = new System.Windows.Forms.ComboBox();
             this.btnOsReloadExcludes = new System.Windows.Forms.Button();
             this.optEnableOffScreenReload = new System.Windows.Forms.CheckBox();
             this.chkReloadRumble = new System.Windows.Forms.CheckBox();
@@ -1070,7 +1070,7 @@ namespace WiimoteGun.Controls
             this.tabGestures.Controls.Add(this.lblShakeSensitivity);
             this.tabGestures.Controls.Add(this.optEnableGrenadeGesture);
             this.tabGestures.Controls.Add(this.optEnableShakeReload);
-            this.tabGestures.Controls.Add(this.optOffScreenReloadAuto);
+            this.tabGestures.Controls.Add(this.optOffScreenReloadMode);
             this.tabGestures.Controls.Add(this.btnOsReloadExcludes);
             this.tabGestures.Controls.Add(this.optEnableOffScreenReload);
             this.tabGestures.Controls.Add(this.chkReloadRumble);
@@ -1198,17 +1198,18 @@ namespace WiimoteGun.Controls
             this.optEnableShakeReload.TabIndex = 1;
             this.optEnableShakeReload.Text = "Shake Reload";
             this.optEnableShakeReload.UseVisualStyleBackColor = true;
-            // 
-            // optOffScreenReloadAuto
-            // 
-            this.optOffScreenReloadAuto.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.optOffScreenReloadAuto.ForeColor = System.Drawing.Color.White;
-            this.optOffScreenReloadAuto.Location = new System.Drawing.Point(20, 60);
-            this.optOffScreenReloadAuto.Name = "optOffScreenReloadAuto";
-            this.optOffScreenReloadAuto.Size = new System.Drawing.Size(156, 25);
-            this.optOffScreenReloadAuto.TabIndex = 1;
-            this.optOffScreenReloadAuto.Text = "Auto Off-Screen";
-            this.optOffScreenReloadAuto.UseVisualStyleBackColor = true;
+            //
+            // optOffScreenReloadMode
+            //
+            this.optOffScreenReloadMode.BackColor = System.Drawing.Color.FromArgb(45, 45, 48);
+            this.optOffScreenReloadMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.optOffScreenReloadMode.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.optOffScreenReloadMode.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.optOffScreenReloadMode.ForeColor = System.Drawing.Color.White;
+            this.optOffScreenReloadMode.Location = new System.Drawing.Point(20, 60);
+            this.optOffScreenReloadMode.Name = "optOffScreenReloadMode";
+            this.optOffScreenReloadMode.Size = new System.Drawing.Size(156, 24);
+            this.optOffScreenReloadMode.TabIndex = 1;
             // 
             // btnOsReloadExcludes
             // 
@@ -1888,7 +1889,7 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.CheckBox optDetectBluetooth;
         private System.Windows.Forms.Label lblDetectionInfo;
         private System.Windows.Forms.CheckBox optEnableOffScreenReload;
-        private System.Windows.Forms.CheckBox optOffScreenReloadAuto;
+        private System.Windows.Forms.ComboBox optOffScreenReloadMode;
         private System.Windows.Forms.Button btnOsReloadExcludes;
         private System.Windows.Forms.CheckBox optEnableShakeReload;
 

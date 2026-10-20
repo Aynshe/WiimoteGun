@@ -472,6 +472,26 @@ namespace WiimoteGun
         /// </summary>
         private void OnWiimoteConnectionFailed(object sender, WiimoteConnectionFailedEventArgs e)
         {
+            // [V61-FIX-11] EN: Only BLUETOOTH connection failures count as "reset
+            //     evidence" for the BT watchdog. The DolphinBar/HID phantom-port
+            //     failures (empty ports of the Mayflash bar retried by the discovery)
+            //     have nothing to do with the Bluetooth radio — counting them could
+            //     trigger a pointless BT adapter reset in the middle of a DolphinBar
+            //     session (user log evidence: 5 phantom failures per discovery round,
+            //     each one recorded as evidence).
+            //     FR: Seuls les échecs de connexion BLUETOOTH comptent comme « reset
+            //     evidence » pour le watchdog BT. Les échecs des ports fantômes
+            //     HID/DolphinBar (ports vides de la barre Mayflash retentés par la
+            //     discovery) n'ont rien à voir avec la radio Bluetooth — les compter
+            //     pouvait déclencher un reset d'adaptateur BT inutile en pleine session
+            //     DolphinBar (preuve log user : 5 échecs fantômes par tour de discovery,
+            //     chacun compté comme preuve).
+            if (e.Device != null && !e.Device.IsBluetooth)
+            {
+                SimpleLogger.Instance.Info("[BT-Watchdog] HID/DolphinBar connection attempt failed (" + (e.Exception != null ? e.Exception.Message : "unknown error") + ") — not Bluetooth, ignored as reset evidence.");
+                return;
+            }
+
             _btAttemptFailedSinceArm = true;
             SimpleLogger.Instance.Warning("[BT-Watchdog] Connection attempt failed (" + (e.Exception != null ? e.Exception.Message : "unknown error") + ") — recorded as reset evidence.");
         }

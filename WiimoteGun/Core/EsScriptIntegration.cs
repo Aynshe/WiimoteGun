@@ -485,7 +485,16 @@ namespace WiimoteGun
                     {
                         ofd.Title = "Select the game FILE (its name without extension will identify the game)";
                         ofd.Filter = "Game file (*.*)|*.*";
-                        if (ofd.ShowDialog(owner) != DialogResult.OK) return false;
+                        // [V61-ZORDER] EN/FR: a system file dialog is NOT TopMost, so the TopMost
+                        // ProfileOverlay would layer above it. Temporarily drop the owner's TopMost
+                        // around the dialog so it stays visible, then restore.
+                        Form ownerForm = owner as Form;
+                        bool restoreOwnerTop = ownerForm != null && ownerForm.TopMost;
+                        if (restoreOwnerTop) ownerForm.TopMost = false;
+                        DialogResult ofdResult;
+                        try { ofdResult = ofd.ShowDialog(owner); }
+                        finally { if (restoreOwnerTop) ownerForm.TopMost = true; }
+                        if (ofdResult != DialogResult.OK) return false;
                         gameName = Path.GetFileNameWithoutExtension(ofd.FileName);
                         isFolder = false;
                         SimpleLogger.Instance.Info($"[ES] Manual game file selected: '{gameName}'");

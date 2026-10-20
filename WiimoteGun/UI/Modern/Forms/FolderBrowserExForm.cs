@@ -226,6 +226,7 @@ namespace WiimoteGun.UI.Modern.Forms
                 string typedPath = null;
                 form.FormClosed += (s, e) => { typedPath = form.txtPath.Text.Trim(); };
 
+                form.TopMost = true; // [V61-ZORDER] EN/FR: float above the TopMost ProfileOverlay (owner)
                 DialogResult dr = form.ShowDialog(owner);
                 if (dr != DialogResult.OK) return null;
 

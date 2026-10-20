@@ -55,8 +55,8 @@ namespace WiimoteGun.Controls
             //     chargement initial pour que le chargement programmatique ne reset rien.
             if (optEnableOffScreenReload != null)
                 optEnableOffScreenReload.CheckedChanged += OptEnableOffScreenReload_CheckedChanged;
-            if (optOffScreenReloadAuto != null)
-                optOffScreenReloadAuto.CheckedChanged += OptOffScreenReloadAuto_CheckedChanged;
+            if (optOffScreenReloadMode != null)
+                optOffScreenReloadMode.SelectedIndexChanged += OptOffScreenReloadMode_SelectedIndexChanged;
 
             // [V61-FIX-5] EN: Any GLOBAL reload-rumble change (enable / intensity / style)
             //     re-applies the global to ALL players: their per-player overrides (set
@@ -249,18 +249,18 @@ namespace WiimoteGun.Controls
                 "Tous les clics sont verrouillés hors écran ; le tir est supprimé jusqu'au\r\n" +
                 "relâchement de la gâchette de retour à l'écran.\r\n" +
                 "Pratique si le jeu ne propose aucun rechargement hors écran ni bouton dédié.");
-            _toolTips.SetToolTip(optOffScreenReloadAuto,
-                "AUTO OFF-SCREEN GLOBAL (requires Off-Screen Reload):\r\n" +
-                "Going OFF-screen triggers ONE automatic reload (right-click) - no button needed.\r\n" +
-                "Only ONE auto-reload per off-screen session: aim at the screen again to re-arm it.\r\n" +
-                "[V55] Each mapping profile can now individually override this with a Trigger/Auto\r\n" +
-                "dropdown on the mapping page. TC Cover mode inhibits both functions per profile.\r\n" +
+            _toolTips.SetToolTip(optOffScreenReloadMode,
+                "OFF-SCREEN RELOAD MODE (global):\r\n" +
+                "- Trigger: press the fire button OFF-screen to reload (manual).\r\n" +
+                "- Auto: ONE automatic reload (right-click) is sent as soon as you aim OFF-screen,\r\n" +
+                "  and the fire button then does NOTHING off-screen (re-armed by aiming on-screen again).\r\n" +
+                "Requires 'Off-Screen Reload' enabled. Each mapping profile can override this per player.\r\n" +
                 "\r\n" +
-                "AUTO HORS-ÉCRAN GLOBAL (requiert Off-Screen Reload) :\r\n" +
-                "Sortir de l'écran déclenche UNE recharge automatique (clic droit) - sans bouton.\r\n" +
-                "Une seule recharge par session hors écran : viser à nouveau l'écran pour réarmer.\r\n" +
-                "[V55] Chaque profil peut maintenant surcharger ce réglage avec une liste Trigger/Auto\r\n" +
-                "sur sa page de mapping. Le mode planque TC inhibe les deux fonctions par profil.");
+                "MODE DE RECHARGE HORS ÉCRAN (global) :\r\n" +
+                "- Trigger : presser la gâchette HORS écran pour recharger (manuel).\r\n" +
+                "- Auto : UNE recharge automatique (clic droit) est envoyée dès qu'on vise HORS écran,\r\n" +
+                "  et la gâchette ne fait alors RIEN hors écran (réarmé en visant de nouveau l'écran).\r\n" +
+                "Nécessite « Off-Screen Reload » activé. Chaque profil peut le surcharger par joueur.");
 
             // [V61-FIX-6] EN: Manage the AUTO off-screen reload FOREGROUND exclusions.
             //     The auto reload is suppressed while a CHECKED executable is the
@@ -721,7 +721,10 @@ namespace WiimoteGun.Controls
 
                 // Gestures (EN/FR: Gestes)
                 optEnableOffScreenReload.Checked = Options.Instance.EnableOffScreenReload;
-                optOffScreenReloadAuto.Checked = Options.Instance.OffScreenReloadAuto;
+                if (optOffScreenReloadMode != null && optOffScreenReloadMode.Items.Count == 0)
+                    optOffScreenReloadMode.Items.AddRange(new object[] { "Trigger (fire off-screen)", "Auto (on off-screen)" });
+                if (optOffScreenReloadMode != null)
+                    optOffScreenReloadMode.SelectedIndex = Options.Instance.OffScreenReloadAuto ? 1 : 0;
                 optEnableShakeReload.Checked = Options.Instance.EnableShakeReload;
 
                 // [V55y] Reload rumble (EN/FR: Vibration rechargement)
@@ -1301,7 +1304,7 @@ namespace WiimoteGun.Controls
 
                 // Gestures (EN/FR: Gestes)
                 Options.Instance.EnableOffScreenReload = optEnableOffScreenReload.Checked;
-                Options.Instance.OffScreenReloadAuto = optOffScreenReloadAuto.Checked;
+                Options.Instance.OffScreenReloadAuto = optOffScreenReloadMode.SelectedIndex == 1;
                 Options.Instance.EnableShakeReload = optEnableShakeReload.Checked;
 
                 // [V55y] Reload rumble (EN/FR: Vibration rechargement)
@@ -1452,12 +1455,14 @@ namespace WiimoteGun.Controls
         }
 
         /// <summary>
-        /// EN: [V61-FIX-2] Global "Auto" mode toggled: re-applies the global Auto to all
-        /// players (per-player Auto override reset). The ON/OFF per-player choice is kept.
-        /// FR: [V61-FIX-2] Toggle global du mode Auto : réapplique l'Auto global à tous les
-        /// joueurs (override Auto par joueur remis à zéro). Le choix ON/OFF par joueur est conservé.
+        /// EN: [V61-OS-RELOAD] Global off-screen reload MODE changed (Trigger/Auto dropdown):
+        /// re-applies the global mode to all players (per-player Auto override reset). The
+        /// ON/OFF per-player choice is kept.
+        /// FR: [V61-OS-RELOAD] MODE global de recharge hors écran changé (liste Trigger/Auto) :
+        /// réapplique le mode global à tous les joueurs (override Auto par joueur remis à zéro).
+        /// Le choix ON/OFF par joueur est conservé.
         /// </summary>
-        private void OptOffScreenReloadAuto_CheckedChanged(object sender, EventArgs e)
+        private void OptOffScreenReloadMode_SelectedIndexChanged(object sender, EventArgs e)
         {
             if (_isLoadingOptions) return;
             ResetOffScreenReloadOverrides(resetReload: false, resetAuto: true);
@@ -1473,8 +1478,23 @@ namespace WiimoteGun.Controls
         /// </summary>
         private void ResetOffScreenReloadOverrides(bool resetReload, bool resetAuto)
         {
+            // [V61-OS-RELOAD-2] EN/FR: A GLOBAL Gestures change only BULK-resets the per-player
+            //     overrides of the ROOT default.remap (convenience reset). A per-GAME profile is
+            //     INDEPENDENT: changing the global must NOT wipe its per-player overrides - they
+            //     keep overriding the global and survive (the whole point of a per-game profile).
+            //     Only the default.remap is reset here, so the user can reset every player at
+            //     once instead of editing each one, exactly as before.
             try
             {
+                string active = Program.GetActiveRemapProfile();
+                bool rootDefault = string.IsNullOrEmpty(active) ||
+                    System.IO.Path.GetFileName(active.Replace('\\', '/')).Equals("default.remap", StringComparison.OrdinalIgnoreCase);
+                if (!rootDefault)
+                {
+                    SimpleLogger.Instance.Info($"[V61-OS-RELOAD-2] Global Gestures change ignored while per-game profile '{active}' is active (only the root default.remap is bulk-reset; per-game profiles are independent).");
+                    return;
+                }
+
                 for (int p = 1; p <= 4; p++)
                 {
                     var pm = Options.Instance.GetMappingsForPlayer(p);

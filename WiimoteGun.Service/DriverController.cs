@@ -314,6 +314,40 @@ namespace WiimoteGun.Service
 
         public static void CleanupUnwantedCollections()
         {
+            // [V61-FIX-11] EN: Skip the WHOLE cleanup when the vmulti driver is NOT
+            //     installed. On a UMDF2-only machine, every call spawned 24 devcon
+            //     processes that all answered "No matching devices found" (user log
+            //     evidence) — pure overhead at every app start, every Wiimote connect
+            //     and every DInput hardware change. The vmulti service key is the
+            //     cheap authoritative check: no driver = no functioning vmulti
+            //     devnodes to clean. The check runs on every call (registry read,
+            //     ~0.1ms) so a later vmulti install is picked up without restarting
+            //     the service.
+            //     FR: Skipp TOUT le cleanup quand le pilote vmulti n'est PAS installé.
+            //     Sur une machine UMDF2 seule, chaque appel spawnait 24 process devcon
+            //     qui répondaient tous « No matching devices found » (preuve log user)
+            //     — pur gaspillage à chaque démarrage app, chaque connexion Wiimote et
+            //     chaque changement hardware DInput. La clé de service vmulti est le
+            //     check autoritaire et pas cher : pas de pilote = aucun devnode vmulti
+            //     fonctionnel à nettoyer. Le check s'exécute à chaque appel (lecture
+            //     registre ~0,1ms) pour qu'une installation vmulti ultérieure soit
+            //     prise en compte sans redémarrer le service.
+            try
+            {
+                using (Microsoft.Win32.RegistryKey vmultiService = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\vmulti"))
+                {
+                    if (vmultiService == null)
+                    {
+                        Log("CleanupUnwantedCollections skipped: vmulti driver not installed (no vmulti service key).");
+                        return;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("CleanupUnwantedCollections: vmulti service check failed (" + ex.Message + ") - proceeding with the cleanup.");
+            }
+
             CheckDevCon();
             Log("CleanupUnwantedCollections command received");
 

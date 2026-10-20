@@ -499,16 +499,31 @@ namespace WiimoteLib {
 		}
 
 		private void ValidateNunchukCalibration() {
-			// Check if calibration data is valid, if not use defaults (EN/FR: Vérifier si la calibration est valide, sinon utiliser les valeurs par défaut)
-			if (wiimoteState.Nunchuk.CalibrationInfo.Max.X == 0 && wiimoteState.Nunchuk.CalibrationInfo.Max.Y == 0 &&
-				wiimoteState.Nunchuk.CalibrationInfo.Min.X == 0 && wiimoteState.Nunchuk.CalibrationInfo.Min.Y == 0) {
-				Log.Warning("Invalid Nunchuk calibration detected (all zeros), using default values");
-				wiimoteState.Nunchuk.CalibrationInfo.Max.X = 228;
-				wiimoteState.Nunchuk.CalibrationInfo.Max.Y = 228;
-				wiimoteState.Nunchuk.CalibrationInfo.Min.X = 35;
-				wiimoteState.Nunchuk.CalibrationInfo.Min.Y = 35;
-				wiimoteState.Nunchuk.CalibrationInfo.Mid.X = 130;
-				wiimoteState.Nunchuk.CalibrationInfo.Mid.Y = 129;
+			// EN: Sanity-check the Nunchuk joystick calibration read directly from the controller.
+			// Recent Nunchuk revisions (and some third-party models) can return implausible values
+			// here (all zeros, inverted Min/Max order, or a collapsed range). Any of these pins the
+			// normalized joystick at the center (Joystick = (Raw-Mid)/(Max-Min)), so the axis is dead
+			// even though the Z/C buttons (raw bit flags) keep working — exactly the reported symptom.
+			// When the read is implausible we fall back to known-good calibration defaults, the same
+			// values the MotionPlus passthrough path already forces. Valid controllers (classic white
+			// Nunchuks: Max=228/Min=35/Mid≈128) never trigger this and keep their real calibration.
+			// FR: Valider la calibration joystick lue en direct sur le Nunchuk. Les révisions récentes
+			// (et certains modèles tiers) peuvent renvoyer des valeurs aberrantes (zéros, ordre Min/Max
+			// inversé, ou plage écrasée). Cela fige le joystick normalisé au centre alors que les
+			// boutons Z/C (bits bruts) fonctionnent — le symptôme exact rapporté. On bascule alors sur
+			// des valeurs de calibration connues, comme le passthrough MotionPlus. Les manettes valides
+			// (Nunchuks blancs : Max=228/Min=35/Mid≈128) ne déclenchent jamais ce branchement.
+			NunchukCalibrationInfo calib = wiimoteState.Nunchuk.CalibrationInfo;
+
+			bool maxZero	= calib.Max.X == 0 || calib.Max.Y == 0;                 // joystick pinned to 0 (EN/FR: joystick figé à 0)
+			bool inverted	= calib.Max.X <= calib.Min.X || calib.Max.Y <= calib.Min.Y; // inverted Min/Max order from a corrupt read (EN/FR: ordre inversé)
+			bool collapsed = (calib.Max.X - calib.Min.X) <= 20 || (calib.Max.Y - calib.Min.Y) <= 20; // collapsed range (EN/FR: plage écrasée)
+			bool noCenter	= calib.Mid.X == 0 && calib.Mid.Y == 0;                 // no center calibration (EN/FR: pas de centre)
+
+			if (maxZero || inverted || collapsed || noCenter) {
+				Log.Warning(string.Format("Invalid Nunchuk joystick calibration detected (Max=({0},{1}) Min=({2},{3}) Mid=({4},{5})), using safe defaults",
+					calib.Max.X, calib.Max.Y, calib.Min.X, calib.Min.Y, calib.Mid.X, calib.Mid.Y));
+				ApplyDefaultNunchukCalibration();
 			}
 		}
 	}
