@@ -1,9 +1,33 @@
 # Wiimote4Guns Changelog
 
+## v3.1.7.0
+
+### [EN] Output - game-driven rumble (new tab in Options)
+- New "Output" tab in Options: Wiimote4Guns can receive the game's outputs through **OutputHooker** and turn them into rumble - each shot is felt, and every hit taken gives an impact rumble.
+- **What it needs**: the outputs exist only when the emulator exposes them to OutputHooker **natively**, or through **DemulShooter** (RetroBat: install DemulShooter, then enable it and the network/Windows outputs in the emulator options, e.g. "model2"). OutputHooker itself is installed and activated from **Wiimote4Guns > Options > Output** (Download button + auto-start with a Wiimote).
+- Simple to configure: the commands are provided in a **default.ini**, so per-game ini files are usually unnecessary. If a game exposes a different tag, add its command in its own ini or in default.ini (a documentation file, `output_tags.md`, is installed next to the app).
+- "Rumble only during a game" option: no more rumble in the menus / on the desktop.
+- OutputHooker is managed from the same tab: installed version vs the latest GitHub release, Download/Update (your `OutputHooker.ini` and ini folder are kept), and automatic start with a Wiimote (stopped when the last one disconnects).
+- Per player and per game profile: the "Rumble Output" button on the mapping page opens a small window to enable/disable it and set the force and the length (ms) of the fire and damage rumble. A game needs its own settings? They are saved in its profile.
+- Damage feedback: the 4 LEDs of the Wiimote flash briefly when you are hit, then the player's own LED comes back.
+- UI: the "Ticks" controls in Options > Gestures are visible again, and the new Output tab follows the interface zoom.
+
+### [FR] Output - vibration pilotée par le jeu (nouvel onglet dans Options)
+- Nouvel onglet "Output" dans Options : Wiimote4Guns peut recevoir les outputs du jeu via **OutputHooker** et les transformer en vibration - chaque tir est ressenti, et chaque impact reçu déclenche une vibration de dégâts.
+- **Ce qu'il faut pour en profiter** : les outputs n'existent que si l'émulateur les expose à OutputHooker **nativement**, ou via **DemulShooter** (RetroBat : installer DemulShooter, puis l'activer ainsi que les outputs réseau/Windows dans les options de l'émulateur, ex. "model2"). OutputHooker s'installe et s'active depuis **Wiimote4Guns > Options > Output** (bouton Download + démarrage automatique avec une Wiimote).
+- Simple à configurer : les commandes sont fournies dans un **default.ini**, les fichiers ini par jeu ne sont donc généralement pas nécessaires. Si un jeu expose un tag différent, ajoutez sa commande dans son propre ini ou dans default.ini (un fichier de documentation, `output_tags.md`, est installé à côté de l'application).
+- Option "Rumble only during a game" : plus de vibration dans les menus / sur le bureau.
+- OutputHooker est géré depuis le même onglet : version installée comparée à la dernière release GitHub, Download/Update (votre `OutputHooker.ini` et votre dossier ini sont conservés), et démarrage automatique avec une Wiimote (arrêt à la dernière déconnexion).
+- Par joueur et par profil de jeu : le bouton "Rumble Output" de la page mapping ouvre une petite fenêtre pour l'activer/le désactiver et régler la force et la durée (ms) des vibrations de tir et de dégâts. Un jeu demande ses propres réglages ? Ils sont enregistrés dans son profil.
+- Retour des dégâts : les 4 LEDs de la Wiimote clignotent brièvement quand vous êtes touché, puis la LED du joueur revient.
+- UI : les réglages "Ticks" dans Options > Gestes sont de nouveau visibles, et le nouvel onglet Output suit le zoom de l'interface.
+
+---
+
 ## v3.1.6.2
 
 ### [EN] DolphinBar Stability & Controller Fixes
-- DolphinBar (Mayflash) stability: fewer disconnect/reconnect loops (progressive retry backoff on phantom HID ports, a transient write failure no longer force-disconnects the controller, the Bluetooth watchdog ignores DolphinBar HID failures, and the VMulti devcon cleanup is skipped when no VMulti driver is present).
+- DolphinBar Mayflash stability (flaky workaround): fewer disconnect/reconnect loops (progressive retry backoff on phantom HID ports, a transient write failure no longer force-disconnects the controller, the Bluetooth watchdog ignores DolphinBar HID failures, and the VMulti devcon cleanup is skipped when no VMulti driver is present).
 - Nunchuk (RVL-4): the joystick axis now works without the MotionPlus adapter. No regression on older Nunchuks.
 - TC Cover: firing while in cover (off-screen) now changes the weapon — the trigger is no longer locked off-screen in TC Cover mode.
 
@@ -15,7 +39,7 @@
 - Profile / system / folder pickers and the Off-Screen Reload excluded-executables manager now open above the always-on-top overlay (Home+Plus) instead of hiding behind it.
 
 ### [FR] Stabilité de la DolphinBar & Correctifs Contrôleurs
-- Stabilité de la DolphinBar (Mayflash) : réduction des boucles de déconnexion/reconnexion (temporisation progressive en cas d'essais sur des ports HID fantômes, un échec d'écriture transitoire ne déconnecte plus de force le contrôleur, le watchdog Bluetooth ignore les pannes HID de la DolphinBar, et le nettoyage devcon de VMulti est ignoré lorsqu'aucun pilote VMulti n'est présent).
+- Stabilité de la DolphinBar Mayflash (contournement - aléatoire) : réduction des boucles de déconnexion/reconnexion (temporisation progressive en cas d'essais sur des ports HID fantômes, un échec d'écriture transitoire ne déconnecte plus de force le contrôleur, le watchdog Bluetooth ignore les pannes HID de la DolphinBar, et le nettoyage devcon de VMulti est ignoré lorsqu'aucun pilote VMulti n'est présent).
 - Nunchuk (RVL-4) : l'axe du joystick fonctionne désormais sans nécessiter l'adaptateur MotionPlus. Pas de régression sur les anciens Nunchuks.
 - TC Cover : tirer à couvert (hors écran) permet désormais de changer d'arme — la gâchette n'est plus bloquée hors écran en mode TC Cover.
 

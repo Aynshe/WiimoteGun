@@ -48,6 +48,7 @@ namespace WiimoteGun.Controls
             this.lblZoomPercent = new System.Windows.Forms.Label();
             this.btnZoomIn = new System.Windows.Forms.Button();
             this.btnHelp = new System.Windows.Forms.Button();
+            this.btnChangelog = new System.Windows.Forms.Button();
             this.pnlUpdateStatus.SuspendLayout();
             this.cmsUpdate.SuspendLayout();
             this.pnlZoom.SuspendLayout();
@@ -167,7 +168,7 @@ namespace WiimoteGun.Controls
             // 
             this.lblVersion.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.lblVersion.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(120)))), ((int)(((byte)(120)))), ((int)(((byte)(120)))));
-            this.lblVersion.Location = new System.Drawing.Point(0, 680);
+            this.lblVersion.Location = new System.Drawing.Point(0, 679);
             this.lblVersion.Name = "lblVersion";
             this.lblVersion.Size = new System.Drawing.Size(560, 25);
             this.lblVersion.TabIndex = 7;
@@ -180,9 +181,9 @@ namespace WiimoteGun.Controls
             this.pnlUpdateStatus.Controls.Add(this.lblUpdateDot);
             this.pnlUpdateStatus.Controls.Add(this.lblUpdateStatusText);
             this.pnlUpdateStatus.Cursor = System.Windows.Forms.Cursors.Hand;
-            this.pnlUpdateStatus.Location = new System.Drawing.Point(180, 711);
+            this.pnlUpdateStatus.Location = new System.Drawing.Point(180, 708);
             this.pnlUpdateStatus.Name = "pnlUpdateStatus";
-            this.pnlUpdateStatus.Size = new System.Drawing.Size(200, 26);
+            this.pnlUpdateStatus.Size = new System.Drawing.Size(200, 30);
             this.pnlUpdateStatus.TabIndex = 8;
             this.pnlUpdateStatus.Click += new System.EventHandler(this.UpdateStatus_Click);
             // 
@@ -289,13 +290,28 @@ namespace WiimoteGun.Controls
             this.btnHelp.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnHelp.Font = new System.Drawing.Font("Segoe UI Semibold", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.btnHelp.ForeColor = System.Drawing.Color.White;
-            this.btnHelp.Location = new System.Drawing.Point(467, 13);
+            this.btnHelp.Location = new System.Drawing.Point(459, 12);
             this.btnHelp.Name = "btnHelp";
-            this.btnHelp.Size = new System.Drawing.Size(70, 28);
+            this.btnHelp.Size = new System.Drawing.Size(78, 26);
             this.btnHelp.TabIndex = 10;
             this.btnHelp.Text = "? Help";
             this.btnHelp.UseVisualStyleBackColor = false;
             this.btnHelp.Click += new System.EventHandler(this.BtnHelp_Click);
+            // 
+            // btnChangelog
+            // 
+            this.btnChangelog.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
+            this.btnChangelog.FlatAppearance.BorderSize = 0;
+            this.btnChangelog.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnChangelog.Font = new System.Drawing.Font("Segoe UI Semibold", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnChangelog.ForeColor = System.Drawing.Color.White;
+            this.btnChangelog.Location = new System.Drawing.Point(459, 710);
+            this.btnChangelog.Name = "btnChangelog";
+            this.btnChangelog.Size = new System.Drawing.Size(78, 28);
+            this.btnChangelog.TabIndex = 11;
+            this.btnChangelog.Text = "Changelog";
+            this.btnChangelog.UseVisualStyleBackColor = false;
+            this.btnChangelog.Click += new System.EventHandler(this.BtnChangelog_Click);
             // 
             // HomeControl
             // 
@@ -303,6 +319,7 @@ namespace WiimoteGun.Controls
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Transparent;
             this.Controls.Add(this.btnHelp);
+            this.Controls.Add(this.btnChangelog);
             this.Controls.Add(this.pnlZoom);
             this.Controls.Add(this.pnlUpdateStatus);
             this.Controls.Add(this.btnNavIRViz);
@@ -349,5 +366,7 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.Button btnZoomIn;
         // [V60-FIX-3] EN/FR: Help button (opens the WelcomeDialog)
         private System.Windows.Forms.Button btnHelp;
+        // [V62] EN/FR: Changelog button (opens the ChangelogDialog) - bottom, facing the update status
+        private System.Windows.Forms.Button btnChangelog;
     }
 }

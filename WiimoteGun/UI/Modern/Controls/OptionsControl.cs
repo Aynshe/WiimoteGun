@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Diagnostics;
@@ -22,6 +22,8 @@ namespace WiimoteGun.Controls
         // [V59-FIX-31] LED layout selection tracking & reentrancy guard for warnings
         private bool _isLoadingOptions;
         private LEDLayoutType _lastSelectedLEDLayout = LEDLayoutType.WiimoteBar;
+
+        // [V62-Output] EN/FR: Output tab runtime state (the controls live in the Designer).
 
         public OptionsControl()
         {
@@ -379,7 +381,224 @@ namespace WiimoteGun.Controls
                 "Delay in seconds before the BT reset is triggered (10–300s, default 60s).\r\n" +
                 "FR : Délai en secondes avant le reset BT (10–300s, défaut 60s).");
             // EN/FR: Synchronize all options (now that all controls, including dynamic ones, are fully instantiated)
+            WireOutputTab(); // [V62-Output] wire the Output tab (controls are in the Designer)
             LoadOptionsFromInstance();
+        }
+
+        // ============================================================
+        // [V62-Output] EN/FR: Output tab (game-output driven rumble + OutputHooker addon).
+        // ============================================================
+        // [V62-Output] EN/FR: wire the Output tab controls (they live in the Designer).
+        private void WireOutputTab()
+        {
+            if (tabOutput == null || chkOutEnabled == null) return;
+
+            // [V62-Output] EN: ProfileOverlay calls UiScaler.ApplyForm BEFORE it creates this
+            // OptionsControl (ProfileOverlay.cs:77 vs :112), so this page's Designer controls are
+            // never scaled by the form-wide walk. tabOutput was added by hand and its explicit
+            // Fonts stay unscaled. Re-apply the fonts here - idempotent (the scaler's registry
+            // skips anything already scaled), so a control already covered by ApplyForm is not
+            // scaled twice, and an uncovered one gets scaled exactly once.
+            // FR: ProfileOverlay appelle UiScaler.ApplyForm AVANT de créer cet OptionsControl
+            // (ProfileOverlay.cs:77 vs :112) : les contrôles Designer de cette page ne sont donc
+            // jamais scalés par le parcours du formulaire. tabOutput ajouté à la main garde des
+            // polices explicites non scalées. On réapplique les polices ici - idempotent (le
+            // registre du scaler saute ce qui est déjà scalé), donc rien n'est scalé deux fois.
+            WiimoteGun.UI.UiScaler.ApplyFonts(tabOutput);
+
+            _toolTips.SetToolTip(chkOutEnabled, "Receive game outputs (fire/ammo/reload/damage) from OutputHooker over UDP and drive the rumble.");
+            _toolTips.SetToolTip(numOutPort, "Local UDP port Wiimote4Guns listens on. Must match the OutputHooker command: udp 1 127.0.0.1 <port> ...");
+            _toolTips.SetToolTip(numOutFireInt, "Fire rumble intensity (1-100%). Can be overridden per player / per profile on the mapping page.");
+            _toolTips.SetToolTip(numOutFireDur, "Fire rumble pulse length in ms (before the intensity percentage is applied).");
+            _toolTips.SetToolTip(numOutDmgInt, "Damage rumble intensity (1-100%).");
+            _toolTips.SetToolTip(numOutDmgDur, "Damage rumble length in ms (kept longer so a hit is clearly felt).");
+            _toolTips.SetToolTip(chkHookNotif, "OutputHooker: show a notification when new outputs are detected.");
+            _toolTips.SetToolTip(chkHookAddDefault, "OutputHooker: add newly detected outputs to default.ini.");
+            _toolTips.SetToolTip(chkHookStartMin, "OutputHooker: start minimized in the system tray.");
+            _toolTips.SetToolTip(lblOutVersion, "Installed version (addons\\OutputHooker) vs the latest GitHub release. Checked automatically at startup; shows \"Up to date\" or \"Update available\".");
+            _toolTips.SetToolTip(chkOutRumbleOnlyGame,
+                "When ON, all rumble is suppressed outside a game (no vibration in menus / desktop).\r\n" +
+                "Uses the EmulationStation game-start / game-end scripts; for standalone launchers call\r\n" +
+                "WiimoteGun.exe with -esgamestart / -esgameend. Default OFF = rumble always active.\r\n" +
+                "FR : si coche, aucune vibration hors jeu ; passer -esgamestart / -esgameend en standalone.");
+
+            _toolTips.SetToolTip(btnOutDownload,
+                "Downloads the latest OutputHooker from its GitHub releases and extracts it to\r\n" +
+                "<app>\\addons\\OutputHooker (a running OutputHooker is closed first; your ini folder is kept).");
+
+            _toolTips.SetToolTip(chkOutAutoStart,
+                "Wiimote4Guns launches OutputHooker on the first Wiimote connection and stops it when\r\n" +
+                "the last one disconnects. (Start-with-Windows is left to you.)");
+
+            btnOutDownload.Click += BtnOutDownload_Click;
+            if (lblOutRelease != null)
+            {
+                lblOutRelease.Links.Clear();
+                lblOutRelease.Links.Add(0, lblOutRelease.Text.Length);
+                lblOutRelease.LinkClicked += (s, e) =>
+                {
+                    try { Process.Start(OutputHookerAddon.LatestReleaseUrl(_outputLatestVersion)); }
+                    catch { }
+                };
+            }
+
+            RefreshOutputVersionAsync();
+        }
+
+        // [V62-Output] EN/FR: last known online version (cached so the label is correct even after
+        // the async check, and the button can decide without re-querying).
+        private string _outputLatestVersion;
+        private bool _outputLatestChecked;
+
+        // EN/FR: refresh the version line. Called at startup and after an install. Fetches the
+        // latest release ONCE (cached) and shows a clear status: up to date / update available /
+        // unreachable. The button never reinstalls when already up to date.
+        // [V62-Output] EN/FR: marshal to the UI thread. `RefreshOutputVersionAsync` runs during
+        // construction (before the handle exists), where a plain BeginInvoke throws and is swallowed
+        // - leaving the label stuck on "(checking...)". Retry until the handle is created.
+        // FR: marshaler vers le thread UI. RefreshOutputVersionAsync tourne pendant la construction
+        // (avant la création du handle) : BeginInvoke lève et l'exception est avalée, le label
+        // reste bloqué sur « (checking...) ». On réessaie jusqu'à ce que le handle existe.
+        private void RunOnUi(Action action)
+        {
+            if (action == null) return;
+            try
+            {
+                if (IsHandleCreated && !IsDisposed) { BeginInvoke(action); return; }
+            }
+            catch { }
+
+            // The version check runs from the constructor, before this control has a handle.
+            // A System.Windows.Forms.Timer created HERE would run on a worker thread and never
+            // tick - so use a System.Threading.Timer (threadpool), then marshal once the handle
+            // exists. Capped: it self-disposes on the first successful marshal.
+            System.Threading.Timer t = null;
+            t = new System.Threading.Timer(_ =>
+            {
+                if (IsHandleCreated && !IsDisposed)
+                {
+                    var timer = t;
+                    try { timer.Dispose(); } catch { }
+                    try { BeginInvoke(action); } catch { }
+                }
+            }, null, 250, 250);
+        }
+
+        private void RefreshOutputVersionAsync()
+        {
+            string inst = OutputHookerAddon.InstalledVersion();
+            if (lblOutVersion != null)
+                lblOutVersion.Text = "Installed: " + (inst ?? "none") + " | Latest: (checking...)";
+            _outputLatestChecked = false;
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                string v, u;
+                bool ok = OutputHookerAddon.TryGetLatest(out v, out u);
+                if (ok) { _outputLatestVersion = v; _outputLatestChecked = true; }
+                RunOnUi(() => UpdateOutputVersionLabel(inst, ok, ok ? v : null));
+            });
+        }
+
+        private void UpdateOutputVersionLabel(string inst, bool onlineOk, string onlineVersion)
+        {
+            if (lblOutVersion == null) return;
+            string instTxt = inst ?? "none";
+            if (!onlineOk || string.IsNullOrEmpty(onlineVersion))
+            {
+                lblOutVersion.Text = "Installed: " + instTxt + " | Latest: unreachable";
+                return;
+            }
+            bool upToDate = OutputHookerAddon.IsUpToDate(instTxt, onlineVersion);
+            lblOutVersion.Text = upToDate
+                ? "Installed: " + instTxt + " | Up to date" + " (v" + onlineVersion + ")"
+                : "Installed: " + instTxt + " | Update available: v" + onlineVersion;
+            lblOutVersion.ForeColor = upToDate ? Color.FromArgb(120, 200, 120) : Color.FromArgb(255, 170, 40);
+        }
+
+        private void BtnOutDownload_Click(object sender, EventArgs e)
+        {
+            // EN/FR: never reinstall when already up to date — numeric comparison (cached).
+            string instTxt = OutputHookerAddon.InstalledVersion() ?? "none";
+            if (_outputLatestChecked && !string.IsNullOrEmpty(_outputLatestVersion) &&
+                OutputHookerAddon.IsUpToDate(instTxt, _outputLatestVersion))
+            {
+                if (lblOutVersion != null)
+                {
+                    lblOutVersion.Text = "Installed: " + instTxt + " | Up to date (v" + _outputLatestVersion + ")";
+                    lblOutVersion.ForeColor = Color.FromArgb(120, 200, 120);
+                }
+                return;
+            }
+
+            if (btnOutDownload != null) btnOutDownload.Enabled = false;
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                string v, u, err = null, msg;
+                if (!OutputHookerAddon.TryGetLatest(out v, out u)) msg = "GitHub unreachable";
+                else msg = OutputHookerAddon.DownloadAndInstall(u, out err) ? ("installed v" + v) : ("error: " + err);
+                // refresh the cache after an install so the label/button are correct
+                if (OutputHookerAddon.TryGetLatest(out v, out u)) { _outputLatestVersion = v; _outputLatestChecked = true; }
+                RunOnUi(() =>
+                {
+                    if (btnOutDownload != null) btnOutDownload.Enabled = true;
+                    string nowInst = OutputHookerAddon.InstalledVersion() ?? "none";
+                    if (lblOutVersion != null)
+                    {
+                        if (msg.StartsWith("installed"))
+                        {
+                            // Install succeeded: report the NEW installed version and its status,
+                            // not "installed vX" twice (that read as a duplicate to the user).
+                            string latest = v;
+                            bool upToDate = string.IsNullOrEmpty(latest) || OutputHookerAddon.IsUpToDate(nowInst, latest);
+                            lblOutVersion.Text = "Installed: " + nowInst + " | " + (upToDate ? "Up to date" + (string.IsNullOrEmpty(latest) ? "" : " (v" + latest + ")") : "Update available: v" + latest);
+                            lblOutVersion.ForeColor = upToDate ? Color.FromArgb(120, 200, 120) : Color.FromArgb(255, 170, 40);
+                            // OutputHooker was KILLED for the update - relaunch it now under the same
+                            // conditions the app uses (auto-start option ON + a Wiimote connected).
+                            if (Options.Instance.OutputHookerAutoStart &&
+                                Program.WiiMoteManager != null && Program.WiiMoteManager.ConnectedWiimotesCount > 0)
+                                OutputHookerAddon.Start();
+                        }
+                        else if (msg.StartsWith("error"))
+                        {
+                            lblOutVersion.Text = "Installed: " + nowInst + " | " + msg;
+                            lblOutVersion.ForeColor = Color.FromArgb(220, 120, 120);
+                        }
+                        else UpdateOutputVersionLabel(nowInst, true, _outputLatestVersion);
+                    }
+                });
+            });
+        }
+
+        private void LoadOutputTabFromInstance()
+        {
+            if (chkOutEnabled == null) return; // tab not built yet
+            chkOutEnabled.Checked = Options.Instance.OutputRumbleEnabled;
+            if (numOutPort != null) numOutPort.Value = Math.Min(Math.Max(Options.Instance.OutputRumblePort, numOutPort.Minimum), numOutPort.Maximum);
+            if (numOutFireInt != null) numOutFireInt.Value = Math.Min(Math.Max(Options.Instance.OutputRumbleFireIntensity, numOutFireInt.Minimum), numOutFireInt.Maximum);
+            if (numOutFireDur != null) numOutFireDur.Value = Math.Min(Math.Max(Options.Instance.OutputRumbleFireDurationMs, numOutFireDur.Minimum), numOutFireDur.Maximum);
+            if (numOutDmgInt != null) numOutDmgInt.Value = Math.Min(Math.Max(Options.Instance.OutputRumbleDamageIntensity, numOutDmgInt.Minimum), numOutDmgInt.Maximum);
+            if (numOutDmgDur != null) numOutDmgDur.Value = Math.Min(Math.Max(Options.Instance.OutputRumbleDamageDurationMs, numOutDmgDur.Minimum), numOutDmgDur.Maximum);
+            chkOutRumbleOnlyGame.Checked = Options.Instance.RumbleOnlyDuringGame;
+            chkOutAutoStart.Checked = Options.Instance.OutputHookerAutoStart;
+            bool n1, n2, n3; OutputHookerAddon.ReadIniOptions(out n1, out n2, out n3);
+            if (chkHookNotif != null) chkHookNotif.Checked = n1;
+            if (chkHookAddDefault != null) chkHookAddDefault.Checked = n2;
+            if (chkHookStartMin != null) chkHookStartMin.Checked = n3;
+        }
+
+        private void SaveOutputTabToInstance()
+        {
+            if (chkOutEnabled == null) return; // tab not built / not visited
+            Options.Instance.OutputRumbleEnabled = chkOutEnabled.Checked;
+            if (numOutPort != null) Options.Instance.OutputRumblePort = (int)numOutPort.Value;
+            if (numOutFireInt != null) Options.Instance.OutputRumbleFireIntensity = (int)numOutFireInt.Value;
+            if (numOutFireDur != null) Options.Instance.OutputRumbleFireDurationMs = (int)numOutFireDur.Value;
+            if (numOutDmgInt != null) Options.Instance.OutputRumbleDamageIntensity = (int)numOutDmgInt.Value;
+            if (numOutDmgDur != null) Options.Instance.OutputRumbleDamageDurationMs = (int)numOutDmgDur.Value;
+            Options.Instance.RumbleOnlyDuringGame = chkOutRumbleOnlyGame.Checked;
+            Options.Instance.OutputHookerAutoStart = chkOutAutoStart.Checked;
+            if (chkHookNotif != null)
+                OutputHookerAddon.WriteIniOptions(chkHookNotif.Checked, chkHookAddDefault.Checked, chkHookStartMin.Checked);
         }
 
         private void LoadEsScriptsState()
@@ -536,6 +755,7 @@ namespace WiimoteGun.Controls
         {
             // Tab Switching
             // Tab Switching
+            btnTabOutput.Click += (s, e) => SwitchTab(btnTabOutput, 5); // [V62-Output]
             btnTabGeneral.Click += (s, e) => SwitchTab(btnTabGeneral, 0);
             btnTabDetection.Click += (s, e) => SwitchTab(btnTabDetection, 1);
             btnTabGestures.Click += (s, e) => SwitchTab(btnTabGestures, 2);
@@ -554,6 +774,7 @@ namespace WiimoteGun.Controls
             SetupHoverEffect(btnTabGestures);
             SetupHoverEffect(btnTabEmulators);
             SetupHoverEffect(btnTabEsScripts);
+            SetupHoverEffect(btnTabOutput); // [V62-Output]
 
             // Back
             if (btnBack != null)
@@ -784,6 +1005,9 @@ namespace WiimoteGun.Controls
 
                 // [V42] ES Scripts tab state (EN/FR: État de l'onglet Scripts ES)
                 LoadEsScriptsState();
+
+                // [V62-Output] Output tab state
+                LoadOutputTabFromInstance();
             }
             finally
             {
@@ -872,13 +1096,16 @@ namespace WiimoteGun.Controls
         /// </summary>
         private void UpdateReloadRumbleCustomUi()
         {
-            bool isCustom = cboReloadRumbleStyle != null && cboReloadRumbleStyle.SelectedIndex == 3;
-            lblReloadRumbleTicks.Visible = isCustom;
-            trkReloadRumbleTicks.Visible = isCustom;
-            lblReloadRumbleTickOn.Visible = isCustom;
-            nudReloadRumbleTickOnMs.Visible = isCustom;
-            lblReloadRumbleTickOff.Visible = isCustom;
-            nudReloadRumbleTickOffMs.Visible = isCustom;
+            // [V62-OS] EN/FR: always show the Custom-style parameters (Ticks / Tic ON / Tic OFF) so
+            // they can be configured directly - the reload engine only USES them when Style=Custom.
+            // FR: toujours afficher les parametres Custom (Ticks / Tic ON / Tic OFF) pour qu'ils
+            // soient configurables directement - le moteur ne les utilise que si Style=Custom.
+            if (lblReloadRumbleTicks != null) lblReloadRumbleTicks.Visible = true;
+            if (trkReloadRumbleTicks != null) trkReloadRumbleTicks.Visible = true;
+            if (lblReloadRumbleTickOn != null) lblReloadRumbleTickOn.Visible = true;
+            if (nudReloadRumbleTickOnMs != null) nudReloadRumbleTickOnMs.Visible = true;
+            if (lblReloadRumbleTickOff != null) lblReloadRumbleTickOff.Visible = true;
+            if (nudReloadRumbleTickOffMs != null) nudReloadRumbleTickOffMs.Visible = true;
         }
 
         /// <summary>
@@ -1305,6 +1532,9 @@ namespace WiimoteGun.Controls
                 // Gestures (EN/FR: Gestes)
                 Options.Instance.EnableOffScreenReload = optEnableOffScreenReload.Checked;
                 Options.Instance.OffScreenReloadAuto = optOffScreenReloadMode.SelectedIndex == 1;
+
+                // [V62-Output] Output tab -> Options + OutputHooker.ini + auto-start
+                SaveOutputTabToInstance();
                 Options.Instance.EnableShakeReload = optEnableShakeReload.Checked;
 
                 // [V55y] Reload rumble (EN/FR: Vibration rechargement)

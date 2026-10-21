@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Windows.Forms;
 
@@ -69,7 +69,24 @@ namespace WiimoteGun
         public static event Action TileModalRequested;
 
         /// <summary>EN: True when an ES game-start has been received (and not cleared). FR: True si un game-start ES a été reçu (non effacé).</summary>
-        public static bool HasCurrentGame { get { lock (_lock) { return LastGameName != null; } } }
+        public static bool HasCurrentGame { get { lock (_lock) { return LastGameName != null || _outputGameActive; } } }
+
+        // [V62-Output] EN/FR: true while OutputHooker reports a running game via MameStart/MameStop
+        // (received over UDP). Combined into HasCurrentGame so "Rumble only during a game" also
+        // honours OutputHooker MameStart/MameStop even without the ES scripts.
+        private static bool _outputGameActive;
+        public static void SetOutputGameActive(bool active) { lock (_lock) { _outputGameActive = active; } }
+
+        /// <summary>
+        /// EN: [V62-Output] True while OutputHooker reports a running game via GameOutputStart /
+        /// GameOutputEnd (MameStart/MameStop). This is the definitive signal that the current game
+        /// IS managed by OutputHooker, so the classic weapon rumble must stay suppressed and the
+        /// received outputs drive the rumble instead.
+        /// FR: [V62-Output] Vrai tant qu'OutputHooker signale un jeu en cours via GameOutputStart /
+        /// GameOutputEnd (MameStart/MameStop). Signal définitif que le jeu EST géré par OutputHooker :
+        /// la vibration d'arme classique doit rester coupée et les sorties reçues pilotent la vibration.
+        /// </summary>
+        public static bool OutputGameActive { get { lock (_lock) { return _outputGameActive; } } }
 
         // ═════════════════════════════════════════════════════════════════
         // VALUE PROCESSING (EN/FR: TRAITEMENT DES VALEURS)

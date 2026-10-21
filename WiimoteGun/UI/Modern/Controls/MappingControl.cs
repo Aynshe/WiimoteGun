@@ -62,6 +62,9 @@ namespace WiimoteGun.Controls
         private int _assignCountdownSeconds = 8;
         private bool _updatingCheckbox = false;
 
+        // [V62-Output] per-player output-rumble button (built in LoadPlayerMappings).
+        private Button _btnOutputPanel;
+
         // [V34] Transient non-blocking toast (EN/FR: Bandeau transitoire non bloquant)
         private TransientToast _toast;
 
@@ -633,6 +636,48 @@ namespace WiimoteGun.Controls
             return a.Replace('\\', '/').Equals(b.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase);
         }
 
+        // ==== [V62-Output] per-player output rumble (enable + force) ====
+        private bool ResolveOutputEnable(int player)
+        {
+            var m = Options.Instance.GetMappingsForPlayer(player);
+            if (m != null && m.OutputRumbleEnable == 0) return false;
+            if (m != null && m.OutputRumbleEnable == 1) return true;
+            return Options.Instance.OutputRumbleEnabled;   // -1 = follow global
+        }
+
+        // [V62-Output] EN/FR: per-player output rumble in a MODAL (does not take space in the
+        // mapping table). Enable + fire/damage force, saved like the other overrides.
+        private void OpenOutputProfileDialog()
+        {
+            var m = Options.Instance.GetMappingsForPlayer(_currentPlayer);
+            if (m == null) return;
+
+            bool enabled = m.OutputRumbleEnable == 1 ||
+                           (m.OutputRumbleEnable == -1 && Options.Instance.OutputRumbleEnabled);
+            int fire = m.OutputRumbleFireIntensity >= 0 ? m.OutputRumbleFireIntensity : Options.Instance.OutputRumbleFireIntensity;
+            int dmg = m.OutputRumbleDamageIntensity >= 0 ? m.OutputRumbleDamageIntensity : Options.Instance.OutputRumbleDamageIntensity;
+            // [V62-OUTPUT-DUR] EN/FR: rumble length (ms) - override if set (-1 = global), so a game
+            // can be tuned per profile (e.g. a weak semi-automatic weapon).
+            int fireDur = m.OutputRumbleFireDurationMs >= 0 ? m.OutputRumbleFireDurationMs : Options.Instance.OutputRumbleFireDurationMs;
+            int dmgDur = m.OutputRumbleDamageDurationMs >= 0 ? m.OutputRumbleDamageDurationMs : Options.Instance.OutputRumbleDamageDurationMs;
+
+            using (var dlg = new WiimoteGun.UI.Modern.Forms.OutputRumbleProfileForm())
+            {
+                dlg.LoadState(_currentPlayer, ref enabled, ref fire, ref dmg, ref fireDur, ref dmgDur);
+                if (dlg.ShowDialog(this.FindForm()) == DialogResult.OK)
+                {
+                    dlg.StoreState(out enabled, out fire, out dmg, out fireDur, out dmgDur);
+                    m.OutputRumbleEnable = enabled ? 1 : 0;
+                    m.OutputRumbleFireIntensity = fire;
+                    m.OutputRumbleDamageIntensity = dmg;
+                    m.OutputRumbleFireDurationMs = fireDur;
+                    m.OutputRumbleDamageDurationMs = dmgDur;
+                    Options.Instance.Save();
+                    RemapProfileManager.PersistOutputRumbleOverrides(false);
+                }
+            }
+        }
+
         private void UpdateAutoLoadCheckbox()
         {
             _updatingCheckbox = true;
@@ -730,8 +775,6 @@ namespace WiimoteGun.Controls
             panelMappingDisplay.Controls.Clear();
 
             PlayerMappings mappings = Options.Instance.GetMappingsForPlayer(_currentPlayer);
-
-
 
             LoadPlayerMappings(panelMappingDisplay, mappings, initial);
 
@@ -928,6 +971,28 @@ namespace WiimoteGun.Controls
                 "FR : Trigger = presser le bouton de tir hors écran pour recharger (manuel).\r\n" +
                 "Auto    = une recharge automatique est envoyée à la sortie de l'écran.");
             panel.Controls.Add(cboOsAuto);
+
+            // ==== [V62-Output] per-player output rumble override (opens a MODAL) ====
+            // (EN/FR: override par joueur des vibrations pilotées par outputs - ouvre une modale)
+            _btnOutputPanel = new Button
+            {
+                Text = "Rumble Output",
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 8.5F),
+                Location = new Point(startX + 232, tcY - 1),
+                Size = new Size(110, 22),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(70, 70, 72),
+                UseVisualStyleBackColor = false
+            };
+            _btnOutputPanel.FlatAppearance.BorderSize = 0;
+            _btnOutputPanel.Click += (s, e) => OpenOutputProfileDialog();
+            ttOs.SetToolTip(_btnOutputPanel,
+                "Per-player output-driven rumble: enable it and set the fire & damage\r\n" +
+                "force for this profile/player (modal).\r\n" +
+                "FR : vibrations pilotées par outputs pour ce profil/joueur : activation\r\n" +
+                "et réglage de la force tir/dégâts (modale).");
+            panel.Controls.Add(_btnOutputPanel);
             tcY += 26;
 
             // [V55y] Reload Rumble override (per-profile override of the global option)
@@ -983,7 +1048,7 @@ namespace WiimoteGun.Controls
                 BackColor = Color.FromArgb(45, 45, 48),
                 ForeColor = Color.White,
                 Location = new Point(startX + 138, tcY - 1),
-                Size = new Size(105, 22)
+                Size = new Size(85, 22)
             };
             cboRrStyle.Items.AddRange(rrStyleNames);
 
@@ -1032,7 +1097,7 @@ namespace WiimoteGun.Controls
                 BackColor = Color.FromArgb(45, 45, 48),
                 ForeColor = Color.White,
                 Location = new Point(startX + 138, tcY),
-                Size = new Size(105, 22)
+                Size = new Size(85, 22)
             };
             cboRrIntensity.Items.AddRange(new object[] { "Default", "20%", "40%", "60%", "80%", "100%" });
 
@@ -1118,7 +1183,7 @@ namespace WiimoteGun.Controls
                 BackColor = Color.FromArgb(45, 45, 48),
                 ForeColor = Color.White,
                 Location = new Point(startX + 125, tcY),
-                Size = new Size(180, 22)
+                Size = new Size(85, 22)
             };
             foreach (string n in tcNames) cboTcBtn.Items.Add(n);
             int tcIdx = Array.IndexOf(tcIds, string.IsNullOrEmpty(osMappings?.TCCoverButton) ? "auto" : osMappings.TCCoverButton);

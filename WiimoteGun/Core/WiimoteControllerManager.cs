@@ -19,6 +19,18 @@ namespace WiimoteGun
         private System.Threading.Timer _btWatchdogTimer;
         private readonly object _btWatchdogLock = new object();
 
+        // [V62-Output] EN/FR: launch OutputHooker with the first Wiimote (option ON), stop it when none.
+        private void UpdateOutputHookerAutoStart()
+        {
+            try
+            {
+                if (!Options.Instance.OutputHookerAutoStart) return;
+                if (_controllers.Count > 0) OutputHookerAddon.Start();
+                else OutputHookerAddon.Stop();
+            }
+            catch { }
+        }
+
         public int ConnectedWiimotesCount { get { return _controllers.Count; } }
         public IEnumerable<WiiMoteController> Controllers { get { return _controllers.AsReadOnly(); } }
 
@@ -132,7 +144,7 @@ namespace WiimoteGun
                         if (controller != null)
                         {
                             SimpleLogger.Instance.Warning($"Forcing manual cleanup for P{controller.PlayerIndex}");
-                            _controllers.Remove(controller);
+                            _controllers.Remove(controller); UpdateOutputHookerAutoStart();
                             controller.Dispose(); // This will call ServiceClient.DisablePlayer
                             SimpleLogger.Instance.Info($"Wiimote P{controller.PlayerIndex} disconnected (manual cleanup).");
                             if (_controllers.Count == 0)
@@ -249,7 +261,7 @@ namespace WiimoteGun
                 SimpleLogger.Instance.Info($"Assigned Wiimote {mac} to Player {playerIndex} (Dynamic)");
 
                 var controller = new WiiMoteController(e.Wiimote, playerIndex);
-                _controllers.Add(controller);
+                _controllers.Add(controller); UpdateOutputHookerAutoStart();
 
                 Program.SetConnectedState(true);
 
@@ -290,7 +302,7 @@ namespace WiimoteGun
             if (controller != null)
             {
                 int playerIndex = controller.PlayerIndex;
-                _controllers.Remove(controller);
+                _controllers.Remove(controller); UpdateOutputHookerAutoStart();
                 controller.Dispose();
                 SimpleLogger.Instance.Info($"Wiimote P{playerIndex} disconnected.");
 
