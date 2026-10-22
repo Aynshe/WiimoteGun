@@ -4,6 +4,17 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [3.1.7.0] - 2026-10-21
+
+- **"Output" tab in Options**: receive the game's outputs via **OutputHooker** over UDP to drive the rumble per player. Short semantic frames are used directly in the OutputHooker commands (`P1 FIRE %s%`, `P1 DMG %s%`, ...): everything after `udp 1 127.0.0.1 <port> ` is received verbatim, so no tag mapping is normally required, and `GameOutputStart`/`GameOutputEnd` (`MameStart`/`MameStop`) flag the in-game state.
+- **What it needs**: the outputs exist only when the emulator exposes them to OutputHooker natively, or through **DemulShooter** (RetroBat: install DemulShooter, then enable it and the network/Windows outputs in the emulator options, e.g. "model2"). OutputHooker itself is installed and activated from **Wiimote4Guns > Options > Output**.
+- **Fire synchronization**: each received shot pulses the rumble; the game itself sends `0` when the trigger is released, which stops it.
+- **Damage/impact**: an impact now takes priority over an ongoing fire rumble and is felt, and the 4 Wiimote LEDs flash briefly (the player's own LED is restored right after).
+- **Per-player / per-profile settings on the mapping page**: a "Rumble Output" button opens a modal (enable, Fire force, Damage force, fire/damage length in ms) saved in the active profile (default.remap and per-game), with -1 = follows the global.
+- **"Rumble only during a game"** option (EMULATIONStation game-start/game-end scripts or OutputHooker's own game frames): no rumble outside a game.
+- **OutputHooker management** in the same tab (`addons\OutputHooker`): installed version vs the latest GitHub release, Download/Update (a running instance is closed first, your `OutputHooker.ini` and the ini folder are never overwritten), a link to the latest release, the OutputHooker options, and "Auto-start OutputHooker with a Wiimote (stop when none)".
+
+---
 
 ## [3.1.6.2] - 2026-10-20
 

@@ -230,6 +230,34 @@ namespace WiimoteGun.Controls
             }
         }
 
+        /// <summary>
+        /// EN: Opens the ChangelogDialog (release notes of the running version) — a
+        ///     second entry point next to the "? Help" one, placed at the bottom
+        ///     facing the update status indicator.
+        ///     FR: Ouvre le ChangelogDialog (notes de version de la version courante)
+        ///     — second point d'entrée à côté du « ? Help », en bas en face du
+        ///     voyant d'état de mise à jour.
+        /// </summary>
+        private void BtnChangelog_Click(object sender, EventArgs e)
+        {
+            // EN/FR: wrapped in a try-catch like Program.cs does (V60-FIX-5c): the
+            //     changelog dialog must NEVER take the app down if it fails.
+            try
+            {
+                string currentVersion = System.Reflection.Assembly.GetExecutingAssembly()
+                    .GetName().Version.ToString();
+                using (var dialog = new WiimoteGun.ChangelogDialog(currentVersion))
+                {
+                    // EN/FR: [V61-ZORDER] this page lives inside the TopMost overlay —
+                    //     a dialog opened from it must be TopMost too, or it stays
+                    //     hidden behind the overlay.
+                    dialog.TopMost = true;
+                    dialog.ShowDialog(this.FindForm());
+                }
+            }
+            catch { }
+        }
+
         private void BtnSetup_MouseEnter(object sender, EventArgs e)
         {
             if (sender is Button btn)

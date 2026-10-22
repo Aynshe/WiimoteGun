@@ -344,6 +344,33 @@ namespace WiimoteGun
         ///     (même le profil default racine), remis à -1 (suivre le global) quand
         ///     l'utilisateur touche un réglage global de vibration dans Options > Gestures.
         /// </summary>
+        // [V62-Output] EN/FR: persist the per-player output-rumble overrides (enable + fire/damage
+        // force) into the ACTIVE profile FILE (mapping page). resetToGlobal = -1 everywhere.
+        public static void PersistOutputRumbleOverrides(bool resetToGlobal)
+        {
+            PersistPerPlayerOverrides((target, live, reset) =>
+            {
+                if (reset)
+                {
+                    target.OutputRumbleEnable = -1;
+                    target.OutputRumbleFireIntensity = -1;
+                    target.OutputRumbleFireDurationMs = -1;
+                    target.OutputRumbleDamageIntensity = -1;
+                    target.OutputRumbleDamageDurationMs = -1;
+                    target.OutputRumbleMuteOnEmpty = -1;
+                }
+                else
+                {
+                    target.OutputRumbleEnable = live.OutputRumbleEnable;
+                    target.OutputRumbleFireIntensity = live.OutputRumbleFireIntensity;
+                    target.OutputRumbleFireDurationMs = live.OutputRumbleFireDurationMs;
+                    target.OutputRumbleDamageIntensity = live.OutputRumbleDamageIntensity;
+                    target.OutputRumbleDamageDurationMs = live.OutputRumbleDamageDurationMs;
+                    target.OutputRumbleMuteOnEmpty = live.OutputRumbleMuteOnEmpty;
+                }
+            }, resetToGlobal, "Output Rumble");
+        }
+
         public static void PersistReloadRumbleOverrides(bool resetToGlobal)
         {
             PersistPerPlayerOverrides((target, live, reset) =>

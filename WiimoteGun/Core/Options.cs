@@ -1744,6 +1744,33 @@ namespace WiimoteGun
         [DefaultValue(60)]
         public int AutoBtResetDelaySeconds { get; set; } = 60;
 
+        // [V62-OutputRumble] EN/FR: local UDP receiver for OutputHooker game outputs, driving
+        //     per-player rumble from in-game fire/ammo/reload/damage. Phase 1 = receive + log;
+        //     the driven rumble bypass comes in Phase 2. Port must match the OutputHooker output.
+        public bool OutputRumbleEnabled { get; set; } = false;
+        public int OutputRumblePort { get; set; } = 41111;
+
+        // [V62] EN/FR: when ON, ALL rumble is suppressed outside an ES game (before any game-start,
+        //     and after game-end). Default OFF = rumble always active (unchanged). Useful so a
+        //     setup that does NOT use OutputHooker / outputs stays quiet outside of games.
+        public bool RumbleOnlyDuringGame { get; set; } = false;
+
+        // [V62-OutputTab] EN/FR: output-driven rumble tuning (Options > Output tab).
+        // [V62-OUTPUT-FIRE-100] EN/FR: fire intensity defaults to 100% - single shots must be
+        //     clearly perceptible (the player can lower it per profile afterwards).
+        //     FR: intensité de tir à 100% par défaut - les tirs coup par coup doivent être bien
+        //     perceptibles (le joueur pourra la baisser ensuite, par profil).
+        public int OutputRumbleFireIntensity { get; set; } = 100;
+        // [V62-OUTPUT-DUR-100] EN/FR: fire length default 100 ms - a shorter pulse is barely felt
+        //     (single-shot weapons especially). Adjustable per profile in the Rumble Output modal.
+        //     FR: durée de tir par défaut 100 ms - une impulsion plus courte se ressent à peine
+        //     (surtout en coup par coup). Réglable par profil dans la modale Rumble Output.
+        public int OutputRumbleFireDurationMs { get; set; } = 100;
+        public int OutputRumbleDamageIntensity { get; set; } = 100;
+        public int OutputRumbleDamageDurationMs { get; set; } = 220;
+        public bool OutputRumbleMuteOnEmpty { get; set; } = true;   // cut fire rumble when the magazine is empty
+        public bool OutputHookerAutoStart { get; set; } = false;    // start OutputHooker with a Wiimote, stop when none
+
         /// <summary>
         /// EN: GamePad button and axis mappings per player.
         /// FR: Mappings boutons et axes GamePad par joueur.
