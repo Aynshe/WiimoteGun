@@ -1,4 +1,4 @@
-using WiimoteLib;
+﻿using WiimoteLib;
 using WiimoteLib.Events;
 using WiimoteLib.DataTypes;
 using WiimoteLib.Geometry;
@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using WiimoteGun.Core;
+using WiimoteGun.Core.OutputRumble;
 using WiimoteGun.VMulti;
 
 namespace WiimoteGun
@@ -53,14 +54,50 @@ namespace WiimoteGun
 
         // [V55y] Reload rumble sequencer (EN/FR: Séquenceur vibration rechargement)
         private System.Threading.Timer _reloadRumbleTimer;
+
+        // [V62-OUTPUT-DMG-LEDS] EN/FR: damage flash = the 4 Wiimote LEDs light up on a received
+        //     "P* DMG" output, then the player's own LED is restored a few ms later.
+        // FR: flash de dégâts = les 4 LEDs de la Wiimote s'allument sur un « P* DMG » reçu, puis
+        //     la LED du joueur est rétablie quelques ms après.
+        private System.Threading.Timer _dmgLedTimer;
+        private const int DMG_LED_FLASH_MS = 150;
         private volatile bool _isReloadRumbling;
         private int[] _reloadRumblePattern;   // Alternating ON/OFF durations in ms (EN/FR: Durées ON/OFF alternées en ms)
         private int _reloadRumbleStepIdx;
         private bool _lastRawReloadButton;   // Physical reload button edge tracking (EN/FR: Suivi d'arête bouton reload physique)
         private bool _isTriggerPressed = false;
         private bool _isRumbling = false;
-        private DateTime _lastRumbleTime = DateTime.MinValue;
+
+        // [V62-OutputRumble] EN/FR: output-driven rumble (OutputHooker game outputs). Active =
+        //     the base trigger fire-rumble is bypassed and rumble is driven by received events.
+        private readonly object _outputRumbleLock = new object();
+        // [V62-OUTPUT-AMMO] EN/FR: recorded for future output projects ONLY — it NEVER conditions the
+        //     fire rumble: the game itself sends FIRE 0 when it cannot shoot, so the received 0/1
+        //     already stops the rumble (counting the magazine was a redundant gate, and a stray
+        //     AMMO 0 used to mute the shots of games that expose no ammo, e.g. 2 Spicy).
+        // FR: enregistré UNIQUEMENT pour de futurs projets output — il ne conditionne JAMAIS la
+        //     vibration de tir : le jeu envoie lui-même FIRE 0 quand il ne peut plus tirer, donc
+        //     le 0/1 reçu coupe déjà la vibration (le comptage de chargeur était un garde
+        //     redondant, et un AMMO 0 artefact muetait les tirs des jeux sans munitions, ex. 2 Spicy).
+        private int _outputAmmo = -1; // -1 = unknown ; >=0 = last received count (informational)
+        private int ResolveOutput(int overrideValue, int globalValue) { return overrideValue >= 0 ? overrideValue : globalValue; }
+
+        // [V62-Output] EN/FR: per-player override (-1 = global, 0 = off, 1 = on) drives the output rumble.
+        private bool OutputRumbleActive
+        {
+            get
+            {
+                if (_playerMappings != null)
+                {
+                    if (_playerMappings.OutputRumbleEnable == 0) return false;
+                    if (_playerMappings.OutputRumbleEnable == 1) return true;
+                }
+                return Options.Instance.OutputRumbleEnabled;
+            }
+        }
+
         private bool _hasIRSensor = false; // Track if LEDs are visible (EN/FR: Suivi si LEDs sont visibles)
+        private DateTime _lastRumbleTime = DateTime.MinValue; // last rumble trigger time
 
         // Gesture State (EN/FR: État des gestes)
         private DateTime _lastShakeTime = DateTime.MinValue;
@@ -997,6 +1034,14 @@ namespace WiimoteGun
             {
                 _reloadRumbleTimer.Dispose();
                 _reloadRumbleTimer = null;
+            }
+
+            // [V62-OUTPUT-DMG-LEDS] Dispose the damage LED flash restore timer
+            // (EN/FR: Disposer le timer de rétablissement de LED du flash de dégâts)
+            if (_dmgLedTimer != null)
+            {
+                _dmgLedTimer.Dispose();
+                _dmgLedTimer = null;
             }
 
             // Dispose virtual polling timer (EN/FR: Disposer le timer de polling virtuel)
@@ -3411,15 +3456,188 @@ namespace WiimoteGun
             // (EN/FR: Accepter aussi le bouton tir GamePad maintenu À l'écran : parité
             // complète avec la vibration de gâchette du mode souris.)
             if (((_isTriggerPressed && _hasIRSensor) || _gpFireHeldRumble) &&
-                Options.Instance.GetAllowContinuousRumble(PlayerIndex))
+                Options.Instance.GetAllowContinuousRumble(PlayerIndex) && WeaponRumbleAllowedByOutput())
             {
                 TriggerWeaponRumble();
             }
         }
 
+        // [V62-Output] EN/FR: true when the CLASSIC weapon rumble should still be used:
+        //     - Output mode is OFF, OR
+        //     - Output mode is ON but no FIRE/AMMO/DMG output has been received in the last
+        //       ~2s (the game is not handled by OutputHooker -> fall back to the normal rumble
+        //       so the player keeps his feedback).
+        // FR: vrai quand la vibration d'arme classique doit encore servir : mode Output coupé,
+        //     OU mode Output actif mais aucune sortie reçue depuis ~2s (jeu non géré par
+        //     OutputHooker -> repli sur la vibration normale).
+        private bool WeaponRumbleAllowedByOutput()
+        {
+            if (!OutputRumbleActive) return true;
+            // EN/FR: the definitive signal is OutputHooker's GameOutputStart/GameOutputEnd
+            // (MameStart/MameStop). While a game is reported as OutputHooker-managed, the classic
+            // weapon rumble stays suppressed and the received FIRE/AMMO/DMG outputs drive the
+            // rumble. When no such frame has ever been received (game not handled by OutputHooker,
+            // e.g. Time Crisis 3 under PCSX2), we fall back to the classic trigger rumble so the
+            // player keeps his feedback. A timing timeout is deliberately NOT used: a managed game
+            // with sparse fire outputs (aiming, slow weapon) would otherwise wrongly re-enable the
+            // classic rumble after ~2s.
+            // FR: le signal définitif est le GameOutputStart/GameOutputEnd d'OutputHooker. Tant
+            // qu'un jeu est déclaré géré par OutputHooker, la vibration classique reste coupée et
+            // les sorties pilotent la vibration. Sans aucune de ces trames (jeu non géré, ex. Time
+            // Crisis 3 sous PCSX2), on repasse sur la vibration de gâchette classique pour que le
+            // joueur garde son retour. Pas de timeout : un jeu géré avec des tirs espacés (visée,
+            // arme lente) réactiverait à tort la vibration classique après ~2s.
+            return !EsScriptIntegration.OutputGameActive;
+        }
+
+        // [V62] EN/FR: gate all rumble on "in an ES game" when the option is ON (Options > Output).
+        //     Default OFF => rumble always allowed (unchanged behaviour, no regression outside games
+        //     unless the user opts in). Uses the ES gamestart/gameend lifecycle.
+        private bool RumbleAllowed()
+        {
+            if (!Options.Instance.RumbleOnlyDuringGame) return true;
+            return EsScriptIntegration.HasCurrentGame;
+        }
+
+        // [V62-OutputRumble] EN/FR: impact rumble for a hit - held a bit LONGER than a normal shot
+        //     pulse so a taken damage is clearly felt (Phase 3 makes its duration/intensity configurable).
+        private void TriggerDamageRumble()
+        {
+            // [V62-OutputTab] dedicated damage pulse; force=true so a hit cuts through the fire rumble.
+            RumblePulse(OutputRumbleDamageMs(), true);
+        }
+
+        // [V62-OutputRumble] EN/FR: called from the OutputHooker UDP receiver when a game output is
+        //     resolved for this player (any thread). Phase 2: FIRE -> weapon rumble pulse (one per
+        //     shot edge, muted while the magazine is empty), AMMO -> track remaining bullets
+        //     (0 = silence + stop), DAMAGE -> impact pulse, RELOAD -> clear the empty state.
+        //     Intensities/durations become configurable in Phase 3. Base reload rumble stays intact.
+        public void OnOutputRumbleEvent(OutputResolvedEvent ev)
+        {
+            if (ev == null || ev.Player != PlayerIndex) return;
+            // [V62-Output] EN/FR: respect the per-player enable. A player with the output-driven
+            // rumble disabled (per-profile/per-player override, or global OFF) must NOT receive
+            // FIRE/AMMO/DMG rumble - he keeps the classic weapon rumble instead.
+            // FR: respecter l'activation par joueur. Un joueur avec les vibrations pilotées par
+            // outputs désactivées (override profil/joueur, ou global OFF) ne doit PAS recevoir de
+            // vibration FIRE/AMMO/DMG - il garde la vibration d'arme classique à la place.
+            if (!OutputRumbleActive) return;
+            lock (_outputRumbleLock)
+            {
+                switch (ev.Event)
+                {
+                    case OutputEvent.Ammo:
+                        // [V62-OUTPUT-AMMO] EN/FR: recorded for future output projects only — it NEVER
+                        //     stops the fire rumble: the game itself sends FIRE 0 when it cannot shoot.
+                        // FR: enregistré pour de futurs projets output uniquement — il n'arrête JAMAIS
+                        //     la vibration de tir : le jeu envoie lui-même FIRE 0 quand il ne peut tirer.
+                        _outputAmmo = (int)Math.Round(ev.Value);
+                        break;
+
+                    case OutputEvent.Reload:
+                        _outputAmmo = -1; // refilled
+                        break;
+
+                    case OutputEvent.Damage:
+                        TriggerDamageRumble(); // impact rumble (held, Phase 3: configurable)
+                        FlashDamageLeds();     // [V62-OUTPUT-DMG-LEDS] 4-LED impact flash
+                        break;
+
+                    case OutputEvent.Fire:
+                        // [V62-OUTPUT-AMMO] EN/FR: the received 0/1 is the ONLY condition — the game
+                        //     sends 0 when the trigger is released or the magazine is empty, so the
+                        //     rumble stops by itself. The ammo count is NOT a gate anymore.
+                        // FR: le 0/1 reçu est la SEULE condition — le jeu envoie 0 au relâchement de la
+                        //     gâchette ou chargeur vide, donc la vibration s'arrête d'elle-même. Le
+                        //     comptage de munitions n'est PLUS un garde.
+                        if (ev.Value > 0) RumblePulse(OutputRumbleFireMs());
+                        break;
+                }
+            }
+        }
+
+        // [V62-OutputTab] EN/FR: generic rumble pulse (one-shot) used by the output-driven rumble
+        // with an explicit duration in ms (Fire/Damage). Same core as the weapon pulse.
+        private void RumblePulse(int durationMs) { RumblePulse(durationMs, false); }
+
+        /// <summary>
+        /// [V62-OUTPUT-DMG-LEDS] EN/FR: restore this player's own LED pattern (player N = LED N),
+        /// the same one applied at setup. Safe to call from any thread.
+        /// FR: rétablir le motif de LED propre à ce joueur (joueur N = LED N), le même qu'à la
+        /// connexion. Appelable depuis n'importe quel thread.
+        /// </summary>
+        private void ApplyPlayerLeds()
+        {
+            try
+            {
+                if (Wiimote == null || !Wiimote.IsConnected) return;
+                Wiimote.SetLEDs(PlayerIndex == 1, PlayerIndex == 2, PlayerIndex == 3, PlayerIndex == 4);
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// [V62-OUTPUT-DMG-LEDS] EN/FR: on a damage output, light the 4 Wiimote LEDs for a short
+        ///     flash (150 ms) then restore the player's own LED - a visible impact feedback that
+        ///     never leaves the wrong LED on (a new damage re-arms the same timer).
+        /// FR: sur un output de dégâts, allumer les 4 LEDs de la Wiimote brièvement (150 ms) puis
+        ///     rétablir la LED du joueur - un retour visuel d'impact qui ne laisse jamais une
+        ///     mauvaise LED allumée (un nouveau dégât réarme le même timer).
+        /// </summary>
+        private void FlashDamageLeds()
+        {
+            try
+            {
+                if (Wiimote == null || !Wiimote.IsConnected) return;
+                Wiimote.SetLEDs(true, true, true, true);
+                lock (_outputRumbleLock)
+                {
+                    if (_dmgLedTimer == null)
+                        _dmgLedTimer = new System.Threading.Timer(_ => ApplyPlayerLeds(), null, Timeout.Infinite, Timeout.Infinite);
+                    _dmgLedTimer.Change(DMG_LED_FLASH_MS, Timeout.Infinite);
+                }
+            }
+            catch { }
+        }
+
+        // [V62-Output] EN/FR: explicit pulse. force=true = the DAMAGE impact does NOT respect the
+        // coalescing latch (_isRumbling) so it takes priority over an ongoing fire rumble and is felt.
+        private void RumblePulse(int durationMs, bool force)
+        {
+            if (!force && _isRumbling) return;
+            if (!RumbleAllowed()) return;
+            if (durationMs <= 0) return;
+            try
+            {
+                if (Wiimote != null && Wiimote.IsConnected)
+                {
+                    _isRumbling = true;
+                    Wiimote.SetRumble(true);
+                    _rumbleStopTimer?.Change(durationMs, Timeout.Infinite);
+                    _lastRumbleTime = DateTime.Now;
+                }
+            }
+            catch (Exception ex) { SimpleLogger.Instance.Error("Error triggering rumble: " + ex.Message); _isRumbling = false; }
+        }
+
+        private int OutputRumbleFireMs()
+        {
+            int i = Math.Min(100, Math.Max(1, ResolveOutput(_playerMappings != null ? _playerMappings.OutputRumbleFireIntensity : -1, Options.Instance.OutputRumbleFireIntensity)));
+            int d = Math.Max(10, ResolveOutput(_playerMappings != null ? _playerMappings.OutputRumbleFireDurationMs : -1, Options.Instance.OutputRumbleFireDurationMs));
+            return Math.Max(10, d * i / 100);
+        }
+
+        private int OutputRumbleDamageMs()
+        {
+            int i = Math.Min(100, Math.Max(1, ResolveOutput(_playerMappings != null ? _playerMappings.OutputRumbleDamageIntensity : -1, Options.Instance.OutputRumbleDamageIntensity)));
+            int d = Math.Max(120, ResolveOutput(_playerMappings != null ? _playerMappings.OutputRumbleDamageDurationMs : -1, Options.Instance.OutputRumbleDamageDurationMs));
+            return Math.Max(120, d * i / 100);
+        }
+
         private void TriggerWeaponRumble()
         {
-            if (_isRumbling) return; // Prevent overlap (EN/FR: Empêcher chevauchement)
+            if (_isRumbling) return;
+            if (!RumbleAllowed()) return; // Prevent overlap (EN/FR: Empêcher chevauchement)
             
             int durationMs = Options.Instance.GetRumbleDurationMs(PlayerIndex);
             int intensity = Options.Instance.GetRumbleIntensity(PlayerIndex);
@@ -3569,6 +3787,7 @@ namespace WiimoteGun
         /// </summary>
         private void PlayReloadRumblePattern(bool enabled, int intensity, int style)
         {
+            if (!RumbleAllowed()) return;
             if (!enabled) return;
             if (intensity <= 0) return;
             if (_isReloadRumbling) return; // Already playing (EN/FR: Lecture en cours)
@@ -3764,7 +3983,7 @@ namespace WiimoteGun
             {
                 _isTriggerPressed = true; // Update state early for logic (EN/FR: Màj état tôt pour la logique)
 
-                if (Options.Instance.GetEnableWeaponRumble(PlayerIndex) && _hasIRSensor)
+                if (Options.Instance.GetEnableWeaponRumble(PlayerIndex) && _hasIRSensor && WeaponRumbleAllowedByOutput())
                 {
                     TriggerWeaponRumble();
                     
@@ -4332,7 +4551,7 @@ namespace WiimoteGun
                     // lit GetRumbleDurationMs/GetRumbleIntensity), et la répétition CONTINUE
                     // tourne tant que le bouton de tir est maintenu À l'écran quand
                     // AllowContinuousRumble est activé (GetRumbleRepetitionMs), arrêt au relâchement.)
-                    bool gpFireRumbleActive = gpFireRaw && scaledPos.HasValue && Options.Instance.GetEnableWeaponRumble(PlayerIndex);
+                    bool gpFireRumbleActive = gpFireRaw && scaledPos.HasValue && Options.Instance.GetEnableWeaponRumble(PlayerIndex) && WeaponRumbleAllowedByOutput();
                     _gpFireHeldRumble = gpFireRumbleActive;
 
                     if (gpFireRaw && !_gpFireWasPressed && gpFireRumbleActive)

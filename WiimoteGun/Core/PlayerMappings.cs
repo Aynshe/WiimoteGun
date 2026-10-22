@@ -73,6 +73,15 @@ namespace WiimoteGun
         /// </summary>
         public bool TCCoverReload { get; set; } = false;
 
+        // [V62-Output] per-player/per-profile override of the output-driven rumble.
+        // -1 = follow the global (Options > Output) [default]; 0 = off; 1 = on.
+        public int OutputRumbleEnable { get; set; } = -1;
+        public int OutputRumbleFireIntensity { get; set; } = -1;    // -1 = global
+        public int OutputRumbleFireDurationMs { get; set; } = -1;   // -1 = global
+        public int OutputRumbleDamageIntensity { get; set; } = -1;  // -1 = global
+        public int OutputRumbleDamageDurationMs { get; set; } = -1; // -1 = global
+        public int OutputRumbleMuteOnEmpty { get; set; } = -1;      // -1 global, 0 = keep firing, 1 = cut
+
         /// <summary>
         /// EN: Physical Wiimote/Nunchuk button used by the TC cover action:
         /// "auto" = right-click mapping (existing behavior), or WiiA/WiiB/WiiOne/WiiTwo/
@@ -266,6 +275,13 @@ namespace WiimoteGun
             OffScreenReloadOverride = source.OffScreenReloadOverride;
             OffScreenAutoOverride = source.OffScreenAutoOverride;
             TCCoverReload = source.TCCoverReload;
+
+            OutputRumbleEnable = source.OutputRumbleEnable;
+            OutputRumbleFireIntensity = source.OutputRumbleFireIntensity;
+            OutputRumbleFireDurationMs = source.OutputRumbleFireDurationMs;
+            OutputRumbleDamageIntensity = source.OutputRumbleDamageIntensity;
+            OutputRumbleDamageDurationMs = source.OutputRumbleDamageDurationMs;
+            OutputRumbleMuteOnEmpty = source.OutputRumbleMuteOnEmpty;
             TCCoverButton = source.TCCoverButton;
             TCBiPedal = source.TCBiPedal;
             TCBiPedalLeftButton = source.TCBiPedalLeftButton;

@@ -14,6 +14,7 @@ using WiimoteGun.UI.Legacy;
 using WiimoteGun.UI;
 using WiimoteGun.UI.Calibrate;
 using WiimoteGun.Core;
+using WiimoteGun.Core.OutputRumble;
 
 namespace WiimoteGun
 {
@@ -38,6 +39,14 @@ namespace WiimoteGun
         private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
 
         static NotifyIcon _trayIcon;
+
+        // [V62-OutputRumble] EN/FR: local UDP receiver for OutputHooker game outputs (rumble).
+        static OutputHookServer _outputServer;
+        public static OutputHookServer OutputServer { get { return _outputServer; } }
+
+        // [V62-OutputRumble] EN/FR: throttle per-player event logging (fire edges are high-rate).
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, System.DateTime> _outRumbleLogLast =
+            new System.Collections.Concurrent.ConcurrentDictionary<int, System.DateTime>();
         static WiimoteControllerManager _wiiMoteManager;
         public static WiimoteControllerManager WiiMoteManager { get { return _wiiMoteManager; } }
         static ApplicationContext _appContext;
@@ -542,6 +551,9 @@ namespace WiimoteGun
             _wiiMoteManager = new WiimoteControllerManager();
             _synchronizationContext = new WindowsFormsSynchronizationContext();
 
+            // [V62-OutputRumble] EN/FR: start the OutputHooker UDP receiver (Phase 1 = receive + log).
+            StartOutputRumbleServer();
+
             // Create message window for IPC (EN/FR: Créer fenêtre message pour IPC)
             _messageWindow = new MessageWindow();
             _messageWindow.RefreshRequested += OnRefreshRequested;
@@ -675,6 +687,33 @@ namespace WiimoteGun
                     Options.Instance.FirstRun = false;
                     Options.Instance.Save();
                     SimpleLogger.Instance.Info("Welcome dialog shown, FirstRun set to false");
+
+                    // [V62-FIRSTRUN] EN: the SetupWizard restart (UMDF2 activation) KILLS the
+                    //     first windowed-overlay attempt: on the post-restart start neither
+                    //     -menu nor showOptionsAfterSetup is set, so nothing ever opened the
+                    //     main interface. The user has just closed the WelcomeDialog on THIS
+                    //     (post-restart) start - this is where the main interface must open.
+                    // FR: le redémarrage du SetupWizard (activation UMDF2) TUE la 1re tentative
+                    //     d'ouverture de l'overlay : au démarrage post-redémarrage ni -menu ni
+                    //     showOptionsAfterSetup n'est posé, donc l'interface principale ne
+                    //     s'ouvrait jamais. L'utilisateur vient de fermer le WelcomeDialog sur
+                    //     CE démarrage — c'est ICI qu'il faut ouvrir l'interface principale.
+                    if (!_menuMode && !showOptionsAfterSetup)
+                    {
+                        // Same deferred-open pattern as the menu/setup path below (the message
+                        // loop is not running yet at this point).
+                        // (EN/FR: Même schéma d'ouverture différée que le chemin menu/setup
+                        //  ci-dessous — la boucle de messages n'est pas encore démarrée ici.)
+                        System.Threading.Timer welcomeOverlayTimer = null;
+                        welcomeOverlayTimer = new System.Threading.Timer(_ =>
+                        {
+                            PostToUIThread(() =>
+                            {
+                                OpenWindowedOverlay();
+                            });
+                            welcomeOverlayTimer?.Dispose();
+                        }, null, 500, System.Threading.Timeout.Infinite);
+                    }
                 }
                 else
                 {
@@ -1186,11 +1225,121 @@ namespace WiimoteGun
                 _trayIcon = null;
             }
 
+            StopOutputRumbleServer();
+
             if (_wiiMoteManager != null)
             {
                 _wiiMoteManager.Dispose();
                 _wiiMoteManager = null;
             }
+        }
+
+        // [V62-OutputRumble] EN/FR: OutputHooker UDP receiver (rumble) start/stop + Phase-1 logger.
+        //     Phase 2 routes the resolved events to the controllers (bypass base fire rumble, drive
+        //     FIRE/AMMO/RELOAD/DAMAGE rumble pulses from the received game outputs).
+        private static void StartOutputRumbleServer()
+        {
+            try
+            {
+                if (!Options.Instance.OutputRumbleEnabled)
+                {
+                    SimpleLogger.Instance.Info("[V62-OutputRumble] Disabled in Options - UDP receiver not started.");
+                    return;
+                }
+                    // [V62-OUTPUT-DOC] EN/FR: the tag definitions file is now the documentation note
+                    //     output_tags.md. A legacy output_tags.ini (user custom rules) still wins if
+                    //     present, so existing installs keep their rules untouched.
+                    //     FR: le fichier de definitions est desormais la note output_tags.md. Un
+                    //     ancien output_tags.ini (regles custom de l'utilisateur) reste prioritaire
+                    //     s'il existe, pour ne pas casser les regles des installations en place.
+                    string defsDir = AppDomain.CurrentDomain.BaseDirectory;
+                    string defsPath = System.IO.Path.Combine(defsDir, "output_tags.ini");
+                    if (!System.IO.File.Exists(defsPath)) defsPath = System.IO.Path.Combine(defsDir, "output_tags.md");
+                    var defs = new OutputTagDefinitions(defsPath);
+                var srv = new OutputHookServer(defs);
+                srv.EventReceived += OnOutputRumbleEvent;
+                if (srv.Start(Options.Instance.OutputRumblePort))
+                    _outputServer = srv;
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Warning("[V62-OutputRumble] start error: " + ex.Message);
+            }
+        }
+
+        private static void StopOutputRumbleServer()
+        {
+            try
+            {
+                if (_outputServer != null)
+                {
+                    _outputServer.Stop();
+                    SimpleLogger.Instance.Info("[V62-OutputRumble] UDP receiver stopped.");
+                    _outputServer = null;
+                }
+            }
+            catch { }
+        }
+
+        // [V62-OutputRumble] EN/FR: route a resolved game-output event to the owning controller
+        //     (Phase 2 drives rumble). Runs on the UDP receiver thread; the controller method is
+        //     thread-safe (same path as the rumble timers). Logging is throttled (fire = high-rate).
+        public static bool IsOutputReceiverRunning() { return _outputServer != null && _outputServer.IsRunning; }
+
+        public static void OnOutputRumbleEvent(OutputResolvedEvent ev)
+        {
+            if (ev == null) return;
+
+            // [V62-Output] EN/FR: full-game windows (MameStart/MameStop from OutputHooker) - toggle
+            // the in-game state used by "Rumble only during a game" (also honours ES scripts).
+            if (ev.Event == OutputEvent.GameStart)
+            {
+                EsScriptIntegration.SetOutputGameActive(true);
+                SimpleLogger.Instance.Info("[V62-OutputRumble] OutputHooker MameStart -> game active");
+                return;
+            }
+            if (ev.Event == OutputEvent.GameEnd)
+            {
+                EsScriptIntegration.SetOutputGameActive(false);
+                SimpleLogger.Instance.Info("[V62-OutputRumble] OutputHooker MameStop -> game ended");
+                return;
+            }
+
+            try
+            {
+                var mgr = _wiiMoteManager;
+                if (mgr != null)
+                {
+                    WiiMoteController target = null;
+                    foreach (var c in mgr.Controllers)
+                    {
+                        if (c != null && c.PlayerIndex == ev.Player) { target = c; break; }
+                    }
+                    if (target != null) target.OnOutputRumbleEvent(ev);
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Warning("[V62-OutputRumble] route error: " + ex.Message);
+            }
+
+            try
+            {
+                bool logThis = ev.Event != OutputEvent.Fire;
+                if (!logThis)
+                {
+                    System.DateTime last;
+                    if (!_outRumbleLogLast.TryGetValue(ev.Player, out last) || (System.DateTime.UtcNow - last).TotalSeconds >= 1)
+                    {
+                        _outRumbleLogLast[ev.Player] = System.DateTime.UtcNow;
+                        logThis = true;
+                    }
+                }
+                if (logThis)
+                    SimpleLogger.Instance.Info(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                        "[V62-OutputRumble] Event -> P{0} {1} = {2}", ev.Player, ev.Event, ev.Value.ToString("0.###")));
+            }
+            catch { }
         }
 
 

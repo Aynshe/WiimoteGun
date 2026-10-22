@@ -131,6 +131,10 @@
     </Compile>
     <Compile Include="Common\SimpleLogger.cs" />
     <Compile Include="Core\EsScriptIntegration.cs" />
+    <Compile Include="Core\OutputRumble\OutputEvent.cs" />
+    <Compile Include="Core\OutputRumble\OutputTagDefinitions.cs" />
+    <Compile Include="Core\OutputRumble\OutputHookServer.cs" />
+    <Compile Include="Core\OutputHookerAddon.cs" />
     <Compile Include="UI\Modern\Forms\EsProfileTileDialog.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -151,6 +155,13 @@
     </Compile>
     <Compile Include="UI\Modern\Forms\OffScreenExcludesForm.cs">
       <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\OutputRumbleProfileForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Modern\Forms\OutputRumbleProfileForm.Designer.cs">
+      <DependentUpon>OutputRumbleProfileForm.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </Compile>
     <Compile Include="WiimoteLib\TimingDiagnostics.cs" />
     <Compile Include="Common\Win32.cs" />
@@ -369,6 +380,9 @@
     <None Include="App.config" />
     <!-- [V60-FIX-5b] EN/FR: Changelog file shipped with the app (read by ChangelogDialog) -->
     <None Include="changelog.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="output_tags.md">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="WiimoteLib\WiimoteOld\WiimoteOld.cs" />
