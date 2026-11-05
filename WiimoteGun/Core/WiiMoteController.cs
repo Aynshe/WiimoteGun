@@ -1854,9 +1854,34 @@ namespace WiimoteGun
                     // 4. Update Tracking (Pure Gyro or Absolute IR) (EN/FR: Mise à jour du tracking)
                     if (wasCalibrating || _calculator.IsCalibrating)
                     {
-                        if (isOnScreen && _virtualMouse != null)
+                        // [V70-CAL-CURSOR] EN: the virtual mouse must exist — the parking itself is
+                        //     unconditional (also on off-screen frames) so the cursor cannot stay
+                        //     where it was before the calibration opened.
+                        //     FR: la souris virtuelle doit exister — le parcage est inconditionnel
+                        //     (aussi hors écran) pour que le curseur ne reste pas où il était
+                        //     avant l'ouverture de la calibration.
+                        if (_virtualMouse != null)
                         {
-                            _virtualMouse.UpdateMouse((int)scaledPos.Value.X, (int)scaledPos.Value.Y, false, false, false, true, true);
+                            // [V70-CAL-CURSOR] EN/FR: the gun cursor is USELESS while calibrating —
+                            //     park it (virtually) at the CENTER of this player's screen instead of
+                            //     letting it wander on the calibration targets. It is reactivated
+                            //     automatically as soon as the calibration ends (validated or aborted).
+                            //     FR: le curseur du gun est INUTILE pendant la calibration — on le
+                            //     gare (virtuellement) au CENTRE de l'écran de ce joueur au lieu de le
+                            //     laisser errer sur les cibles. Il est réactivé automatiquement dès la
+                            //     fin de la calibration (validée ou annulée).
+                            const int CalCenterX = 32767; // 65535 / 2 = center of the mapped screen
+                            const int CalCenterY = 32767;
+                            _virtualMouse.UpdateMouse(CalCenterX, CalCenterY, false, false, false, true, true);
+                            // Keep the internal anchors in sync so the first frame after the calibration
+                            // does not jump from a stale position (smoothing + virtual polling too).
+                            // (EN/FR: Synchroniser les ancres internes pour que la première image après
+                            //  calibration ne saute pas depuis une position périmée.)
+                            _lastX = CalCenterX;
+                            _lastY = CalCenterY;
+                            _lastX_Raw = CalCenterX;
+                            _lastY_Raw = CalCenterY;
+                            _lastMoveCursor_Raw = true;
                             _lockUntilABreleased = true;
                         }
                     }
