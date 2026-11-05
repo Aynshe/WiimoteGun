@@ -26,21 +26,21 @@ namespace WiimoteGun.Controls
             this.cbIRPlayerSelect = new System.Windows.Forms.ComboBox();
             this.pbIRCanvas = new System.Windows.Forms.PictureBox();
             this.gbCalib = new System.Windows.Forms.GroupBox();
-            this.lblX = new System.Windows.Forms.Label();
-            this.nudIROffsetX = new System.Windows.Forms.NumericUpDown();
-            this.lblY = new System.Windows.Forms.Label();
-            this.nudIROffsetY = new System.Windows.Forms.NumericUpDown();
-            this.btnSaveCalib = new System.Windows.Forms.Button();
             this.lblHelp = new System.Windows.Forms.Label();
+            this.btnSaveCalib = new System.Windows.Forms.Button();
+            this.nudIROffsetY = new System.Windows.Forms.NumericUpDown();
+            this.lblY = new System.Windows.Forms.Label();
+            this.nudIROffsetX = new System.Windows.Forms.NumericUpDown();
+            this.lblX = new System.Windows.Forms.Label();
             this.lblWiimoteHelp = new System.Windows.Forms.Label();
             this.btnOpenGyroViz = new System.Windows.Forms.Button();
-            
+            this.btnOpenFullScreenIR = new System.Windows.Forms.Button();
+            this.btnBack = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.pbIRCanvas)).BeginInit();
             this.gbCalib.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.nudIROffsetX)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.nudIROffsetY)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.nudIROffsetX)).BeginInit();
             this.SuspendLayout();
-            
             // 
             // lblTitle
             // 
@@ -52,7 +52,6 @@ namespace WiimoteGun.Controls
             this.lblTitle.TabIndex = 0;
             this.lblTitle.Text = "🎯 IR Visualizer & Calibration";
             this.lblTitle.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            
             // 
             // lblPlayerSelect
             // 
@@ -63,7 +62,6 @@ namespace WiimoteGun.Controls
             this.lblPlayerSelect.Size = new System.Drawing.Size(100, 25);
             this.lblPlayerSelect.TabIndex = 1;
             this.lblPlayerSelect.Text = "Select Player:";
-            
             // 
             // cbIRPlayerSelect
             // 
@@ -80,9 +78,8 @@ namespace WiimoteGun.Controls
             "Player 4"});
             this.cbIRPlayerSelect.Location = new System.Drawing.Point(130, 60);
             this.cbIRPlayerSelect.Name = "cbIRPlayerSelect";
-            this.cbIRPlayerSelect.Size = new System.Drawing.Size(150, 25);
+            this.cbIRPlayerSelect.Size = new System.Drawing.Size(150, 23);
             this.cbIRPlayerSelect.TabIndex = 2;
-            
             // 
             // pbIRCanvas
             // 
@@ -93,7 +90,6 @@ namespace WiimoteGun.Controls
             this.pbIRCanvas.Size = new System.Drawing.Size(520, 390);
             this.pbIRCanvas.TabIndex = 3;
             this.pbIRCanvas.TabStop = false;
-            
             // 
             // gbCalib
             // 
@@ -111,73 +107,82 @@ namespace WiimoteGun.Controls
             this.gbCalib.TabIndex = 4;
             this.gbCalib.TabStop = false;
             this.gbCalib.Text = "Manual Calibration (Offset)";
-            
             // 
-            // lblX
+            // lblHelp
             // 
-            this.lblX.Location = new System.Drawing.Point(20, 30);
-            this.lblX.Name = "lblX";
-            this.lblX.Size = new System.Drawing.Size(60, 20);
-            this.lblX.TabIndex = 0;
-            this.lblX.Text = "Offset X:";
-            
-            // 
-            // nudIROffsetX
-            // 
-            this.nudIROffsetX.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
-            this.nudIROffsetX.ForeColor = System.Drawing.Color.White;
-            this.nudIROffsetX.Location = new System.Drawing.Point(90, 30);
-            this.nudIROffsetX.Maximum = new decimal(new int[] { 500, 0, 0, 0 });
-            this.nudIROffsetX.Minimum = new decimal(new int[] { 500, 0, 0, -2147483648 });
-            this.nudIROffsetX.Name = "nudIROffsetX";
-            this.nudIROffsetX.Size = new System.Drawing.Size(80, 25);
-            this.nudIROffsetX.TabIndex = 1;
-            
-            // 
-            // lblY
-            // 
-            this.lblY.Location = new System.Drawing.Point(200, 30);
-            this.lblY.Name = "lblY";
-            this.lblY.Size = new System.Drawing.Size(60, 20);
-            this.lblY.TabIndex = 2;
-            this.lblY.Text = "Offset Y:";
-            
-            // 
-            // nudIROffsetY
-            // 
-            this.nudIROffsetY.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
-            this.nudIROffsetY.ForeColor = System.Drawing.Color.White;
-            this.nudIROffsetY.Location = new System.Drawing.Point(270, 30);
-            this.nudIROffsetY.Maximum = new decimal(new int[] { 500, 0, 0, 0 });
-            this.nudIROffsetY.Minimum = new decimal(new int[] { 500, 0, 0, -2147483648 });
-            this.nudIROffsetY.Name = "nudIROffsetY";
-            this.nudIROffsetY.Size = new System.Drawing.Size(80, 25);
-            this.nudIROffsetY.TabIndex = 3;
-            
+            this.lblHelp.Font = new System.Drawing.Font("Segoe UI", 8F, System.Drawing.FontStyle.Italic);
+            this.lblHelp.ForeColor = System.Drawing.Color.Gray;
+            this.lblHelp.Location = new System.Drawing.Point(30, 58);
+            this.lblHelp.Name = "lblHelp";
+            this.lblHelp.Size = new System.Drawing.Size(315, 20);
+            this.lblHelp.TabIndex = 5;
+            this.lblHelp.Text = "Adjust offsets if the crosshair is not aligned with your aim.";
             // 
             // btnSaveCalib
             // 
             this.btnSaveCalib.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(204)))));
             this.btnSaveCalib.FlatAppearance.BorderSize = 0;
             this.btnSaveCalib.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnSaveCalib.Location = new System.Drawing.Point(380, 25);
+            this.btnSaveCalib.Location = new System.Drawing.Point(394, 43);
             this.btnSaveCalib.Name = "btnSaveCalib";
             this.btnSaveCalib.Size = new System.Drawing.Size(120, 35);
             this.btnSaveCalib.TabIndex = 4;
             this.btnSaveCalib.Text = "💾 Save Offset";
             this.btnSaveCalib.UseVisualStyleBackColor = false;
-            
             // 
-            // lblHelp
+            // nudIROffsetY
             // 
-            this.lblHelp.Font = new System.Drawing.Font("Segoe UI", 8F, System.Drawing.FontStyle.Italic);
-            this.lblHelp.ForeColor = System.Drawing.Color.Gray;
-            this.lblHelp.Location = new System.Drawing.Point(20, 70);
-            this.lblHelp.Name = "lblHelp";
-            this.lblHelp.Size = new System.Drawing.Size(480, 20);
-            this.lblHelp.TabIndex = 5;
-            this.lblHelp.Text = "Adjust offsets if the crosshair is not aligned with your aim.";
-            
+            this.nudIROffsetY.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.nudIROffsetY.ForeColor = System.Drawing.Color.White;
+            this.nudIROffsetY.Location = new System.Drawing.Point(265, 22);
+            this.nudIROffsetY.Maximum = new decimal(new int[] {
+            500,
+            0,
+            0,
+            0});
+            this.nudIROffsetY.Minimum = new decimal(new int[] {
+            500,
+            0,
+            0,
+            -2147483648});
+            this.nudIROffsetY.Name = "nudIROffsetY";
+            this.nudIROffsetY.Size = new System.Drawing.Size(80, 23);
+            this.nudIROffsetY.TabIndex = 3;
+            // 
+            // lblY
+            // 
+            this.lblY.Location = new System.Drawing.Point(195, 22);
+            this.lblY.Name = "lblY";
+            this.lblY.Size = new System.Drawing.Size(60, 20);
+            this.lblY.TabIndex = 2;
+            this.lblY.Text = "Offset Y:";
+            // 
+            // nudIROffsetX
+            // 
+            this.nudIROffsetX.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.nudIROffsetX.ForeColor = System.Drawing.Color.White;
+            this.nudIROffsetX.Location = new System.Drawing.Point(100, 22);
+            this.nudIROffsetX.Maximum = new decimal(new int[] {
+            500,
+            0,
+            0,
+            0});
+            this.nudIROffsetX.Minimum = new decimal(new int[] {
+            500,
+            0,
+            0,
+            -2147483648});
+            this.nudIROffsetX.Name = "nudIROffsetX";
+            this.nudIROffsetX.Size = new System.Drawing.Size(80, 23);
+            this.nudIROffsetX.TabIndex = 1;
+            // 
+            // lblX
+            // 
+            this.lblX.Location = new System.Drawing.Point(30, 22);
+            this.lblX.Name = "lblX";
+            this.lblX.Size = new System.Drawing.Size(60, 20);
+            this.lblX.TabIndex = 0;
+            this.lblX.Text = "Offset X:";
             // 
             // lblWiimoteHelp
             // 
@@ -188,7 +193,6 @@ namespace WiimoteGun.Controls
             this.lblWiimoteHelp.Size = new System.Drawing.Size(520, 20);
             this.lblWiimoteHelp.TabIndex = 5;
             this.lblWiimoteHelp.Text = "💡 Hold HOME (BT) or MINUS (Mayflash) + D-Pad to adjust offset";
-            
             // 
             // btnOpenGyroViz
             // 
@@ -203,12 +207,10 @@ namespace WiimoteGun.Controls
             this.btnOpenGyroViz.TabIndex = 6;
             this.btnOpenGyroViz.Text = "🎯 Open 3D Gyro Visualizer";
             this.btnOpenGyroViz.UseVisualStyleBackColor = false;
-
             // 
             // btnOpenFullScreenIR
             // 
-            this.btnOpenFullScreenIR = new System.Windows.Forms.Button();
-            this.btnOpenFullScreenIR.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(150)))), ((int)(((byte)(0))))); // Greenish
+            this.btnOpenFullScreenIR.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(150)))), ((int)(((byte)(0)))));
             this.btnOpenFullScreenIR.FlatAppearance.BorderSize = 0;
             this.btnOpenFullScreenIR.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnOpenFullScreenIR.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
@@ -219,11 +221,9 @@ namespace WiimoteGun.Controls
             this.btnOpenFullScreenIR.TabIndex = 8;
             this.btnOpenFullScreenIR.Text = "📺 Fullscreen IR Visualizer";
             this.btnOpenFullScreenIR.UseVisualStyleBackColor = false;
-
             // 
             // btnBack
             // 
-            this.btnBack = new System.Windows.Forms.Button();
             this.btnBack.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(40)))), ((int)(((byte)(40)))), ((int)(((byte)(40)))));
             this.btnBack.FlatAppearance.BorderSize = 0;
             this.btnBack.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
@@ -235,10 +235,10 @@ namespace WiimoteGun.Controls
             this.btnBack.TabIndex = 7;
             this.btnBack.Text = "⬅ Back";
             this.btnBack.UseVisualStyleBackColor = false;
-            
             // 
             // IRControl
             // 
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Transparent;
             this.Controls.Add(this.btnBack);
@@ -254,8 +254,8 @@ namespace WiimoteGun.Controls
             this.Size = new System.Drawing.Size(560, 780);
             ((System.ComponentModel.ISupportInitialize)(this.pbIRCanvas)).EndInit();
             this.gbCalib.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)(this.nudIROffsetX)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.nudIROffsetY)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.nudIROffsetX)).EndInit();
             this.ResumeLayout(false);
 
         }
@@ -272,10 +272,10 @@ namespace WiimoteGun.Controls
         private System.Windows.Forms.Label lblY;
         private System.Windows.Forms.NumericUpDown nudIROffsetY;
         private System.Windows.Forms.Button btnSaveCalib;
-        private System.Windows.Forms.Label lblHelp;
         private System.Windows.Forms.Label lblWiimoteHelp;
         private System.Windows.Forms.Button btnOpenGyroViz;
         private System.Windows.Forms.Button btnOpenFullScreenIR;
         public System.Windows.Forms.Button btnBack;
+        private System.Windows.Forms.Label lblHelp;
     }
 }

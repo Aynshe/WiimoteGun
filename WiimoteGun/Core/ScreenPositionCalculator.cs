@@ -47,11 +47,18 @@ namespace WiimoteGun
                     _pnpRefDistance = savedDist;
                     _pnpRefSeparation = (PnpLedSpacingMM * savedFocal) / (savedDist * 1000f);
                     _pnpIROffsetM = Options.Instance.GetIROffsetMM(playerIndex) / 1000f;
+
                     SimpleLogger.Instance.Info(string.Format(
                         "[V59] P{0}: PnP Hybrid reference restored — focal={1:F3}, calDist={2:F2}m",
                         _playerIndex, savedFocal, savedDist));
                 }
             }
+
+            // [V70-AIM-CM-FIX] EN: restore the persisted reference distance of the plain Wiimote
+            //     Bar layout (needed by the "pointer vs barrel (cm)" conversion).
+            //     FR: restaure la distance de référence persistée du layout Wiimote Bar simple
+            //     (nécessaire à la conversion « pointeur vs canon (cm) »).
+            _wbRefDistanceM = Options.Instance.GetWbReferenceDistance(playerIndex);
 
             // Load Gun4IR or 4-Corners calibration
             if (_ledLayout == LEDLayoutType.Gun4IRDiamond)
@@ -203,6 +210,11 @@ namespace WiimoteGun
         // (EN/FR: Compensation de distance pour modes calibration manuelle (PAS mode auto)
         // Stocke la taille IR apparente lors de la calibration pour détecter les changements de distance)
         private float _calibrationIRSpan = 0f; // IR span saved at calibration end (EN/FR: Taille IR sauvegardée en fin de calibration)
+        // [V70-AIM-CM-FIX] EN: persisted reference distance (m) of the plain Wiimote Bar layout
+        //     (computed at calibration from the span) — feeds the "pointer vs barrel (cm)" conversion.
+        // FR: distance de référence (m) persistée du layout Wiimote Bar simple (calculée à la
+        //     calibration depuis le span) — alimente la conversion « pointeur vs canon (cm) ».
+        private float _wbRefDistanceM = 0f;
         private float _lastIRSpan        = 0f; // IR span measured at last frame (EN/FR: Taille IR mesurée à la dernière frame)
         private float _lastValidDistFactor = 1.0f; // Persistent scaling factor for 1-LED tracking (EN/FR: Facteur d'échelle persistant pour suivi 1 point)
         private List<float> _calibrationSpanSamples = new List<float>(); // IR span samples collected during calibration clicks (EN/FR: Échantillons de taille IR collectés lors des clics de calibration)
@@ -239,6 +251,20 @@ namespace WiimoteGun
         private float _pnpRefDistance = 0f;
         private float _pnpRefSeparation = 0f;
         private float _pnpLastSeparation = 0f;
+
+        // [V70-CAL-CANCEL] EN: true between a cancelled calibration and the EndCalibrate()
+        //     call it forces — EndCalibrate then reloads the saved calibration instead of
+        //     persisting the partial capture.
+        // FR: vrai entre une calibration annulée et l'appel EndCalibrate() forcé —
+        //     EndCalibrate recharge alors la calibration enregistrée au lieu de persister
+        //     la capture partielle.
+        private bool _calibrationCancelled = false;
+        // [V70-PNP-CENTER-REVERT] the 5th CENTER point + its compensation anchor were removed
+        // (no gain: the bilinear map is fully determined by the 4 corners). The distance
+        // compensation is anchored to the screen center (0.5, 0.5) again.
+        // (FR: le 5e point CENTRE + son ancre de compensation ont été retirés (aucun gain :
+        //  la carte bilinéaire est entièrement déterminée par les 4 coins). La compensation
+        //  de distance est de nouveau ancrée au centre de l'écran (0.5, 0.5).)
         private float _pnpIROffsetM = 0.030f;
         private float _pnpSmoothedDistRatio = 1.0f;
         // [V59-FIXES] Live per-frame distance estimate (m): feeds the calibration form's
@@ -301,6 +327,8 @@ namespace WiimoteGun
                 //     été retiré — décision user).
                 if (EffLayout == LEDLayoutType.WiimoteBarPnP)
                 {
+                    // [V70-PNP-CENTER-REVERT] EN: 4 corners only (the 5th CENTER point removed).
+                    // FR: 4 coins seulement (le 5e point CENTRE retiré).
                     return _topLeftPt.HasValue && _topRightPt.HasValue &&
                            _bottomRightPt.HasValue && _bottomLeftPt.HasValue;
                 }
@@ -312,10 +340,12 @@ namespace WiimoteGun
                 }
                 // WiimoteBar: Check 4 points (TL, TR, BR, BL) OR 3 points in permissive mode
                 // (EN/FR: WiimoteBar : Vérifier 4 points OU 3 points en mode permissif)
-                bool has4Points = _topLeftPt.HasValue && _topRightPt.HasValue && 
+                // [V70-PNP-CENTER-REVERT] the CENTER point is gone (no gain).
+                // (FR: le point CENTRE a disparu (aucun gain).)
+                bool has4Points = _topLeftPt.HasValue && _topRightPt.HasValue &&
                                   _bottomRightPt.HasValue && _bottomLeftPt.HasValue;
-                
-                // Permissive mode: Allow 3 of 4 points for very large screens (EN/FR: Mode permissif : 3 sur 4 points)
+
+                // Permissive mode: Allow 3 of 4 points for very large screens (EN/FR: Mode permissif : 3 sur 4 points pour très grands écrans)
                 bool has3Points = Options.Instance.PermissiveWiimoteBarCalibration &&
                                   (_topLeftPt.HasValue && _topRightPt.HasValue && _bottomRightPt.HasValue);
                 return has4Points || has3Points;
@@ -349,6 +379,13 @@ namespace WiimoteGun
                 {
                     SimpleLogger.Instance.Info(string.Format("[P{0}] Calibration cancelled via Home button", _playerIndex));
                     ResetCalibration();
+                    // [V70-CAL-CANCEL] EN: a cancelled calibration must NOT wipe the working
+                    //     calibration that was persisted previously — reload it instead of
+                    //     saving -1 everywhere (EndCalibrate then skips the persistence).
+                    //     FR: une calibration annulée ne doit PAS effacer la calibration en
+                    //     service — on la RECHARGE au lieu d'enregistrer des -1 partout
+                    //     (EndCalibrate saute alors la persistance).
+                    _calibrationCancelled = true;
                     EndCalibrate();
                 }
             }
@@ -520,10 +557,76 @@ namespace WiimoteGun
             _calibrateForm.Show();
         }
 
+        // [V70-CAL-CANCEL] EN: reload the calibration previously saved in settings (4 corners,
+        //     PnP reference + the CENTER point) — used when a calibration is cancelled so the
+        //     working calibration is never wiped by a partial capture.
+        // FR: recharge la calibration enregistrée (4 coins, référence PnP + point CENTRE) —
+        //     utilisé à l'annulation d'une calibration pour que la calibration en service ne
+        //     soit jamais effacée par une capture partielle.
+        private void RestoreSavedCalibration()
+        {
+            float[] calibration = Options.Instance.GetCalibrationForPlayer(_playerIndex);
+            if (calibration != null && calibration.Length >= 8 && calibration[0] != -1)
+            {
+                _topLeftPt = new Point2F(calibration[0], calibration[1]);
+                _topRightPt = new Point2F(calibration[2], calibration[3]);
+                _bottomRightPt = new Point2F(calibration[4], calibration[5]);
+                _bottomLeftPt = new Point2F(calibration[6], calibration[7]);
+            }
+            else
+            {
+                _topLeftPt = _topRightPt = _bottomRightPt = _bottomLeftPt = null;
+            }
+
+            // EN/FR: PnP reference (focal + calibration distance) — the CENTER point is gone.
+            // (FR: référence PnP (focale + distance de calibration) — le point CENTRE a disparu.)
+            // [V70-AIM-CM-FIX] + the plain Wiimote Bar reference distance (pointer vs barrel cm).
+            _wbRefDistanceM = Options.Instance.GetWbReferenceDistance(_playerIndex);
+            if (EffLayout == LEDLayoutType.WiimoteBarPnP)
+            {
+                _pnpFocalX = Options.Instance.GetPnpEffectiveFocal(_playerIndex);
+                _pnpRefDistance = Options.Instance.GetPnpCalibrationDistance(_playerIndex);
+                _pnpRefSeparation = (_pnpRefDistance > 0f)
+                    ? (PnpLedSpacingMM * _pnpFocalX) / (_pnpRefDistance * 1000f)
+                    : 0f;
+                _pnpIROffsetM = Options.Instance.GetIROffsetMM(_playerIndex) / 1000f;
+            }
+        }
+
         public void EndCalibrate()
         {
             if (_calibrateForm == null)
                 return;
+
+            // [V70-CAL-CANCEL] EN: cancelled calibration → reload the previously saved
+            //     calibration (and the persisted center point) and skip the whole
+            //     persistence block below.
+            //     FR: calibration annulée → recharge la calibration enregistrée (et le point
+            //     central persisté) et saute tout le bloc de persistance ci-dessous.
+            if (_calibrationCancelled)
+            {
+                _calibrationCancelled = false;
+                RestoreSavedCalibration();
+
+                var cancelledForm = _calibrateForm;
+                _calibrateForm = null;
+                Program.PostToUIThread(() =>
+                {
+                    try { if (cancelledForm != null && !cancelledForm.IsDisposed) cancelledForm.Dispose(); }
+                    catch { }
+                    if (_irVisualizer != null && !_irVisualizer.IsDisposed)
+                    {
+                        _irVisualizer.Close();
+                        _irVisualizer.Dispose();
+                        _irVisualizer = null;
+                    }
+                });
+
+                SimpleLogger.Instance.Info(string.Format(
+                    "[P{0}] Calibration cancelled — previous calibration restored",
+                    _playerIndex));
+                return;
+            }
 
             // Permissive mode: Extrapolate missing BL point if only 3 points captured
             // (EN/FR: Mode permissif : Extrapoler point BL manquant si seulement 3 points capturés)
@@ -582,9 +685,14 @@ namespace WiimoteGun
                 Options.Instance.SetPnpEffectiveFocal(_playerIndex, _pnpFocalX);
                 Options.Instance.SetPnpCalibrationDistance(_playerIndex, _pnpRefDistance);
                 SimpleLogger.Instance.Info(string.Format(
-                    "[V59] PnP: reference persisted — focal={0:F3}, calDist={1:F2}m",
-                    _pnpFocalX, _pnpRefDistance));
+                    "[V59] PnP: reference persisted — focal={1:F3}, calDist={2:F2}m",
+                    _playerIndex, _pnpFocalX, _pnpRefDistance));
             }
+
+            // [V70-PNP-CENTER-REVERT] EN: nothing else to persist — the 5th CENTER point was
+            //     removed (it was captured/persisted but never used by the mapping).
+            //     FR: rien d'autre à persister — le 5e point CENTRE a été retiré (il était
+            //     capté/persisté mais jamais utilisé par le mapping).
 
             // [V59-FIX-13] EN: Persist the TwoWiimoteBars cross-calibration data
             //     (user request — the user should NOT have to recalibrate every
@@ -635,6 +743,26 @@ namespace WiimoteGun
             }
             if (_calibrationIRSpan > 0f)
             {
+                // [V70-AIM-CM-FIX] EN: persist the REFERENCE DISTANCE of the plain Wiimote Bar
+                //     layout (spacing × focal / span) so the "pointer vs barrel (cm)" conversion
+                //     keeps working after a restart — the in-memory calibration span is lost.
+                //     FR: persiste la distance de RÉFÉRENCE du layout Wiimote Bar simple
+                //     (écartement × focale / span) pour que la conversion « pointeur vs canon
+                //     (cm) » fonctionne encore après un redémarrage — le span en mémoire est perdu.
+                if (_ledLayout == LEDLayoutType.WiimoteBar)
+                {
+                    GetPnpGeometry(out float wbSpacingMM, out float wbFocalNorm);
+                    float wbRefDist = (wbSpacingMM / 1000f) * wbFocalNorm / _calibrationIRSpan;
+                    if (wbRefDist > 0.1f && wbRefDist < 20f)
+                    {
+                        _wbRefDistanceM = wbRefDist;
+                        Options.Instance.SetWbReferenceDistance(_playerIndex, wbRefDist);
+                        SimpleLogger.Instance.Info(string.Format(
+                            "[V70-AIM-CM-FIX] P{0}: Wiimote Bar reference distance persisted = {1:F2} m (span={2:F4}, focal={3:F3})",
+                            _playerIndex, wbRefDist, _calibrationIRSpan, wbFocalNorm));
+                    }
+                }
+
                 SimpleLogger.Instance.Info(string.Format("[P{0}] Distance Compensation: Calibration IR span memorized = {1:F4}", _playerIndex, _calibrationIRSpan));
                 // Initialize _lastIRSpan to calibration reference so compensation starts neutral (factor = 1.0)
                 // This ensures the corrective factor is preserved even when only 1 LED is visible (edge aiming),
@@ -679,7 +807,6 @@ namespace WiimoteGun
             // [V59] Reset PnP state
             // [V59-FIXES] _pnpFocalXIsSet removed (dead duplicate of the _pnpFocalX > 0
             // check) ; _pnpLastDistanceM added (live per-frame estimate).
-            // [V59-FIX-4] _pnpCenterPt removed (5th point dropped — user decision).
             _pnpFocalX = 0f;
             _pnpRefDistance = 0f;
             _pnpRefSeparation = 0f;
@@ -688,6 +815,7 @@ namespace WiimoteGun
             // [V59-FIX-3] Two-click capture state reset
             _pnpClickArmed = false;
             _pnpClickSamples.Clear();
+            // [V70-PNP-CENTER-REVERT] EN/FR: nothing else to reset (the CENTER point is gone).
             // [V59-FIX-5] Shared roll-invariance angle reset
             _ledRollSmoothedRad = 0f;
             // [V59-FIX-8] TwoWiimoteBars cross-calibration reset
@@ -898,8 +1026,8 @@ namespace WiimoteGun
                 //     WiimoteBar capture no longer shadows the PnP 2-click branch.
                 if (EffLayout == LEDLayoutType.WiimoteBar)
                 {
-                    // Capture 4 points sequentially: TopLeft → TopRight → BottomRight → BottomLeft
-                    // (EN/FR: Capturer 4 points séquentiellement : HautGauche → HautDroit → BasDroit → BasGauche)
+                    // [V70-PNP-CENTER-2] EN: Capture 4 corners then the CENTER (5th click).
+                    //     FR: Capturer 4 coins puis le CENTRE (5e clic).
                     if (!_topLeftPt.HasValue) _topLeftPt = _lastRawPoint;              // Step 1/4
                     else if (!_topRightPt.HasValue) _topRightPt = _lastRawPoint;       // Step 2/4
                     else if (!_bottomRightPt.HasValue && !_bottomLeftPt.HasValue)
@@ -935,6 +1063,10 @@ namespace WiimoteGun
                         }
                     }
                     else if (!_bottomLeftPt.HasValue) _bottomLeftPt = _lastRawPoint;   // Step 4/4
+                    // [V70-PNP-CENTER-REVERT] EN: 5th click removed — the CENTER point brought
+                    //     no gain (the bilinear map is fully determined by the 4 corners).
+                    //     FR: 5e clic retiré — le point CENTRE n'apportait aucun gain (la carte
+                    //     bilinéaire est entièrement déterminée par les 4 coins).
                 }
                 // [V59] EN: PnP 5-point capture with distance validation.
                 //     FR: Capture PnP 5 points avec validation de distance.
@@ -960,7 +1092,7 @@ namespace WiimoteGun
                         _pnpClickArmed = true;
                         _pnpClickSamples.Clear();
                         SimpleLogger.Instance.Info(string.Format(
-                            "[V59] PnP: point {0}/4 armed — hold steady and click again to confirm",
+                            "[V59] PnP: point {0}/5 armed — hold steady and click again to confirm",
                             PnpCapturedCount() + 1));
                     }
                     else
@@ -1023,14 +1155,10 @@ namespace WiimoteGun
                             //     si le tampon est vide).
                             Point2F captured = PnpMedianSample();
 
-                            // [V59-FIX-4] EN: Capture the point — 4 corners ONLY (the 5th
-                            //     center point and the anti-distortion anchor were
-                            //     removed — user decision, Δ measurements proved to be
-                            //     aim noise, not distortion).
-                            //     FR: Capture du point — 4 coins SEULEMENT (le 5e point
-                            //     central et l'ancre anti-distorsion ont été retirés —
-                            //     décision user, les mesures Δ étaient du bruit de visée,
-                            //     pas de la distorsion).
+                            // [V70-PNP-CENTER-REVERT] EN: Capture the point — 4 corners only
+                            //     (the 5th CENTER point was removed: no gain).
+                            //     FR: Capture du point — 4 coins seulement (le 5e point CENTRE
+                            //     a été retiré : aucun gain).
                             if (!_topLeftPt.HasValue) _topLeftPt = captured;
                             else if (!_topRightPt.HasValue) _topRightPt = captured;
                             else if (!_bottomRightPt.HasValue) _bottomRightPt = captured;
@@ -1162,6 +1290,34 @@ namespace WiimoteGun
                         float rawX = relativePosition.X;
                         float rawY = relativePosition.Y;
 
+                        // [V70-PNP-REPROJECTION] EN: opt-in projective correction (PnP Hybrid
+                        //     only) — instead of scaling the SCREEN output afterwards (what
+                        //     ApplyPnpCorrections does), the RAW measurement is brought back to
+                        //     its "calibration-distance equivalent" FIRST, then mapped by the
+                        //     (distance-fixed) bilinear base. Same mechanism as the single
+                        //     Wiimote Bar IR normalization, so the two layouts behave alike.
+                        //     factor = current separation / calibration separation
+                        //     (>1 = closer to the screen).
+                        //     FR: correction projective optionnelle (PnP Hybride uniquement) —
+                        //     au lieu de mettre à l'échelle la SORTIE écran ensuite (ce que fait
+                        //     ApplyPnpCorrections), la MESURE brute est ramenée à son « équivalent
+                        //     à la distance de calibration » AVANT, puis mappée par la base
+                        //     bilinéaire (figée en distance). Même mécanisme que la normalisation
+                        //     IR du layout 1 Wiimote Bar → comportement cohérent entre layouts.
+                        //     factor = séparation courante / séparation de calibration
+                        //     (>1 = plus proche de l'écran).
+                        if (EffLayout == LEDLayoutType.WiimoteBarPnP &&
+                            Options.Instance.PnpProjectiveCorrection &&
+                            _pnpLastSeparation > 0.0005f && _pnpRefSeparation > 0.0005f)
+                        {
+                            float projFactor = _pnpLastSeparation / _pnpRefSeparation;
+                            if (projFactor > 0.05f && projFactor < 20f)
+                            {
+                                rawX = 0.5f + (rawX - 0.5f) / projFactor;
+                                rawY = 0.5f + (rawY - 0.5f) / projFactor;
+                            }
+                        }
+
                         relativePosition.X = InterpolateX(rawX, rawY, _topLeftPt.Value, _topRightPt.Value, _bottomLeftPt.Value, _bottomRightPt.Value);
                         relativePosition.Y = InterpolateY(rawX, rawY, _topLeftPt.Value, _topRightPt.Value, _bottomLeftPt.Value, _bottomRightPt.Value);
 
@@ -1191,6 +1347,23 @@ namespace WiimoteGun
                         {
                             relativePosition.X = Math.Max(clamp2LedMin, Math.Min(clamp2LedMax, relativePosition.X));
                             relativePosition.Y = Math.Max(clamp2LedMin, Math.Min(clamp2LedMax, relativePosition.Y));
+                        }
+
+                        // [V70-PNP-CENTER-2] EN: pointer vs barrel offset (cm at the screen) for
+                        //     the single Wiimote Bar layout — applied in SCREEN space here (the
+                        //     distance compensation of this layout runs in raw camera space
+                        //     before the bilinear, so the PnP branch below is not used).
+                        //     Positive = pointer ABOVE the mechanical aim line.
+                        //     FR: offset pointeur vs canon (cm à l'écran) pour le layout Wiimote
+                        //     bar unique — appliqué en espace ÉCRAN ici (la compensation de
+                        //     distance de ce layout tourne en espace caméra brut avant le
+                        //     bilinéaire, donc la branche PnP n'est pas utilisée).
+                        //     Positif = pointeur AU-DESSUS de la ligne de visée mécanique.
+                        if (EffLayout == LEDLayoutType.WiimoteBar && TryGetAimNormPerMm(out float wbNormPerMm))
+                        {
+                            float wbAimCm = Options.Instance.GetPnpAimOffsetCM(_playerIndex);
+                            if (wbAimCm > 0.001f || wbAimCm < -0.001f)
+                                relativePosition.Y -= wbAimCm * wbNormPerMm;
                         }
 
                     }
@@ -1629,7 +1802,9 @@ namespace WiimoteGun
                 }
                 _calibrateForm.SetStep(currentStep);
                 // UpdateState: Pass 3 calibration points (EN/FR: Passer les 3 points de calibration)
-                _calibrateForm.UpdateState(relativePosition, _topLeftPt, _topRightPt, _bottomRightPt, _bottomLeftPt);
+                // [V70-PNP-CENTER-REVERT] EN: the optional 5th (CENTER) parameter stays null.
+                //     FR: le 5e paramètre optionnel (CENTRE) reste nul.
+                _calibrateForm.UpdateState(relativePosition, _topLeftPt, _topRightPt, _bottomRightPt, _bottomLeftPt, null);
 
                 // [V59-FIXES] EN: Live distance readout while aiming at each PnP target —
                 //     the [dist: x.xx m] line refreshes every frame, not only on clicks.
@@ -3388,7 +3563,7 @@ namespace WiimoteGun
             return new Point2F(xs[n / 2], ys[n / 2]);
         }
 
-        // [V59-FIX-3] EN: Number of PnP Hybrid points already captured (0-4).
+        // [V70-PNP-CENTER-REVERT] EN: Number of PnP Hybrid points already captured (0-4).
         //     FR: Nombre de points PnP Hybrid déjà capturés (0-4).
         private int PnpCapturedCount()
         {
@@ -3477,6 +3652,109 @@ namespace WiimoteGun
         //     FR: Estimation de distance PnP en direct pour le visualiseur IR (0 = inconnue).
         public float PnpLastDistanceM { get { return _pnpLastDistanceM; } }
 
+        // [V70-PNP-CENTER-REVERT] EN: the anchor helper was removed — the distance compensation
+        //     is always anchored to the screen center (0.5, 0.5).
+        //     FR: l'aide à l'ancre a été retirée — la compensation de distance est toujours
+        //     ancrée au centre de l'écran (0.5, 0.5).
+
+        // [V70-PNP-AIM-CONVENTION] EN: conversion factor of the "pointer vs barrel" offset
+        //     (centimeters AT THE SCREEN → normalized screen units). The full screen height at the
+        //     calibration distance is refDist / focal meters, hence
+        //     normPerMM = focal / (1000 × refDist). Works for both affected layouts:
+        //     PnP Hybrid (persisted reference) and the plain Wiimote Bar (reference distance
+        //     derived from the calibration IR span).
+        // FR: facteur de conversion de l'offset « pointeur vs canon » (cm À L'ÉCRAN → unités
+        //     écran normalisées). La hauteur pleine de l'écran à la distance de calibration vaut
+        //     refDist / focale mètres, d'où normParMM = focale / (1000 × refDist). Valable pour
+        //     les deux layouts concernés : PnP Hybride (référence persistée) et Wiimote Bar
+        //     simple (distance de référence déduite du span IR de calibration).
+        private bool TryGetAimNormPerMm(out float normPerMm)
+        {
+            normPerMm = 0f;
+
+            if (EffLayout == LEDLayoutType.WiimoteBarPnP)
+            {
+                float pnpAimCm = Options.Instance.GetPnpAimOffsetCM(_playerIndex);
+                if (pnpAimCm == 0f) return false;
+                if (_pnpRefDistance > 0f && _pnpFocalX > 0f)
+                {
+                    normPerMm = _pnpFocalX / (1000f * _pnpRefDistance);
+                    LogAimOffsetApplied(pnpAimCm, normPerMm);
+                    return normPerMm > 0f;
+                }
+                // [V70-AIM-CM-DIAG] EN/FR: the value is set but the PnP reference is missing —
+                // log it (throttled) instead of silently doing nothing.
+                // (FR: valeur réglée mais référence PnP absente — on le journalise (throttlé)
+                //  au lieu de ne rien faire en silence.)
+                LogAimOffsetWarning("PnP Hybrid reference not available (focal={0:F3}, refDist={1:F2}m) — RECALIBRATE to enable it".Replace("{0:F3}", _pnpFocalX.ToString("F3")).Replace("{1:F2}", _pnpRefDistance.ToString("F2")));
+                return false;
+            }
+
+            if (_ledLayout == LEDLayoutType.WiimoteBar)
+            {
+                float aimCm = Options.Instance.GetPnpAimOffsetCM(_playerIndex);
+                if (aimCm == 0f) return false;
+                // [V70-AIM-CM-FIX] EN: use the PERSISTED reference distance first; the in-memory
+                //     calibration span is only a fallback (it is lost on restart).
+                //     FR: utilise d'abord la distance de référence PERSISTÉE ; le span de
+                //     calibration en mémoire n'est qu'un repli (il est perdu au redémarrage).
+                GetPnpGeometry(out float spacingMM, out float focalNorm);
+                float refDist = _wbRefDistanceM;
+                if (refDist <= 0.1f)
+                {
+                    if (_calibrationIRSpan <= 0f)
+                    {
+                        LogAimOffsetWarning("no reference distance (Wiimote Bar) — RECALIBRATE to enable it");
+                        return false;
+                    }
+                    refDist = (spacingMM / 1000f) * focalNorm / _calibrationIRSpan;
+                }
+                if (refDist <= 0.1f || refDist > 20f || focalNorm <= 0f) return false;
+                normPerMm = focalNorm / (1000f * refDist);
+                LogAimOffsetApplied(aimCm, normPerMm);
+                return normPerMm > 0f;
+            }
+
+            return false;
+        }
+
+        // [V70-AIM-CM-DIAG] EN/FR: throttled logging of the "pointer vs barrel" offset so the user
+        //     can confirm in WiimoteGun.log that it IS applied (and with which magnitude).
+        //     FR: journalisation throttlée de l'offset « pointeur vs canon » pour que
+        //     l'utilisateur puisse confirmer dans WiimoteGun.log qu'il EST appliqué (et avec
+        //     quelle amplitude).
+        private float _aimLoggedCm = float.NaN;
+        private DateTime _aimLoggedAt = DateTime.MinValue;
+        private DateTime _aimWarnLoggedAt = DateTime.MinValue;
+
+        private void LogAimOffsetApplied(float aimCm, float normPerMm)
+        {
+            DateTime now = DateTime.UtcNow;
+            bool changed = Math.Abs(aimCm - _aimLoggedCm) > 0.001f;
+            if (changed || (now - _aimLoggedAt).TotalSeconds > 5.0)
+            {
+                _aimLoggedCm = aimCm;
+                _aimLoggedAt = now;
+                float normShift = aimCm * normPerMm;
+                SimpleLogger.Instance.Info(string.Format(
+                    "[V70-AIM-CM] P{0}: pointer vs barrel = {1:+0.0;-0.0;0.0} cm -> shift {2:+0.00%;-0.00%;0.0%} of the screen height (APPLIED)",
+                    _playerIndex, aimCm, normShift));
+            }
+        }
+
+        private void LogAimOffsetWarning(string reason)
+        {
+            DateTime now = DateTime.UtcNow;
+            if ((now - _aimWarnLoggedAt).TotalSeconds > 5.0)
+            {
+                _aimWarnLoggedAt = now;
+                float cm = Options.Instance.GetPnpAimOffsetCM(_playerIndex);
+                SimpleLogger.Instance.Warning(string.Format(
+                    "[V70-AIM-CM] P{0}: pointer vs barrel = {1:+0.0;-0.0;0.0} cm but NOT applied — {2}",
+                    _playerIndex, cm, reason));
+            }
+        }
+
         // EN: Apply PnP 3D corrections on top of the bilinear base mapping.
         //     FR: Applique les corrections 3D PnP par-dessus le mapping bilinéaire de base.
         private void ApplyPnpCorrections(ref Point2F pos, WiimoteLib.DataTypes.IRState ir)
@@ -3558,18 +3836,51 @@ namespace WiimoteGun
             //     progressivement à pleine amplitude à 10 % — à distance fixe le mode
             //     se comporte exactement comme le bilinéaire pur et ne s'enclenche
             //     que sur de VRAIS déplacements.
+            // [V70-PNP-REPROJECTION] EN: with the opt-in projective correction ON, this screen-space
+            //     scaling is SKIPPED — the distance is already handled in RAW camera space before
+            //     the bilinear mapping (see the V70-PNP-REPROJECTION block there). Applying both
+            //     would correct the same error twice.
+            //     FR: avec la correction projective optionnelle activée, cette mise à l'échelle en
+            //     espace écran est SAUTÉE — la distance est déjà traitée en espace caméra brut
+            //     avant le mapping bilinéaire (bloc V70-PNP-REPROJECTION). Appliquer les deux
+            //     corrigerait deux fois la même erreur.
+            bool projective = Options.Instance.PnpProjectiveCorrection;
+            if (!projective)
             {
                 float sr = _pnpSmoothedDistRatio;
                 float gate = Math.Max(0f, Math.Min(1f, (Math.Abs(sr - 1f) - 0.05f) / 0.05f));
                 if (gate > 0f)
                 {
                     float srEff = 1f + (sr - 1f) * gate;
-                    // Scale the offset from center (0.5, 0.5) by the gated distance ratio
-                    // (EN/FR: Mettre à l'échelle l'offset par rapport au centre (0.5, 0.5))
+                    // [V70-PNP-CENTER-REVERT] EN: back to the screen center (0.5, 0.5) — the
+                    //     CENTER calibration point and its custom anchor were removed (no gain).
+                    // FR: retour au centre de l'écran (0.5, 0.5) — le point CENTRE de
+                    //     calibration et son ancre dédiée ont été retirés (aucun gain).
                     float offX = pos.X - 0.5f;
                     float offY = pos.Y - 0.5f;
                     pos.X = 0.5f + offX * srEff;
                     pos.Y = 0.5f + offY * srEff;
+                }
+            }
+
+            // [V70-PNP-AIM-CONVENTION] EN/FR: pointer vs barrel line (cm, at the screen) — a
+            //     constant SCREEN offset chosen by the player so the pointer sits in front of
+            //     the gun's mechanical aim point (slightly above/below). Converted to
+            //     normalized units with the calibration geometry: the full screen height at the
+            //     calibration distance is refDist / focal meters, so
+            //     normPerMM = focal / (1000 × refDist). Positive = pointer ABOVE the aim line.
+            // FR: pointeur vs ligne de visée du canon (cm, à l'écran) — décalage d'ÉCRAN
+            //     constant choisi par le joueur pour placer le pointeur devant le point de
+            //     visée mécanique (un peu au-dessus/au-dessous). Converti en unités normalisées
+            //     avec la géométrie de calibration : la hauteur pleine de l'écran à la distance
+            //     de calibration vaut refDist / focal mètres, donc
+            //     normParMM = focal / (1000 × refDist). Positif = pointeur AU-DESSUS de la visée.
+            if (_pnpRefDistance > 0f && _pnpFocalX > 0f && TryGetAimNormPerMm(out float aimNormPerMm))
+            {
+                float aimCm = Options.Instance.GetPnpAimOffsetCM(_playerIndex);
+                if (aimCm > 0.001f || aimCm < -0.001f)
+                {
+                    pos.Y -= aimCm * aimNormPerMm; // +cm = above the aim line = smaller normalized Y
                 }
             }
 

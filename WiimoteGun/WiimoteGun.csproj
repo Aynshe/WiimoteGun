@@ -474,6 +474,9 @@
     <EmbeddedResource Include="UI\Modern\Controls\HomeControl.resx">
       <DependentUpon>HomeControl.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="UI\Modern\Controls\IRControl.resx">
+      <DependentUpon>IRControl.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="UI\Modern\Controls\MappingControl.resx">
       <DependentUpon>MappingControl.cs</DependentUpon>
     </EmbeddedResource>

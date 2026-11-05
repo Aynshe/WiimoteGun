@@ -235,6 +235,24 @@ namespace WiimoteGun.Controls
                 "Utilisé avec l'écartement LED pour calculer la distance EXACTE.");
             _toolTips.SetToolTip(lblPnpLensFov, _toolTips.GetToolTip(optPnpLensFov));
 
+            // [V70-PNP-REPROJECTION] EN/FR: Tooltip of the projective distance correction.
+            _toolTips.SetToolTip(chkPnpProjective,
+                "PROJECTIVE DISTANCE CORRECTION (Hybrid PnP):\r\n" +
+                "Alternative way to compensate the distance: the IR measurement is first brought\r\n" +
+                "back to its CALIBRATION-distance equivalent (like the single Wiimote Bar layout\r\n" +
+                "does), and the mapping is kept untouched — instead of scaling the aim on screen\r\n" +
+                "after the mapping.\r\n" +
+                "Test it A/B: check it, walk towards the screen and see whether the aim holds its\r\n" +
+                "height better; uncheck to come back to the previous behaviour.\r\n" +
+                "\r\n" +
+                "CORRECTION PROJECTIVE DE DISTANCE (Hybride PnP) :\r\n" +
+                "Autre façon de compenser la distance : la mesure IR est d'abord ramenée à son\r\n" +
+                "équivalent à la distance de CALIBRATION (comme le fait le layout 1 Wiimote Bar),\r\n" +
+                "puis le mapping est utilisé tel quel — au lieu de mettre la visée à l'échelle à\r\n" +
+                "l'écran après le mapping.\r\n" +
+                "À tester en A/B : cochez-la, avancez vers l'écran et voyez si la visée tient mieux\r\n" +
+                "sa hauteur ; décochez pour revenir au comportement précédent.");
+
             // [V54] Explanatory tooltips for the two Off-Screen Reload options
             // (EN/FR: Bulles d'explication pour les deux options de rechargement hors-écran)
             _toolTips.SetToolTip(optEnableOffScreenReload,
@@ -635,6 +653,10 @@ namespace WiimoteGun.Controls
                 chkWmPnpExtrapolation.Visible = (isWm && chkWmHybridPnp.Checked) || (isTwb && chkTwbHybridPnp.Checked);
             bool hybrid = (isWm && chkWmHybridPnp.Checked) || (isTwb && chkTwbHybridPnp.Checked);
             chkPnpDeclareGeometry.Visible = hybrid;
+            // [V70-PNP-REPROJECTION] EN: the projective correction toggle shows with the PnP hybrid.
+            //     FR: la case de correction projective s'affiche avec l'hybride PnP.
+            if (chkPnpProjective != null)
+                chkPnpProjective.Visible = hybrid;
             bool declared = hybrid && chkPnpDeclareGeometry.Checked;
             lblPnpLedSpacing.Visible = declared;
             optPnpLedSpacing.Visible = declared;
@@ -913,6 +935,9 @@ namespace WiimoteGun.Controls
                     optPnpLedSpacing.Value = Math.Min(Math.Max((decimal)Options.Instance.PnpLedSpacingMM, optPnpLedSpacing.Minimum), optPnpLedSpacing.Maximum);
                     optPnpLensFov.Value = Math.Min(Math.Max((decimal)Options.Instance.PnpLensFovDeg, optPnpLensFov.Minimum), optPnpLensFov.Maximum);
                 }
+                // [V70-PNP-REPROJECTION] EN/FR: projective distance correction state.
+                if (chkPnpProjective != null)
+                    chkPnpProjective.Checked = Options.Instance.PnpProjectiveCorrection;
                 optIRSensitivity.Value = Math.Min(Math.Max(Options.Instance.IRSensitivity, optIRSensitivity.Minimum), optIRSensitivity.Maximum);
                 optShowNotifications.Checked = Options.Instance.ShowNotifications;
                 optEnableGamePadSwap.Checked = Options.Instance.EnableGamePadSwapMode;
@@ -1499,6 +1524,9 @@ namespace WiimoteGun.Controls
                     Options.Instance.PnpLedSpacingMM = (float)optPnpLedSpacing.Value;
                     Options.Instance.PnpLensFovDeg = (float)optPnpLensFov.Value;
                 }
+                // [V70-PNP-REPROJECTION] EN/FR: projective distance correction value.
+                if (chkPnpProjective != null)
+                    Options.Instance.PnpProjectiveCorrection = chkPnpProjective.Checked;
 
                 Options.Instance.IRSensitivity = (int)optIRSensitivity.Value;
                 Options.Instance.ShowNotifications = optShowNotifications.Checked;
