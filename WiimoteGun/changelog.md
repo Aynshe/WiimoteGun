@@ -1,5 +1,17 @@
 # Wiimote4Guns Changelog
 
+## v3.1.7.1
+
+### [EN] Aim & calibration
+- **New "Projective distance correction" option (Hybrid PnP)** — disabled by default. It compensates the distance in a different way: the IR measurement is first brought back to its "calibration-distance equivalent" before the mapping, so the aim keeps its height better when you walk towards the screen or away from it. To test it: enable it, move, and compare with the previous behaviour — **if the result is not what you expect, disable it** (your previous behaviour comes back instantly, no recalibration needed).
+- **The mouse cursor is locked at the center of the screen during calibration** — it no longer wanders over the targets, and it is unlocked as soon as the calibration is finished or aborted.
+
+### [FR] Visée & calibration
+- **Nouvelle option « Projective distance correction » (Hybride PnP)** — désactivée par défaut. Elle compense la distance autrement : la mesure IR est d'abord ramenée à son « équivalent à la distance de calibration », ce qui permet à la visée de mieux tenir sa hauteur quand on avance vers l'écran ou qu'on s'en éloigne. Pour la tester : activez-la, déplacez-vous, comparez avec le comportement précédent — **si le résultat n'est pas celui attendu, désactivez-la** (le comportement précédent revient aussitôt, sans recalibration).
+- **Le curseur souris est verrouillé au centre de l'écran pendant la calibration** — il n'erre plus sur les cibles, et il est déverrouillé dès que la calibration est terminée ou annulée.
+
+---
+
 ## v3.1.7.0
 
 ### [EN] Output - game-driven rumble (new tab in Options)

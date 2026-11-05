@@ -71,6 +71,7 @@
             this.chkWmHybridPnp = new System.Windows.Forms.CheckBox();
             this.chkWmPnpExtrapolation = new System.Windows.Forms.CheckBox();
             this.chkPnpDeclareGeometry = new System.Windows.Forms.CheckBox();
+            this.chkPnpProjective = new System.Windows.Forms.CheckBox();
             this.lblPnpLedSpacing = new System.Windows.Forms.Label();
             this.optPnpLedSpacing = new System.Windows.Forms.NumericUpDown();
             this.lblPnpLensFov = new System.Windows.Forms.Label();
@@ -397,6 +398,7 @@
             this.tabGeneral.Controls.Add(this.chkWmHybridPnp);
             this.tabGeneral.Controls.Add(this.chkWmPnpExtrapolation);
             this.tabGeneral.Controls.Add(this.chkPnpDeclareGeometry);
+            this.tabGeneral.Controls.Add(this.chkPnpProjective);
             this.tabGeneral.Controls.Add(this.lblPnpLedSpacing);
             this.tabGeneral.Controls.Add(this.optPnpLedSpacing);
             this.tabGeneral.Controls.Add(this.lblPnpLensFov);
@@ -882,7 +884,7 @@
             "Gun4IR Diamond",
             "Two Wiimote Bars (Or Blacom)",
             "Four Corners"});
-            this.optLEDLayout.Location = new System.Drawing.Point(140, 104);
+            this.optLEDLayout.Location = new System.Drawing.Point(144, 64);
             this.optLEDLayout.Name = "optLEDLayout";
             this.optLEDLayout.Size = new System.Drawing.Size(200, 23);
             this.optLEDLayout.TabIndex = 1;
@@ -892,7 +894,7 @@
             // 
             this.lblLEDLayout.Font = new System.Drawing.Font("Segoe UI", 9.5F);
             this.lblLEDLayout.ForeColor = System.Drawing.Color.White;
-            this.lblLEDLayout.Location = new System.Drawing.Point(10, 104);
+            this.lblLEDLayout.Location = new System.Drawing.Point(14, 64);
             this.lblLEDLayout.Name = "lblLEDLayout";
             this.lblLEDLayout.Size = new System.Drawing.Size(120, 25);
             this.lblLEDLayout.TabIndex = 0;
@@ -903,7 +905,7 @@
             // 
             this.optMonitorId.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
             this.optMonitorId.ForeColor = System.Drawing.Color.White;
-            this.optMonitorId.Location = new System.Drawing.Point(140, 63);
+            this.optMonitorId.Location = new System.Drawing.Point(144, 36);
             this.optMonitorId.Maximum = new decimal(new int[] {
             9,
             0,
@@ -917,7 +919,7 @@
             // 
             this.lblMonitorId.Font = new System.Drawing.Font("Segoe UI", 9.5F);
             this.lblMonitorId.ForeColor = System.Drawing.Color.White;
-            this.lblMonitorId.Location = new System.Drawing.Point(10, 63);
+            this.lblMonitorId.Location = new System.Drawing.Point(14, 36);
             this.lblMonitorId.Name = "lblMonitorId";
             this.lblMonitorId.Size = new System.Drawing.Size(120, 25);
             this.lblMonitorId.TabIndex = 0;
@@ -928,7 +930,7 @@
             // 
             this.chkTwbHybridPnp.AutoSize = true;
             this.chkTwbHybridPnp.ForeColor = System.Drawing.Color.White;
-            this.chkTwbHybridPnp.Location = new System.Drawing.Point(140, 136);
+            this.chkTwbHybridPnp.Location = new System.Drawing.Point(140, 99);
             this.chkTwbHybridPnp.Name = "chkTwbHybridPnp";
             this.chkTwbHybridPnp.Size = new System.Drawing.Size(134, 17);
             this.chkTwbHybridPnp.TabIndex = 2;
@@ -940,7 +942,7 @@
             // 
             this.chkWmHybridPnp.AutoSize = true;
             this.chkWmHybridPnp.ForeColor = System.Drawing.Color.White;
-            this.chkWmHybridPnp.Location = new System.Drawing.Point(140, 136);
+            this.chkWmHybridPnp.Location = new System.Drawing.Point(140, 99);
             this.chkWmHybridPnp.Name = "chkWmHybridPnp";
             this.chkWmHybridPnp.Size = new System.Drawing.Size(134, 17);
             this.chkWmHybridPnp.TabIndex = 3;
@@ -952,7 +954,7 @@
             // 
             this.chkWmPnpExtrapolation.AutoSize = true;
             this.chkWmPnpExtrapolation.ForeColor = System.Drawing.Color.White;
-            this.chkWmPnpExtrapolation.Location = new System.Drawing.Point(288, 136);
+            this.chkWmPnpExtrapolation.Location = new System.Drawing.Point(288, 99);
             this.chkWmPnpExtrapolation.Name = "chkWmPnpExtrapolation";
             this.chkWmPnpExtrapolation.Size = new System.Drawing.Size(96, 17);
             this.chkWmPnpExtrapolation.TabIndex = 3;
@@ -963,7 +965,7 @@
             // 
             this.chkPnpDeclareGeometry.AutoSize = true;
             this.chkPnpDeclareGeometry.ForeColor = System.Drawing.Color.White;
-            this.chkPnpDeclareGeometry.Location = new System.Drawing.Point(140, 158);
+            this.chkPnpDeclareGeometry.Location = new System.Drawing.Point(140, 143);
             this.chkPnpDeclareGeometry.Name = "chkPnpDeclareGeometry";
             this.chkPnpDeclareGeometry.Size = new System.Drawing.Size(227, 17);
             this.chkPnpDeclareGeometry.TabIndex = 3;
@@ -971,11 +973,22 @@
             this.chkPnpDeclareGeometry.Visible = false;
             this.chkPnpDeclareGeometry.CheckedChanged += new System.EventHandler(this.ChkPnpDeclareGeometry_CheckedChanged);
             // 
+            // chkPnpProjective
+            // 
+            this.chkPnpProjective.AutoSize = true;
+            this.chkPnpProjective.ForeColor = System.Drawing.Color.White;
+            this.chkPnpProjective.Location = new System.Drawing.Point(140, 121);
+            this.chkPnpProjective.Name = "chkPnpProjective";
+            this.chkPnpProjective.Size = new System.Drawing.Size(194, 17);
+            this.chkPnpProjective.TabIndex = 106;
+            this.chkPnpProjective.Text = "Projective distance correction (A/B)";
+            this.chkPnpProjective.Visible = false;
+            // 
             // lblPnpLedSpacing
             // 
             this.lblPnpLedSpacing.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.lblPnpLedSpacing.ForeColor = System.Drawing.Color.White;
-            this.lblPnpLedSpacing.Location = new System.Drawing.Point(10, 180);
+            this.lblPnpLedSpacing.Location = new System.Drawing.Point(10, 168);
             this.lblPnpLedSpacing.Name = "lblPnpLedSpacing";
             this.lblPnpLedSpacing.Size = new System.Drawing.Size(124, 20);
             this.lblPnpLedSpacing.TabIndex = 102;
@@ -985,7 +998,7 @@
             // 
             // optPnpLedSpacing
             // 
-            this.optPnpLedSpacing.Location = new System.Drawing.Point(140, 178);
+            this.optPnpLedSpacing.Location = new System.Drawing.Point(140, 166);
             this.optPnpLedSpacing.Maximum = new decimal(new int[] {
             1000,
             0,
@@ -1010,7 +1023,7 @@
             // 
             this.lblPnpLensFov.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.lblPnpLensFov.ForeColor = System.Drawing.Color.White;
-            this.lblPnpLensFov.Location = new System.Drawing.Point(240, 180);
+            this.lblPnpLensFov.Location = new System.Drawing.Point(240, 168);
             this.lblPnpLensFov.Name = "lblPnpLensFov";
             this.lblPnpLensFov.Size = new System.Drawing.Size(88, 20);
             this.lblPnpLensFov.TabIndex = 104;
@@ -1020,7 +1033,7 @@
             // 
             // optPnpLensFov
             // 
-            this.optPnpLensFov.Location = new System.Drawing.Point(328, 178);
+            this.optPnpLensFov.Location = new System.Drawing.Point(328, 166);
             this.optPnpLensFov.Maximum = new decimal(new int[] {
             250,
             0,
@@ -1048,7 +1061,7 @@
             "SendInput",
             "RawInput (VMulti)",
             "RawInput (UMDF2)"});
-            this.optMouseMode.Location = new System.Drawing.Point(140, 22);
+            this.optMouseMode.Location = new System.Drawing.Point(144, 5);
             this.optMouseMode.Name = "optMouseMode";
             this.optMouseMode.Size = new System.Drawing.Size(200, 23);
             this.optMouseMode.TabIndex = 1;
@@ -1057,7 +1070,7 @@
             // 
             this.lblMouseMode.Font = new System.Drawing.Font("Segoe UI", 9.5F);
             this.lblMouseMode.ForeColor = System.Drawing.Color.White;
-            this.lblMouseMode.Location = new System.Drawing.Point(10, 22);
+            this.lblMouseMode.Location = new System.Drawing.Point(14, 5);
             this.lblMouseMode.Name = "lblMouseMode";
             this.lblMouseMode.Size = new System.Drawing.Size(120, 25);
             this.lblMouseMode.TabIndex = 0;
@@ -2316,6 +2329,8 @@
         private System.Windows.Forms.CheckBox chkWmPnpExtrapolation;
         // [V59-FIX-10] EN/FR: Declared-geometry controls (PNP-Hybrid layout)
         private System.Windows.Forms.CheckBox chkPnpDeclareGeometry;
+        // [V70-PNP-REPROJECTION] EN/FR: opt-in projective distance correction (PnP Hybrid)
+        private System.Windows.Forms.CheckBox chkPnpProjective;
         private System.Windows.Forms.Label lblPnpLedSpacing;
         private System.Windows.Forms.NumericUpDown optPnpLedSpacing;
         private System.Windows.Forms.Label lblPnpLensFov;

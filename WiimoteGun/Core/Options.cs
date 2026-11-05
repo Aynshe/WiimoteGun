@@ -1255,6 +1255,19 @@ namespace WiimoteGun
         //     omitted and revert to constructor default (33f) on restart!
         public float PnpLensFovDeg { get; set; } = 38f; // [V59-FIX-28] Default 38 deg (measured Wiimote sensor baseline)
 
+        // [V70-PNP-REPROJECTION] EN: opt-in projective distance correction for PnP Hybrid: the
+        //     RAW IR measurement is brought back to its calibration-distance equivalent BEFORE
+        //     the bilinear mapping (same mechanism as the single Wiimote Bar IR normalization),
+        //     instead of scaling the screen output afterwards. Compare A/B with it off (the
+        //     default, historical behaviour).
+        //     FR: correction projective de distance optionnelle (PnP Hybride) : la MESURE IR
+        //     brute est ramenée à son équivalent à la distance de calibration AVANT le mapping
+        //     bilinéaire (même mécanisme que la normalisation IR du layout 1 Wiimote Bar), au
+        //     lieu de mettre à l'échelle la sortie écran ensuite. Comparer A/B avec l'option
+        //     désactivée (défaut = comportement historique).
+        [DefaultValue(false)]
+        public bool PnpProjectiveCorrection { get; set; }
+
         // [V59-FIXES] EN: PnP per-player state, SERIALIZED in settings.cfg via public
         //     arrays (XmlSerializer only persists public members — the previous private
         //     backing fields were silently lost on every restart). Index = P1..P4.
@@ -1267,6 +1280,96 @@ namespace WiimoteGun
         public float[] PnpIROffsetMMPlayers { get; set; } = new float[] { 30f, 30f, 30f, 30f };
         public float[] PnpCalDistPlayers { get; set; } = new float[4];
         public float[] PnpFocalPlayers { get; set; } = new float[4];
+
+        // [V70-AIM-CM-FIX] EN: reference distance (meters) of the PLAIN Wiimote Bar layout,
+        //     computed at the end of a calibration from the IR span (spacing × focal / span) and
+        //     persisted so the "pointer vs barrel (cm)" conversion keeps working after a restart
+        //     (the in-memory calibration span is lost on restart).
+        // FR: distance de RÉFÉRENCE (mètres) du layout Wiimote Bar simple, calculée en fin de
+        //     calibration depuis le span IR (écartement × focale / span) et persistée pour que la
+        //     conversion « pointeur vs canon (cm) » continue de fonctionner après un redémarrage
+        //     (le span de calibration en mémoire est perdu au redémarrage).
+        // [V70-AIM-CM-IGNORE] EN: XmlIgnore at the user's request — this setting is NOT written to
+        //     settings.cfg anymore (it stays usable for the current session only). The property
+        //     itself is kept so the existing UI/engine code keeps compiling.
+        // FR: XmlIgnore à la demande de l'utilisateur — ce réglage n'est PLUS écrit dans
+        //     settings.cfg (il ne vaut que pour la session en cours). La propriété est conservée
+        //     pour que le code UI/moteur existant compile toujours.
+        [XmlIgnore]
+        public float[] WbRefDistPlayers { get; set; } = new float[4];
+
+        /// <summary>EN: reference distance (m) of the plain Wiimote Bar calibration.
+        /// FR: distance de référence (m) de la calibration Wiimote Bar simple.</summary>
+        public float GetWbReferenceDistance(int playerIndex)
+        {
+            if (WbRefDistPlayers == null || WbRefDistPlayers.Length < 4)
+                WbRefDistPlayers = new float[4];
+            if (playerIndex >= 1 && playerIndex <= 4) return WbRefDistPlayers[playerIndex - 1];
+            return 0f;
+        }
+
+        /// <summary>EN: set the plain Wiimote Bar reference distance (m).
+        /// FR: règle la distance de référence (m) Wiimote Bar simple.</summary>
+        public void SetWbReferenceDistance(int playerIndex, float value)
+        {
+            if (WbRefDistPlayers == null || WbRefDistPlayers.Length < 4)
+                WbRefDistPlayers = new float[4];
+            if (playerIndex >= 1 && playerIndex <= 4) WbRefDistPlayers[playerIndex - 1] = value;
+        }
+
+        // [V70-PNP-AIM-CONVENTION] EN: pointer vs the gun's mechanical aim line, in
+        //     CENTIMETERS AT THE SCREEN (positive = pointer above the line). A constant
+        //     screen offset chosen by the player so the pointer sits in front of the gun tip.
+        //     Default 0 = the calibration's own convention (pointer on the aim line).
+        //     [V70-PNP-CENTER-REVERT] note: the previous CENTER calibration point storage was
+        //     removed (no gain) — a leftover <PnpCenterPlayers> element in settings.cfg is
+        //     simply ignored by the XmlSerializer.
+        // FR: pointeur vs ligne de visée mécanique du gun, en CENTIMÈTRES À L'ÉCRAN
+        //     (positif = pointeur au-dessus de la ligne). Décalage d'écran constant choisi par
+        //     le joueur pour placer le pointeur devant le bout du canon. Défaut 0 = convention
+        //     de la calibration (pointeur sur la ligne de visée).
+        //     [V70-PNP-CENTER-REVERT] : le stockage du point CENTRE de calibration a été retiré
+        //     (aucun gain) — un élément <PnpCenterPlayers> résiduel dans settings.cfg est
+        //     simplement ignoré par le XmlSerializer.
+        // [V70-AIM-CM-IGNORE] EN: XmlIgnore at the user's request — not persisted in settings.cfg
+        //     (session-only value); the property remains so the existing UI keeps working.
+        //     A leftover <PnpAimOffsetCMPlayers> element in settings.cfg is simply ignored by the
+        //     XmlSerializer (and stripped on the next save via the unknown-element handler).
+        // FR: XmlIgnore à la demande de l'utilisateur — non persisté dans settings.cfg (valeur de
+        //     session uniquement) ; la propriété reste pour que l'UI existante fonctionne. Un
+        //     élément <PnpAimOffsetCMPlayers> résiduel est ignoré par le XmlSerializer (et retiré
+        //     à la prochaine sauvegarde via le gestionnaire d'éléments inconnus).
+        [XmlIgnore]
+        public float[] PnpAimOffsetCMPlayers { get; set; } = new float[4];
+
+        /// <summary>EN: pointer vs barrel offset (cm at the screen).
+        /// FR: offset pointeur vs canon (cm à l'écran).</summary>
+        public float GetPnpAimOffsetCM(int playerIndex)
+        {
+            if (PnpAimOffsetCMPlayers == null || PnpAimOffsetCMPlayers.Length < 4)
+                PnpAimOffsetCMPlayers = new float[4];
+            if (playerIndex >= 1 && playerIndex <= 4)
+            {
+                float v = PnpAimOffsetCMPlayers[playerIndex - 1];
+                if (v < -20f) v = -20f;
+                if (v > 20f) v = 20f;
+                return v;
+            }
+            return 0f;
+        }
+
+        /// <summary>EN: set the pointer vs barrel offset (cm). FR: règle l'offset (cm).</summary>
+        public void SetPnpAimOffsetCM(int playerIndex, float value)
+        {
+            if (PnpAimOffsetCMPlayers == null || PnpAimOffsetCMPlayers.Length < 4)
+                PnpAimOffsetCMPlayers = new float[4];
+            if (playerIndex >= 1 && playerIndex <= 4)
+            {
+                if (value < -20f) value = -20f;
+                if (value > 20f) value = 20f;
+                PnpAimOffsetCMPlayers[playerIndex - 1] = value;
+            }
+        }
 
         public float GetIROffsetMM(int playerIndex)
         {

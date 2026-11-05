@@ -22,9 +22,9 @@ namespace WiimoteGun.Controls
             //     du Designer, le changement de police racine (ApplyFonts) faisait RE-SCALER les
             //     enfants par WinForms PAR-DESSUS notre Scale (double-scale). None supprime cette
             //     interference.
-            this.AutoScaleMode = AutoScaleMode.None;
+            this.            AutoScaleMode = AutoScaleMode.None;
             BindEvents();
-            
+
             // Default selection
             cbIRPlayerSelect.SelectedIndex = 0;
 

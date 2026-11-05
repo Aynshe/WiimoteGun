@@ -56,12 +56,22 @@ namespace WiimoteGun.UI.Calibrate
             switch (_ledLayout)
             {
                 case LEDLayoutType.WiimoteBar:
-                    _totalCalibrationSteps = 4;  // 4-POINT CALIBRATION (EN/FR: CALIBRATION 4-POINTS)
-                    break;
-                // [V59-FIX-4] WiimoteBarPnP: 4 corners ONLY (the 5th center point was
-                // removed — user decision)
-                case LEDLayoutType.WiimoteBarPnP:
+                    // [V70-PNP-CENTER-REVERT] EN: back to the 4-corner calibration — the 5th
+                    //     CENTER point was removed (proven useless: the bilinear map is fully
+                    //     determined by the 4 corners and the center was not used anywhere).
+                    //     FR: retour à la calibration 4 coins — le 5e point CENTRE retiré
+                    //     (inutile : la carte bilinéaire est entièrement déterminée par les
+                    //     4 coins et le centre n'était utilisé nulle part).
                     _totalCalibrationSteps = 4;
+                    break;
+                // [V70-PNP-CENTER] WiimoteBarPnP: 5 points — the 4 corners + the CENTER.
+                // The center click anchors the compensation at the real aim convention
+                // (accuracy at the middle of the screen).
+                // FR: WiimoteBarPnP : 5 points — les 4 coins + le CENTRE. Le clic central
+                // ancre la compensation sur la convention de visée réelle (précision au
+                // milieu de l'écran).
+                case LEDLayoutType.WiimoteBarPnP:
+                    _totalCalibrationSteps = 5;
                     break;
                 // TwoWiimoteBar & FourCorners fall here (5 steps)
                 default:
@@ -202,8 +212,10 @@ namespace WiimoteGun.UI.Calibrate
             switch (_ledLayout)
             {
                 case LEDLayoutType.WiimoteBar:
-                    // 4-POINT POSITIONS: Top-Left → Top-Right → Bottom-Right → Bottom-Left
-                    // (EN/FR: POSITIONS 4-POINTS : Haut-Gauche → Haut-Droit → Bas-Droit → Bas-Gauche)
+                    // [V70-PNP-CENTER-REVERT] EN: 4-POINT POSITIONS: Top-Left → Top-Right →
+                    //     Bottom-Right → Bottom-Left (the CENTER point was removed).
+                    //     FR: POSITIONS 4-POINTS : Haut-Gauche → Haut-Droit → Bas-Droit →
+                    //     Bas-Gauche (le point CENTRE a été retiré).
                     if (!mTopLeft.HasValue)
                         return new Point(margin, margin);              // Step 1: Top-Left
                     else if (!mTopRight.HasValue)
@@ -254,22 +266,23 @@ namespace WiimoteGun.UI.Calibrate
                     }
                     break;
 
-                // [V59-FIX-4] EN: PnP Hybrid 4-point: same order as the capture code
-                //     (TL→TR→BR→BL) — validates on the 4th point.
-                //     FR: PnP Hybrid 4 points : même ordre que le code de capture
-                //     (HG→HD→BD→BG) — validation au 4e point.
-                case LEDLayoutType.WiimoteBarPnP:
-                    if (!mTopLeft.HasValue)
-                        return new Point(margin, margin);              // Step 1: Top-Left
-                    else if (!mTopRight.HasValue)
-                        return new Point(w - margin, margin);          // Step 2: Top-Right
-                    else if (!mBottomRight.HasValue)
-                        return new Point(w - margin, h - margin);       // Step 3: Bottom-Right
-                    else if (!mBottomLeft.HasValue)
-                        return new Point(margin, h - margin);           // Step 4: Bottom-Left
-                    // All 4 captured — the calibration validates on the 4th point
-                    // (EN/FR: 4 capturés — la calibration valide au 4e point)
-                    break;
+            // [V70-PNP-CENTER-REVERT] EN: PnP Hybrid 4-point: same order as the capture code
+            //     (TL→TR→BR→BL) — validates on the 4th point. The 5th CENTER point was removed
+            //     (proven useless).
+            //     FR: PnP Hybrid 4 points : même ordre que le code de capture (HG→HD→BD→BG) —
+            //     validation au 4e point. Le 5e point CENTRE a été retiré (inutile).
+            case LEDLayoutType.WiimoteBarPnP:
+                if (!mTopLeft.HasValue)
+                    return new Point(margin, margin);              // Step 1: Top-Left
+                else if (!mTopRight.HasValue)
+                    return new Point(w - margin, margin);          // Step 2: Top-Right
+                else if (!mBottomRight.HasValue)
+                    return new Point(w - margin, h - margin);       // Step 3: Bottom-Right
+                else if (!mBottomLeft.HasValue)
+                    return new Point(margin, h - margin);           // Step 4: Bottom-Left
+                // All 4 captured — the calibration validates on the 4th point
+                // (EN/FR: 4 capturés — la calibration valide au 4e point)
+                break;
             }
 
             return new Point(w / 2, h / 2);
@@ -336,14 +349,20 @@ namespace WiimoteGun.UI.Calibrate
                         var botLbl = g.MeasureString("SENSOR BAR (BOTTOM)", font);
                         g.DrawString("SENSOR BAR (BOTTOM)", font, Brushes.Cyan, w / 2 - botLbl.Width / 2, botY - botLbl.Height - 8);
 
-                        // Draw "OR" label at screen center to show that TOP and BOTTOM are both compatible
-                        // (EN/FR: Afficher "OR / OU" au centre pour montrer que TOP et BOTTOM sont tous deux compatibles)
+                        // [V70-PNP-CENTER-REVERT] EN: no CENTER target anymore — the 5th point
+                        //     was removed (no gain: the bilinear map is fully determined by the
+                        //     4 corners).
+                        //     FR: plus de cible CENTRE — le 5e point a été retiré (aucun gain :
+                        //     la carte bilinéaire est entièrement déterminée par les 4 coins).
+
+                        // "OR" label at screen center (TOP and BOTTOM bar placements are both
+                        // compatible) — back to its original position.
+                        // (EN/FR: Libellé « OR » au centre de l'écran (barres HAUT et BAS
+                        //  compatibles) — retour à sa position d'origine.)
                         using (var orFont = new System.Drawing.Font(System.Drawing.SystemFonts.MessageBoxFont.FontFamily.Name, 22, System.Drawing.FontStyle.Bold))
                         {
                             string orText = "OR";
                             var orSize = g.MeasureString(orText, orFont);
-                            // Draw a subtle dark background behind the text for readability
-                            // (EN/FR: Dessiner un fond sombre derrière le texte pour lisibilité)
                             var orRect = new RectangleF(
                                 w / 2 - orSize.Width / 2 - 10, centerY - orSize.Height / 2 - 5,
                                 orSize.Width + 20, orSize.Height + 10);
@@ -490,10 +509,15 @@ namespace WiimoteGun.UI.Calibrate
                         DrawLEDMarker(g, pnpBottomRightPoint, "BR", _currentCalibrationStep == 2);
                         DrawLEDMarker(g, pnpBottomLeftPoint, "BL", _currentCalibrationStep == 3);
 
-                        // "OR" label at screen center — both TOP and BOTTOM bar
-                        // placements stay compatible (same as WiimoteBar).
-                        // (EN/FR: Libellé « OR » au centre — les barres HAUT et BAS
-                        // restent compatibles, comme WiimoteBar.)
+                        // [V70-PNP-CENTER-REVERT] EN: no CENTER target on this page either — the
+                        //     5th point was removed (it bought nothing).
+                        //     FR: pas de cible CENTRE ici non plus — le 5e point a été retiré
+                        //     (il n'apportait rien).
+
+                        // "OR" label at screen center — both TOP and BOTTOM bar placements stay
+                        // compatible (back to its original position).
+                        // (EN/FR: Libellé « OR » au centre — barres HAUT et BAS compatibles
+                        //  (retour à la position d'origine).)
                         {
                             // [V59-FIX-3] EN/FR: Use the shared resolution-aware marker font.
                             string pnpOrText = "OR";
@@ -518,9 +542,21 @@ namespace WiimoteGun.UI.Calibrate
             // (EN/FR: Dessiner marqueur LED avec couleur différente si c'est l'étape active)
             Brush ledBrush = isActive ? Brushes.Lime : Brushes.Red;
             int size = isActive ? 42 : 30; // x3 larger (was 14 : 10)
-            
+
             g.FillEllipse(ledBrush, position.X - size / 2, position.Y - size / 2, size, size);
             g.DrawEllipse(Pens.White, position.X - size / 2, position.Y - size / 2, size, size);
+
+            // [V70-PNP-CENTER-3] EN: precise aiming point at the EXACT center of the drawn
+            //     circle (green when active) — the user aims at this dot instead of "somewhere
+            //     inside the circle", which makes each calibration click (and therefore the whole
+            //     mapping) more precise. Same on every layout.
+            //     FR: point de visée précis au centre EXACT du rond dessiné (vert à l'étape
+            //     active) — l'utilisateur vise ce point au lieu de « quelque part dans le rond »,
+            //     ce qui rend chaque clic de calibration (donc tout le mapping) plus précis.
+            //     Pareil sur tous les layouts.
+            const int dotSize = 7; // pastille noire + liseré blanc (visibilité sur vert/rouge)
+            g.FillEllipse(Brushes.Black, position.X - dotSize / 2, position.Y - dotSize / 2, dotSize, dotSize);
+            g.DrawEllipse(Pens.White, position.X - dotSize / 2, position.Y - dotSize / 2, dotSize, dotSize);
 
             // [V59-FIX-3] EN/FR: Resolution-aware marker label (was fixed 12pt bold).
             // [V59-FIX-3b] EN/FR: Font-aware vertical offset (was fixed -22).
@@ -535,11 +571,12 @@ namespace WiimoteGun.UI.Calibrate
             {
                 case LEDLayoutType.WiimoteBar:
                     // 4-POINT CALIBRATION INSTRUCTIONS (EN/FR: INSTRUCTIONS CALIBRATION 4-POINTS)
+                    // [V70-PNP-CENTER-REVERT] back to 4 points (the CENTER 5th was removed).
                     if (!mTopLeft.HasValue)
                         return "Point at TOP-LEFT corner and press A / Trigger\nVisez le coin HAUT-GAUCHE et appuyez sur A / Gâchette";
                     if (!mTopRight.HasValue)
                         return "Point at TOP-RIGHT corner and press A / Trigger\nVisez le coin HAUT-DROIT et appuyez sur A / Gâchette";
-                    
+
                     if (!mBottomRight.HasValue && !mBottomLeft.HasValue)
                     {
                         if (Options.Instance.PermissiveWiimoteBarCalibration)
@@ -547,7 +584,7 @@ namespace WiimoteGun.UI.Calibrate
                         else
                             return "Point at BOTTOM-RIGHT corner and press A / Trigger\nVisez le coin BAS-DROIT et appuyez sur A / Gâchette";
                     }
-                    
+
                     return "Point at BOTTOM-LEFT corner and press A / Trigger\nVisez le coin BAS-GAUCHE et appuyez sur A / Gâchette";
 
 
@@ -578,13 +615,14 @@ namespace WiimoteGun.UI.Calibrate
                     }
                     break;
 
-                // [V59-FIX-4] EN: PnP Hybrid 4-point calibration — 4 corners with
-                //     distance display. Validates on the 4th point.
-                //     FR: Calibration PnP Hybrid 4 points — 4 coins avec affichage
-                //     distance. Validation au 4e point.
+                // [V70-PNP-CENTER] EN: PnP Hybrid 5-point calibration — the 4 corners + the
+                //     CENTER, with distance display. Validates on the 5th point.
+                //     FR: Calibration PnP Hybrid 5 points — les 4 coins + le CENTRE, avec
+                //     affichage distance. Validation au 5e point.
                 case LEDLayoutType.WiimoteBarPnP:
                     string[] pnpSteps = { "TOP-LEFT / HAUT-GAUCHE", "TOP-RIGHT / HAUT-DROIT",
-                                           "BOTTOM-RIGHT / BAS-DROIT", "BOTTOM-LEFT / BAS-GAUCHE" };
+                                           "BOTTOM-RIGHT / BAS-DROIT", "BOTTOM-LEFT / BAS-GAUCHE",
+                                           "CENTER / CENTRE" };
                     if (_currentCalibrationStep < pnpSteps.Length)
                     {
                         string dist = _lastDisplayedDistance > 0
@@ -745,15 +783,19 @@ namespace WiimoteGun.UI.Calibrate
         }
 
         // Update calibration state with 3 points (EN/FR: Mettre à jour l'état avec 3 points)
-        public void UpdateState(Point2F pos, Point2F? topLeft, Point2F? topRight, Point2F? bottomRight, Point2F? bottomLeft)
+        // [V70-PNP-CENTER] EN: the optional 5th parameter carries the CENTER point so the form
+        //     can show the 5th target and validate the PnP Hybrid calibration on it.
+        //     FR: le 5e paramètre optionnel porte le point CENTRE pour que le formulaire
+        //     affiche la 5e cible et valide la calibration PnP Hybrid dessus.
+        public void UpdateState(Point2F pos, Point2F? topLeft, Point2F? topRight, Point2F? bottomRight, Point2F? bottomLeft, Point2F? center = null)
         {
-            if (mTopLeft == topLeft && mTopRight == topRight && mBottomRight == bottomRight && mBottomLeft == bottomLeft)
+            if (mTopLeft == topLeft && mTopRight == topRight && mBottomRight == bottomRight && mBottomLeft == bottomLeft && mCenter == center)
                 return;
 
             if (this.InvokeRequired)
             {
-                this.Invoke(new Action<Point2F, Point2F?, Point2F?, Point2F?, Point2F?>(UpdateState), 
-                    new object[] { pos, topLeft, topRight, bottomRight, bottomLeft });
+                this.Invoke(new Action<Point2F, Point2F?, Point2F?, Point2F?, Point2F?, Point2F?>(UpdateState),
+                    new object[] { pos, topLeft, topRight, bottomRight, bottomLeft, center });
                 return;
             }
 
@@ -761,18 +803,19 @@ namespace WiimoteGun.UI.Calibrate
             mTopRight = topRight;
             mBottomRight = bottomRight;
             mBottomLeft = bottomLeft;
+            mCenter = center;
                         Invalidate();
         }
 
         public bool IsCalibrated
         {
             // WiimoteBar: 3 points, TwoWiimoteBar: 4 points (EN/FR: WiimoteBar 3 points, TwoWiimoteBar 4 points)
-            // [V59-FIX-4] PnP Hybrid: 4 corners (the 5th center point was removed)
+            // [V70-PNP-CENTER-REVERT] PnP Hybrid: 4 corners again (the 5th center point was
+            // removed — no gain) ; WiimoteBar: back to the 4-corner / permissive-3 logic.
+            // (FR: PnP Hybrid : 4 coins à nouveau (le 5e point central retiré — sans gain) ;
+            //  WiimoteBar : retour à la logique 4 coins / permissif 3.)
             get
             {
-                if (_ledLayout == LEDLayoutType.WiimoteBarPnP)
-                    return mTopLeft.HasValue && mTopRight.HasValue && mBottomRight.HasValue &&
-                           mBottomLeft.HasValue;
                 return mTopLeft.HasValue && mTopRight.HasValue && mBottomRight.HasValue;
             }
         }
