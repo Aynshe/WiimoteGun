@@ -1,4 +1,20 @@
-# Wiimote4Guns Changelog
+Wiimote4Guns Changelog
+
+## v3.1.7.2
+
+### [EN] Various / Fix-UMDF2
+- When you update from a version older than 3.1.7.2, **Virtual Polling (upsampling)** and **IR smoothing (EMA)** are switched ON with the values 500 Hz for V1 and V2, smoothing EMA 1, so the new fluidity can be compared with the previous behaviour. Both can be turned off at any time.
+- The Wiimote v2 model **"Nintendo RVL-CNT-01-TR"** (MotionPlus Inside) remains less fluid than the V1 — its Bluetooth report stream still arrives in bursts... there is currently no solution for this.
+- HmHost (UMDF2 virtual mouse/keyboard host): fixed the virtual mouse not coming back without a Windows reboot when its device node was left wedged (pending removal / "unknown device" code 1 zombie). HmHost now verifies that each virtual device really reached the started state (root node + HID child `DN_STARTED`) before reporting success, evicts wedged nodes, and when needed recreates the device under a rotated identity key (P1 -> P1R) so a fresh node is used - no reboot required. It reports `ERR NOT_STARTED` instead of a silent dead device. The HIDMaestro SDK diag/timing logs are mirrored into `HmHost.log` for support.
+- Various adjustments.
+
+### [FR] Divers / Fix-UMDF2
+- À la mise à jour depuis une version antérieure à 3.1.7.2, le **Virtual Polling (upsampling)** et le **lissage IR (EMA)** sont ACTIVÉS avec les valeurs 500 Hz pour la V1 et la V2, lissage EMA 1, afin de comparer la fluidité au comportement précédent. Tous deux peuvent être désactivés à tout moment.
+- Le modèle de Wiimote v2 **« Nintendo RVL-CNT-01-TR »** (MotionPlus Inside) reste moins fluide que la V1 — son flux de rapports Bluetooth arrive toujours par salves.. pas de solution actuellement.
+- HmHost (hôte UMDF2 souris/clavier virtuels) : corrige le cas où la souris virtuelle ne revenait pas sans redémarrer Windows quand son nœud de périphérique était resté bloqué (suppression refusée / zombie « périphérique inconnu » code 1). HmHost vérifie désormais que chaque périphérique virtuel a bien atteint l'état démarré (nœud racine + fils HID `DN_STARTED`) avant de répondre succès, évacue les nœuds bloqués et, si besoin, recrée le périphérique sous une clé d'identité rotatée (P1 -> P1R) pour utiliser un nœud neuf - sans redémarrage. Il répond `ERR NOT_STARTED` au lieu d'un périphérique mort silencieux. Les logs diag/timing du SDK HIDMaestro sont miroités dans `HmHost.log` pour le support.
+- Divers ajustements.
+
+---
 
 ## v3.1.7.1
 

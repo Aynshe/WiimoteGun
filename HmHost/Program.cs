@@ -86,6 +86,21 @@ internal static class Program
     // [V57h] True when the player's live device carries the kb-only descriptor (mouse hidden).
     //        (EN/FR: Vrai quand le device vivant du joueur porte le descripteur kb-seul (souris masquée).)
     private static readonly bool[] _kbOnly = new bool[PlayerCount];
+    // [V83-UMDF2-VERIFY] Identity-key rotation counters. When the stable P<n> devnode is wedged
+    // (pending-removal after a vetoed removal: node LIVE + problem=0 but its HID child never
+    // reaches DN_STARTED until reboot, or a zombie after dispose: Enum key gone but live node
+    // left = "not owned" Code 1), we recreate on P<n>R, P<n>RR... so the SDK makes a FRESH node
+    // instead of re-adopting the dead one. Same trick as V57o (GP -> GPW). A fresh node starts
+    // instantly, so the mouse comes back WITHOUT a Windows reboot.
+    // FR: Compteurs de rotation de clé d'identité. Quand le devnode stable P<n> est bloqué
+    // (suppression vetoed : nœud LIVE + problem=0 mais fils HID jamais DN_STARTED avant le
+    // reboot, ou zombie après dispose : clé Enum supprimée mais nœud live restant = Code 1
+    // « not owned »), on recrée sur P<n>R, P<n>RR... pour forcer un nœud NEUF au lieu de
+    // ré-adopter le mort. Un nœud neuf démarre immédiatement : la souris revient SANS reboot.
+    private static readonly int[] _rotCount = new int[PlayerCount];
+    private static readonly int[] _gpRotCount = new int[PlayerCount];
+    private static string KeyFor(int p) => "P" + p + new string('R', _rotCount[p - 1]);
+    private static string GpKeyFor(int p) => GpKeyPrefix + new string('X', _gpRotCount[p - 1]) + p;
     // [V57g] EN: GamePad controllers are pinned to indexes 4..7 (the mkb devices
     //     auto-assign 0..3, so the ranges never collide). Pinning keeps the same
     //     creation index across DInput<->XInput swaps (SDK LiveSwap pattern), so
@@ -112,7 +127,7 @@ internal static class Program
     //     COURANT. Stable à travers les vies à partir de maintenant (même clé = mêmes
     //     chemins au sein de la nouvelle famille).
     private const string GpKeyPrefix = "GPW";
-    private const string HostVersion = "3.1.0.0";
+    private const string HostVersion = "3.1.7.2";
     private const int PlayerCount = 4;
 
     // Report ids from vmulti.h (descriptor ships in profiles\wiimotegun-mkb.json)
@@ -188,6 +203,19 @@ internal static class Program
 
     private static int Main(string[] args)
     {
+        // [V83-UMDF2-VERIFY] EN: enable the SDK's own diag/timing logs BEFORE any SDK
+        //     static initializer runs (DeviceOrchestrator reads HIDMAESTRO_DIAG once at
+        //     type init), and remember the current file offsets so DrainSdkDiag only
+        //     mirrors THIS process's lines into HmHost.log (user bundles stay clean).
+        //     FR: activer les logs diag/timing du SDK AVANT tout init statique
+        //     (DeviceOrchestrator lit HIDMAESTRO_DIAG une fois à l'init du type) et
+        //     mémoriser les offsets courants pour que DrainSdkDiag ne miroite que les
+        //     lignes de CE process dans HmHost.log.
+        Environment.SetEnvironmentVariable("HIDMAESTRO_DIAG", "1");
+        Environment.SetEnvironmentVariable("HIDMAESTRO_TIMING", "1");
+        _diagOffset = InitialLen(Path.Combine(Path.GetTempPath(), "HIDMaestro", "teardown_diag.log"));
+        _timingOffset = InitialLen(Path.Combine(Path.GetTempPath(), "HIDMaestro", "setup_timing.log"));
+
         _logPath = Path.Combine(AppContext.BaseDirectory, "HmHost.log");
 
         // EN: Single instance guard (the service is the only legitimate spawner)
@@ -203,6 +231,13 @@ internal static class Program
 
             Log("=".PadRight(78, '='));
             Log($"HmHost {HostVersion} starting (pid={Environment.ProcessId}, elevated={IsElevated()}).");
+
+            // [V83-UMDF2-ZOMBIE] sweep leftover HIDMaestro devnodes from previous runs at host
+            // start (kernel enumeration: zombies have lost their Enum key, so a registry-only
+            // walk misses them). Idempotent, safe, runs before any device creation.
+            // FR: balayage des devnodes HIDMaestro restants au démarrage de l'hôte (énumération
+            // kernel : les zombies ont perdu leur clé Enum, un parcours registre les rate).
+            SweepLeftoverHmNodes();
 
             // [V57d] EN: Frame-loss watchdog (see the field comment above)
             //     FR: Chien de garde anti-perte de frames (voir le commentaire des champs)
@@ -676,6 +711,12 @@ internal static class Program
                 //     auto-signé (Root + TrustedPublisher machine), signe et installe le pilote.
                 _ctx.InstallDriver();
                 Log($"InstallDriver OK ({sw.ElapsedMilliseconds} ms).");
+                DrainSdkDiag("INSTALL");
+                // [V83-UMDF2-ZOMBIE] clean leftover HM nodes from previous runs (app startup,
+                // nothing holds them yet -> hard evict succeeds; if a live one survives, it is
+                // disabled + named instead of showing as "unknown device" Code 1). No reboot needed.
+                SweepLeftoverHmNodes();
+                DrainSdkDiag("SWEEP");
 
                 // [V57e] EN: ACTIVATE now only readies the driver - the per-player devices
                 //     are CREATED ON DEMAND by ACTIVATE_P (wiimote connects) and disposed
@@ -688,6 +729,7 @@ internal static class Program
                 //     pour les joueurs inoccupés.
                 _active = true;
                 Log("ACTIVATED (driver ready; devices are created on demand per player).");
+                DrainSdkDiag("ACTIVATE");
                 return "OK ACTIVATED";
             }
             catch (Exception ex)
@@ -697,8 +739,9 @@ internal static class Program
                 // FR: Nettoyage best-effort des contrôleurs partiellement créés
                 for (int i = 0; i < PlayerCount; i++)
                 {
-                    try { _ctrl[i]?.Dispose(); } catch { }
-                    _ctrl[i] = null;
+                    HMProfile cp = null;
+                    try { cp = _ctx.GetProfile(_kbOnly[i] ? KbProfileIds[i] : ProfileIds[i]); } catch { }
+                    DisposePlayerCtrl(i + 1, cp); // [V83] + clean leftover node
                 }
                 _active = false;
                 return "ERR " + ex.Message;
@@ -729,20 +772,21 @@ internal static class Program
             {
                 try
                 {
-                    _ctrl[p - 1].Dispose();
+                    // [V83] dispose the kb-only device + clean its leftover node
+                    DisposePlayerCtrl(p, _ctx.GetProfile(KbProfileIds[p - 1]));
                     HMProfile profile = _ctx.GetProfile(ProfileIds[p - 1])
                         ?? throw new InvalidOperationException($"Profile '{ProfileIds[p - 1]}' not found in profiles directory.");
                     var sw = Stopwatch.StartNew();
-                    _ctrl[p - 1] = _ctx.CreateController(profile, "P" + p);
-                    _kbOnly[p - 1] = false;
+                    // [V83-UMDF2-VERIFY] create + verify + heal chain (restart / remove+recreate /
+                    // rotate identity key) - see CreateVerifiedPlayer.
+                    string res = CreateVerifiedPlayer(p, profile, kbOnly: false, okPrefix: "OK ACTIVATED_P");
                     Log($"P{p}: swapped kb-only -> full mkb (mouse restored) in {sw.ElapsedMilliseconds} ms.");
-                    return "OK ACTIVATED_P" + p;
+                    return res;
                 }
                 catch (Exception ex)
                 {
                     Log($"P{p}: kb->mkb swap FAILED: {ex.Message}");
-                    try { _ctrl[p - 1]?.Dispose(); } catch { }
-                    _ctrl[p - 1] = null;
+                    try { DisposePlayerCtrl(p, _ctx.GetProfile(KbProfileIds[p - 1])); } catch { try { _ctrl[p - 1]?.Dispose(); } catch { } _ctrl[p - 1] = null; }
                     _kbOnly[p - 1] = false;
                     return "ERR " + ex.Message;
                 }
@@ -754,19 +798,20 @@ internal static class Program
             {
                 HMProfile profile = _ctx.GetProfile(ProfileIds[p - 1])
                     ?? throw new InvalidOperationException($"Profile '{ProfileIds[p - 1]}' not found in profiles directory.");
-                var sw = Stopwatch.StartNew();
-                _ctrl[p - 1] = _ctx.CreateController(profile, "P" + p);
-                _kbOnly[p - 1] = false;
-                Log($"Created controller P{p} (profile {ProfileIds[p - 1]}) in {sw.ElapsedMilliseconds} ms (wiimote connected).");
-                return "OK ACTIVATED_P" + p;
+                // [V83-UMDF2-VERIFY] EN: create + verify (HID child DN_STARTED) + heal chain
+                //     (restart / remove+recreate / rotate identity key to bypass a wedged
+                //     pending-removal devnode). The mouse must come back WITHOUT a reboot.
+                //     FR: création + vérification (fils HID DN_STARTED) + chaîne de réparation
+                //     (restart / remove+recreate / rotation de clé pour contourner un devnode
+                //     bloqué). La souris doit revenir SANS redémarrer Windows.
+                return CreateVerifiedPlayer(p, profile, kbOnly: false, okPrefix: "OK ACTIVATED_P");
             }
-            catch (Exception ex)
-            {
-                Log($"ActivatePlayer P{p} FAILED: {ex.Message}");
-                try { _ctrl[p - 1]?.Dispose(); } catch { }
-                _ctrl[p - 1] = null;
-                return "ERR " + ex.Message;
-            }
+                catch (Exception ex)
+                {
+                    Log($"ActivatePlayer P{p} FAILED: {ex.Message}");
+                    try { DisposePlayerCtrl(p, _ctx.GetProfile(ProfileIds[p - 1])); } catch { try { _ctrl[p - 1]?.Dispose(); } catch { } _ctrl[p - 1] = null; }
+                    return "ERR " + ex.Message;
+                }
         }
     }
 
@@ -777,8 +822,12 @@ internal static class Program
             bool hadGp = _gpCtrl[p - 1] != null;
             if (_ctrl[p - 1] == null && !hadGp)
                 return "OK ALREADY_INACTIVE_P" + p;
-            try { _ctrl[p - 1]?.Dispose(); } catch { }
-            _ctrl[p - 1] = null;
+            bool wasKbOnly = _kbOnly[p - 1];
+            // [V83-UMDF2-ZOMBIE] dispose + clean the leftover node (disable+name if still live,
+            // else uninstall+delete) so no "unknown device" zombie accumulates per disconnect.
+            HMProfile dp = null;
+            try { dp = _ctx.GetProfile(wasKbOnly ? KbProfileIds[p - 1] : ProfileIds[p - 1]); } catch { }
+            DisposePlayerCtrl(p, dp);
             _kbOnly[p - 1] = false; // [V57h]
             _lastKeysFrame[p - 1] = null;
             _lastMouseFrame[p - 1] = null;
@@ -820,12 +869,11 @@ internal static class Program
                 return "OK ALREADY_HIDDEN_P" + p;
             try
             {
-                _ctrl[p - 1].Dispose();
+                // [V83] dispose the mkb device + clean its leftover node
+                DisposePlayerCtrl(p, _ctx.GetProfile(ProfileIds[p - 1]));
                 HMProfile profile = _ctx.GetProfile(KbProfileIds[p - 1])
                     ?? throw new InvalidOperationException($"Profile '{KbProfileIds[p - 1]}' not found in profiles directory.");
                 var sw = Stopwatch.StartNew();
-                _ctrl[p - 1] = _ctx.CreateController(profile, "P" + p);
-                _kbOnly[p - 1] = true;
                 // EN: Drop the pending mouse frame: the watchdog must never re-submit a
                 //     mouse report to a kb-only device (the keyboard frame survives the
                 //     swap and keeps the watchdog healing).
@@ -834,14 +882,15 @@ internal static class Program
                 //     clavier survit à l'échange et continue d'être guérie par le
                 //     watchdog).
                 _lastMouseFrame[p - 1] = null;
+                // [V83-UMDF2-VERIFY] same verify+heal chain as ActivatePlayer.
+                string res = CreateVerifiedPlayer(p, profile, kbOnly: true, okPrefix: "OK HIDDEN_P");
                 Log($"P{p}: swapped mkb -> kb-only (mouse hidden, keyboard kept) in {sw.ElapsedMilliseconds} ms.");
-                return "OK HIDDEN_P" + p;
+                return res;
             }
             catch (Exception ex)
             {
                 Log($"P{p}: mkb->kb-only swap FAILED: {ex.Message}");
-                try { _ctrl[p - 1]?.Dispose(); } catch { }
-                _ctrl[p - 1] = null;
+                try { DisposePlayerCtrl(p, _ctx.GetProfile(ProfileIds[p - 1])); } catch { try { _ctrl[p - 1]?.Dispose(); } catch { } _ctrl[p - 1] = null; }
                 _kbOnly[p - 1] = false;
                 _lastMouseFrame[p - 1] = null;
                 return "ERR " + ex.Message;
@@ -859,8 +908,11 @@ internal static class Program
                 bool hadGp = _gpCtrl[i] != null;
                 if (_ctrl[i] == null && !hadGp)
                     continue;
-                try { _ctrl[i]?.Dispose(); } catch { }
-                _ctrl[i] = null;
+                bool wasKbOnly = _kbOnly[i];
+                // [V83-UMDF2-ZOMBIE] dispose + clean leftover node (no "unknown device" zombie)
+                HMProfile dp = null;
+                try { dp = _ctx.GetProfile(wasKbOnly ? KbProfileIds[i] : ProfileIds[i]); } catch { }
+                DisposePlayerCtrl(i + 1, dp);
                 _kbOnly[i] = false; // [V57h]
                 _lastKeysFrame[i] = null;
                 _lastMouseFrame[i] = null;
@@ -942,8 +994,7 @@ internal static class Program
                     !string.Equals(currentProfile.ProductString, _gpProfileNames[p - 1], StringComparison.Ordinal))
                 {
                     Log($"GP{p}: profile product string changed ('{_gpProfileNames[p - 1]}' -> '{currentProfile.ProductString}') - recreating the device.");
-                    try { _gpCtrl[p - 1].Dispose(); } catch { }
-                    _gpCtrl[p - 1] = null;
+                    DisposeGpCtrl(p, currentProfile); // [V83] + clean leftover node
                     ClearGpFrame(p - 1);
                     // Fall through to the creation below (same identity key -> same paths)
                 }
@@ -961,8 +1012,8 @@ internal static class Program
                 //     l'index épinglé est libéré pour la re-création ci-dessous)
                 if (_gpCtrl[p - 1] != null)
                 {
-                    try { _gpCtrl[p - 1].Dispose(); } catch { }
-                    _gpCtrl[p - 1] = null;
+                    // [V83] + clean leftover node
+                    try { DisposeGpCtrl(p, _ctx.GetProfile(_gpIsXInput[p - 1] ? X360ProfileIds[p - 1] : GpProfileIds[p - 1])); } catch { }
                     ClearGpFrame(p - 1);
                 }
 
@@ -970,18 +1021,61 @@ internal static class Program
                 HMProfile profile = _ctx.GetProfile(profId)
                     ?? throw new InvalidOperationException($"Profile '{profId}' not found in profiles directory.");
                 var sw = Stopwatch.StartNew();
-                _gpCtrl[p - 1] = _ctx.CreateControllerAt(GpBaseIndex + p - 1, profile, GpKeyPrefix + p);
-                _gpIsXInput[p - 1] = xinput;
-                _gpProfileNames[p - 1] = profile.ProductString; // [V57j] for the rename check
-                if (xinput) InitGpAxes(p - 1, profile);
-                Log($"Created GP{p} ({(xinput ? "XInput" : "DInput")}, profile {profId}, index {GpBaseIndex + p - 1}) in {sw.ElapsedMilliseconds} ms (wiimote in GamePad mode).");
+                string gpKey = GpKeyFor(p);
+                string gpInstId = null;
+                bool gpLive = false;
+                // [V83-UMDF2-VERIFY] same verified-create + rotation loop as CreateVerifiedPlayer.
+                for (int attempt = 0; attempt < 3 && !gpLive; attempt++)
+                {
+                    gpKey = GpKeyFor(p);
+                    gpInstId = ComputeInstanceId(profile, gpKey);
+                    if (NodeLocatable(gpInstId) && !ChildStarted(gpInstId))
+                    {
+                        Log($"GP{p}: existing node {gpInstId} has no started HID child - evicting before create ({DescribeDevNode(gpInstId)})");
+                        ForceEvictNode(gpInstId);
+                    }
+                    try
+                    {
+                        _gpCtrl[p - 1] = _ctx.CreateControllerAt(GpBaseIndex + p - 1, profile, gpKey);
+                        _gpIsXInput[p - 1] = xinput;
+                        _gpProfileNames[p - 1] = profile.ProductString; // [V57j] for the rename check
+                        if (xinput) InitGpAxes(p - 1, profile);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"GP{p}: create on key '{gpKey}' threw: {ex.Message} ({DescribeDevNode(gpInstId)})");
+                        DrainSdkDiag("CREATE_GP_EX" + attempt);
+                        DisposeGpCtrl(p, profile);
+                        ForceEvictNode(gpInstId);
+                        _gpRotCount[p - 1]++;
+                        continue;
+                    }
+                    var vGp = VerifyDevice(profile, gpKey, 6000, attemptHeal: true);
+                    gpInstId = vGp.InstId;
+                    gpLive = vGp.Live;
+                    if (!gpLive)
+                    {
+                        Log($"GP{p}: not started on key '{gpKey}' ({DescribeDevNode(gpInstId)}) - evicting and rotating gp identity key");
+                        DrainSdkDiag("ROTATE_GP" + attempt);
+                        DisposeGpCtrl(p, profile);
+                        ForceEvictNode(gpInstId);
+                        _gpRotCount[p - 1]++;
+                    }
+                }
+                Log($"Created GP{p} ({(xinput ? "XInput" : "DInput")}, profile {profId}, index {GpBaseIndex + p - 1}) in {sw.ElapsedMilliseconds} ms (wiimote in GamePad mode). key={gpKey} instId={gpInstId} live={gpLive} {(gpInstId != null ? DescribeDevNode(gpInstId) : "")}");
+                DrainSdkDiag("ACTIVATE_GP" + p);
+                if (!gpLive)
+                {
+                    DisposeGpCtrl(p, profile);
+                    ClearGpFrame(p - 1);
+                    return "ERR NOT_STARTED_GP" + p;
+                }
                 return "OK ACTIVATED_GP" + p + (xinput ? "_XINPUT" : "_DINPUT");
             }
             catch (Exception ex)
             {
                 Log($"ActivateGamepad GP{p} FAILED: {ex.Message}");
-                try { _gpCtrl[p - 1]?.Dispose(); } catch { }
-                _gpCtrl[p - 1] = null;
+                try { DisposeGpCtrl(p, _ctx.GetProfile(xinput ? X360ProfileIds[p - 1] : GpProfileIds[p - 1])); } catch { try { _gpCtrl[p - 1]?.Dispose(); } catch { } _gpCtrl[p - 1] = null; }
                 ClearGpFrame(p - 1);
                 return "ERR " + ex.Message;
             }
@@ -997,8 +1091,8 @@ internal static class Program
         {
             if (_gpCtrl[p - 1] == null)
                 return "OK ALREADY_INACTIVE_GP" + p;
-            try { _gpCtrl[p - 1].Dispose(); } catch { }
-            _gpCtrl[p - 1] = null;
+            // [V83] + clean leftover node
+            try { DisposeGpCtrl(p, _ctx.GetProfile(_gpIsXInput[p - 1] ? X360ProfileIds[p - 1] : GpProfileIds[p - 1])); } catch { }
             ClearGpFrame(p - 1);
             Log($"Disposed GP{p} controller (identity preserved for the next activation).");
             return "OK DEACTIVATED_GP" + p;
@@ -1054,8 +1148,10 @@ internal static class Program
     private static void DisposeGpPlayer(int i)
     {
         if (_gpCtrl[i] == null) return;
-        try { _gpCtrl[i].Dispose(); } catch { }
-        _gpCtrl[i] = null;
+        // [V83-UMDF2-ZOMBIE] clean the gp devnode too (disable+name if still live, else remove)
+        HMProfile gp = null;
+        try { gp = _ctx.GetProfile(_gpIsXInput[i] ? X360ProfileIds[i] : GpProfileIds[i]); } catch { }
+        DisposeGpCtrl(i + 1, gp);
         ClearGpFrame(i);
     }
 
@@ -1067,8 +1163,9 @@ internal static class Program
                 return "OK ALREADY_INACTIVE";
             for (int i = 0; i < PlayerCount; i++)
             {
-                try { _ctrl[i]?.Dispose(); } catch { }
-                _ctrl[i] = null;
+                HMProfile cp = null;
+                try { cp = _ctx.GetProfile(_kbOnly[i] ? KbProfileIds[i] : ProfileIds[i]); } catch { }
+                DisposePlayerCtrl(i + 1, cp); // [V83] + clean leftover node
                 _kbOnly[i] = false; // [V57h]
                 _lastKeysFrame[i] = null;
                 _lastMouseFrame[i] = null;
@@ -1114,6 +1211,25 @@ internal static class Program
                 {
                     if (!_active)
                         continue;
+                    // [V83-UMDF2-ZOMBIE] EN: periodic leftover sweep (~15 s). A vetoed removal
+                    //     can leave a deferred-removal node that is invisible on the spot
+                    //     (CM_Locate finds nothing, the dispose cleanup skips it silently) and
+                    //     materializes seconds later as an "unknown device" (observed: P2's
+                    //     node appeared only after the LAST player disconnected). This sweep
+                    //     catches those. It runs under _gate so no device creation can race,
+                    //     and only evicts nodes WITHOUT a started HID child - a healthy live
+                    //     device is always kept. With no leftovers the cost is ~100 CM_Locate
+                    //     calls (sub-millisecond each).
+                    //     FR: balayage périodique des restes (~15 s). Une suppression refusée
+                    //     peut laisser un nœud en retrait différé, invisible sur l'instant
+                    //     (CM_Locate ne trouve rien, le nettoyage du dispose l'ignorait
+                    //     silencieusement) qui se matérialise quelques secondes plus tard en
+                    //     « périphérique inconnu » (observé : le nœud P2 est apparu seulement
+                    //     après la déconnexion du DERNIER joueur). Ce balayage les attrape.
+                    //     Il tourne sous _gate (aucune course avec une création) et n'évince
+                    //     que les nœuds SANS fils HID démarré - un device sain est conservé.
+                    if (tick % 400 == 0) // ~10 s backstop sweep (targeted re-checks handle the dispose case)
+                        SweepLeftoverHmNodes();
                     DateTime now = DateTime.UtcNow;
                     for (int i = 0; i < PlayerCount; i++)
                     {
@@ -1189,8 +1305,9 @@ internal static class Program
             {
                 for (int i = 0; i < PlayerCount; i++)
                 {
-                    try { _ctrl[i]?.Dispose(); } catch { }
-                    _ctrl[i] = null;
+                    HMProfile cp = null;
+                    try { cp = _ctx.GetProfile(_kbOnly[i] ? KbProfileIds[i] : ProfileIds[i]); } catch { }
+                    DisposePlayerCtrl(i + 1, cp); // [V83] + clean leftover node
                     _kbOnly[i] = false; // [V57h]
                     _lastKeysFrame[i] = null;
                     _lastMouseFrame[i] = null;
@@ -1236,6 +1353,652 @@ internal static class Program
                 .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
         }
         catch { return false; }
+    }
+
+    // ── [V83-UMDF2-VERIFY] verified create + heal chain + SDK diag mirror ──────
+
+    // EN: Create the player's device and verify it REALLY works (HID child DN_STARTED).
+    //     Heal chain: restart heal -> remove+recreate on the same key -> rotate the
+    //     identity key (P<n> -> P<n>R) to bypass a wedged pending-removal devnode that
+    //     PnP refuses to start children on until reboot (observed after a service
+    //     reinstall: node LIVE, problem=0, HID child stuck without DN_STARTED, removal
+    //     vetoed "in use by application"). A fresh node on the rotated key starts
+    //     instantly, so the mouse comes back WITHOUT a Windows reboot. The dead wedged
+    //     node has no started HID child, hence no HID interface: invisible to RawInput.
+    //     FR: Crée le device du joueur et vérifie qu'il marche VRAIMENT (fils HID
+    //     DN_STARTED). Chaîne de réparation : restart -> remove+recreate sur la même clé ->
+    //     rotation de la clé d'identité (P<n> -> P<n>R) pour contourner un devnode bloqué
+    //     en attente de suppression que PnP refuse de démarrer avant le reboot. Un nœud
+    //     neuf sur clé rotatée démarre immédiatement : la souris revient SANS redémarrer
+    //     Windows. Le nœud bloqué n'a pas de fils HID démarré, donc pas d'interface HID :
+    //     invisible pour RawInput.
+    private static string CreateVerifiedPlayer(int p, HMProfile profile, bool kbOnly, string okPrefix)
+    {
+        string key = KeyFor(p);
+        string instId = null;
+        bool live = false;
+        var sw = Stopwatch.StartNew();
+        // EN: Up to 3 attempts, rotating the identity key (P1 -> P1R -> P1RR) on any failure:
+        //     a wedged/zombie node on one key never heals, but a FRESH node on a fresh key
+        //     starts instantly (measured 546 ms, live=True) - so rotate and retry.
+        //     FR: Jusqu'à 3 essais, en rotatant la clé d'identité (P1 -> P1R -> P1RR) à chaque
+        //     échec : un nœud bloqué/zombie sur une clé ne guérit jamais, mais un nœud NEUF
+        //     sur une clé neuve démarre instantanément (mesuré 546 ms, live=True) - on
+        //     rotate et on réessaie.
+        for (int attempt = 0; attempt < 3 && !live; attempt++)
+        {
+            key = KeyFor(p);
+            instId = ComputeInstanceId(profile, key);
+            // Pre-check: an existing node whose HID child is absent or not started is a
+            // wedged pending-removal node - evict it BEFORE create so the SDK does a fresh
+            // create instead of adopting it (and burning its 5s wait_started budget).
+            if (NodeLocatable(instId) && !ChildStarted(instId))
+            {
+                Log($"P{p}: existing node {instId} has no started HID child - evicting before create ({DescribeDevNode(instId)})");
+                ForceEvictNode(instId);
+            }
+            try
+            {
+                _ctrl[p - 1] = _ctx.CreateController(profile, key);
+                _kbOnly[p - 1] = kbOnly;
+            }
+            catch (Exception ex)
+            {
+                // zombie (live node, Enum key gone -> "not owned") or rival: rotate
+                Log($"P{p}: create on key '{key}' threw: {ex.Message} ({DescribeDevNode(instId)})");
+                DrainSdkDiag("CREATE_EX" + attempt);
+                DisposePlayerCtrl(p, profile);
+                ForceEvictNode(instId);
+                _rotCount[p - 1]++;
+                continue;
+            }
+            var v = VerifyDevice(profile, key, 6000, attemptHeal: true);
+            instId = v.InstId;
+            live = v.Live;
+            if (!live)
+            {
+                Log($"P{p}: not started on key '{key}' ({DescribeDevNode(instId)}) - evicting and rotating identity key to '{KeyFor(p)}R'");
+                DrainSdkDiag("ROTATE" + attempt);
+                DisposePlayerCtrl(p, profile);
+                ForceEvictNode(instId);
+                _rotCount[p - 1]++;
+            }
+        }
+        Log($"Created controller P{p} (profile {profile.Id}) in {sw.ElapsedMilliseconds} ms (wiimote connected). key={key} instId={instId} live={live} {(instId != null ? DescribeDevNode(instId) : "")}");
+        DrainSdkDiag("ACTIVATE_P" + p);
+        if (!live)
+        {
+            DisposePlayerCtrl(p, profile);
+            _kbOnly[p - 1] = false;
+            return "ERR NOT_STARTED_P" + p;
+        }
+        return okPrefix + p;
+    }
+
+    private static bool NodeLocatable(string instId)
+    {
+        return CM_Locate_DevNodeW(out _, instId, 0) == 0 || CM_Locate_DevNodeW(out _, instId, 1) == 0;
+    }
+
+    private static bool ChildStarted(string instId)
+    {
+        try
+        {
+            string child = HIDMaestro.Internal.DeviceManager.GetHidChildId(instId);
+            return child != null && HIDMaestro.Internal.DeviceManager.IsDeviceStarted(child);
+        }
+        catch { return false; }
+    }
+
+    // EN: After a dispose, the SDK teardown may delete the Enum key while the live node
+    //     survives (removal vetoed) -> Code-1 "unknown device" zombie in Device Manager.
+    //     Disable the leftover node so it shows as disabled instead, and so it is visibly
+    //     ours-but-off. The next create rotates to a fresh key anyway.
+    // FR: Après un dispose, le teardown du SDK peut supprimer la clé Enum alors que le
+    //     nœud live survit (suppression vetoed) -> zombie Code 1 « périphérique inconnu ».
+    //     On désactive le nœud restant pour qu'il apparaisse désactivé, pas inconnu. La
+    //     prochaine création rotate de toute façon sur une clé neuve.
+    // [V83-UMDF2-ZOMBIE] EN: After a dispose, a live node whose removal was vetoed cannot be
+    //     hard-deleted until reboot; if its Enum key is gone it shows as an unnamed
+    //     "unknown device" (Code 1) in Device Manager - one per wiimote disconnect. So: if the
+    //     node is still LIVE, keep its Enum key, disable it (greyed out, keeps its driver+name)
+    //     and write a friendly DeviceDesc; only uninstall+delete the key when the node is
+    //     phantom-only (safe, invisible anyway).
+    //     FR: Après un dispose, un nœud live dont la suppression a été refusée ne peut pas être
+    //     supprimé avant le reboot ; si sa clé Enum est partie, il apparaît comme « périphérique
+    //     inconnu » (code 1) sans nom - un par déconnexion de wiimote. Donc : si le nœud est
+    //     encore LIVE, on garde sa clé Enum, on le désactive (grisé, garde pilote+nom) et on
+    //     écrit un DeviceDesc lisible ; on ne supprime la clé que si le nœud est phantom.
+    private static void CleanupNodeAfterDispose(HMProfile profile, string key, string tag)
+    {
+        try
+        {
+            if (profile == null) return;
+            string instId = ComputeInstanceId(profile, key);
+            if (!NodeLocatable(instId))
+            {
+                // [V83-UMDF2-ZOMBIE] EN: the SDK teardown removed the node "on the spot" but a
+                //     vetoed removal is DEFERRED: the node is invisible now and materializes a
+                //     few seconds later as a Code-1 "unknown device" (observed: P2's node
+                //     appeared only after the last player disconnected). Schedule targeted
+                //     re-checks so it is evicted as soon as it materializes.
+                //     FR: le teardown SDK a retiré le nœud « sur place » mais une suppression
+                //     refusée est DIFFÉRÉE : le nœud est invisible maintenant et se matérialise
+                //     quelques secondes plus tard en « périphérique inconnu » code 1. On
+                //     programme des re-vérifications ciblées pour l'évincer dès qu'il apparaît.
+                ScheduleDeferredNodeRecheck(instId, tag);
+                return;
+            }
+            //     DIF_REMOVE is vetoed (proven in the logs: "stillPresent=False" right after),
+            //     so the leftover node really disappears without a reboot. Only the rare
+            //     survivor falls back to disable + friendly name (greyed out, named).
+            //     FR: évincer D'ABORD - CM_Disable+CM_Uninstall force la suppression même quand
+            //     DIF_REMOVE est refusé (prouvé dans les logs : « stillPresent=False » juste
+            //     après), donc le nœud restant disparaît vraiment sans reboot. Seul le rare
+            //     survivant retombe sur disable + nom lisible (grisé).
+            ForceEvictNode(instId);
+            if (!NodeLocatable(instId))
+            {
+                Log($"{tag}: node {instId} removed cleanly");
+                return;
+            }
+            if (CM_Locate_DevNodeW(out uint dn, instId, 0) == 0)
+                CM_Disable_DevNode(dn, 0);
+            WriteFriendlyName(instId, profile.ProductString);
+            Log($"{tag}: node {instId} survived evict - disabled and named «{profile.ProductString}» (until next reboot)");
+        }
+        catch (Exception ex) { Log($"{tag}: CleanupNodeAfterDispose failed: {ex.Message}"); }
+    }
+
+    // [V83-UMDF2-ZOMBIE] EN: Targeted re-checks (3 s then 10 s) for a node that vanished at
+    //     dispose but may materialize later (deferred/vetoed removal). Evicts it as soon as it
+    //     appears, so the "unknown device" is visible only for a few seconds instead of until
+    //     the next periodic sweep. A healthy re-appearance (started HID child) is kept.
+    //     FR: Re-vérifications ciblées (3 s puis 10 s) d'un nœud disparu au dispose mais
+    //     susceptible de se matérialiser plus tard (suppression différée/refusée). On l'évince
+    //     dès son apparition : le « périphérique inconnu » ne reste visible que quelques
+    //     secondes au lieu d'attendre le sweep périodique. Une réapparition saine (fils HID
+    //     démarré) est conservée.
+    private static void ScheduleDeferredNodeRecheck(string instId, string tag)
+    {
+        var t = new Thread(() =>
+        {
+            foreach (var delayMs in new[] { 3000, 10000 })
+            {
+                Thread.Sleep(delayMs);
+                try
+                {
+                    if (!NodeLocatable(instId)) continue;
+                    if (ChildStarted(instId)) return; // healthy again: keep it
+                    Log($"{tag}: deferred node {instId} materialized - evicting");
+                    ForceEvictNode(instId);
+                    if (!NodeLocatable(instId))
+                    {
+                        Log($"{tag}: deferred node {instId} removed cleanly");
+                        return;
+                    }
+                }
+                catch { }
+            }
+        })
+        { IsBackground = true, Name = "HmDeferredCheck" };
+        t.Start();
+    }
+
+    private static void WriteFriendlyName(string instId, string name)
+    {
+        if (string.IsNullOrEmpty(name)) return;
+        try
+        {
+            using var k = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                $@"SYSTEM\CurrentControlSet\Enum\{instId}", writable: true);
+            if (k == null) return;
+            k.SetValue("DeviceDesc", name, Microsoft.Win32.RegistryValueKind.String);
+            k.SetValue("FriendlyName", name, Microsoft.Win32.RegistryValueKind.String);
+        }
+        catch { }
+    }
+
+    // [V83-UMDF2-ZOMBIE] EN: Sweep leftover HIDMaestro devnodes at startup. KERNEL enumeration
+    //     (SetupDi DIGCF_PRESENT) - NOT registry keys: the zombied nodes have lost their Enum key
+    //     (deleted by a previous teardown), so only the kernel knows them; CM_Locate finds them
+    //     LIVE while a registry walk sees nothing (that is why the v5 sweep found 0 node).
+    //     Identity pattern ROOT\VID_xxxx&PID_xxxx\HM_<16hex> (the reserved identity-token
+    //     namespace); ownership is confirmed via SPDRP_HARDWAREID containing "HIDMaestro" when
+    //     readable (issue #28: never touch foreign devices). Eviction is reliable:
+    //     CM_Disable+CM_Uninstall forces removal even when DIF_REMOVE is vetoed.
+    //     FR: Balayage des devnodes HIDMaestro restants au démarrage. Énumération KERNEL
+    //     (SetupDi DIGCF_PRESENT) - PAS les clés de registre : les nœuds zombis ont perdu leur
+    //     clé Enum (supprimée par un teardown précédent), seul le kernel les connaît ; CM_Locate
+    //     les trouve LIVE alors qu'un parcours registre ne voit rien (pourquoi le sweep v5 n'a
+    //     rien trouvé). Motif ROOT\VID_xxxx&PID_xxxx\HM_<16hex> (tokens d'identité réservés) ;
+    //     propriété confirmée par SPDRP_HARDWAREID contenant « HIDMaestro » si lisible (issue #28 :
+    //     jamais toucher un device étranger). L'éviction est fiable : CM_Disable+CM_Uninstall
+    //     force la suppression même quand DIF_REMOVE est refusé.
+    private static void SweepLeftoverHmNodes()
+    {
+        try
+        {
+            int cleaned = 0;
+            foreach (var instId in EnumerateHmDevnodes())
+            {
+                // only evict DEAD nodes (no started HID child): never touch a healthy live
+                // device (a still-running one from a previous host session is simply reused
+                // by the next activation).
+                if (ChildStarted(instId))
+                {
+                    Log($"sweep: node {instId} has a started HID child - keeping (healthy)");
+                    continue;
+                }
+                Log($"sweep: leftover HM node {instId} - evicting");
+                DrainSdkDiag("SWEEP_EVICT");
+                ForceEvictNode(instId);
+                if (NodeLocatable(instId) && CM_Locate_DevNodeW(out uint dn, instId, 0) == 0)
+                {
+                    CM_Disable_DevNode(dn, 0);
+                    WriteFriendlyName(instId, "Wiimote4Guns virtual device (inactive)");
+                    Log($"sweep: {instId} still live after evict - disabled and named");
+                }
+                cleaned++;
+            }
+            if (cleaned > 0) Log($"sweep: {cleaned} leftover HM node(s) processed");
+        }
+        catch (Exception ex) { Log("SweepLeftoverHmNodes failed: " + ex.Message); }
+    }
+
+    // EN: Enumerate the PRESENT devnodes matching HIDMaestro's identity namespace
+    //     ROOT\VID_xxxx&PID_xxxx\HM_<16hex>, ownership-checked via SPDRP_HARDWAREID.
+    //     Catches nodes whose Enum key was deleted (invisible to registry-only walks).
+    //     FR: Énumère les devnodes PRÉSENTS du namespace d'identité HIDMaestro
+    //     ROOT\VID_xxxx&PID_xxxx\HM_<16hex>, propriété vérifiée via SPDRP_HARDWAREID.
+    //     Attrape les nœuds dont la clé Enum a été supprimée (invisibles au registre).
+    private static List<string> EnumerateHmDevnodes()
+    {
+        var found = new List<string>();
+        // pass 1: SetupDi (best effort - on some systems the call itself fails; then this
+        // yields nothing and pass 2 still catches our nodes)
+        try
+        {
+            foreach (var id in EnumerateHmDevnodesSetupDi())
+                if (!found.Contains(id)) found.Add(id);
+        }
+        catch (Exception ex) { Log("sweep: SetupDi enumeration failed: " + ex.Message); }
+
+        // pass 2: deterministic candidates computed from the identity keys we actually use
+        // (P<n>, P<n>R, P<n>RR, P<n>RRR x mkb/kb/gp/x360 profiles + GPW/GPWX/GPWXX gamepad
+        // keys), located with CM_Locate_DevNodeW - the CfgMgr32 calls this host already
+        // relies on everywhere (proven working at activation time in the field logs).
+        // The HM_<16hex> identity token is HIDMaestro's reserved namespace, so a located
+        // candidate is provably ours (no foreign device can carry that token).
+        // FR: candidats déterministes calculés depuis les clés d'identité réellement
+        // utilisées, localisés via CM_Locate_DevNodeW - les appels CfgMgr32 déjà utilisés
+        // partout par cet hôte (prouvés fonctionnels sur le terrain). Le token HM_<16hex>
+        // est le namespace réservé de HIDMaestro : un candidat localisé est donc le nôtre.
+        try
+        {
+            foreach (var id in CandidateHmDevnodes())
+                if (!found.Contains(id)) found.Add(id);
+        }
+        catch (Exception ex) { Log("sweep: candidate enumeration failed: " + ex.Message); }
+
+        return found;
+    }
+
+    private static System.Collections.Generic.IEnumerable<string> CandidateHmDevnodes()
+    {
+        string[] playerKeys = { "", "R", "RR", "RRR" };
+        string[] gpKeys = { "", "X", "XX" };
+        for (int p = 1; p <= PlayerCount; p++)
+        {
+            // mkb (V57e), kb-only (V57h) - identity key "P<n>" (+historic rotations)
+            foreach (var profileSet in new[] { ProfileIds, KbProfileIds })
+            {
+                HMProfile prof = null;
+                try { prof = _ctx?.GetProfile(profileSet[p - 1]); } catch { }
+                if (prof == null) continue;
+                foreach (var suffix in playerKeys)
+                {
+                    string id = ComputeInstanceId(prof, "P" + p + suffix);
+                    if (NodeLocatable(id)) yield return id;
+                }
+            }
+            // gamepad devices (DInput + XInput profiles) - identity key GPW<n> (+rotations)
+            foreach (var gpSet in new[] { GpProfileIds, X360ProfileIds })
+            {
+                HMProfile prof = null;
+                try { prof = _ctx?.GetProfile(gpSet[p - 1]); } catch { }
+                if (prof == null) continue;
+                foreach (var suffix in gpKeys)
+                {
+                    string id = ComputeInstanceId(prof, GpKeyPrefix + suffix + p);
+                    if (NodeLocatable(id)) yield return id;
+                }
+            }
+        }
+    }
+
+    private static List<string> EnumerateHmDevnodesSetupDi()
+    {
+        var found = new List<string>();
+        const int DIGCF_PRESENT = 0x00000001;
+        const int DIGCF_ALLCLASSES = 0x00000002;
+        Guid emptyGuid = Guid.Empty;
+        IntPtr dis = SetupDiGetClassDevsW(ref emptyGuid, IntPtr.Zero, IntPtr.Zero, DIGCF_PRESENT | DIGCF_ALLCLASSES);
+        if (dis == IntPtr.Zero || dis == new IntPtr(-1)) return found;
+        var sb = new StringBuilder(260);
+        var rx = new System.Text.RegularExpressions.Regex(
+            @"^ROOT\\VID_[0-9A-Fa-f]{4}&PID_[0-9A-Fa-f]{4}\\HM_[0-9A-Fa-f]{16}$");
+        try
+        {
+            uint index = 0;
+            while (true)
+            {
+                var did = new DeviceInfoData { cbSize = IntPtr.Size == 8 ? 32 : 28 };
+                if (!SetupDiEnumDeviceInfo(dis, index++, ref did)) break; // ERROR_NO_MORE_ITEMS
+                sb.Clear();
+                if (!SetupDiGetDeviceInstanceIdW(dis, ref did, sb, (uint)sb.Capacity, out _)) continue;
+                if (!rx.IsMatch(sb.ToString())) continue;
+                // ownership: HardwareID must contain HIDMaestro (when the property is readable)
+                byte[] hwBuf = new byte[1024];
+                bool owned = true;
+                if (SetupDiGetDeviceRegistryPropertyW(dis, ref did, 1 /*SPDRP_HARDWAREID*/, out _, hwBuf, (uint)hwBuf.Length, out uint hwLen)
+                    && hwLen > 2)
+                {
+                    string hw = Encoding.Unicode.GetString(hwBuf, 0, (int)hwLen - 2);
+                    owned = hw.IndexOf("HIDMaestro", StringComparison.OrdinalIgnoreCase) >= 0;
+                }
+                if (!owned) continue; // foreign device: never touch (issue #28)
+                found.Add(sb.ToString());
+            }
+        }
+        finally { SetupDiDestroyDeviceInfoList(dis); }
+        return found;
+    }
+
+    [DllImport("setupapi.dll", SetLastError = true)]
+    private static extern IntPtr SetupDiGetClassDevsW(ref Guid ClassGuid, IntPtr Enumerator, IntPtr hwndParent, int Flags);
+
+    [DllImport("setupapi.dll", SetLastError = true)]
+    private static extern bool SetupDiEnumDeviceInfo(IntPtr DeviceInfoSet, uint MemberIndex, ref DeviceInfoData DeviceInfoData);
+
+    [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool SetupDiGetDeviceInstanceIdW(IntPtr DeviceInfoSet, ref DeviceInfoData DeviceInfoData,
+        StringBuilder DeviceInstanceId, uint DeviceInstanceIdSize, out uint RequiredSize);
+
+    [DllImport("setupapi.dll", SetLastError = true)]
+    private static extern bool SetupDiGetDeviceRegistryPropertyW(IntPtr DeviceInfoSet, ref DeviceInfoData DeviceInfoData,
+        uint Property, out uint PropertyRegDataType, byte[] PropertyBuffer, uint PropertyBufferSize, out uint RequiredSize);
+
+    [DllImport("setupapi.dll", SetLastError = true)]
+    private static extern bool SetupDiDestroyDeviceInfoList(IntPtr DeviceInfoSet);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct DeviceInfoData
+    {
+        public int cbSize;
+        public Guid ClassGuid;
+        public uint DevInst;
+        public IntPtr Reserved;
+    }
+
+    // EN: Dispose the player's controller AND clean its devnode (see CleanupNodeAfterDispose).
+    // FR: Dispose le contrôleur du joueur ET nettoie son devnode (voir CleanupNodeAfterDispose).
+    private static void DisposePlayerCtrl(int p, HMProfile profile)
+    {
+        try { _ctrl[p - 1]?.Dispose(); } catch { }
+        _ctrl[p - 1] = null;
+        CleanupNodeAfterDispose(profile, KeyFor(p), $"P{p}");
+    }
+
+    // EN: Dispose the player's gamepad controller AND clean its devnode.
+    // FR: Dispose le contrôleur gamepad du joueur ET nettoie son devnode.
+    private static void DisposeGpCtrl(int p, HMProfile profile)
+    {
+        try { _gpCtrl[p - 1]?.Dispose(); } catch { }
+        _gpCtrl[p - 1] = null;
+        CleanupNodeAfterDispose(profile, GpKeyFor(p), $"GP{p}");
+    }
+
+    [DllImport("CfgMgr32.dll")]
+    private static extern uint CM_Disable_DevNode(uint dnDevInst, uint ulFlags);
+
+    [DllImport("CfgMgr32.dll")]
+    private static extern uint CM_Uninstall_DevNode(uint dnDevInst, uint ulFlags);
+
+    // EN: Best-effort hard eviction of a wedged node: disable+uninstall the HID children
+    //     and the parent (clears their Enum registry keys), then delete any surviving
+    //     Enum key directly (HmHost runs as SYSTEM, so the delete is allowed). If an app
+    //     still holds the live node open, the kernel node may linger until reboot, but
+    //     with no started HID child it exposes no HID interface and stays invisible to
+    //     RawInput - the rotated fresh node is the one that works.
+    // FR: Éviction forcée au mieux d'un nœud bloqué : disable+uninstall des fils HID et du
+    //     parent (vide leurs clés Enum), puis suppression directe de la clé Enum restante
+    //     (HmHost tourne en SYSTEM, la suppression est autorisée). Si une app tient encore
+    //     le nœud kernel ouvert, il peut persister jusqu'au reboot, mais sans fils HID
+    //     démarré il n'expose aucune interface HID et reste invisible pour RawInput - c'est
+    //     le nœud neuf rotaté qui fonctionne.
+    private static void ForceEvictNode(string instId)
+    {
+        try
+        {
+            List<string> kids;
+            try { kids = HIDMaestro.Internal.DeviceManager.GetAllHidChildIds(instId); }
+            catch { kids = new List<string>(); }
+            foreach (var c in kids)
+            {
+                if (CM_Locate_DevNodeW(out uint ci, c, 1) == 0)
+                {
+                    CM_Disable_DevNode(ci, 0);
+                    CM_Uninstall_DevNode(ci, 0);
+                }
+            }
+            if (CM_Locate_DevNodeW(out uint pi, instId, 1) == 0)
+            {
+                CM_Disable_DevNode(pi, 0);
+                CM_Uninstall_DevNode(pi, 0);
+            }
+            Thread.Sleep(500);
+            try
+            {
+                Microsoft.Win32.Registry.LocalMachine.DeleteSubKeyTree(
+                    $@"SYSTEM\CurrentControlSet\Enum\{instId}", throwOnMissingSubKey: false);
+            }
+            catch (Exception ex) { Log($"ForceEvictNode registry delete {instId}: {ex.GetType().Name}"); }
+            bool still = CM_Locate_DevNodeW(out _, instId, 1) == 0;
+            Log($"ForceEvictNode({instId}) done, stillPresent(phantom)={still}");
+        }
+        catch (Exception ex) { Log($"ForceEvictNode({instId}) failed: {ex.Message}"); }
+    }
+
+    // ── post-create verification + SDK diag mirror ──────────
+    // EN: The SDK's SetupController returns success even when the devnode never reaches
+    //     DN_STARTED (the V75 adopt path can adopt a pending-removal node left by a
+    //     force-killed prior session / a service reinstall, without rebinding the driver).
+    //     HmHost verifies the real PnP state through the SDK's PUBLIC DeviceManager API
+    //     and heals (restart, then remove + recreate by the caller) before reporting OK.
+    // FR: SetupController du SDK répond succès même si le devnode n'atteint jamais
+    //     DN_STARTED (le chemin d'adoption V75 peut adopter un nœud en attente de
+    //     suppression laissé par une session tuée en force / une réinstall du service,
+    //     sans rebind du pilote). HmHost vérifie l'état PnP réel via l'API PUBLIQUE
+    //     DeviceManager du SDK et répare (restart, puis remove + recréation par l'appelant)
+    //     avant de répondre OK.
+
+    private static (string InstId, bool Live) VerifyDevice(HMProfile profile, string key, int budgetMs, bool attemptHeal)
+    {
+        string instId = ComputeInstanceId(profile, key);
+        bool live = WaitDeviceLive(instId, budgetMs);
+        if (!live && attemptHeal)
+        {
+            Log($"device not started ({DescribeDevNode(instId)}); trying RestartDevice heal");
+            DrainSdkDiag("HEAL_RESTART");
+            try { HIDMaestro.Internal.DeviceManager.RestartDevice(instId); }
+            catch (Exception ex) { Log("RestartDevice ex: " + ex.Message); }
+            live = WaitDeviceLive(instId, 8000);
+            if (live) Log($"healed via RestartDevice: {instId}");
+        }
+        if (!live)
+            Log($"device still not started: {DescribeDevNode(instId)}");
+        DrainSdkDiag("VERIFY");
+        return (instId, live);
+    }
+
+    private static bool WaitDeviceLive(string instId, int budgetMs)
+    {
+        // [V83-UMDF2-VERIFY] EN: liveness = the HID CHILD must be DN_STARTED (that is the
+        //     interface mouhid/kbdhid bind to and RawInput sees). The parent alone being
+        //     started is NOT enough: on an adopted pending-removal devnode the parent can
+        //     be started while the child never starts (observed: step=4.wait_started
+        //     burns its full 5000ms budget, mouse dead).
+        //     FR: la vivacité = le fils HID doit être DN_STARTED (c'est l'interface sur
+        //     laquelle mouhid/kbdhid se lient et que RawInput voit). Le parent seul démarré
+        //     ne suffit PAS : sur un devnode adopté en attente de suppression, le parent
+        //     peut être démarré pendant que le fils ne démarre jamais (observé :
+        //     step=4.wait_started brûle tout son budget de 5000 ms, souris morte).
+        var sw = Stopwatch.StartNew();
+        while (true)
+        {
+            string child = null;
+            bool childStarted = false;
+            try { child = HIDMaestro.Internal.DeviceManager.GetHidChildId(instId); } catch { }
+            if (child != null)
+            {
+                try { childStarted = HIDMaestro.Internal.DeviceManager.IsDeviceStarted(child); } catch { }
+            }
+            // [V83] require BOTH: the ROOT parent must be DN_STARTED (driver bound+started -
+            // a driverless parent shows as Code 1 "unknown device") AND the HID child must
+            // be DN_STARTED (the interface RawInput/mouhid actually use).
+            if (ParentStarted(instId) && child != null && childStarted) return true;
+            if (sw.ElapsedMilliseconds >= budgetMs) return false;
+            Thread.Sleep(100);
+        }
+    }
+
+    private const uint DN_STARTED_FLAG = 0x00000008;
+
+    private static bool ParentStarted(string instId)
+    {
+        try
+        {
+            if (CM_Locate_DevNodeW(out uint dn, instId, 0) != 0) return false;
+            return CM_Get_DevNode_Status(out uint st, out _, dn, 0) == 0 && (st & DN_STARTED_FLAG) != 0;
+        }
+        catch { return false; }
+    }
+
+    // EN: Mirrors HIDMaestro.Internal.DeviceIdentity: token = "HM_" + first 8 bytes
+    //     (big-endian) of SHA256("HIDMaestro.DeviceIdentity.v1\n" + key), X16.
+    //     Plain-HID enumerator is VID_xxxx&PID_xxxx (VID 045E adds &IG_00).
+    // FR: Miroir de HIDMaestro.Internal.DeviceIdentity : token = « HM_ » + 8 premiers
+    //     octets (big-endian) de SHA256("HIDMaestro.DeviceIdentity.v1\n" + key), en X16.
+    //     Énumérateur HID simple = VID_xxxx&PID_xxxx (VID 045E ajoute &IG_00).
+    private static string ComputeInstanceId(HMProfile profile, string key)
+    {
+        byte[] digest = System.Security.Cryptography.SHA256.HashData(
+            Encoding.UTF8.GetBytes("HIDMaestro.DeviceIdentity.v1\n" + key));
+        ulong h = System.Buffers.Binary.BinaryPrimitives.ReadUInt64BigEndian(digest);
+        string token = "HM_" + h.ToString("X16");
+        string vid = $"{profile.VendorId:X4}";
+        string pid = $"{profile.ProductId:X4}";
+        string enumerator = profile.VendorId == 0x045E
+            ? $"VID_{vid}&PID_{pid}&IG_00"
+            : $"VID_{vid}&PID_{pid}";
+        return $@"ROOT\{enumerator}\{token}";
+    }
+
+    [DllImport("CfgMgr32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern uint CM_Locate_DevNodeW(out uint pdnDevInst, string pDeviceID, uint ulFlags);
+
+    [DllImport("CfgMgr32.dll")]
+    private static extern uint CM_Get_DevNode_Status(out uint pulStatus, out uint pulProblemNumber, uint dnDevInst, uint ulFlags);
+
+    private static string DescribeDevNode(string instId)
+    {
+        try
+        {
+            uint rcLive = CM_Locate_DevNodeW(out uint dn, instId, 0);
+            uint rcPhantom = CM_Locate_DevNodeW(out uint dnP, instId, 1);
+            if (rcLive != 0 && rcPhantom != 0) return $"{instId}: ABSENT";
+            uint devInst = rcLive == 0 ? dn : dnP;
+            uint rc = CM_Get_DevNode_Status(out uint status, out uint problem, devInst, 0);
+            string parent = $"{instId}: {(rcLive == 0 ? "LIVE" : "PHANTOM")} status=0x{status:X8} problem=0x{problem:X8} (rc=0x{rc:X8})";
+            // [V83-UMDF2-VERIFY] also describe the HID child: that is the node whose
+            // DN_STARTED actually matters for input (see WaitDeviceLive).
+            string child = null;
+            try { child = HIDMaestro.Internal.DeviceManager.GetHidChildId(instId); } catch { }
+            if (child == null) return parent + " | no HID child";
+            uint rcC = CM_Locate_DevNodeW(out uint dnC, child, 0);
+            if (rcC != 0) return parent + $" | child {child}: NOT LIVE";
+            uint rcCS = CM_Get_DevNode_Status(out uint stC, out uint prC, dnC, 0);
+            return parent + $" | child {child}: LIVE status=0x{stC:X8} problem=0x{prC:X8} (rc=0x{rcCS:X8})";
+        }
+        catch (Exception ex) { return $"{instId}: describe failed ({ex.GetType().Name})"; }
+    }
+
+    private static long _diagOffset = -1;
+    private static long _timingOffset = -1;
+
+    private static long InitialLen(string path)
+    {
+        try { return File.Exists(path) ? new FileInfo(path).Length : 0; }
+        catch { return 0; }
+    }
+
+    // EN: Mirror the SDK's %TEMP%\HIDMaestro diag/timing files into HmHost.log so a user
+    //     log bundle is self-contained (HIDMAESTRO_DIAG=1 is set in Main before SDK init).
+    // FR: Miroir les fichiers diag/timing du SDK dans HmHost.log pour un bundle de logs
+    //     utilisateur autonome (HIDMAESTRO_DIAG=1 est posé dans Main avant l'init du SDK).
+    private static void DrainSdkDiag(string tag)
+    {
+        try
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "HIDMaestro");
+            DrainOne(Path.Combine(dir, "teardown_diag.log"), ref _diagOffset, "sdk-diag", tag);
+            DrainOne(Path.Combine(dir, "setup_timing.log"), ref _timingOffset, "sdk-timing", tag);
+        }
+        catch { }
+    }
+
+    private static void DrainOne(string path, ref long offset, string prefix, string tag)
+    {
+        try
+        {
+            if (!File.Exists(path)) return;
+            if (offset < 0) offset = 0;
+            byte[] data;
+            long newOffset;
+            using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            {
+                if (fs.Length <= offset) return;
+                fs.Seek(offset, SeekOrigin.Begin);
+                int len = (int)(fs.Length - offset);
+                data = new byte[len];
+                int read = 0;
+                while (read < len)
+                {
+                    int r = fs.Read(data, read, len - read);
+                    if (r <= 0) break;
+                    read += r;
+                }
+                Array.Resize(ref data, read);
+                newOffset = fs.Length;
+            }
+            string text = Encoding.UTF8.GetString(data);
+            // only consume up to the last complete line; keep the partial tail for next drain
+            int lastNl = text.LastIndexOf('\n');
+            if (lastNl < 0) return;
+            newOffset -= (text.Length - lastNl - 1);
+            offset = newOffset;
+            int start = 0;
+            while (start <= lastNl)
+            {
+                int nl = text.IndexOf('\n', start);
+                if (nl < 0 || nl > lastNl) break;
+                string line = text.Substring(start, nl - start).TrimEnd('\r');
+                if (line.Length > 0) Log($"[{prefix}:{tag}] {line}");
+                start = nl + 1;
+            }
+        }
+        catch { }
     }
 
     private static void Log(string message)

@@ -108,6 +108,13 @@ namespace WiimoteGun
             this.Name = "ModalInputDialog";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
             this.ShowInTaskbar = false;
+            // [V82-ZORDER] EN/FR: this dialog is opened from the mapping pages, which live
+            //     inside the always-on-top ProfileOverlay: without TopMost the dialog lands
+            //     UNDER the overlay and cannot be used (V61-ZORDER class).
+            //     FR: ce dialogue est ouvert depuis les pages de mapping, qui vivent dans
+            //     ProfileOverlay (always-on-top) : sans TopMost le dialogue passe SOUS
+            //     l'overlay et devient inutilisable (classe V61-ZORDER).
+            this.TopMost = true;
             this.ResumeLayout(false);
             this.PerformLayout();
         }

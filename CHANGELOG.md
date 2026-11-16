@@ -4,6 +4,24 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [3.1.7.2] - 2026-11-16
+
+- When updating from a version older than 3.1.7.2, **Virtual Polling (upsampling)** and **IR smoothing (EMA)** are switched ON with the values 500 Hz for V1 and V2, smoothing EMA 1, so the new fluidity can be compared with the previous behaviour. Both can be turned off at any time.
+- The Wiimote v2 model **"Nintendo RVL-CNT-01-TR"** (MotionPlus Inside) remains less fluid than the V1 — its Bluetooth report stream still arrives in bursts... there is currently no solution for this.
+- HmHost (UMDF2 virtual mouse/keyboard host): fixed the virtual mouse not coming back without a Windows reboot when its device node was left wedged (pending removal / "unknown device" code 1 zombie). HmHost now verifies that each virtual device really reached the started state (root node + HID child `DN_STARTED`) before reporting success, evicts wedged nodes, and when needed recreates the device under a rotated identity key (P1 -> P1R) so a fresh node is used - no reboot required. It reports `ERR NOT_STARTED` instead of a silent dead device. The HIDMaestro SDK diag/timing logs are mirrored into `HmHost.log` for support.
+- Various adjustments.
+
+---
+
+## [3.1.7.1] - 2026-11-05
+
+> App only (WiimoteGun.exe) — the service is unchanged (3.1.6.2).
+
+- **New "Projective distance correction" option (Hybrid PnP)** — **disabled by default**: the IR measurement is first brought back to its "calibration-distance equivalent" before the mapping (instead of scaling the aim on screen), so the aim keeps its height better when walking towards/away from the screen. Testable A/B: **if the behaviour is not what you expect, disable it** (the previous behaviour comes back immediately, no recalibration).
+- **The mouse cursor is locked at the center of the screen during calibration** (unlocked as soon as the calibration ends).
+
+---
+
 ## [3.1.7.0] - 2026-10-21
 
 - **"Output" tab in Options**: receive the game's outputs via **OutputHooker** over UDP to drive the rumble per player. Short semantic frames are used directly in the OutputHooker commands (`P1 FIRE %s%`, `P1 DMG %s%`, ...): everything after `udp 1 127.0.0.1 <port> ` is received verbatim, so no tag mapping is normally required, and `GameOutputStart`/`GameOutputEnd` (`MameStart`/`MameStop`) flag the in-game state.

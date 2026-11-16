@@ -625,6 +625,15 @@ namespace WiimoteGun
             }
         }
 
+        public void UpdateVirtualPolling()
+        {
+            var controllers = _controllers.ToList();
+            foreach (var controller in controllers)
+            {
+                controller.UpdateVirtualPollingTimer();
+            }
+        }
+
         /// <summary>
         /// Called when emulator starts during runtime (EN/FR: Appelé quand émulateur démarre pendant exécution)
         /// </summary>

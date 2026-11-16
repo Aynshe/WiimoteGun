@@ -133,6 +133,7 @@ namespace WiimoteGun.Core
             { "RY3E41", "RaymanRavingRabbids_TV" },
             { "RZJE69", "DEADSPACE" },
             { "RZPE01", "LINKCROSSBOW" },
+            { "RZPP01", "LINKCROSSBOWeur" },
             { "S3AE5G", "ATTACKMOVIES" },
             { "SBDE08", "REDarkside" },
             { "SBHEFP", "RemingtonBIRD" },
@@ -408,22 +409,32 @@ namespace WiimoteGun.Core
             }
         }
 
-        private static void CreateDolphinWiimoteProfiles(string profilesDir, string prefix)
-        {
-            string[] suffixes = { "a", "b", "c", "d" };
-            for (int i = 1; i <= 4; i++)
+private static void CreateDolphinWiimoteProfiles(string profilesDir, string prefix)
             {
-                string fileName = string.IsNullOrEmpty(prefix) 
-                    ? string.Format("P{0}-wiimotegun.ini", i)
-                    : string.Format("{0}_P{1}-wiimotegun.ini", prefix, i);
-                
-                string profilePath = Path.Combine(profilesDir, fileName);
-                if (!File.Exists(profilePath))
+                string[] suffixes = { "a", "b", "c", "d" };
+                for (int i = 1; i <= 4; i++)
                 {
-                    try
+                    string fileName = string.IsNullOrEmpty(prefix)
+                        ? string.Format("P{0}-wiimotegun.ini", i)
+                        : string.Format("{0}_P{1}-wiimotegun.ini", prefix, i);
+
+                    string profilePath = Path.Combine(profilesDir, fileName);
+                    if (!File.Exists(profilePath))
                     {
-                        string template = DOLPHIN_WIIMOTE_TEMPLATE.Replace("{suffix}", suffixes[i - 1]);
-                        File.WriteAllText(profilePath, template, Encoding.UTF8);
+                        try
+                        {
+                            // [V82-IRSETTINGS] EN/FR: the IR values are per game — the prefix
+                            //     ("LINKCROSSBOW", "REDarkside", ...) selects them; without a
+                            //     source value the lines stay empty, as requested.
+                            //     FR: les valeurs IR sont par jeu — le préfixe les sélectionne ;
+                            //     sans valeur source, les lignes restent vides (comme demandé).
+string[] irValues = GetDolphinIrValues(prefix);
+                            string template = DOLPHIN_WIIMOTE_TEMPLATE
+                                .Replace("{suffix}", suffixes[i - 1])
+                                .Replace("{IR0}", irValues[0])
+                                .Replace("{IR1}", irValues[1])
+                                .Replace("{IR2}", irValues[2]);
+                            File.WriteAllText(profilePath, template, Encoding.UTF8);
                         SimpleLogger.Instance.Info(string.Format("[ProfileAutomator] Created Dolphin profile: {0}", fileName));
                     }
                     catch (Exception ex)
@@ -438,20 +449,176 @@ namespace WiimoteGun.Core
         //     in the Dolphin Wiimote profiles folder - the hard-coded templates AND the
         //     profiles the user created from them (any file matching the pattern). The
         //     device name follows the DRIVER MODE selected by the user:
-        //       - RawInput (VMulti):  DInput/0/vmulti{a|b|c|d} HID   (per-player suffix)
-        //       - RawInput (UMDF2):   DInput/0/GamePad Wiimote4Guns P<n> HID
-        //     The pass is IDEMPOTENT and re-runs on every UpdateProfiles (device changes,
-        //     mode switches): a mode change is always reflected, back and forth.
-        //     FR: Patche la ligne « Device = DInput/0/<nom> HID » de TOUS les
-        //     *-wiimotegun.ini du dossier de profils Wiimote de Dolphin - les templates
-        //     codés en dur ET les profils créés par l'utilisateur (tout fichier matchant
-        //     le motif). Le nom du device suit le MODE PILOTE sélectionné par
-        //     l'utilisateur :
-        //       - RawInput (VMulti) :  DInput/0/vmulti{a|b|c|d} HID   (suffixe par joueur)
-        //       - RawInput (UMDF2)  :  DInput/0/GamePad Wiimote4Guns P<n> HID
+//       - RawInput (VMulti):  DInput/0/vmulti{a|b|c|d} HID   (per-player suffix)
+            //       - RawInput (UMDF2):   DInput/0/GamePad Wiimote4Guns P<n>   (NO "HID" suffix)
+            //     The pass is IDEMPOTENT and re-runs on every UpdateProfiles (device changes,
+            //     mode switches): a mode change is always reflected, back and forth.
+            //     [V82-NOHID] Dolphin now reports the UMDF2 gamepads without the " HID" suffix,
+            //     so the suffix is no longer written for them (older profiles carrying it are
+            //     still matched and rewritten — that is why the "HID" part is optional in the
+            //     regex).
+            //     FR: Patche la ligne « Device = DInput/0/<nom> » (suffixe « HID » optionnel) de
+            //     TOUS les *-wiimotegun.ini du dossier de profils Wiimote de Dolphin - les
+            //     templates codés en dur ET les profils créés par l'utilisateur (tout fichier
+            //     matchant le motif). Le nom du device suit le MODE PILOTE sélectionné par
+            //     l'utilisateur :
+            //       - RawInput (VMulti) :  DInput/0/vmulti{a|b|c|d} HID   (suffixe par joueur)
+            //       - RawInput (UMDF2)  :  DInput/0/GamePad Wiimote4Guns P<n>   (PAS de « HID »)
         //     La passe est IDEMPOTENTE et rejouée à chaque UpdateProfiles (changements de
         //     devices, de mode) : un changement de mode est toujours répercuté, dans un
         //     sens comme dans l'autre.
+        // [V82-IRSETTINGS] EN: The IR lines Dolphin expects in the current profile format.
+        //     The values differ per game and come from the Dolphin "Lightguns Accuracy Inis"
+        //     source; the key is the game prefix used in the generated profile name
+        //     ("<GameID-friendly>_P<n>-wiimotegun.ini"). Games WITHOUT an entry keep the three
+        //     lines empty (Dolphin then keeps its own calibration).
+        //     FR: Les lignes IR attendues par Dolphin dans le format de profil actuel. Les valeurs
+        //     diffèrent par jeu et proviennent de la source Dolphin « Lightguns Accuracy Inis » ;
+        //     la clé est le préfixe de jeu utilisé dans le nom du profil généré. Les jeux SANS
+        //     entrée gardent les trois lignes vides (Dolphin garde alors sa calibration).
+        private static readonly Dictionary<string, string[]> DolphinIrValues =
+            new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "ARCADESHOOT", new[] { "15.0", "18.7", "18.8" } },
+                { "ATTACKMOVIES", new[] { "15.0", "19", "19" } },
+                { "BBHPRO", new[] { "7.0", "18.7", "18.9" } },
+                { "CHICKENBLASTER", new[] { "15.0", "18.7", "19" } },
+                { "CHICKENRIOT", new[] { "14.7", "18.9", "19.3" } },
+                { "CHICKENSHOOT", new[] { "0.0", "41.3", "31.6" } },
+                { "COCOTOMC", new[] { "15.3", "18.5", "18.69" } },
+                { "DEADSPACE", new[] { "14.5", "18.3", "19.15" } },
+                { "DINOSTRIKE", new[] { "15.0", "18.9", "18.9" } },
+                { "FASTDRAWSD", new[] { "14.9", "18.8", "18.8" } },
+                { "GHOSTSQUAD", new[] { "15.0", "18.7", "19" } },
+                { "GUNBLADE-LAM", new[] { "15.2", "18.6", "18.9" } },
+                { "GUNSLINGERS", new[] { "15.0", "18.7", "12.0" } },
+                { "HeavyFireBA", new[] { "14.5", "22.0", "22.0" } },
+                { "HeavyFireSO", new[] { "14.5", "22.0", "22.0" } },
+                { "HOTD23", new[] { "15.0", "19.0", "19.0" } },
+                { "HOTDOverkill", new[] { "15.0", "19.0", "19.0" } },
+                { "LINKCROSSBOW", new[] { "15.0", "13.5", "7.8" } },
+                { "MadDogMcCree", new[] { "15.0", "18.8", "19.0" } },
+                { "MARTIANPANIC", new[] { "14.7", "19", "19" } },
+                { "NERF_ELITE", new[] { "21.3", "12.35", "12.3" } },
+                { "PIRATEBLAST", new[] { "14.6", "19", "19" } },
+                { "REDarkside", new[] { "0.0", "20.6", "15.75" } },
+                { "RELOAD", new[] { "15.0", "18.75", "18.75" } },
+                { "RemingtonAFRICA", new[] { "14.6", "30.7", "18.9" } },
+                { "RemingtonALASKA", new[] { "14.6", "30.7", "18.9" } },
+                { "RemingtonBIRD", new[] { "14.7", "18.6", "18.8" } },
+                { "RemingtonNA", new[] { "14.7", "18.6", "18.8" } },
+                { "REUmbrella", new[] { "15.2", "15.3", "11.7" } },
+                { "TARGETTERROR", new[] { "15.15", "19.1", "19.4" } },
+                { "TopShotArcade", new[] { "15.0", "24.7", "19.0" } },
+                { "WickedMonstersBlast", new[] { "15.0", "18.3", "18.0" } },
+                { "WiiPlay", new[] { "13.0", "20.8", "11.9" } },
+                { "WILDWESTGUNS", new[] { "14.7", "18.9", "19.0" } },
+                { "WILDWESTSHOOTOUT", new[] { "15.0", "18.8", "19.0" } },
+            };
+
+        /// <summary>
+        /// [V82-IRSETTINGS] EN: the IR values for a game prefix (from the accuracy source, or
+        ///     EMPTY when the game has none - the lines are kept as required).
+        /// FR: les valeurs IR pour un préfixe de jeu (source de précision, ou VIDES si le jeu
+        ///     n'en a pas - les lignes sont conservées comme demandé).
+        /// </summary>
+        private static string[] GetDolphinIrValues(string prefix)
+        {
+            string[] v;
+            if (string.IsNullOrEmpty(prefix) || !DolphinIrValues.TryGetValue(prefix, out v) || v == null || v.Length < 3)
+                return new[] { "", "", "" };
+            return v;
+        }
+
+        /// <summary>
+        /// [V82-IRSETTINGS] EN: the three IR lines for a game prefix (values from the accuracy
+        ///     source, or EMPTY when the game has none - the lines are kept as required).
+        /// FR: les trois lignes IR pour un préfixe de jeu (valeurs de la source de précision, ou
+        ///     VIDES si le jeu n'en a pas - les lignes sont conservées comme demandé).
+        /// </summary>
+        private static string[] GetDolphinIrLines(string prefix)
+        {
+            string[] v = GetDolphinIrValues(prefix);
+            return new[]
+            {
+                "IR/Vertical Offset = " + v[0],
+                "IR/Total Yaw = " + v[1],
+                "IR/Total Pitch = " + v[2]
+            };
+        }
+
+        /// <summary>
+        /// [V82-IRSETTINGS] EN: normalises the IR section of a Dolphin Wiimote profile: removes the
+        ///     obsolete "IR/Calibration = ..." line and makes sure the three IR lines are present
+        ///     with the recommended values (inserted after "IR/Right" so they stay in the IR block).
+        ///     Called on every profile pass, so the repair also applies to profiles created by an
+        ///     older build.
+        /// FR: normalise la section IR d'un profil Wiimote Dolphin : supprime la ligne obsolète
+        ///     « IR/Calibration = ... » et s'assure que les trois lignes IR sont présentes avec les
+        ///     valeurs recommandées (insérées après « IR/Right » pour rester dans le bloc IR).
+        ///     Appelé à chaque passe sur les profils, la réparation s'applique donc aussi aux
+        ///     profils créés par une ancienne version.
+        /// </summary>
+        private static bool PatchDolphinIrSettings(List<string> lines, string gamePrefix)
+        {
+            bool changed = false;
+
+            // EN/FR: remove the obsolete "IR/Calibration = ..." (Dolphin no longer uses it).
+            for (int i = lines.Count - 1; i >= 0; i--)
+            {
+                if (Regex.IsMatch(lines[i].Trim(), @"^IR/Calibration\s*=", RegexOptions.IgnoreCase))
+                {
+                    lines.RemoveAt(i);
+                    changed = true;
+                }
+            }
+
+            // EN/FR: the three lines for THIS game (source values, or empty when none).
+            foreach (string wanted in GetDolphinIrLines(gamePrefix))
+            {
+                string key = wanted.Substring(0, wanted.IndexOf('=')).Trim();
+                bool found = false;
+                for (int i = 0; i < lines.Count; i++)
+                {
+                    // EN/FR: the key must be compared WITHOUT the space before '='
+                    //     ("IR/Vertical Offset = 15.0" as well as "IR/Vertical Offset=15.0").
+                    //     FR: la clé doit être comparée SANS l'espace situé avant « = ».
+                    int eq = lines[i].IndexOf('=');
+                    if (eq <= 0)
+                        continue;
+                    string k = lines[i].Substring(0, eq).Trim();
+                    if (!string.Equals(k, key, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    if (!string.Equals(lines[i].Trim(), wanted, StringComparison.Ordinal))
+                    {
+                        lines[i] = wanted;
+                        changed = true;
+                    }
+                    found = true;
+                    break;
+                }
+                if (!found)
+                {
+                    // EN/FR: keep them in the IR block (insert after IR/Right when present).
+                    int insertAt = -1;
+                    for (int i = 0; i < lines.Count; i++)
+                    {
+                        if (lines[i].Trim().StartsWith("IR/Right", StringComparison.OrdinalIgnoreCase))
+                        {
+                            insertAt = i + 1;
+                            break;
+                        }
+                    }
+                    if (insertAt < 0)
+                        insertAt = lines.Count;
+                    lines.Insert(insertAt, wanted);
+                    changed = true;
+                }
+            }
+
+            return changed;
+        }
+
         private static void PatchDolphinDeviceNames(string profilesDir)
         {
             try
@@ -464,10 +631,10 @@ namespace WiimoteGun.Core
                 if (files.Length == 0)
                     return;
 
-                var deviceRegex = new Regex(@"^Device\s*=\s*DInput/0/(\S.*?)\s*HID\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+                var deviceRegex = new Regex(@"^Device\s*=\s*DInput/0/(\S.*?)(?:\s*HID)?\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
                 int patched = 0;
 
-                foreach (string file in files)
+foreach (string file in files)
                 {
                     try
                     {
@@ -489,9 +656,9 @@ namespace WiimoteGun.Core
                             ? "GamePad Wiimote4Guns P" + player
                             : "vmulti" + "abcd"[player - 1];
 
-                        string[] lines = File.ReadAllLines(file);
+                        var lines = new List<string>(File.ReadAllLines(file));
                         bool changed = false;
-                        for (int i = 0; i < lines.Length; i++)
+                        for (int i = 0; i < lines.Count; i++)
                         {
                             Match dm = deviceRegex.Match(lines[i].Trim());
                             if (!dm.Success)
@@ -499,10 +666,36 @@ namespace WiimoteGun.Core
                             string currentName = dm.Groups[1].Value.Trim();
                             if (!string.Equals(currentName, desired, StringComparison.Ordinal))
                             {
-                                lines[i] = "Device = DInput/0/" + desired + " HID";
+                                // [V82-NOHID] EN/FR: Dolphin now reports the UMDF2 gamepads as
+                                //     "DInput/0/GamePad Wiimote4Guns P<n>" (no trailing HID suffix),
+                                //     so the suffix must NOT be written anymore. A trailing " HID"
+                                //     would name a device Dolphin no longer sees.
+                                lines[i] = "Device = DInput/0/" + desired + (umdf2 ? "" : " HID");
                                 changed = true;
                             }
                         }
+
+                        // [V82-IRSETTINGS] EN/FR: the IR lines are normalised on the SAME pass, so
+                        //     profiles written by an older build (which carry the obsolete
+                        //     "IR/Calibration" line) are fixed too — CreateDolphinWiimoteProfiles
+                        //     only writes the template when the file is MISSING.
+                        //     FR: les lignes IR sont normalisées dans la MÊME passe, pour que les
+                        //     profils écrits par une version ancienne (qui portent la ligne
+                        //     obsolète « IR/Calibration ») soient corrigés aussi —
+                        //     CreateDolphinWiimoteProfiles n'écrit le template que si le fichier
+                        //     est ABSENT.
+                        // [V82-IRSETTINGS] EN/FR: the game prefix is the profile file name minus
+                            //     "_P<n>-wiimotegun.ini" ("LINKCROSSBOW_P1-wiimotegun.ini" ->
+                            //     "LINKCROSSBOW"), used to look up the per-game IR values.
+                            string gamePrefix = Regex.Replace(
+                                Path.GetFileName(file), @"_P\d-wiimotegun\.ini$", "", RegexOptions.IgnoreCase);
+                            // EN/FR: the generic profiles ("P1-wimootegun.ini" ...) carry no game
+                            //     prefix -> must stay empty (no per-game IR value).
+                            //     FR: les profils génériques (sans préfixe de jeu) doivent rester vides.
+                            if (gamePrefix.EndsWith("wiimotegun.ini", StringComparison.OrdinalIgnoreCase))
+                                gamePrefix = "";
+                            if (PatchDolphinIrSettings(lines, gamePrefix))
+                                changed = true;
 
                         if (changed)
                         {
@@ -906,7 +1099,9 @@ IR/Up = `Axis Yr-`
 IR/Down = `Axis Yr+`
 IR/Left = `Axis Xr-`
 IR/Right = `Axis Xr+`
-IR/Calibration = 100.00 101.96 108.24 120.27 141.42 120.27 108.24 101.96 100.00 101.96 108.24 120.27 139.19 120.27 108.24 101.96 100.00 101.96 108.24 120.27 141.42 120.27 108.24 101.96 100.00 101.96 108.24 120.27 141.42 120.27 108.24 101.96
+IR/Vertical Offset = {IR0}
+IR/Total Yaw = {IR1}
+IR/Total Pitch = {IR2}
 Tilt/Dead Zone = 15.
 Swing/Dead Zone = 15.
 IMUGyroscope/Dead Zone = 15.

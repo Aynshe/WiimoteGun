@@ -12,7 +12,7 @@
     <AssemblyName>HmHost</AssemblyName>
     <RootNamespace>HmHost</RootNamespace>
     <InvariantGlobalization>false</InvariantGlobalization>
-    <Version>3.1.0.0</Version>
+    <Version>3.1.7.2</Version>
     <NoWarn>CA1416;CS9191</NoWarn>
   </PropertyGroup>
 
