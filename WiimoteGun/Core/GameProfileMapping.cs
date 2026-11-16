@@ -418,7 +418,7 @@ namespace WiimoteGun
         /// Passer les deux valeurs ES fait réellement résoudre les liens dossier (fix :
         /// profil jamais chargé pour les jeux en dossiers).
         /// </summary>
-        public static GameProfileMapping GetBestMapping(string exeName, string exePath = null, string esGameName = null, string esGameNameRaw = null)
+        public static GameProfileMapping GetBestMapping(string exeName, string exePath = null, string esGameName = null, string esGameNameRaw = null, string esSystem = null)
         {
             lock (_lock)
             {
@@ -426,80 +426,146 @@ namespace WiimoteGun
 
                 GameProfileMapping best = null;
                 int bestScore = 0;
+                bool pathSelfHealed = false;
 
                 foreach (var m in _mappings)
                 {
                     if (!m.AutoLoad) continue;
 
-                    bool exeMatch = false;
-                    if (!string.IsNullOrEmpty(exePath) && !string.IsNullOrEmpty(m.ExecutablePath) &&
-                        m.ExecutablePath.Equals(exePath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        exeMatch = true;
-                    }
-                    else if (!string.IsNullOrEmpty(m.ExecutableName) &&
-                             m.ExecutableName.Equals(exeName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        // If this mapping has a path but we didn't match it above (and exePath was provided),
-                        // it's a different game with the same exe name -> Don't load!
-                        // (EN/FR: Si ce mapping a un chemin mais pas de match (et exePath fourni),
-                        // c'est un autre jeu avec le même nom d'exe -> Ne pas charger!)
-                        if (!string.IsNullOrEmpty(exePath) && !string.IsNullOrEmpty(m.ExecutablePath))
-                            continue;
-                        exeMatch = true;
-                    }
+                    // [V84] EN: for GAME-SCOPED mappings (GameName set), a path mismatch never rejects the
+                    //     match anymore - the ES game name is the identity that disambiguates the
+                    //     same exe name (e.g. TeknoParrot: all games share BudgieLoader.exe), and
+                    //     the same game/exe can be reached through different roots / symlinks /
+                    //     drives. The path is then only a scoring bonus, and a self-heal refreshes
+                    //     the stored path to the detected one. Exe-generic mappings (no GameName)
+                    //     keep the V42 strict path rule.
+                    //     FR: pour les mappings SCOPÉS PAR JEU (GameName renseigné), un chemin
+                    //     différent ne rejette PLUS le match - le nom de jeu ES est l'identité qui
+                    //     désambiguïe un même nom d'exe (ex. TeknoParrot : tous les jeux partagent
+                    //     BudgieLoader.exe), et un même jeu/exe est atteignable par différentes
+                    //     racines / symlinks / disques. Le chemin n'est alors qu'un bonus de score,
+                    //     et une auto-réparation remet le chemin stocké à celui détecté. Les
+                    //     mappings exe-génériques (sans GameName) gardent la règle stricte V42.
+                    bool pathMatched = !string.IsNullOrEmpty(exePath) && !string.IsNullOrEmpty(m.ExecutablePath) &&
+                        m.ExecutablePath.Equals(exePath, StringComparison.OrdinalIgnoreCase);
 
-                    if (!exeMatch) continue;
+                    if (string.IsNullOrEmpty(m.ExecutableName) ||
+                        !m.ExecutableName.Equals(exeName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    // [V84c] EN: system disambiguation. When the mapping knows its ES system
+                    //     (created from ES, or with a system) and the runtime knows it too
+                    //     (ES system-selected / derived from the rom path), a DIFFERENT system
+                    //     rejects the mapping: two games with the same name in two systems
+                    //     (same exe, e.g. TeknoParrot/MAME) must never cross-load - and the
+                    //     self-heal must never rewrite a foreign system's mapping path.
+                    //     Mappings without a SystemName (older/manual links) stay accepted.
+                    //     FR: désambiguïsation par système. Quand le mapping connaît son système
+                    //     ES et le runtime aussi (system-selected / dérivé du chemin de rom),
+                    //     un système DIFFÉRENT rejette le mapping : deux jeux de même nom dans
+                    //     deux systèmes ne doivent jamais se charger mutuellement - et
+                    //     l'auto-réparation ne doit jamais réécrire le chemin d'un mapping
+                    //     d'un autre système. Les mappings sans SystemName restent acceptés.
+                    if (!string.IsNullOrEmpty(m.SystemName) && !string.IsNullOrEmpty(esSystem) &&
+                        !m.SystemName.Equals(esSystem.Trim(), StringComparison.OrdinalIgnoreCase))
+                        continue;
 
                     int score;
                     if (string.IsNullOrEmpty(m.GameName))
                     {
+                        // EN: exe-generic link - keep the V42 strict path rule: different
+                        // same-exe instances (different paths) must NOT cross-load.
+                        // FR: lien exe générique - garde la règle stricte V42 : différentes
+                        // instances d'un même exe (chemins différents) ne doivent pas se
+                        // charger mutuellement.
+                        if (!string.IsNullOrEmpty(exePath) && !string.IsNullOrEmpty(m.ExecutablePath) && !pathMatched)
+                            continue;
                         score = 1; // Generic exe link (EN/FR: Lien exe générique)
                     }
                     else if (!string.IsNullOrEmpty(esGameName) &&
                              m.GameName.Equals(esGameName, StringComparison.OrdinalIgnoreCase))
                     {
-                        score = 2; // File-style match (name without extension) (EN/FR: Match style fichier)
+                        score = pathMatched ? 4 : 3; // File-style match (name without extension)
                     }
                     else if (!string.IsNullOrEmpty(esGameNameRaw) &&
                              m.GameName.Equals(esGameNameRaw, StringComparison.OrdinalIgnoreCase))
                     {
-                        score = 2; // Folder-style match (name with extension) (EN/FR: Match style dossier)
+                        score = pathMatched ? 4 : 3; // Folder-style match (name with extension)
                     }
                     else
                     {
-                        score = 0; // Game-scoped link for ANOTHER game (EN/FR: Lien jeu pour un AUTRE jeu)
+                        continue; // Game-scoped link for ANOTHER game (EN/FR: Lien jeu pour un AUTRE jeu)
                     }
 
                     if (score > bestScore)
                     {
                         bestScore = score;
                         best = m;
-                        if (score == 2) break; // Exact game match (EN/FR: Match jeu exact)
+                        if (score == 4) break; // Exact game match (EN/FR: Match jeu exact)
+
+                        // [V84] self-heal: the same game/exe was reached from a different path
+                        // (symlink, other root) - refresh the stored path so the data matches
+                        // reality (best effort, saved after the loop).
+                        if (score == 3 && !string.IsNullOrEmpty(exePath) && !pathMatched)
+                        {
+                            m.ExecutablePath = exePath;
+                            pathSelfHealed = true;
+                            _pathSelfHealExe = exeName; // [V84] signal: path corrected for this exe
+                        }
                     }
+                }
+
+                if (pathSelfHealed)
+                {
+                    try { SaveMappings(); LogSavedPathSelfHeal(); }
+                    catch { }
                 }
 
                 return best;
             }
         }
 
+        // [V84] EN: log line kept separate so the hot path stays cheap.
+        // FR: ligne de log séparée pour garder le chemin chaud peu coûteux.
+        private static void LogSavedPathSelfHeal()
+        {
+            SimpleLogger.Instance.Info("[GameProfileMapping] Stored executable path refreshed from the currently detected one (same exe, different path).");
+        }
+
+        // [V84] EN: exe name whose mapping path was just self-healed (null = none). The app
+        //     consumes it to (a) clear a stale manual-override lock and (b) show a dedicated
+        //     notification, so the corrected mapping is applied immediately instead of waiting
+        //     for the next window change.
+        // FR: nom de l'exe dont le chemin de mapping vient d'être auto-réparé (null = aucun).
+        //     L'app le consomme pour (a) lever un verrou manuel obsolète et (b) afficher une
+        //     notification dédiée, afin que le mapping corrigé soit appliqué immédiatement au
+        //     lieu d'attendre le prochain changement de fenêtre.
+        private static volatile string _pathSelfHealExe = null;
+
+        public static string ConsumePathSelfHeal()
+        {
+            string v = _pathSelfHealExe;
+            _pathSelfHealExe = null;
+            return v;
+        }
+
         /// <summary>
         /// EN: Get the mouse profile for a game. [V46] esGameNameRaw resolves folder links.
         /// FR: Obtient le profil souris d'un jeu. [V46] esGameNameRaw résout les liens dossier.
         /// </summary>
-        public static string GetProfileForGame(string exeName, string exePath = null, string esGameName = null, string esGameNameRaw = null)
+        public static string GetProfileForGame(string exeName, string exePath = null, string esGameName = null, string esGameNameRaw = null, string esSystem = null)
         {
             lock (_lock)
             {
-                return GetBestMapping(exeName, exePath, esGameName, esGameNameRaw)?.ProfilePath;
+                return GetBestMapping(exeName, exePath, esGameName, esGameNameRaw, esSystem)?.ProfilePath;
             }
         }
 
-        public static string GetGamePadProfileForGame(string exeName, string exePath = null, string esGameName = null, string esGameNameRaw = null)
+        public static string GetGamePadProfileForGame(string exeName, string exePath = null, string esGameName = null, string esGameNameRaw = null, string esSystem = null)
         {
             lock (_lock)
             {
-                return GetBestMapping(exeName, exePath, esGameName, esGameNameRaw)?.GamePadProfilePath;
+                return GetBestMapping(exeName, exePath, esGameName, esGameNameRaw, esSystem)?.GamePadProfilePath;
             }
         }
 

@@ -113,11 +113,47 @@ namespace WiimoteGun
                 LastGameName = Path.GetFileNameWithoutExtension(romPath);
                 LastGameNameRaw = Path.GetFileName(romPath.TrimEnd('\\', '/')); // [V43] Folder/file name with extension
                 try { LastGameIsFolder = Directory.Exists(romPath); } catch { LastGameIsFolder = false; } // [V43]
+                // [V84c] EN: ES does not always send system-selected before game-start
+                // (RetroBat's game-start script passes only the rom + game name), yet the
+                // system is authoritative in the rom path itself (roms\<system>\<game>).
+                // Derive it so game-scoped mappings can be disambiguated per system (two
+                // games with the same name in two systems must not cross-load).
+                // FR: ES n'envoie pas toujours system-selected avant game-start, mais le
+                // système est autoritaire dans le chemin de la rom (roms\<systeme>\<jeu>).
+                // Le dériver permet de désambiguïser les mappings par système (deux jeux de
+                // même nom dans deux systèmes ne doivent pas se charger mutuellement).
+                string systemFromRom = DeriveSystemFromRomPath(romPath);
+                if (systemFromRom != null)
+                    LastSystem = systemFromRom;
                 LastGameStartUtc = DateTime.UtcNow;
             }
 
             EsLog($"game-start: system='{LastSystem}', game='{LastGameName}'" + (LastGameIsFolder ? $" (folder: '{LastGameNameRaw}')" : "") + $", rom='{romPath}', raw='{rawArgs}'");
-            SimpleLogger.Instance.Info($"[ES] game-start: game='{LastGameName}' (see WiimoteGun_ES.log)");
+            SimpleLogger.Instance.Info($"[ES] game-start: game='{LastGameName}', system='{LastSystem}' (see WiimoteGun_ES.log)");
+        }
+
+        /// <summary>
+        /// EN: [V84c] Derive the ES system from a rom path: "...\roms\<system>\<game[.ext]>"
+        ///     -> "<system>". Returns null when the path is not under a "roms" folder
+        ///     (e.g. Windows games, alternative layouts).
+        /// FR: [V84c] Dérive le système ES d'un chemin de rom :
+        ///     « ...\roms\<systeme>\<jeu[.ext]> » -> « <systeme> ». Retourne
+        ///     null si le chemin n'est pas sous un dossier « roms ».
+        /// </summary>
+        public static string DeriveSystemFromRomPath(string romPath)
+        {
+            try
+            {
+                string dir = Path.GetDirectoryName((romPath ?? string.Empty).TrimEnd('\\', '/'));
+                if (string.IsNullOrEmpty(dir)) return null;
+                string system = Path.GetFileName(dir.TrimEnd('\\', '/'));
+                string grandDir = Path.GetDirectoryName(dir.TrimEnd('\\', '/'));
+                string parentOfSystem = string.IsNullOrEmpty(grandDir) ? null : Path.GetFileName(grandDir.TrimEnd('\\', '/'));
+                if (string.IsNullOrEmpty(system) || string.IsNullOrEmpty(parentOfSystem)) return null;
+                if (!string.Equals(parentOfSystem, "roms", StringComparison.OrdinalIgnoreCase)) return null;
+                return system;
+            }
+            catch { return null; }
         }
 
         /// <summary>

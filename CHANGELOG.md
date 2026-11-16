@@ -4,6 +4,14 @@ All notable changes to Wiimote4Guns will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [3.1.7.3] - 2026-11-16
+
+- **Profile auto-load (per-emulator mappings)**: a game-scoped mapping (game name sent by EmulationStation) is no longer rejected when the emulator exe is reached through a different path (symlink, other root) - the ES game name is the identity, the path is now only a scoring bonus. The stored path is automatically refreshed to the detected one on the first match (saved + logged).
+- **ES system is taken into account**: the ES system (from the `system-selected` event, or derived from the rom path `roms\<system>\<game>` when ES does not send it) is now part of the mapping match - a mapping created for another system is never loaded, and its stored path is never rewritten. Two games with the same name in two systems no longer cross-load.
+- **game-end always restores `default.remap`**: even when the emulator exe keeps running after the game ends (TeknoParrot / pcsx2 shells), the default profile is restored instead of staying stuck on the game's profile; a new game on the SAME emulator exe now loads its own dedicated profile (no more "Already loaded for <exe>" lock).
+- When a mapping path is corrected for the running game, the profile is applied immediately (no more "load by hand or relaunch the game"), with a dedicated notification "Mapping path corrected for {exe} - profile loaded automatically". A stale "Profile manually loaded - Auto-load locked" state no longer blocks this load.
+- Exe-generic mappings (no ES game name) keep the strict same-path rule: different instances of the same exe never cross-load.
+
 ## [3.1.7.2] - 2026-11-16
 
 - When updating from a version older than 3.1.7.2, **Virtual Polling (upsampling)** and **IR smoothing (EMA)** are switched ON with the values 500 Hz for V1 and V2, smoothing EMA 1, so the new fluidity can be compared with the previous behaviour. Both can be turned off at any time.
