@@ -574,13 +574,15 @@ namespace WiimoteGun.Controls
                 if (!string.IsNullOrEmpty(_currentExecutable) && _currentExecutable != "Unknown")
                 {
                     string mappedProfile = GameProfileMappingManager.GetProfileForGame(_currentExecutable, _currentExecutablePath,
-                        EsScriptIntegration.LastGameName, EsScriptIntegration.LastGameNameRaw); // [V46] both name variants
+                        EsScriptIntegration.LastGameName, EsScriptIntegration.LastGameNameRaw,
+                        EsScriptIntegration.LastSystem); // [V46] both name variants + [V84c] system
                     if (!string.IsNullOrEmpty(mappedProfile))
                     {
                         statusText = $"Current Game '{_currentExecutable}' -> '{mappedProfile}'";
                         hasLink = true;
                         linkMap = GameProfileMappingManager.GetBestMapping(_currentExecutable, _currentExecutablePath,
-                            EsScriptIntegration.LastGameName, EsScriptIntegration.LastGameNameRaw);
+                            EsScriptIntegration.LastGameName, EsScriptIntegration.LastGameNameRaw,
+                            EsScriptIntegration.LastSystem);
                     }
                     else
                     {

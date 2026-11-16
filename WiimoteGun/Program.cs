@@ -72,6 +72,12 @@ namespace WiimoteGun
         static string _lastDetectedGamePath = null;
         static int _lastDetectedProcessId = 0;
         static string _autoLoadedGameExe = null;
+        // [V84d] EN: ES game name whose profile was last auto-loaded (a new ES game on the SAME
+        //     exe must re-evaluate the mapping: pcsx2-qt/BudgieLoader/RetroArch run several games).
+        // FR: nom du jeu ES dont le profil a été auto-chargé en dernier (un nouveau jeu ES sur le
+        //     MÊME exe doit réévaluer le mapping : pcsx2-qt/BudgieLoader/RetroArch exécutent
+        //     plusieurs jeux).
+        static string _lastAutoLoadedGameEsName = null;
         static string _autoLoadedGamePadExe = null;
         static bool _manualProfileOverride = false;
         static bool _manualGamePadProfileOverride = false;
@@ -572,6 +578,34 @@ namespace WiimoteGun
             _messageWindow.EsGameStartRequested += (s, e) =>
             {
                 EsScriptIntegration.HandleGameStart(e.RawArgs); // [V42]
+                // [V84d] EN: a NEW game started: reset the auto-load tracking so the new game's
+                //     mapping is evaluated even when the emulator exe is the SAME as the
+                //     previous game (pcsx2-qt, BudgieLoader, RetroArch...). Without this,
+                //     "Already loaded for <exe>" kept the PREVIOUS game's profile stuck, and the
+                //     next game never loaded its own profile. A manual choice made for ANOTHER
+                //     game is cleared (a same-game restart keeps it).
+                //     FR: un NOUVEAU jeu a démarré : réinitialiser le suivi d'auto-chargement
+                //     pour que le mapping du nouveau jeu soit évalué même si l'exe de
+                //     l'émulateur est le MÊME que le jeu précédent (pcsx2-qt, BudgieLoader,
+                //     RetroArch...). Sans ça, « Already loaded for <exe> » laissait le profil du
+                //     jeu PRÉCÉDENT et le jeu suivant ne chargeait jamais son profil. Un choix
+                //     manuel fait pour un AUTRE jeu est annulé (le relancement du même jeu le
+                //     conserve).
+                _synchronizationContext.Post(_ =>
+                {
+                    string newGame = EsScriptIntegration.LastGameName;
+                    _autoLoadedGameExe = null;
+                    _autoLoadedGamePadExe = null;
+                    _lastDetectedGame = null;
+                    _lastDetectedProcessId = 0;
+                    if (_lastAutoLoadedGameEsName == null ||
+                        !_lastAutoLoadedGameEsName.Equals(newGame, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _manualProfileOverride = false;
+                        _manualGamePadProfileOverride = false;
+                    }
+                    SimpleLogger.Instance.Info($"[V84d] game-start '{newGame}': auto-load tracking reset (same-exe game switches allowed)");
+                }, null);
                 // [V55] Lock mode on game-start if option is enabled
                 // (EN/FR: Verrouiller le mode au lancement de jeu si l'option est activée)
                 if (Options.Instance.LockModeOnGameStart)
@@ -581,6 +615,26 @@ namespace WiimoteGun
             _messageWindow.EsGameEndRequested += (s, e) =>
             {
                 EsScriptIntegration.HandleGameEnd(e.RawArgs); // [V47]
+                // [V84d] EN: game-end ALWAYS restores default.remap. ES announces the end of the
+                //     game even when the emulator exe KEEPS RUNNING (TeknoParrot/pcsx2 shells
+                //     do), so waiting for the process exit - or for a focus change to a non-game
+                //     window - left the game profile stuck for the whole session. The tracking
+                //     is reset so the next game loads its own profile.
+                //     FR: game-end restaure TOUJOURS default.remap. ES annonce la fin du jeu même
+                //     si l'exe de l'émulateur TOURNE ENCORE (shells TeknoParrot/pcsx2) : attendre
+                //     la sortie du process - ou un changement de focus vers une fenêtre non-jeu -
+                //     laissait le profil du jeu collé toute la session. Le suivi est réinitialisé
+                //     pour que le jeu suivant charge son propre profil.
+                _synchronizationContext.Post(_ =>
+                {
+                    _autoLoadedGameExe = null;
+                    _autoLoadedGamePadExe = null;
+                    _lastAutoLoadedGameEsName = null;
+                    _manualProfileOverride = false;
+                    _manualGamePadProfileOverride = false;
+                    RevertToDefaultProfile();
+                    SimpleLogger.Instance.Info("[V84d] game-end: default profile restored (auto-load lock released)");
+                }, null);
                 // [V55] Unlock mode on game-end
                 // (EN/FR: Déverrouiller le mode au game-end)
                 _wiiMoteManager?.Controllers?.ToList().ForEach(c => c.LockMode(false));
@@ -2108,6 +2162,30 @@ namespace WiimoteGun
                     if (exeName.Equals("WiimoteGun.exe", StringComparison.OrdinalIgnoreCase))
                         return;
 
+                    // [V84] EN: if a mapping path was just corrected for THIS foreground exe
+                    //     (self-heal inside GetBestMapping - possibly triggered by another
+                    //     caller like the mapping page), forget the cached detection and the
+                    //     stale manual-override so the corrected mapping is applied NOW instead
+                    //     of waiting for the next window change (symptom: "load by hand or
+                    //     relaunch the game").
+                    //     FR: si le chemin d'un mapping vient d'être corrigé pour CET exe au
+                    //     premier plan (auto-réparation dans GetBestMapping, possiblement
+                    //     déclenchée par un autre appelant comme la page mapping), oublier la
+                    //     détection en cache et le verrou manuel obsolète pour appliquer le
+                    //     mapping corrigé IMMÉDIATEMENT au lieu d'attendre le prochain
+                    //     changement de fenêtre (symptôme : « charger à la main ou relancer le
+                    //     jeu »).
+                    string healedExe = GameProfileMappingManager.ConsumePathSelfHeal();
+                    bool mappingPathJustCorrected = healedExe != null &&
+                        string.Equals(healedExe, exeName, StringComparison.OrdinalIgnoreCase);
+                    if (mappingPathJustCorrected)
+                    {
+                        _lastDetectedGame = null;
+                        _manualProfileOverride = false;       // the corrected mapping is authoritative for this game
+                        _manualGamePadProfileOverride = false;
+                        SimpleLogger.Instance.Info($"Mapping path corrected for {exeName} (same game, different path) - applying the mapping now");
+                    }
+
                     // Check if this is a new game (EN/FR: Vérifier si nouveau jeu)
                     if (exeName != _lastDetectedGame || _lastDetectedProcessId != processId)
                     {
@@ -2121,8 +2199,24 @@ namespace WiimoteGun
                         // (EN/FR: + nom de jeu ES (profils par jeu sur émulateurs) + nom brut
                         // (liens dossier : nom AVEC extension))
                         string profilePath = GameProfileMappingManager.GetProfileForGame(exeName, exePath,
-                            EsScriptIntegration.LastGameName, EsScriptIntegration.LastGameNameRaw);
+                            EsScriptIntegration.LastGameName, EsScriptIntegration.LastGameNameRaw,
+                            EsScriptIntegration.LastSystem); // [V84c] + ES system disambiguation
                         bool hasMapping = !string.IsNullOrEmpty(profilePath);
+
+                        // [V84] EN: the self-heal may have just happened in the call above
+                        // (first launch with a corrected mapping): clear the stale manual-override
+                        // so the mapping actually loads now, and flag the dedicated message.
+                        // FR: l'auto-réparation peut venir de se produire dans l'appel ci-dessus
+                        // (premier lancement après correction) : lever le verrou manuel obsolète
+                        // pour que le mapping se charge maintenant, et marquer le message dédié.
+                        string healedNow = GameProfileMappingManager.ConsumePathSelfHeal();
+                        if (healedNow != null)
+                        {
+                            _manualProfileOverride = false;
+                            _manualGamePadProfileOverride = false;
+                            mappingPathJustCorrected = true;
+                            SimpleLogger.Instance.Info($"Mapping path corrected for {healedNow} (same game, different path) - applying the mapping now");
+                        }
 
                         // Prevent auto-load if editing (EN/FR: Empêcher chargement auto si édition en cours)
                         if (_profileOverlay != null && _profileOverlay.IsEditing)
@@ -2177,12 +2271,18 @@ namespace WiimoteGun
                             // (EN/FR: Mapping trouvé, chargement auto si pas remplacement manuel)
                             if (!_manualProfileOverride && _autoLoadedGameExe != exeName)
                             {
-                                _synchronizationContext.Post(_ => 
+                                _synchronizationContext.Post(_ =>
                                 {
                                     SimpleLogger.Instance.Info($"Auto-loading profile for {exeName}: {profilePath}");
                                     LoadRemapProfileHot(profilePath);
                                     _autoLoadedGameExe = exeName;
-                                    Notify($"Profile auto-loaded for {exeName}");
+                                    _lastAutoLoadedGameEsName = EsScriptIntegration.LastGameName; // [V84d]
+                                    // [V84] dedicated message when the mapping path was just corrected
+                                    // (EN/FR: message dédié quand le chemin du mapping vient d'être corrigé)
+                                    if (mappingPathJustCorrected)
+                                        Notify($"Mapping path corrected for {exeName} - profile loaded automatically");
+                                    else
+                                        Notify($"Profile auto-loaded for {exeName}");
                                 }, null);
                             }
                             else
@@ -2207,7 +2307,8 @@ namespace WiimoteGun
                         // =========================================================================================
                         
                         string gamePadProfilePath = GameProfileMappingManager.GetGamePadProfileForGame(exeName, exePath,
-                            EsScriptIntegration.LastGameName, EsScriptIntegration.LastGameNameRaw);
+                            EsScriptIntegration.LastGameName, EsScriptIntegration.LastGameNameRaw,
+                            EsScriptIntegration.LastSystem); // [V84c] + ES system disambiguation
                         bool hasGamePadMapping = !string.IsNullOrEmpty(gamePadProfilePath);
 
                         if (hasGamePadMapping)

@@ -1,5 +1,21 @@
 Wiimote4Guns Changelog
 
+## v3.1.7.3
+
+### [EN] ".remap" loading improvements
+- **Profile auto-load (per-emulator mappings)**: a game-scoped mapping (game name sent by EmulationStation) is no longer rejected when the emulator exe is reached through a different path (symlink, other root) - the ES game name is the identity, the path is now only a scoring bonus. The stored path is automatically refreshed to the detected one on the first match (saved + logged).
+- **ES system is taken into account**: the ES system (from the `system-selected` event, or derived from the rom path `roms\<system>\<game>` when ES does not send it) is now part of the mapping match - a mapping created for another system is never loaded, and its stored path is never rewritten. Two games with the same name in two systems no longer cross-load.
+- **game-end always restores `default.remap`**: even when the emulator exe keeps running after the game ends (TeknoParrot / pcsx2 shells), the default profile is restored instead of staying stuck on the game's profile; a new game on the SAME emulator exe now loads its own dedicated profile (no more "Already loaded for <exe>" lock).
+- When a mapping path is corrected for the running game, the profile is applied immediately (no more "load by hand or relaunch the game"), with a dedicated notification "Mapping path corrected for {exe} - profile loaded automatically". A stale "Profile manually loaded - Auto-load locked" state no longer blocks this load.
+- Exe-generic mappings (no ES game name) keep the strict same-path rule: different instances of the same exe never cross-load.
+
+### [FR] Améliorations du chargement des ".remap"
+- **Chargement auto des profils (mappings par émulateur)** : un mapping associé à un jeu (nom de jeu envoyé par EmulationStation) n'est plus rejeté quand l'exe de l'émulateur est atteint par un chemin différent (symlink, autre racine) — le nom de jeu ES est l'identité, le chemin n'est plus qu'un bonus de score. Le chemin stocké est automatiquement remis à celui détecté au premier match (sauvegardé + loggué).
+- **Le système ES est pris en compte** : le système ES (événement `system-selected`, ou dérivé du chemin de la rom `roms\<système>\<jeu>` quand ES ne l'envoie pas) fait partie du matching des mappings — un mapping créé pour un autre système n'est jamais chargé et son chemin stocké n'est jamais réécrit. Deux jeux de même nom dans deux systèmes ne se chargent plus mutuellement.
+- **Le game-end restaure toujours `default.remap`** : même si l'exe de l'émulateur continue de tourner après la fin du jeu (shells TeknoParrot / pcsx2), le profil par défaut est restauré au lieu de rester bloqué sur le profil du jeu ; un nouveau jeu sur le MÊME exe d'émulateur charge maintenant son profil dédié (plus de verrou « Already loaded for <exe> »).
+- Après correction du chemin du mapping, le profil est appliqué immédiatement (plus besoin de charger à la main ni de relancer le jeu), avec une notification dédiée « Mapping path corrected for {exe} - profile loaded automatically ». Un état « Profile manually loaded - Auto-load locked » obsolète ne bloque plus ce chargement.
+- Les mappings exe-génériques (sans nom de jeu ES) gardent la règle stricte du même chemin : différentes instances d'un même exe ne se chargent pas mutuellement.
+
 ## v3.1.7.2
 
 ### [EN] Various / Fix-UMDF2
