@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -75,7 +75,6 @@ namespace WiimoteLib {
 		/// <summary>
 		/// Callback when data is ready to be processed
 		/// </summary>
-		/// <param name="ar">State information for the callback</param>
 		private void OnReadData(IAsyncResult ar) {
 
 			try {
@@ -101,14 +100,6 @@ namespace WiimoteLib {
 			// grab the byte buffer and other state settings
 			AsyncReadState state = (AsyncReadState) ar.AsyncState;
 			try {
-				/*lock (ioLock) {
-					if (device.Stream == null)
-						return;
-
-					// end the current read
-					device.Stream.EndRead(ar);
-				}*/
-
 				// [DIAG] Measure raw HID report arrival cadence and ParseInputReport cost.
 				long diagRawStart = TimingDiagnostics.BeginRaw();
 				byte diagReportId = state.Buffer != null && state.Buffer.Length > 0 ? state.Buffer[0] : (byte)0;
@@ -117,19 +108,13 @@ namespace WiimoteLib {
 				bool newInput = ParseInputReport(state.Buffer);
 				TimingDiagnostics.RawReport(diagRawStart, diagReportId, newInput, _diagLastRawEndTicks);
 				_diagLastRawEndTicks = Stopwatch.GetTimestamp();
-				// post an event
-				//Log.WriteLine("State Changed Start");
-				//Log.WriteLine("State Changed End");
-				//}
 
 				// start reading again
 				if (state.ContinueAsync) {
-					//Debug.WriteLine("Read Lock");
 					BeginAsyncRead(state);
-					//Debug.WriteLine("Read Continue");
 				}
 				else {
-					Log.Debug($"Read Stop {ReadThreads}");
+					Log.Debug("Read Stop " + ReadThreads);
 				}
 
 				if (newInput)
@@ -156,7 +141,6 @@ namespace WiimoteLib {
 				catch (OperationCanceledException) { }
 			}
 		}
-
 		/// <summary>Parse data returned from a read report.</summary>
 		/// <param name="buff">Data buffer</param>
 		private void ParseReadData(byte[] buff) {

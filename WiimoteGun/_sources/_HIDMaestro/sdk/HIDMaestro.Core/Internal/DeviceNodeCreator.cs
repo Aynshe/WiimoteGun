@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32;
@@ -167,7 +167,31 @@ internal static class DeviceNodeCreator
                 return new Result(false, null);
             }
             DeviceOrchestrator.LogDiag($"      {instId} still exists from a prior life; removing before recreate");
-            DeviceManager.RemoveDevice(instId, timeoutMs: 120_000, forceFallbacks: true);
+            DeviceManager.RemoveDevice(instId, timeoutMs: 3000, forceFallbacks: true);
+
+            // [V75-UMDF2-REUSE] If the devnode survived removal (e.g. an open handle from EmulationStation
+            // or a raw input consumer prevents PnP teardown), adopt the existing live devnode instead of failing.
+            if (CM_Locate_DevNodeW(out _, instId, 0) == 0 && DeviceManager.IsHidMaestroOwned(instId))
+            {
+                DeviceOrchestrator.LogDiag($"      {instId} survived removal (in use by application); adopting existing live devnode");
+                try
+                {
+                    string dpPath = $@"SYSTEM\CurrentControlSet\Enum\{instId}\Device Parameters";
+                    using var dpKey = Microsoft.Win32.Registry.LocalMachine.CreateSubKey(dpPath);
+                    dpKey?.SetValue("ControllerIndex", controllerIndex, Microsoft.Win32.RegistryValueKind.DWord);
+                }
+                catch { }
+
+                DeviceManager.WaitForHidChild(instId);
+                string adoptedName = profile.DeviceDescription ?? profile.ProductString;
+                if (!string.IsNullOrEmpty(adoptedName))
+                {
+                    try { DeviceProperties.SetAllNamingProperties(instId, adoptedName); }
+                    catch { }
+                }
+
+                return new Result(true, instId);
+            }
         }
 
         // No second parent on this prefix, ever. See the helper for why a
@@ -225,6 +249,31 @@ internal static class DeviceNodeCreator
 
                 if (!created)
                 {
+                    // [V75-UMDF2-REUSE] Fallback: If creation failed because devnode already exists, adopt it
+                    if ((createErr == ERROR_DEVINST_ALREADY_EXISTS || createErr == 183)
+                        && (CM_Locate_DevNodeW(out _, instId, 0) == 0 || CM_Locate_DevNodeW(out _, instId, 1) == 0)
+                        && DeviceManager.IsHidMaestroOwned(instId))
+                    {
+                        DeviceOrchestrator.LogDiag($"      {instId} already exists in devnode tree (Win32={createErr}); adopting live devnode");
+                        try
+                        {
+                            string dpPath = $@"SYSTEM\CurrentControlSet\Enum\{instId}\Device Parameters";
+                            using var dpKey = Microsoft.Win32.Registry.LocalMachine.CreateSubKey(dpPath);
+                            dpKey?.SetValue("ControllerIndex", controllerIndex, Microsoft.Win32.RegistryValueKind.DWord);
+                        }
+                        catch { }
+
+                        DeviceManager.WaitForHidChild(instId);
+                        string fallbackName = profile.DeviceDescription ?? profile.ProductString;
+                        if (!string.IsNullOrEmpty(fallbackName))
+                        {
+                            try { DeviceProperties.SetAllNamingProperties(instId, fallbackName); }
+                            catch { }
+                        }
+
+                        return new Result(true, instId);
+                    }
+
                     DeviceOrchestrator.LogDiag(
                         $"      SetupDiCreateDeviceInfoW({instId}) FAILED (Win32={createErr})");
                     return new Result(false, null);

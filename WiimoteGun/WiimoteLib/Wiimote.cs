@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -197,6 +197,7 @@ namespace WiimoteLib {
 			// close up our handles
 			if (disposing && !disposed) {
 				Log.Debug($"{this} Disposing");
+
 				lock (ioLock) {
 					Log.Debug($"{this} Disposing Lock");
 					readStates.Clear();

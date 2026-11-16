@@ -549,6 +549,16 @@ namespace WiimoteGun
             // will handle cleanup correctly using REMOVE_MOUSE_EXCEPT for connected players.
 
             _wiiMoteManager = new WiimoteControllerManager();
+
+            // [V70-BT-BURST] EN/FR: the timing CSV follows the logging level ALL (it is generated
+            //     only when the level is ALL, never by default) — see
+            //     WiimoteLib/TimingDiagnostics.Enabled.
+            //     FR: le CSV de timings suit le niveau de log ALL (généré uniquement si le niveau
+            //     est ALL, jamais par défaut) — voir WiimoteLib/TimingDiagnostics.Enabled.
+            try { WiimoteLib.TimingDiagnostics.Enabled = false; }
+            catch { }
+            if (Options.Instance.LoggingLevel == WiimoteGun.LogLevel.ALL)
+                SimpleLogger.Instance.Info("[V70-THREAD-TRACKING] Logging level = ALL: timing diagnostics CSV active (WiimoteTimingDiagnostics.csv)");
             _synchronizationContext = new WindowsFormsSynchronizationContext();
 
             // [V62-OutputRumble] EN/FR: start the OutputHooker UDP receiver (Phase 1 = receive + log).
@@ -737,6 +747,38 @@ namespace WiimoteGun
                 string currentVersion = System.Reflection.Assembly.GetExecutingAssembly()
                     .GetName().Version.ToString();
                 string seenVersion = Options.Instance.LastAppVersionSeen ?? "";
+
+                // [V80-FLUIDITY-UPGRADE] EN: ONE-SHOT — when the app is UPDATED from a version
+                //     BEFORE 3.1.7.2, turn ON the two settings measured as the best fluidity
+                //     compromise (Virtual Polling 500 Hz V1+V2, IR smoothing EMA 1 V1+V2), so
+                //     the gain can be checked with the previous behaviour as the reference.
+                //     Runs ONCE: past this update the user is free to turn them off.
+                // FR: UNE SEULE FOIS — à la mise à jour depuis une version AVANT 3.1.7.2,
+                //     activer les deux réglages mesurés comme le meilleur compromis de fluidité
+                //     (Virtual Polling 500 Hz V1+V2, lissage IR EMA 1 V1+V2), afin de vérifier le
+                //     gain. Ensuite, l'utilisateur est libre de les désactiver.
+                Version seenParsed;
+                if (!string.IsNullOrEmpty(seenVersion) &&
+                    Version.TryParse(seenVersion, out seenParsed) &&
+                    seenParsed < new Version(3, 1, 7, 2))
+                {
+                    try
+                    {
+                        SimpleLogger.Instance.Info("[V80] Updating from " + seenVersion +
+                            " -> enabling Virtual Polling (500 Hz, V1+V2) and IR smoothing (EMA 1, V1+V2) — one-shot, the user can disable them later.");
+                        Options.Instance.EnableVirtualPolling = true;
+                        Options.Instance.VirtualPollingRate = 500;
+                        Options.Instance.VirtualPollingRateV2 = 500;
+                        Options.Instance.EnableIRSmoothing = true;
+                        Options.Instance.IRSmoothingStrength = 1;
+                        Options.Instance.IRSmoothingStrengthV2 = 1;
+                        Options.Instance.Save();
+                    }
+                    catch (Exception exMigrate)
+                    {
+                        SimpleLogger.Instance.Warning("[V80] Fluidity upgrade failed: " + exMigrate.Message);
+                    }
+                }
 
                 if (seenVersion != currentVersion)
                 {
@@ -1214,6 +1256,8 @@ namespace WiimoteGun
 
             try
             {
+                // [V70-BT-BURST] EN/FR: flush + close the buffered log file too.
+                try { SimpleLogger.Instance.FlushAndClose(); } catch { }
                 WiimoteLib.TimingDiagnostics.Shutdown();
             }
             catch { }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Diagnostics;
@@ -1004,7 +1004,6 @@ namespace WiimoteGun.Controls
                 // IR Tracking Optimizations (EN/FR: Optimisations tracking IR)
                 optEnableIRSmoothing.Checked = Options.Instance.EnableIRSmoothing;
                 optIRSmoothingStrength.Value = Math.Min(Math.Max(Options.Instance.IRSmoothingStrength, optIRSmoothingStrength.Minimum), optIRSmoothingStrength.Maximum);
-                optUseHighPerfTimers.Checked = Options.Instance.UseHighPerfTimers;
                 optEnableHomographyCache.Checked = Options.Instance.EnableHomographyCache;
                 optEnableDistanceCompensation.Checked = Options.Instance.EnableDistanceCompensation;
                 optUseIRExtrapolation.Checked = Options.Instance.UseIRExtrapolation;
@@ -1594,7 +1593,6 @@ namespace WiimoteGun.Controls
                 // IR Tracking Optimizations (EN/FR: Optimisations tracking IR)
                 Options.Instance.EnableIRSmoothing = optEnableIRSmoothing.Checked;
                 Options.Instance.IRSmoothingStrength = (int)optIRSmoothingStrength.Value;
-                Options.Instance.UseHighPerfTimers = optUseHighPerfTimers.Checked;
                 Options.Instance.EnableHomographyCache = optEnableHomographyCache.Checked;
                 Options.Instance.EnableDistanceCompensation = optEnableDistanceCompensation.Checked;
                 Options.Instance.UseIRExtrapolation = optUseIRExtrapolation.Checked;
@@ -1623,6 +1621,9 @@ namespace WiimoteGun.Controls
 
                 // Save
                 Options.Instance.Save();
+
+                // [V73] Update active controller timers with new rates or toggle
+                Program.WiiMoteManager?.UpdateVirtualPolling();
 
                 // [V42] Apply scripts immediately (also re-verified at startup)
                 // (EN/FR: Appliquer les scripts immédiatement (revérifié aussi au démarrage))
