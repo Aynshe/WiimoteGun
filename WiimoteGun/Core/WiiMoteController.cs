@@ -1,4 +1,4 @@
-﻿using WiimoteLib;
+using WiimoteLib;
 using WiimoteLib.Events;
 using WiimoteLib.DataTypes;
 using WiimoteLib.Geometry;
@@ -177,13 +177,14 @@ namespace WiimoteGun
             get { return (_virtualGamepad is HmGamepad hmGp) ? hmGp.LastXInputSlot : -1; }
         }
 
-        // High Performance Timer (EN/FR: Timer haute performance)
-        // Replaces DateTime.Now calls in hot path when enabled
+        // [V76-NO-HIGHPERF-TIMER] EN/FR: the removed option only toggled DateTime.UtcNow (~0.1us) vs DateTime.Now (~1us)
+        // - no timer resolution change at all, so GetNow() now always uses the fast path (UtcNow).
         // (EN/FR: Remplace les appels DateTime.Now dans le chemin critique quand activé)
         private Stopwatch _perfStopwatch = Stopwatch.StartNew();
 
         // Virtual Polling (Upsampling) (EN/FR: Polling Virtuel / Upsampling)
         private WiimoteLib.Helpers.MultimediaTimer _virtualPollingTimer;
+        private int _virtualPollingInterval = 0;
         private int _lastX_Raw = 0; // Last processed but non-extrapolated X
         private int _lastY_Raw = 0; // Last processed but non-extrapolated Y
         private float _lastVelX_Diag = 0f; // Last calculated velocity X
@@ -380,6 +381,24 @@ namespace WiimoteGun
         private double _burstPeriodEmaMs = 0.0;
         private double _replayDelayMs = 24.0;
 
+        // [FIX V71] Burst RE-TIMER. EN: the V25 replay buffer used ARRIVAL timestamps. In a burst the
+        // 2-4 reports land within ~2 ms although they were captured ~12 ms apart, so the replay
+        // played them back 6x too fast and then crawled through the ~30 ms dead gap: uniform output
+        // TICKS but a saw-tooth cursor SPEED (= the stutter). Here every report gets a reconstructed
+        // CAPTURE time (uniform spacing = estimated sensor period) and the replay buffer is indexed
+        // by it, so speed becomes constant.
+        // FR: le tampon de replay V25 utilisait les timestamps d'ARRIVÉE. Dans une salve, les 2-4
+        // rapports arrivent en ~2 ms alors qu'ils ont été capturés à ~12 ms d'écart : le replay les
+        // rejouait 6x trop vite puis rampait dans le trou de ~30 ms. Ticks réguliers mais VITESSE du
+        // curseur en dents de scie (= les saccades). Chaque rapport reçoit maintenant un temps de
+        // CAPTURE reconstruit (espacement uniforme = période capteur estimée).
+        private double _rtClockMs = -1.0;          // reconstructed capture clock
+        private double _rtLastArrivalMs = -1.0;
+        private double _rtPeriodMs = 12.0;         // estimated sensor period (updated at burst starts)
+        private bool _rtHavePeriod = false;
+        private double _rtAnchorMs = -1.0;
+        private int _rtCount = 0;
+        private double _lastTickMs = 0.0;          // virtual-polling grid (independent from real reports)
         // [DIAG] Output-side (Virtual Polling) diagnostics: measures what the cursor
         // actually receives (replay vs fallback), not just the raw input rate.
         private long _diagOutEmissions = 0;
@@ -431,11 +450,14 @@ namespace WiimoteGun
         private static bool _inputsLocked = false; // Locks all controllers input (EN/FR: Verrouille inputs de tous contrôleurs)
         public static event EventHandler<ButtonPressedEventArgs> ButtonPressed; // Fired when button is pressed in assign mode (EN/FR: Déclenché quand bouton pressé en mode assign)
         
-        /// <summary>
-        /// EN: Get current time based on high performance timer setting.
-        /// FR: Obtenir l'heure actuelle selon le réglage du timer haute performance.
-        /// </summary>
-        private DateTime GetNow() => Options.Instance.UseHighPerfTimers ? DateTime.UtcNow : DateTime.Now;
+/// <summary>
+/// <summary>
+/// [V76-NO-HIGHPERF-TIMER] EN/FR: the removed "High Performance Timers" option only toggled
+/// DateTime.UtcNow (~0.1us) vs DateTime.Now (~1us) - no timer resolution change at all, so the
+/// fast path (UtcNow) is now always used.
+/// FR: l'option supprimée ne permutait que ces deux lectures ; sans changement de résolution.
+/// </summary>
+private DateTime GetNow() => DateTime.UtcNow; // EN/FR: UtcNow is faster than Now (~0.1us vs ~1us: no timezone conversion)
 
         public Wiimote Wiimote { get; }
 
@@ -487,12 +509,7 @@ namespace WiimoteGun
             SetupWiimote();
 
             // Setup Hypersampling timer if enabled (EN/FR: Configurer timer de hypersampling si activé)
-            if (Options.Instance.EnableVirtualPolling && ActiveVirtualPollingRate > 0)
-            {
-                int interval = 1000 / ActiveVirtualPollingRate;
-                _virtualPollingTimer = new WiimoteLib.Helpers.MultimediaTimer(interval, OnVirtualPollingTick);
-                _virtualPollingTimer.Start();
-            }
+            UpdateVirtualPollingTimer();
 
             _watchDolphinThread = new Thread(CheckDolphin);
             _watchDolphinThread.IsBackground = true;
@@ -521,6 +538,56 @@ namespace WiimoteGun
             // [V55m] If game session is active and lock option enabled, inherit locked state
             // (EN/FR: Si une session de jeu est active et l'option cochée, hériter de l'état verrouillé)
             _modeLocked = Options.Instance.LockModeOnGameStart && EsScriptIntegration.HasCurrentGame;
+        }
+
+        /// <summary>
+        /// [V73] EN: Dynamically starts, stops or retunes the Virtual Polling multimedia timer.
+        /// FR: Démarre, arrête ou réajuste dynamiquement le timer multimédia de Polling Virtuel.
+        /// </summary>
+        public void UpdateVirtualPollingTimer()
+        {
+            try
+            {
+                int rate = ActiveVirtualPollingRate;
+                bool shouldRun = Options.Instance.EnableVirtualPolling && rate > 0 && _mode != WiiMoteMode.Disabled;
+
+                if (shouldRun)
+                {
+                    int interval = Math.Max(1, 1000 / rate);
+                    if (_virtualPollingTimer != null)
+                    {
+                        if (_virtualPollingInterval != interval)
+                        {
+                            _virtualPollingTimer.Stop();
+                            _virtualPollingTimer = new WiimoteLib.Helpers.MultimediaTimer(interval, OnVirtualPollingTick);
+                            _virtualPollingInterval = interval;
+                            _virtualPollingTimer.Start();
+                            SimpleLogger.Instance.Info(string.Format("[P{0}] Virtual Polling timer reconfigured to {1} Hz ({2} ms)", PlayerIndex, rate, interval));
+                        }
+                    }
+                    else
+                    {
+                        _virtualPollingTimer = new WiimoteLib.Helpers.MultimediaTimer(interval, OnVirtualPollingTick);
+                        _virtualPollingInterval = interval;
+                        _virtualPollingTimer.Start();
+                        SimpleLogger.Instance.Info(string.Format("[P{0}] Virtual Polling timer started at {1} Hz ({2} ms)", PlayerIndex, rate, interval));
+                    }
+                }
+                else
+                {
+                    if (_virtualPollingTimer != null)
+                    {
+                        _virtualPollingTimer.Stop();
+                        _virtualPollingTimer = null;
+                        _virtualPollingInterval = 0;
+                        SimpleLogger.Instance.Info(string.Format("[P{0}] Virtual Polling timer stopped", PlayerIndex));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error($"[P{PlayerIndex}] Failed to update virtual polling timer: {ex.Message}");
+            }
         }
 
         private void CheckSleep()
@@ -927,6 +994,7 @@ namespace WiimoteGun
 
             Wiimote.StateChanged += OnWiiMoteStateChanged;
             Wiimote.ExtensionChanged += OnWiiMoteExtensionChanged;
+            UpdateVirtualPollingTimer();
 
             // Display connection notification with mouse mode (EN/FR: Afficher notification connexion avec mode souris)
             // [V57d] EN: Include the UMDF2 mode in the connection notification
@@ -1049,6 +1117,7 @@ namespace WiimoteGun
             {
                 _virtualPollingTimer.Stop();
                 _virtualPollingTimer = null;
+                _virtualPollingInterval = 0;
             }
 
             if (_hiddenWnd != null)
@@ -1399,11 +1468,15 @@ namespace WiimoteGun
             if (e.WiimoteState == null)
                 return;
 
-            _lastReportTime = Options.Instance.UseHighPerfTimers 
-                ? DateTime.UtcNow   // UtcNow is faster than Now (~0.1µs vs ~1µs) (EN/FR: UtcNow plus rapide que Now)
-                : DateTime.Now;     // Standard fallback (EN/FR: Fallback standard)
+            _lastReportTime = DateTime.UtcNow; // EN/FR: UtcNow is faster than Now (~0.1us vs ~1us)
 
             DateTime diagNow = _lastReportTime;
+
+            // [FIX V71] EN: reconstruct the capture time of THIS report (fed with EVERY report, on-screen
+            // or not, so the clock keeps running while the IR is momentarily lost).
+            // FR: reconstruit le temps de capture de CE rapport (alimenté par TOUS les rapports, visibles
+            // ou non, pour que l'horloge continue à tourner quand l'IR est perdu un instant).
+            double reportCaptureMs = RetimeReport(Stopwatch.GetTimestamp() * 1000.0 / Stopwatch.Frequency);
             long diagStateStart = TimingDiagnostics.BeginState();
             double diagStateDtMs = _diagLastStateTicks == 0 ? 0.0 : (Stopwatch.GetTimestamp() - _diagLastStateTicks) * 1000.0 / Stopwatch.Frequency;
             _diagLastStateTicks = Stopwatch.GetTimestamp();
@@ -1895,6 +1968,7 @@ namespace WiimoteGun
                             finalX = (int)scaledPos.Value.X;
                             finalY = (int)scaledPos.Value.Y;
 
+
                             // Smoothing
                             // [V28b] Strength 0 = smoothing disabled for this Wiimote model (V1 or V2 column).
                             // FR: Force 0 = lissage désactivé pour ce modèle de Wiimote (colonne V1 ou V2).
@@ -1948,24 +2022,20 @@ namespace WiimoteGun
                             if (replayPrevTicks != 0)
                             {
                                 double replayPrevMs = replayPrevTicks * 1000.0 / Stopwatch.Frequency;
-                                if (replayNowMs - replayPrevMs > 20.0)
+                                // [FIX V71] EN: ignore gaps >= 100 ms (IR lost / off-screen): they are not burst
+                                // dead-gaps and used to poison the EMA. FR: ignorer les trous >= 100 ms
+                                // (IR perdu / hors écran) : ce ne sont pas des trous de salve.
+                                double replayGapMs = replayNowMs - replayPrevMs;
+                                if (replayGapMs > 15.0 && replayGapMs < 120.0)
                                 {
-                                    // [FIX V27] Track the dead-gap size (not the full burst period) to size the
-                                    // replay delay. The delay only needs to cover the LARGEST inter-sample gap
-                                    // (dead time before a new batch lands), not the whole burst cycle. V26 sized
-                                    // the delay on the full period EMA (~36-39ms) + 6ms = 42-45ms, which was
-                                    // over-conservative by ~12ms and made the cursor feel unresponsive.
-                                    // FR: Suivre la taille du trou mort (pas le cycle complet) pour dimensionner
-                                    // le délai. Le délai doit seulement couvrir le PLUS GRAND écart entre
-                                    // échantillons, pas tout le cycle de salve. V26 utilisait la période EMA
-                                    // (~36-39ms) + 6ms = 42-45ms, soit ~12ms de trop → curseur peu réactif.
-                                    _burstPeriodEmaMs = _burstPeriodEmaMs <= 0.0 ? (replayNowMs - replayPrevMs) : (0.8 * _burstPeriodEmaMs + 0.2 * (replayNowMs - replayPrevMs));
-                                    _replayDelayMs = Math.Max(22.0, Math.Min(55.0, _burstPeriodEmaMs + 3.0));
+                                    _lastBurstBoundaryMs = replayNowMs;
+                                    _burstPeriodEmaMs = _burstPeriodEmaMs <= 0.0 ? replayGapMs : (0.8 * _burstPeriodEmaMs + 0.2 * replayGapMs);
+                                    _replayDelayMs = Math.Max(32.0, Math.Min(50.0, _burstPeriodEmaMs + 5.0));
                                 }
                             }
                             lock (_replayLock)
                             {
-                                _replayTimeMs.Add(replayNowMs);
+                                _replayTimeMs.Add(reportCaptureMs);   // [FIX V71] was replayNowMs (arrival)
                                 _replayX.Add(finalX);
                                 _replayY.Add(finalY);
                                 if (_replayTimeMs.Count > 64)
@@ -2018,8 +2088,8 @@ namespace WiimoteGun
                         ir.IRSensor1.Found,
                         _lastX,
                         _lastY,
-                        string.Format("dt={0:F3}ms;mode={1};report={2};mp={3}",
-                            diagStateDtMs, _mode, e.WiimoteState.ReportType,
+                        string.Format("p={0};v2={1};dt={2:F3}ms;mode={3};report={4};mp={5}",
+                            PlayerIndex, IsWiimoteV2TR ? 1 : 0, diagStateDtMs, _mode, e.WiimoteState.ReportType,
                             (e.WiimoteState.ExtensionType == ExtensionType.MotionPlus || e.WiimoteState.ExtensionType == ExtensionType.MotionPlusNunchuk) ? 1 : 0));
                 }
 
@@ -2930,6 +3000,7 @@ namespace WiimoteGun
             // Handle leaving previous mode (EN/FR: Gérer la sortie du mode précédent)
             WiiMoteMode previousMode = _mode;
             _mode = (WiiMoteMode)mode;
+            UpdateVirtualPollingTimer();
 
             // EN/FR: Reset Hybrid state when changing mode
             _isHybridToggleActive = false;
@@ -5287,64 +5358,138 @@ namespace WiimoteGun
         }
 
         /// <summary>
+        /// [FIX V71] EN: Reconstructs the CAPTURE time of a report from its ARRIVAL time.
+        /// The sensor produces one sample every T ms; the Bluetooth stack delivers them in bursts.
+        /// The clock advances by T per report but can never run ahead of the arrival time (a sample
+        /// cannot be captured after it arrived), so it locks onto the lower envelope of the arrivals:
+        /// the LAST report of a burst is (almost) on time, the earlier ones are placed T, 2T... before it.
+        /// T is measured between burst STARTS (exact sample count / elapsed time) and slightly
+        /// over-estimated (x1.03) so the "never ahead of arrival" clamp keeps the clock locked.
+        /// FR: Reconstruit le temps de CAPTURE d'un rapport depuis son temps d'ARRIVÉE. Le capteur produit
+        /// un échantillon toutes les T ms ; la pile Bluetooth les livre par salves. L'horloge avance de T
+        /// par rapport mais ne dépasse jamais l'arrivée : elle se cale sur l'enveloppe basse des arrivées
+        /// (le DERNIER rapport d'une salve est à l'heure, les précédents sont placés T, 2T... avant).
+        /// T est mesurée entre DÉBUTS de salve et légèrement surestimée (x1.03).
+        /// Only touched by the state-changed dispatch thread. (EN/FR: Uniquement le thread de distribution.)
+        /// </summary>
+        private double RetimeReport(double arrivalMs)
+        {
+            if (_rtClockMs < 0.0 || _rtLastArrivalMs < 0.0 || (arrivalMs - _rtLastArrivalMs) > 150.0)
+            {
+                _rtClockMs = arrivalMs - 25.0;
+                _rtAnchorMs = arrivalMs;
+                _rtCount = 0;
+                _rtLastArrivalMs = arrivalMs;
+                return _rtClockMs;
+            }
+
+            bool isBurstStart = (arrivalMs - _rtLastArrivalMs) > 15.0;
+            if (isBurstStart)
+            {
+                if (_rtAnchorMs > 0.0 && _rtCount >= 16)
+                {
+                    double elapsed = arrivalMs - _rtAnchorMs;
+                    double measured = elapsed / _rtCount;
+                    if (measured >= 7.0 && measured <= 14.0)
+                    {
+                        _rtPeriodMs = _rtHavePeriod ? (0.8 * _rtPeriodMs + 0.2 * measured) : measured;
+                        _rtHavePeriod = true;
+                    }
+                    _rtAnchorMs = arrivalMs;
+                    _rtCount = 0;
+                }
+                else if (_rtAnchorMs <= 0.0)
+                {
+                    _rtAnchorMs = arrivalMs;
+                    _rtCount = 0;
+                }
+
+                // [V75] Realign clock on burst start: the burst packets were captured during the 25ms silence
+                if (arrivalMs - _rtClockMs < 20.0)
+                {
+                    _rtClockMs = arrivalMs - 25.0;
+                }
+            }
+            _rtCount++;
+
+            // Advance capture clock by the sensor period T for each report
+            _rtClockMs += _rtPeriodMs;
+
+            // Causality clamp: sample cannot arrive before it was captured
+            if (_rtClockMs > arrivalMs)
+            {
+                _rtClockMs = arrivalMs;
+            }
+
+            // Phase / Drift lock: ensure clock never lags arrival by more than a burst window
+            double maxLag = Math.Max(40.0, _rtPeriodMs * 4.0);
+            if (arrivalMs - _rtClockMs > maxLag)
+            {
+                _rtClockMs = arrivalMs - 25.0;
+            }
+
+            _rtLastArrivalMs = arrivalMs;
+            return _rtClockMs;
+        }
+
+        /// <summary>
         /// EN: Virtual Polling (Hypersampling) callback.
         /// FR: Callback de Polling Virtuel (Hypersampling).
         /// Sends predicted positions between hardware reports to increase perceived polling rate.
         /// </summary>
         private void OnVirtualPollingTick()
         {
-            if (!Options.Instance.EnableVirtualPolling || _mode == WiiMoteMode.Disabled) return;
-            if (!_lastMoveCursor_Raw) return;
-
-            // [FIX V23b] Allow prediction at ANY rate > 0 (previously short-circuited at <= 110).
-            // With the V2 TR streaming at ~83Hz, a rate of 100 makes the prediction FILL the 12ms gaps
-            // between real reports without upsampling beyond the native rate.
-            // FR: Autoriser la prédiction à TOUT taux > 0 (précédemment court-circuitée à <= 110).
-            // Avec la V2 TR qui stream à ~83Hz, un taux de 100 fait combler par la prédiction les gaps
-            // de 12ms entre rapports réels sans dépasser le taux natif.
-            // [V28] Rate is resolved per Wiimote model (V2 TR column in options).
-            // (EN/FR: Le taux est résolu selon le modèle de Wiimote.)
+            if (!Options.Instance.EnableVirtualPolling) return;
+            if (_mode == WiiMoteMode.Disabled || !_lastMoveCursor_Raw) return;
             if (ActiveVirtualPollingRate <= 0) return;
+            // [V83-UMDF2-VERIFY] EN: The polling timer starts at wiimote connect, but
+            //     _virtualMouse is only created after the (possibly slow) UMDF2 device
+            //     activation roundtrip - skip ticks until then, else NullReferenceException.
+            //     FR: Le timer de polling démarre à la connexion wiimote, mais
+            //     _virtualMouse n'est créé qu'après le roundtrip (parfois lent) d'activation
+            //     du device UMDF2 - ignorer les ticks d'ici là, sinon NullReferenceException.
+            if (_virtualMouse == null) return;
 
             DateTime now = GetNow();
+            double nowMs = Stopwatch.GetTimestamp() * 1000.0 / Stopwatch.Frequency;
             double msSinceLastAny = (now - _lastAnyReportTime).TotalMilliseconds;
-
             double targetIntervalMs = 1000.0 / Math.Max(1, ActiveVirtualPollingRate);
 
-            // Rate limiting: keep the output on the configured uniform grid.
-            // (EN/FR: Limitation de débit : garder la sortie sur la grille uniforme configurée.)
-            if (msSinceLastAny >= 0 && msSinceLastAny < (targetIntervalMs * 0.85)) return;
-
-            double nowMs = Stopwatch.GetTimestamp() * 1000.0 / Stopwatch.Frequency;
-
-            // [FIX V25] If burst cycles stopped recurring, drop the retiming mode.
-            // (EN/FR: Si les cycles de salves ne se reproduisent plus, abandonner le re-chronométrage.)
             if (_burstPeriodEmaMs > 0.0 && _lastBurstBoundaryMs >= 0.0 && nowMs - _lastBurstBoundaryMs > 500.0)
                 _burstPeriodEmaMs = 0.0;
+
+            bool replayMode = _burstPeriodEmaMs > 0.0 && _burstPeriodEmaMs < 100.0;
+            // In replay mode, the MultimediaTimer already drives the uniform tick interval.
+            // Only apply gating in fallback mode to prevent duplicate emissions.
+            if (!replayMode)
+            {
+                if (msSinceLastAny >= 0 && msSinceLastAny < (targetIntervalMs * 0.85)) return;
+            }
 
             int outX = 0, outY = 0;
             bool havePosition = false;
 
-            // [FIX V25] Retiming path: replay the buffered real positions, interpolated at
-            // (now - replayDelay). Converts 2-4 report batches every ~30-40ms into a perfectly
-            // uniform output stream at the configured rate. Only engages when burst cycles
-            // are actually recurring (measured period 20-100ms), i.e. on affected links.
-            // FR: Chemin de re-chronométrage : rejouer les positions réelles du tampon, interpolées
-            // à (now - délai). Convertit les salves de 2-4 rapports tous les ~30-40ms en flux de
-            // sortie parfaitement uniforme au taux configuré. Ne s'active que si des cycles de
-            // salves se reproduisent réellement (période mesurée 20-100ms).
             if (_burstPeriodEmaMs > 0.0 && _burstPeriodEmaMs < 100.0)
             {
                 double targetMs = nowMs - _replayDelayMs;
                 lock (_replayLock)
                 {
                     int n = _replayTimeMs.Count;
-                    if (n >= 2 && nowMs - _replayTimeMs[n - 1] < 80.0)
+                    if (n >= 2 && nowMs - _replayTimeMs[n - 1] < 150.0)
                     {
                         if (targetMs <= _replayTimeMs[0])
                         {
                             outX = _replayX[0];
                             outY = _replayY[0];
+                            havePosition = true;
+                        }
+                        else if (targetMs >= _replayTimeMs[n - 1])
+                        {
+                            // [V75-UMDF2-REUSE-ET-FLUIDITE-V2]
+                            // Hold the newest known sample cleanly without forward extrapolation overshoot.
+                            // Pure C0 continuity: never catapult the cursor forward into empty space during Bluetooth silence.
+                            outX = _replayX[n - 1];
+                            outY = _replayY[n - 1];
                             havePosition = true;
                         }
                         else
@@ -5368,25 +5513,11 @@ namespace WiimoteGun
 
             if (!havePosition)
             {
-                // Fallback: plain velocity extrapolation (V23a behavior), used while the
-                // burst period is not yet measured or on links without burst aggregation.
-                // (EN/FR: Repli : extrapolation de vélocité simple (V23a), utilisée tant que la
-                // période des salves n'est pas mesurée ou sur les liens sans agrégation.)
+                // Fallback: plain velocity extrapolation (V23a behavior)
                 double msSinceLastReal = (now - _lastProcessingTime).TotalMilliseconds;
                 if (!(msSinceLastReal > 1.0 && msSinceLastReal < 20.0)) return;
 
-                // [FIX V23a] Scale the prediction by the MEASURED average report interval instead of a
-                // hardcoded 10ms. V2 TR Wiimotes stream at ~83Hz (12ms gaps), so the old /10.0 factor
-                // overshot every tick by ~20% and made stuttering worse at 110-300Hz.
-                // FR: Calibrer la prédiction sur l'intervalle moyen MESURÉ au lieu d'un 10ms codé en dur.
-                // Les Wiimotes V2 TR streament à ~83Hz (gaps de 12ms), donc l'ancien facteur /10.0
-                // dépassait chaque tick de ~20% et aggravait le bégaiement à 110-300Hz.
                 float frameFactor = (float)(msSinceLastReal / Math.Max(1.0, _avgReportIntervalMs));
-
-                // [FIX V23a] Use an EMA-smoothed velocity for prediction: the raw per-report IR delta is
-                // noisy and made the predicted position oscillate ahead/back of the real one.
-                // FR: Utiliser une vélocité lissée EMA pour la prédiction : le delta IR brut par rapport
-                // est bruité et faisait osciller la position prédite devant/derrière la position réelle.
                 _smoothPredVelX = (0.5f * _lastVelX_Diag) + (0.5f * _smoothPredVelX);
                 _smoothPredVelY = (0.5f * _lastVelY_Diag) + (0.5f * _smoothPredVelY);
 
@@ -5397,9 +5528,7 @@ namespace WiimoteGun
             outX = Math.Max(0, Math.Min(65535, outX));
             outY = Math.Max(0, Math.Min(65535, outY));
 
-            // [DIAG] Output-side rate: what the cursor ACTUALLY receives after V25 retiming.
-            // (EN/FR: Taux côté sortie : ce que le curseur reçoit RÉELLEMENT après le
-            // re-chronométrage V25. replay% élevé + Hz réguliers = de-jitter engagé.)
+            // [DIAG] Output-side rate: what the cursor ACTUALLY receives
             _diagOutEmissions++;
             if (havePosition && _burstPeriodEmaMs > 0.0 && _burstPeriodEmaMs < 100.0) _diagOutReplay++;
             else _diagOutFallback++;
@@ -5410,8 +5539,8 @@ namespace WiimoteGun
                 long total = _diagOutReplay + _diagOutFallback;
                 int replayPct = total > 0 ? (int)(_diagOutReplay * 100 / total) : 0;
                 SimpleLogger.Instance.Info(string.Format(
-                    "[P{0}] [DIAG] Output: {1:F0} Hz, replay: {2}%, delay: {3:F0}ms, burstEMA: {4:F0}ms",
-                    PlayerIndex, outRate, replayPct, _replayDelayMs, _burstPeriodEmaMs));
+                    "[P{0}] [DIAG] Output: {1:F0} Hz, replay: {2}%, delay: {3:F0}ms, burstEMA: {4:F0}ms, sensorT: {5:F1}ms",
+                    PlayerIndex, outRate, replayPct, _replayDelayMs, _burstPeriodEmaMs, _rtPeriodMs));
                 _diagOutEmissions = 0;
                 _diagOutReplay = 0;
                 _diagOutFallback = 0;
@@ -5420,6 +5549,7 @@ namespace WiimoteGun
 
             _virtualMouse.UpdateMouse(outX, outY, _lastLeft_Raw, _lastRight_Raw, _lastMiddle_Raw, true);
             _lastAnyReportTime = now;
+            _lastTickMs = nowMs;
         }
     }
 

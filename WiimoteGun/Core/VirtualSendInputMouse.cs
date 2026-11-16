@@ -79,7 +79,7 @@ namespace WiimoteGun
                     sendInputFlags |= MOUSEEVENTF_MOVE;
                     if (isAbsolute)
                     {
-                        sendInputFlags |= MOUSEEVENTF_ABSOLUTE;
+                        sendInputFlags |= MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
                     }
                     needsUpdate = true;
                 }

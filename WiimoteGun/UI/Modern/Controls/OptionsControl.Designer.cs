@@ -1,4 +1,4 @@
-﻿namespace WiimoteGun.Controls
+namespace WiimoteGun.Controls
 {
     partial class OptionsControl
     {
@@ -31,7 +31,6 @@
             this.btnBack = new System.Windows.Forms.Button();
             this.tabsOptions = new System.Windows.Forms.TabControl();
             this.tabGeneral = new System.Windows.Forms.TabPage();
-            this.optUseHighPerfTimers = new System.Windows.Forms.CheckBox();
             this.optEnableHomographyCache = new System.Windows.Forms.CheckBox();
             this.optEnableDistanceCompensation = new System.Windows.Forms.CheckBox();
             this.optIRSmoothingStrength = new System.Windows.Forms.NumericUpDown();
@@ -358,7 +357,6 @@
             this.tabGeneral.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(20)))), ((int)(((byte)(20)))));
             this.tabGeneral.Controls.Add(this.optEnableFPSMode);
             this.tabGeneral.Controls.Add(this.lblHelpPersistentGamePads);
-            this.tabGeneral.Controls.Add(this.optUseHighPerfTimers);
             this.tabGeneral.Controls.Add(this.optEnableHomographyCache);
             this.tabGeneral.Controls.Add(this.optEnableDistanceCompensation);
             this.tabGeneral.Controls.Add(this.optIRSmoothingStrength);
@@ -411,17 +409,6 @@
             this.tabGeneral.Size = new System.Drawing.Size(392, 678);
             this.tabGeneral.TabIndex = 0;
             this.tabGeneral.Text = "General";
-            // 
-            // optUseHighPerfTimers
-            // 
-            this.optUseHighPerfTimers.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.optUseHighPerfTimers.ForeColor = System.Drawing.Color.White;
-            this.optUseHighPerfTimers.Location = new System.Drawing.Point(20, 488);
-            this.optUseHighPerfTimers.Name = "optUseHighPerfTimers";
-            this.optUseHighPerfTimers.Size = new System.Drawing.Size(250, 25);
-            this.optUseHighPerfTimers.TabIndex = 8;
-            this.optUseHighPerfTimers.Text = "High Performance Timers";
-            this.optUseHighPerfTimers.UseVisualStyleBackColor = true;
             // 
             // optEnableHomographyCache
             // 
@@ -543,6 +530,7 @@
             this.optEnableVirtualPolling.TabIndex = 12;
             this.optEnableVirtualPolling.Text = "Enable Virtual Polling (Upsampling)";
             this.optEnableVirtualPolling.UseVisualStyleBackColor = true;
+
             // 
             // lblVirtualPollingRate
             // 
@@ -2383,7 +2371,6 @@
         private System.Windows.Forms.CheckBox optEnableIRSmoothing;
         private System.Windows.Forms.Label lblIRSmoothingStrength;
         private System.Windows.Forms.NumericUpDown optIRSmoothingStrength;
-        private System.Windows.Forms.CheckBox optUseHighPerfTimers;
         private System.Windows.Forms.CheckBox optEnableHomographyCache;
         private System.Windows.Forms.CheckBox optEnableDistanceCompensation;
         private System.Windows.Forms.CheckBox optUseIRExtrapolation;

@@ -390,9 +390,8 @@ namespace WiimoteGun
 
                 // IR Tracking Optimizations (EN/FR: Optimisations tracking IR)
                 EnableIRSmoothing = false;
-                IRSmoothingStrength = 5;
-                IRSmoothingStrengthV2 = 2;
-                UseHighPerfTimers = false;
+                IRSmoothingStrength = 1;
+                IRSmoothingStrengthV2 = 1;
                 EnableHomographyCache = false;
                 UseIRExtrapolation = false;
                 IRExtrapolationStrength = 0.5f;
@@ -400,8 +399,8 @@ namespace WiimoteGun
                 EnableDistanceCompensation = false;
 
                 EnableVirtualPolling = false;
-                VirtualPollingRate = 250;
-                VirtualPollingRateV2 = 250;
+                VirtualPollingRate = 500;
+                VirtualPollingRateV2 = 500;
 
                 DefaultMouseMode = MouseMode.RawInput;
                 UiScalePercent = 100; // [V57n]
@@ -1503,6 +1502,7 @@ namespace WiimoteGun
         // No DefaultValue to force serialization in XML for migration (EN/FR: Pas de DefaultValue pour forcer la sérialisation XML)
         public bool DisableMotionPlusAndAccelerometer { get; set; }
 
+
         // EN: One-time migration version stamp introduced in v2.3.5.26.
         // Null/empty = migration not yet done (old config). "2.3.5.26" = migration done, never auto-modify again.
         // This replaces the former MpDisableMigratedToV2326 bool (kept in XML for compat but ignored).
@@ -1659,16 +1659,13 @@ namespace WiimoteGun
         [DefaultValue(false)]
         public bool EnableIRSmoothing { get; set; }
 
-        [DefaultValue(5)]
+        [DefaultValue(1)]
         public int IRSmoothingStrength { get; set; } // 0=off, 1=minimal, 10=heavy (EN/FR: 0=désactivé, 1=minimal, 10=fort)
 
         // [V2 Model] Per-Wiimote-model settings: V2 = Wiimote Plus RVL-CNT-01-TR (MP Inside)
         // (EN/FR: Réglages par modèle de Wiimote : V2 = Wiimote Plus RVL-CNT-01-TR)
-        [DefaultValue(2)]
+        [DefaultValue(1)]
         public int IRSmoothingStrengthV2 { get; set; } // V2 TR only, 0=off (EN/FR: uniquement V2 TR, 0=désactivé)
-
-        [DefaultValue(false)]
-        public bool UseHighPerfTimers { get; set; }
 
         [DefaultValue(false)]
         public bool EnableHomographyCache { get; set; } // Cache static homography matrix (EN/FR: Mise en cache matrice homographie statique)
@@ -1692,10 +1689,11 @@ namespace WiimoteGun
         [DefaultValue(false)]
         public bool EnableVirtualPolling { get; set; }
 
-        [DefaultValue(250)]
+
+        [DefaultValue(500)]
         public int VirtualPollingRate { get; set; } // 100-1000 Hz
 
-        [DefaultValue(250)]
+        [DefaultValue(500)]
         public int VirtualPollingRateV2 { get; set; } // V2 TR only, 0 = off (EN/FR: uniquement V2 TR, 0 = off)
 
         // Gesture & Reload Settings (EN/FR: Paramètres Gestes & Rechargement)

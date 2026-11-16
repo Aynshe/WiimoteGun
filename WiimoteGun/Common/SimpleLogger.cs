@@ -148,6 +148,24 @@ namespace WiimoteGun
 
         private object _lock = new object();
 
+        // [V70-BT-BURST] EN/FR: the writer used to OPEN + CLOSE the file on EVERY line, plus a
+        //     FileInfo stat for the rotation check. At logging level ALL (used for the timing
+        //     diagnostics) the library logs every HID read/write — hundreds of lines per second
+        //     — and those per-line file operations blocked the Wiimote read thread for up to 1
+        //     second (observed: Write Timeouts + a 1036 ms gap in the diagnostics).
+        //     Now: ONE persistent buffered StreamWriter, rotation checked only when flushing.
+        //     FR: l'écrivain OUVAIT + FERMAIT le fichier à CHAQUE ligne, plus un stat FileInfo
+        //     pour la rotation. Au niveau de log ALL (utilisé pour les diagnostics de timings),
+        //     la bibliothèque journalise chaque lecture/écriture HID — des centaines de lignes
+        //     par seconde — et ces opérations bloquaient le thread de lecture jusqu'à 1 s
+        //     (constaté : Write Timeouts + un trou de 1036 ms dans les diagnostics).
+        //     Maintenant : UN StreamWriter tamponné persistant, rotation vérifiée au flush seul.
+        private StreamWriter _writer;
+        private int _linesSinceFlush;
+        private DateTime _lastFlushUtc = DateTime.MinValue;
+        private const int FlushEveryLines = 200;
+        private const int FlushEveryMs = 250;
+
         private void CheckRotation()
         {
             try
@@ -164,6 +182,16 @@ namespace WiimoteGun
                                 File.Delete(prevLog);
 
                             File.Move(logFilename, prevLog);
+
+                            // EN/FR: recreate the writer on the fresh file (the current handle
+                            // points to the renamed .old inode).
+                            // (FR: recréer l'écrivain sur le nouveau fichier — le handle courant
+                            //  pointe sur l'inode .old renommé.)
+                            if (_writer != null)
+                            {
+                                try { _writer.Dispose(); } catch { }
+                                _writer = null;
+                            }
                         }
                         catch { }
                     }
@@ -174,21 +202,55 @@ namespace WiimoteGun
 
         private void WriteLine(string text, bool append = true)
         {
+            if (string.IsNullOrEmpty(text)) return;
             lock (_lock)
             {
                 try
                 {
-                    System.Diagnostics.Debug.WriteLine(text);
-
-                    CheckRotation();
-
-                    using (System.IO.StreamWriter writer = new System.IO.StreamWriter(logFilename, append, System.Text.Encoding.UTF8))
+                    if (_writer == null)
                     {
-                        if (!string.IsNullOrEmpty(text))
-                        {
-                            writer.WriteLine(text);
-                        }
+                        CheckRotation();
+                        _writer = new System.IO.StreamWriter(logFilename, append, System.Text.Encoding.UTF8, 65536);
                     }
+
+                    System.Diagnostics.Debug.WriteLine(text);
+                    _writer.WriteLine(text);
+                    _linesSinceFlush++;
+
+                    bool important = text.IndexOf("[WARNING]", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                     text.IndexOf("[ERROR]", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                     text.IndexOf("[FATAL]", StringComparison.OrdinalIgnoreCase) >= 0;
+                    bool timeToFlush = (DateTime.UtcNow - _lastFlushUtc).TotalMilliseconds >= FlushEveryMs;
+
+                    if (important || _linesSinceFlush >= FlushEveryLines || timeToFlush)
+                    {
+                        _writer.Flush();
+                        _linesSinceFlush = 0;
+                        _lastFlushUtc = DateTime.UtcNow;
+                        CheckRotation();
+                    }
+                }
+                catch { }
+            }
+        }
+
+        /// <summary>
+        /// EN: flush + close the log file (call at app exit so the last lines are not lost).
+        /// FR: vide + ferme le fichier de log (appeler à la fermeture pour ne pas perdre la fin).
+        /// </summary>
+        public void FlushAndClose()
+        {
+            lock (_lock)
+            {
+                try
+                {
+                    if (_writer != null)
+                    {
+                        _writer.Flush();
+                        _writer.Dispose();
+                        _writer = null;
+                    }
+                    _linesSinceFlush = 0;
                 }
                 catch { }
             }
